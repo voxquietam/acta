@@ -1,10 +1,12 @@
 from django.contrib import admin
 
+from unfold.admin import ModelAdmin
+
 from .models import Label, LabelGroup
 
 
 @admin.register(LabelGroup)
-class LabelGroupAdmin(admin.ModelAdmin):
+class LabelGroupAdmin(ModelAdmin):
     list_display = [
         "name",
         "workspace",
@@ -24,7 +26,7 @@ class LabelGroupAdmin(admin.ModelAdmin):
 
 
 @admin.register(Label)
-class LabelAdmin(admin.ModelAdmin):
+class LabelAdmin(ModelAdmin):
     list_display = [
         "name",
         "workspace",

@@ -1,10 +1,12 @@
 from django.contrib import admin
 
+from unfold.admin import ModelAdmin
+
 from .models import Project, ProjectUpdate
 
 
 @admin.register(Project)
-class ProjectAdmin(admin.ModelAdmin):
+class ProjectAdmin(ModelAdmin):
     list_display = [
         "slug_prefix",
         "name",
@@ -30,7 +32,7 @@ class ProjectAdmin(admin.ModelAdmin):
 
 
 @admin.register(ProjectUpdate)
-class ProjectUpdateAdmin(admin.ModelAdmin):
+class ProjectUpdateAdmin(ModelAdmin):
     list_display = [
         "project",
         "health",

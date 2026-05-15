@@ -3,6 +3,7 @@ Base settings shared between dev and prod.
 
 Environment-specific overrides live in dev.py and prod.py.
 """
+
 import os
 from pathlib import Path
 
@@ -31,6 +32,11 @@ ASGI_APPLICATION = "acta.asgi.application"
 # -----------------------------------------------------------------------------
 
 DJANGO_APPS = [
+    # django-unfold replaces the look of django.contrib.admin and MUST be
+    # listed before it so its templates take precedence.
+    "unfold",
+    "unfold.contrib.filters",
+    "unfold.contrib.forms",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -173,3 +179,32 @@ USE_TZ = True
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "static_collected"
 STATICFILES_DIRS = [BASE_DIR / "static"]
+
+
+# -----------------------------------------------------------------------------
+# django-unfold (admin theme)
+# -----------------------------------------------------------------------------
+
+UNFOLD = {
+    "SITE_TITLE": "Acta",
+    "SITE_HEADER": "Acta",
+    "SITE_SUBHEADER": "task tracker · admin",
+    "SITE_URL": "/",
+    "SHOW_HISTORY": True,
+    "SHOW_VIEW_ON_SITE": False,
+    "COLORS": {
+        "primary": {
+            "50": "250 245 255",
+            "100": "243 232 255",
+            "200": "233 213 255",
+            "300": "216 180 254",
+            "400": "192 132 252",
+            "500": "168 85 247",
+            "600": "147 51 234",
+            "700": "126 34 206",
+            "800": "107 33 168",
+            "900": "88 28 135",
+            "950": "59 7 100",
+        },
+    },
+}

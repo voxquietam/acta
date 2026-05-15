@@ -1,9 +1,11 @@
 from django.contrib import admin
 
+from unfold.admin import ModelAdmin, TabularInline
+
 from .models import Workspace, WorkspaceMember
 
 
-class WorkspaceMemberInline(admin.TabularInline):
+class WorkspaceMemberInline(TabularInline):
     model = WorkspaceMember
     extra = 0
     autocomplete_fields = [
@@ -12,7 +14,7 @@ class WorkspaceMemberInline(admin.TabularInline):
 
 
 @admin.register(Workspace)
-class WorkspaceAdmin(admin.ModelAdmin):
+class WorkspaceAdmin(ModelAdmin):
     list_display = [
         "name",
         "slug",
@@ -32,7 +34,7 @@ class WorkspaceAdmin(admin.ModelAdmin):
 
 
 @admin.register(WorkspaceMember)
-class WorkspaceMemberAdmin(admin.ModelAdmin):
+class WorkspaceMemberAdmin(ModelAdmin):
     list_display = [
         "user",
         "workspace",
