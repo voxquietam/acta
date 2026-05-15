@@ -236,11 +236,31 @@ Hooks run automatically on `git commit`. To run manually across the repo:
 pre-commit run --all-files
 ```
 
+## Testing Rules
+
+### Run tests when you touch logic
+
+When you modify any code that has business behavior (models, services,
+serializers, views, bulk operations, activity events), you **must**
+run the related tests before declaring the change done. If no test
+exists for the logic you changed, **write one** in the same pass.
+
+- Run via `docker compose exec web pytest <path>` — targeted, not the
+  full suite, unless the change is cross-cutting.
+- If a test fails, fix the test only if the new behavior is correct
+  and intentional; otherwise fix the code.
+- New test files live in `apps/<app>/tests/test_*.py`; factories in
+  `apps/<app>/tests/factories.py`.
+
+This is a hard rule. Skipping it leaks regressions into the killer
+features (bulk operations, activity log, query counts).
+
 ## Process Rules
 
 ### Don't run on the user's behalf without permission
 
-- **Never run tests** without an explicit request.
+- **Tests**: ok to run when you've touched related logic (see above).
+  Don't run the full suite without an explicit request.
 - **Never `git commit` or `git push`** without an explicit request.
 - **Never run destructive commands** (`docker compose down -v`,
   `rm -rf`, `git reset --hard`) without an explicit request.
@@ -249,6 +269,57 @@ pre-commit run --all-files
 
 - `ls`, `grep`, `find`, reading files, inspecting git status / log /
   diff — these are free actions.
+
+### Commit message style
+
+When the user asks to commit, use **Conventional Commits**:
+
+```
+<type>(<scope>): <subject>
+```
+
+**`<scope>` is mandatory on every commit** — never write `test:` /
+`fix:` without a scope. If the change is genuinely cross-cutting use
+a synthetic scope: `suite`, `repo`, `infra`.
+
+Examples:
+
+```
+feat(tasks): add bulk PATCH endpoint with cascade subtask move
+fix(activity): preserve actor on user delete via SET_NULL
+refactor(bulk): replace per-task save loop with QuerySet.update
+docs(adr): record i18n decisions in 0018
+test(events): cover diff emission for every watched field
+chore(deps): bump pytest-django to 4.9
+```
+
+Rules:
+
+- **Subject line ≤ 80 characters**, lowercase, imperative ("add",
+  "fix", "refactor", not "added" / "adds").
+- Use a body only when *why* needs explaining beyond the subject;
+  wrap the body at 80 chars too.
+- **Never add a `Co-Authored-By: Claude …` trailer.** The user
+  explicitly does not want it.
+- Common `<type>`: `feat`, `fix`, `refactor`, `perf`, `docs`, `test`,
+  `chore`, `style` (formatting only), `build` (deps / Dockerfile),
+  `ci`. `<scope>` is the affected app or area (`tasks`, `bulk`,
+  `activity`, `i18n`, `admin`, `deps`, `workspaces`, `projects`,
+  `comments`, `labels`, `accounts`, `web`, `adr`).
+- Prefer small focused commits that touch one concern. If a single
+  commit message can't fit in 80 chars, the change is probably two
+  commits.
+
+### Always preview before committing
+
+Before running `git commit`, print to the user:
+
+1. The list of files about to be staged (e.g. `git status -s` output).
+2. The proposed commit message exactly as it will be passed to `-m`.
+
+Wait for explicit "ок" / "commit" / "go" before running the actual
+commit. This applies to every commit, no exceptions, even when the
+user already said "commit it" — the message itself still needs review.
 
 ## Architecture Anchors
 
