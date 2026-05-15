@@ -13,6 +13,9 @@ ADR format: **Context → Options → Decision → Why → Consequences**.
 | 0004 | accepted | Task statuses: fixed set of 5, CharField in DB         | [0004-statuses.md](decisions/0004-statuses.md)    |
 | 0005 | accepted | Search: ILIKE + field filters; FTS later               | [0005-search.md](decisions/0005-search.md)        |
 | 0006 | accepted | MVP scope: what's in, what's out                       | [0006-mvp-scope.md](decisions/0006-mvp-scope.md)  |
+| 0007 | accepted | Data model: Task and Project fields, numbering, delete | [0007-data-model-task-project.md](decisions/0007-data-model-task-project.md) |
+| 0008 | accepted | Labels with optional groups (Linear-style)             | [0008-labels.md](decisions/0008-labels.md)        |
+| 0009 | accepted | Project Updates (Linear-style status posts)            | [0009-project-updates.md](decisions/0009-project-updates.md) |
 
 ## Spec (filled in as decisions land)
 

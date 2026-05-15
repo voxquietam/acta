@@ -18,7 +18,8 @@ Acta is a 3–4 week vibe-coding sprint, built alongside an existing job (`ksu24
 - **Views:** Kanban (5 columns based on fixed statuses) and table view.
 - **Comments:** Markdown, attached to tasks.
 - **Activity log:** auto-tracked via Django signals on Task and related models. Stored with JSONB payload for flexibility.
-- **Labels:** per-workspace (or per-project — to be decided in `spec/data-model.md`).
+- **Labels:** workspace-scoped, optionally grouped (Linear-style). See [0008](0008-labels.md).
+- **Project Updates:** Linear-style manual status posts per project, with health indicator. See [0009](0009-project-updates.md).
 - **Search & filters:** ILIKE + structured filters (see [0005](0005-search.md)).
 - **Bulk operations:** the killer differentiator vs Kaneo. Exact endpoint list to be specified in `spec/bulk-operations.md`. At minimum: bulk update status, bulk assign, bulk add/remove label, bulk move to project, bulk delete.
 
