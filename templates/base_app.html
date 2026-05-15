@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% comment %}
+Shared shell for all authenticated pages: top bar + sidebar + main content.
+Pages extend this and override the `app_main` block.
+{% endcomment %}
+
+{% block body %}
+<div class="flex min-h-screen">
+
+  {# ---------- Sidebar ---------- #}
+  <aside class="hidden md:flex md:flex-col w-64 shrink-0 bg-zinc-900 border-r border-zinc-800">
+    <a href="{% url 'web:dashboard' %}" class="px-5 py-4 flex items-center gap-2 border-b border-zinc-800">
+      <span class="text-lg font-semibold tracking-tight">Acta</span>
+      <span class="text-[10px] uppercase tracking-wider text-zinc-500">task tracker</span>
+    </a>
+
+    <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-6 text-sm">
+      {% for ws in nav_workspaces %}
+      <div>
+        <div class="px-2 mb-1 flex items-center justify-between text-xs uppercase tracking-wider text-zinc-500">
+          <span class="truncate">{{ ws.name }}</span>
+        </div>
+        <ul class="space-y-0.5">
+          {% for project in ws.projects.all %}
+          {% if not project.archived %}
+          <li>
+            <a href="#"
+               class="block px-2 py-1.5 rounded-md text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100">
+              <span class="font-mono text-xs text-zinc-500 mr-1.5">{{ project.slug_prefix }}</span>{{ project.name }}
+            </a>
+          </li>
+          {% endif %}
+          {% empty %}
+          <li class="px-2 py-1 text-xs text-zinc-600 italic">no projects yet</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% empty %}
+      <p class="px-2 text-xs text-zinc-500">no workspaces yet</p>
+      {% endfor %}
+    </nav>
+
+    <div class="px-3 py-3 border-t border-zinc-800 text-xs text-zinc-500">
+      <a href="/admin/" class="hover:text-zinc-300">Admin</a>
+    </div>
+  </aside>
+
+  {# ---------- Main column ---------- #}
+  <div class="flex-1 flex flex-col min-w-0">
+
+    {# ---------- Top bar ---------- #}
+    <header class="h-14 shrink-0 flex items-center justify-between px-4 md:px-6 border-b border-zinc-800 bg-zinc-950/70 backdrop-blur sticky top-0 z-10">
+      <div class="flex items-center gap-3">
+        {% block topbar_left %}{% endblock %}
+      </div>
+
+      <div class="flex items-center gap-3">
+        {% if user.is_authenticated %}
+        <div x-data="{ open: false }" class="relative">
+          <button @click="open = !open"
+                  class="flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-zinc-800">
+            <span class="w-7 h-7 rounded-full bg-brand-600 text-white text-xs grid place-items-center font-medium">
+              {{ user.username|slice:":1"|upper }}
+            </span>
+            <span class="text-sm">{{ user.username }}</span>
+          </button>
+          <div x-show="open" @click.outside="open = false" x-cloak
+               class="absolute right-0 mt-2 w-44 bg-zinc-900 border border-zinc-800 rounded-md shadow-lg overflow-hidden">
+            <a href="/admin/" class="block px-3 py-2 text-sm hover:bg-zinc-800">Admin</a>
+            <form method="post" action="{% url 'account_logout' %}">
+              {% csrf_token %}
+              <button class="w-full text-left px-3 py-2 text-sm hover:bg-zinc-800" type="submit">Log out</button>
+            </form>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </header>
+
+    {# ---------- Page content ---------- #}
+    <main class="flex-1 overflow-y-auto px-4 md:px-8 py-6">
+      {% block app_main %}{% endblock %}
+    </main>
+  </div>
+</div>
+
+<style>
+  [x-cloak] { display: none !important; }
+</style>
+{% endblock %}
