@@ -4,6 +4,12 @@
 django-debug-toolbar>=4.4
 ipython>=8
 
+# Testing
+pytest>=8
+pytest-django>=4.9
+factory-boy>=3.3
+Faker>=24
+
 # Formatting / linting — versions matched to ksu24.back for consistency
 black==24.8.0
 isort==5.13.2

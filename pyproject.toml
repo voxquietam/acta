@@ -36,3 +36,16 @@ skip_glob = ["**/migrations/*", ".venv/*"]
 known_django = ["django"]
 known_first_party = ["acta", "apps"]
 sections = ["FUTURE", "STDLIB", "DJANGO", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "acta.settings.dev"
+pythonpath = ["."]
+testpaths = ["apps"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--reuse-db",
+    "-v",
+]
