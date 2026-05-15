@@ -28,7 +28,7 @@ to the equally-colored status badge).
   <div x-show="open"
        @click.outside="open = false"
        x-cloak
-       class="absolute left-0 mt-1 w-44 bg-zinc-900 border border-zinc-800 rounded-lg shadow-lg overflow-hidden z-20">
+       class="absolute right-0 mt-1 w-44 bg-zinc-900 border border-zinc-800 rounded-lg shadow-lg overflow-hidden z-20">
     {% for priority_key, priority_label in priority_labels.items %}
     <form method="post"
           hx-post="{% url 'web:set_task_priority' slug_prefix=task.project.slug_prefix number=task.number %}"

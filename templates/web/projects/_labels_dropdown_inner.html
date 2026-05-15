@@ -1,0 +1,32 @@
+{% load i18n %}
+{% comment %}
+Inner rows of the labels dropdown — one per workspace label, each a
+single-toggle HTMX form. Rendered as a standalone partial so the
+toggle endpoint can re-render *just* this slice via ``hx-swap-oob`` to
+refresh the ✓ marks while keeping the outer dropdown wrapper alive
+(so Alpine state — open flag, search query, focus — survives).
+
+Each row's primary target is ``#labels-trigger-inner`` (the chips),
+not the whole cell.
+{% endcomment %}
+<div id="labels-dropdown-inner"{% if oob %} hx-swap-oob="true"{% endif %} class="max-h-64 overflow-y-auto">
+  {% for label in workspace_labels %}
+  <form hx-post="{% url 'web:toggle_task_label' slug_prefix=task.project.slug_prefix number=task.number %}"
+        hx-target="#labels-trigger-inner"
+        hx-swap="outerHTML"
+        x-show="matches('{{ label.name|escapejs }}')">
+    {% csrf_token %}
+    <input type="hidden" name="label_id" value="{{ label.id }}">
+    <button type="submit"
+            class="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-800 flex items-center gap-2 text-zinc-300">
+      <span class="w-2 h-2 rounded-full" style="background-color: {{ label.color }};"></span>
+      <span class="flex-1">{{ label.name }}</span>
+      {% if label.id in attached_label_ids %}<span class="text-zinc-500">✓</span>{% endif %}
+    </button>
+  </form>
+  {% empty %}
+  <div class="px-3 py-4 text-xs text-zinc-500 italic text-center">
+    {% trans "No labels in this workspace yet." %}
+  </div>
+  {% endfor %}
+</div>

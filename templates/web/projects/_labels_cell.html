@@ -1,0 +1,65 @@
+{% load i18n %}
+{% comment %}
+Labels cell — click on the chip row (or the dashed "+" placeholder when
+empty) to open a dropdown listing every workspace label. Each row in
+the dropdown is a single-label HTMX form that toggles attachment.
+
+Multi-select pattern: the toggle endpoint swaps only the trigger
+contents (``#labels-trigger-inner``) and OOB-refreshes just the
+dropdown rows (``#labels-dropdown-inner``). The outer cell with its
+Alpine ``{open, q, ...}`` state stays mounted, so consecutive clicks
+keep the dropdown open and the search box keeps focus + its current
+query.
+
+Dropdown direction flips upward when the cell sits near the bottom of
+the viewport (under ~360px of space below), because the rail's
+``overflow-y-auto`` clips fixed-direction popovers at the bottom edge.
+
+Includes a client-side search input filtering labels by name
+substring (same UX as the assignee picker). Empty trigger uses a
+dashed-circle placeholder + muted text matching the unassigned
+assignee treatment.
+{% endcomment %}
+<div id="labels-cell"
+     x-data="{
+       open: false,
+       dropUp: false,
+       q: '',
+       matches(name) {
+         return name.toLowerCase().includes(this.q.toLowerCase());
+       },
+       togglePicker() {
+         if (!this.open) {
+           const rect = this.$el.getBoundingClientRect();
+           this.dropUp = (window.innerHeight - rect.bottom) < 360;
+         }
+         this.open = !this.open;
+       },
+     }"
+     class="relative">
+
+  <button type="button"
+          @click="togglePicker()"
+          class="text-left cursor-pointer w-full">
+    {% include "web/projects/_labels_trigger.html" %}
+  </button>
+
+  <div x-show="open"
+       @click.outside="open = false"
+       x-effect="if (open) $nextTick(() => $refs.search.focus())"
+       x-cloak
+       :class="dropUp ? 'bottom-full mb-1' : 'top-full mt-1'"
+       class="absolute left-0 w-60 bg-zinc-900 border border-zinc-800 rounded-lg shadow-lg overflow-hidden z-20">
+
+    <div class="p-2 border-b border-zinc-800">
+      <input x-ref="search"
+             x-model="q"
+             @keydown.escape.prevent="open = false"
+             type="text"
+             placeholder="{% trans 'Search labels…' %}"
+             class="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-brand-500">
+    </div>
+
+    {% include "web/projects/_labels_dropdown_inner.html" %}
+  </div>
+</div>

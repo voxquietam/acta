@@ -19,6 +19,7 @@ from django.views.generic import DetailView, ListView, TemplateView
 from apps.activity.models import ActivityLog
 from apps.activity.services import log_event
 from apps.comments.models import Comment
+from apps.labels.models import Label
 from apps.projects.models import Project, ProjectUpdate
 from apps.tasks.events import emit_task_diff_events, snapshot_task
 from apps.tasks.models import Task
@@ -204,6 +205,8 @@ class TaskDetailView(LoginRequiredMixin, DetailView):
         ctx["status_labels"] = Task.STATUS_LABELS
         ctx["priority_labels"] = dict(Task.PRIORITY_CHOICES)
         ctx["workspace_members"] = _workspace_members(task)
+        ctx["workspace_labels"] = _workspace_labels(task)
+        ctx["attached_label_ids"] = set(task.labels.values_list("id", flat=True))
         return ctx
 
 
@@ -239,19 +242,29 @@ def _task_activity(task, limit=25):
         .order_by("-created_at")[:limit],
     )
     user_ids = set()
+    label_ids = set()
     for e in events:
         if e.event_type == "task.assigned" and e.payload:
             for key in ("from_user_id", "to_user_id"):
                 uid = e.payload.get(key)
                 if uid is not None:
                     user_ids.add(uid)
+        elif e.event_type == "task.labels_changed" and e.payload:
+            for key in ("added_ids", "removed_ids"):
+                label_ids.update(e.payload.get(key) or [])
     usernames = {}
     if user_ids:
         usernames = dict(User.objects.filter(id__in=user_ids).values_list("id", "username"))
+    label_names = {}
+    if label_ids:
+        label_names = dict(Label.objects.filter(id__in=label_ids).values_list("id", "name"))
     for e in events:
         if e.event_type == "task.assigned" and e.payload:
             e.assigned_from_username = usernames.get(e.payload.get("from_user_id"))
             e.assigned_to_username = usernames.get(e.payload.get("to_user_id"))
+        elif e.event_type == "task.labels_changed" and e.payload:
+            e.added_label_names = [label_names.get(lid, f"#{lid}") for lid in (e.payload.get("added_ids") or [])]
+            e.removed_label_names = [label_names.get(lid, f"#{lid}") for lid in (e.payload.get("removed_ids") or [])]
     return events
 
 
@@ -272,6 +285,20 @@ def _workspace_members(task):
         .select_related("user")
         .order_by("user__username")
     )
+
+
+def _workspace_labels(task):
+    """Return the workspace's labels ordered by name.
+
+    Used by the labels picker to populate its dropdown.
+
+    Args:
+        task: The :class:`Task` whose workspace's labels to fetch.
+
+    Returns:
+        A queryset of :class:`Label` rows.
+    """
+    return Label.objects.filter(workspace=task.project.workspace).order_by("name")
 
 
 def _inline_edit_response(request, task, primary_template, primary_context):
@@ -397,6 +424,79 @@ def set_task_priority(request, slug_prefix, number):
             "priority_labels": dict(Task.PRIORITY_CHOICES),
         },
     )
+
+
+@require_POST
+def toggle_task_label(request, slug_prefix, number):
+    """Atomically attach or detach a single label on the task.
+
+    The label must belong to the task's workspace — cross-workspace
+    ids are rejected with 400. The operation is run inside a
+    transaction so the resulting ``task.labels_changed`` activity
+    event commits together with the M2M write.
+
+    Args:
+        request: Django request carrying a ``label_id`` form field.
+        slug_prefix: Project slug prefix from the URL.
+        number: Task number within the project.
+
+    Returns:
+        Rendered ``_labels_cell.html`` with the updated task.
+    """
+    from django.db import transaction
+
+    if not request.user.is_authenticated:
+        return HttpResponseBadRequest("auth required")
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    raw = (request.POST.get("label_id") or "").strip()
+    try:
+        label_id = int(raw)
+    except (TypeError, ValueError):
+        return HttpResponseBadRequest("invalid label_id")
+    label = Label.objects.filter(
+        workspace=task.project.workspace,
+        id=label_id,
+    ).first()
+    if label is None:
+        return HttpResponseBadRequest("label not in this workspace")
+    with transaction.atomic():
+        old = snapshot_task(task)
+        if task.labels.filter(id=label.id).exists():
+            task.labels.remove(label)
+        else:
+            task.labels.add(label)
+        emit_task_diff_events(old_state=old, task=task, actor=request.user)
+    ctx = {
+        "task": task,
+        "workspace_labels": _workspace_labels(task),
+        "attached_label_ids": set(task.labels.values_list("id", flat=True)),
+    }
+    # Primary swap: the trigger contents (chips or placeholder). Keeping
+    # the outer #labels-cell intact preserves the Alpine state — the
+    # dropdown stays open, the search box stays focused with its query,
+    # so consecutive label toggles work without reopening the picker.
+    trigger_html = render_to_string(
+        "web/projects/_labels_trigger.html",
+        ctx,
+        request=request,
+    )
+    # OOB: dropdown rows, so the ✓ marks update alongside the chips.
+    dropdown_html = render_to_string(
+        "web/projects/_labels_dropdown_inner.html",
+        {**ctx, "oob": True},
+        request=request,
+    )
+    # OOB: activity timeline.
+    activity_html = render_to_string(
+        "web/projects/_activity_oob.html",
+        {
+            "activity": _task_activity(task),
+            "status_labels": Task.STATUS_LABELS,
+            "priority_labels": dict(Task.PRIORITY_CHOICES),
+        },
+        request=request,
+    )
+    return HttpResponse(trigger_html + dropdown_html + activity_html)
 
 
 @require_POST

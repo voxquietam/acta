@@ -36,6 +36,12 @@ history beyond the loaded slice would land on a dedicated page later.
             →
             {{ event.assigned_to_username|default:"unassigned" }}
           </span>
+        {% elif event.event_type == "task.labels_changed" %}
+          <span class="text-zinc-500">
+            {% if event.added_label_names %}+{{ event.added_label_names|join:", " }}{% endif %}
+            {% if event.added_label_names and event.removed_label_names %} · {% endif %}
+            {% if event.removed_label_names %}−{{ event.removed_label_names|join:", " }}{% endif %}
+          </span>
         {% endif %}
       </div>
       <div class="text-[10px] text-zinc-600">{{ event.created_at|date:"M j, H:i" }}</div>

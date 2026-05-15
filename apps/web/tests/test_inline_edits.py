@@ -13,6 +13,7 @@ import pytest
 from apps.accounts.tests.factories import UserFactory
 from apps.activity.models import ActivityLog
 from apps.comments.models import Comment
+from apps.labels.tests.factories import LabelFactory
 from apps.projects.tests.factories import ProjectFactory
 from apps.tasks.models import Task
 from apps.tasks.tests.factories import TaskFactory
@@ -318,6 +319,104 @@ class TestSetTaskAssignee:
                 },
             ),
             {"assignee_id": foreign_ws.owner.id},
+        )
+        assert resp.status_code == 404
+
+
+@pytest.mark.django_db
+class TestToggleTaskLabel:
+    """``POST /projects/<slug>/<number>/labels/toggle/`` attaches/detaches."""
+
+    def _url(self, project, task):
+        return reverse(
+            "web:toggle_task_label",
+            kwargs={"slug_prefix": project.slug_prefix, "number": task.number},
+        )
+
+    def test_attach_new_label(self, client, setup):
+        user, project, task = setup
+        label = LabelFactory(workspace=project.workspace)
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"label_id": label.id})
+        assert resp.status_code == 200
+        assert list(task.labels.values_list("id", flat=True)) == [label.id]
+        events = ActivityLog.objects.filter(target_id=task.id, event_type="task.labels_changed")
+        assert events.count() == 1
+        assert events.get().payload == {"added_ids": [label.id], "removed_ids": []}
+
+    def test_detach_existing_label(self, client, setup):
+        user, project, task = setup
+        label = LabelFactory(workspace=project.workspace)
+        task.labels.add(label)
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"label_id": label.id})
+        assert resp.status_code == 200
+        assert task.labels.count() == 0
+        events = ActivityLog.objects.filter(target_id=task.id, event_type="task.labels_changed")
+        assert events.get().payload == {"added_ids": [], "removed_ids": [label.id]}
+
+    def test_attach_second_label_keeps_first(self, client, setup):
+        user, project, task = setup
+        first = LabelFactory(workspace=project.workspace)
+        second = LabelFactory(workspace=project.workspace)
+        task.labels.add(first)
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"label_id": second.id})
+        assert resp.status_code == 200
+        assert set(task.labels.values_list("id", flat=True)) == {first.id, second.id}
+
+    def test_foreign_workspace_label_returns_400(self, client, setup):
+        user, project, task = setup
+        foreign_ws = WorkspaceFactory()
+        foreign_label = LabelFactory(workspace=foreign_ws)
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"label_id": foreign_label.id})
+        assert resp.status_code == 400
+        assert task.labels.count() == 0
+
+    def test_nonexistent_label_returns_400(self, client, setup):
+        user, project, task = setup
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"label_id": "999999"})
+        assert resp.status_code == 400
+
+    def test_non_int_returns_400(self, client, setup):
+        user, project, task = setup
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"label_id": "abc"})
+        assert resp.status_code == 400
+
+    def test_response_fragment_with_oob_activity(self, client, setup):
+        user, project, task = setup
+        label = LabelFactory(workspace=project.workspace, name="backend")
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"label_id": label.id})
+        body = resp.content.decode()
+        assert "<html" not in body
+        # Primary swap target: the trigger inner content, NOT the whole
+        # cell (so the outer Alpine wrapper survives consecutive clicks).
+        assert 'id="labels-trigger-inner"' in body
+        # OOB: dropdown rows refresh ✓ marks, and the activity timeline.
+        assert 'id="labels-dropdown-inner"' in body
+        assert "hx-swap-oob" in body
+        assert "backend" in body
+
+    def test_cross_workspace_task_returns_404(self, client, setup):
+        user, _, _ = setup
+        foreign_ws = WorkspaceFactory()
+        foreign_project = ProjectFactory(workspace=foreign_ws)
+        foreign_task = TaskFactory(project=foreign_project, reporter=foreign_ws.owner)
+        foreign_label = LabelFactory(workspace=foreign_ws)
+        client.force_login(user)
+        resp = client.post(
+            reverse(
+                "web:toggle_task_label",
+                kwargs={
+                    "slug_prefix": foreign_project.slug_prefix,
+                    "number": foreign_task.number,
+                },
+            ),
+            {"label_id": foreign_label.id},
         )
         assert resp.status_code == 404
 
