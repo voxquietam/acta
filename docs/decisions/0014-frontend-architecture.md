@@ -2,86 +2,92 @@
 
 **Status:** accepted
 **Date:** 2026-05-15
+**Note:** First version of this ADR specified pure vanilla JS. Updated on the same day after MVP scope was widened to include real-time kanban, dashboards, and notifications — see [0006](0006-mvp-scope.md). The new requirements changed the cost calculus for vanilla JS, and HTMX + Alpine became the better fit.
 
 ## Context
 
-[0001](0001-stack.md) committed to HTML + Tailwind + vanilla JS with no build step, mirroring the `ksu24.back` setup. This ADR pins down the open details: page architecture, Tailwind delivery, markdown rendering, theming.
+[0001](0001-stack.md) committed to HTML + Tailwind + no-build-step frontend, but left the JS approach open. The first version of this ADR picked pure vanilla JS, on the assumption that MVP interactivity would be limited to inline edits and form-style updates.
+
+Subsequent scope expansion added:
+
+- **Real-time kanban** — task cards move on every connected client without a page refresh.
+- **Dashboards** — charts, correlations, statistics across tasks and projects.
+- **Notifications** — in-app toasts when something relevant happens to the user.
+
+These features pushed the interactivity ceiling well past what vanilla JS can carry without becoming a mess. The natural next step is either (a) a full SPA in React/Next.js or (b) a server-rendered stack augmented with HTMX, Alpine, and a charting lib. Option (b) preserves the no-build-step ethos and the Django-native mental model while supporting the new requirements.
 
 ## Decisions
 
-### Page architecture — server-rendered with vanilla JS interactivity
+### Page architecture — server-rendered, no full SPA
 
 - Pages are rendered server-side by Django templates. URL → view → context → template → HTML.
-- Each top-level surface is its own page:
+- Top-level surfaces are real pages with real URLs:
   - `/login/`
-  - `/` — workspace dashboard / recent activity feed
+  - `/` — workspace dashboard (overview + recent activity)
   - `/projects/`
-  - `/projects/{slug_prefix}/` — project page (kanban + table tabs)
+  - `/projects/{slug_prefix}/` — project page with kanban/table tabs and project dashboard
   - `/projects/{slug_prefix}/{number}/` — task detail
   - `/activity/` — workspace-wide activity feed
-  - `/members/` — workspace members (admin)
+  - `/members/`
   - `/settings/`
-- Inside a page, vanilla JS handles inline interactions: label picker dropdown, bulk-select toolbar, status quick-change, inline comment posting, due date picker. JS calls the JSON API (`/api/v1/...`) directly and updates the DOM.
-- No SPA, no client-side router, no history API manipulation beyond the browser's native behavior.
+  - `/me/` — "my work" personal dashboard
+- Inside a page, **HTMX** drives partial fragment updates (no full reload). The server returns small HTML snippets which HTMX swaps into the DOM.
 
-### JavaScript approach
+### Interactivity stack
 
-- **Pure vanilla JS.** `fetch()`, `document.querySelector`, event delegation. No React, Vue, Svelte, Alpine, or HTMX.
-- One global utility module (`static/js/acta.js`) for shared concerns: CSRF token retrieval, JSON fetch wrapper, toast notifications, modal helpers.
-- Per-page JS lives in `static/js/pages/{page}.js` and is included only on pages that need it.
-- Third-party JS allowed when it's a small, focused, no-dep library — e.g. `sortable.js` for drag-drop kanban (post-MVP).
+- **HTMX** for server-driven partial updates and SSE subscription. Loaded from CDN.
+- **Alpine.js** for client-side local state (dropdowns open/closed, draft form validation, toast lifecycle). Loaded from CDN.
+- **Chart.js** for dashboards and analytics. Loaded from CDN.
+- **`sortable.js`** for drag-and-drop kanban (no deps; HTMX wires the drop event to a `PATCH` request).
+- Pure-vanilla JS for the small handful of cross-cutting helpers (CSRF retrieval, custom event dispatch, toast factory). One file: `static/js/acta.js`.
+
+No build step. No npm. No bundler. No node_modules. Four `<script>` tags in the base template.
+
+### Real-time — SSE via HTMX SSE extension
+
+- Server-Sent Events stream pushes events from Django to every connected client. See [0015](0015-real-time.md) for the full design.
+- HTMX's `hx-ext="sse"` plus `sse-swap` attributes mean a kanban card auto-updates without a single line of custom JS: the server pushes new HTML for the card, HTMX swaps it.
+- Toasts for personal notifications are delivered via the same stream and surfaced by an Alpine component listening to a custom event.
 
 ### Tailwind delivery — Play CDN
 
-- `<script src="https://cdn.tailwindcss.com"></script>` in the base template. No npm, no PostCSS, no build step.
-- Tailwind config (theme extensions, dark mode strategy) goes inline in the base template via the Play CDN config script.
-- Trade-off accepted: slower first paint, ~300 KB of Tailwind runtime per pageview. Acceptable for an internal tool with caching.
-- Switch to the standalone Tailwind CLI (single binary, compiles CSS to `static/css/acta.css`) if (a) perf becomes a real complaint, or (b) we deploy to a network where the CDN is blocked. Migration is mechanical: swap the `<script>` for a `<link>` and run the binary.
+Unchanged from the first version of this ADR. `<script src="https://cdn.tailwindcss.com"></script>`. Tailwind config inline in base template. Switch to standalone CLI later if perf becomes a real complaint.
 
 ### Markdown rendering — server-side
 
-- Markdown source is stored in the model (`Task.description`, `Comment.body`, `ProjectUpdate.body`).
-- Rendered HTML is computed in the serializer/view layer using:
-  - **`markdown`** library (or `markdown-it-py`) for HTML generation. Final pick during implementation; both are pure Python and well-maintained.
-  - **`bleach`** for sanitization with a whitelist of safe tags/attributes.
-- API responses include both fields where applicable:
-  ```json
-  { "description": "...raw markdown...", "description_html": "<p>...</p>" }
-  ```
-- The frontend renders `description_html` directly (it's already sanitized) and uses `description` for edit forms.
-- Rendering is cheap enough to do per request in MVP; if it becomes a bottleneck, cache the HTML in a DB column on save.
+Unchanged from the first version. `markdown` + `bleach` on the backend. API and template context include `description_html` rendered and sanitized; templates inject it directly. Edit forms use the raw `description`.
 
 ### Theme — dark default with toggle
 
-- Dark theme is the default. Light theme is opt-in via a setting on the user profile.
-- Tailwind's `dark:` variant is used everywhere (Tailwind `darkMode: 'class'`); the `<html>` element gets `class="dark"` or no class based on the user's setting, set server-side in the base template.
-- An unauthenticated user (login page) sees dark theme.
-- No system-preference auto-switch in MVP; opinionated default reduces config surface.
+Unchanged from the first version. Tailwind `darkMode: 'class'`. Class on `<html>` set server-side from the user's preference. Login page sees dark. No auto system-preference matching in MVP.
 
 ### Accessibility baseline
 
-- Semantic HTML (`<button>` not `<div onclick>`).
-- Keyboard navigation for kanban and task lists (arrow keys to move between cards) — nice-to-have, not required for MVP.
-- Color contrast: rely on Tailwind's default palette in both light and dark; no hand-picked colors that fail WCAG AA.
+- Semantic HTML (`<button>`, not `<div onclick>`).
+- HTMX preserves focus and ARIA attributes on swaps when the target is configured correctly.
+- Color contrast: rely on Tailwind palette in both themes.
+- Keyboard navigation for kanban is post-MVP polish.
 
 ## Why
 
-- **Server-rendered pages** with vanilla JS interactivity is the same pattern Vox already runs in `ksu24.back` (~8000 lines, working). Zero learning cost, zero build cost, fast iteration.
-- **No HTMX**, even though it would be a fit, because it's a new dependency and a new mental model to learn during a time-boxed MVP. Pure vanilla wins on "I know exactly what this code does."
-- **Play CDN** for Tailwind is the cheapest path to a working UI. No npm dependency for a Python project.
-- **Server-side markdown** is the secure default — sanitization on the server, no client-side XSS risk, no need for DOMPurify, smaller JS bundle.
-- **Dark default** matches the developer-tool aesthetic and is what most modern trackers (Linear, Vercel, GitHub-in-dark) start with.
+- **HTMX + server-rendered fragments** gives 80% of an SPA's UX with 20% of the cost. No JSON serializer roundtrips, no client-side state machine, no compiled bundle — but also no full page reloads.
+- **Alpine.js** is the smallest viable "useState for HTML" library (~15 KB). It covers the few cases where pure HTMX would feel awkward (toast animations, modal open/close, draft validation feedback).
+- **Chart.js** has the cleanest declarative API for the chart types we need (bar, line, doughnut) and works fine with a single `<canvas>` plus a JSON data block.
+- **No build step** preserves the original "one process, Django everywhere" property and matches what Vox already runs in `ksu24.back`. The cost of `npm install`, bundler config, and a separate dev server is not worth paying for the marginal UX gain over HTMX.
+- **HTMX SSE extension** turns real-time kanban into a feature with almost no JS authoring — the heaviest lifting is on the server (which has to actually emit events; see [0015](0015-real-time.md)).
+- Earlier rejection of HTMX in this same ADR was tied to a narrower scope. The scope changed; the answer changes.
 
 ## Consequences
 
-- Real-time updates (someone else moves a card → you see it instantly) require either polling or post-MVP SSE/WebSocket. Polling on the activity feed every 30s is acceptable; out-of-MVP for kanban.
-- The Play CDN tag means `cdn.tailwindcss.com` must be reachable from end-user browsers. If the deployment ever sits behind a firewall, switch to the standalone CLI (one-day migration).
-- Vanilla JS means more imperative DOM code than HTMX or a framework would need. Mitigated by keeping interactions small and per-page modules thin.
-- Server-side markdown rendering requires a sanitizer dependency (`bleach`) and a small allowlist of HTML tags. Documented in `spec/markdown.md` (TBD).
-- Light/dark toggle requires storing the preference somewhere. Default: `User.preferences` JSONField or a separate `UserPreference` model with theme + locale. To be decided during accounts app design.
+- HTMX patterns are a new mental model: the server is the source of HTML truth, not just JSON. There's a learning curve of a day or two.
+- Two extra CDN dependencies (HTMX, Alpine) in addition to Tailwind. If any CDN is blocked, fallback is to self-host the JS files — one-line change in the base template.
+- Real-time kanban requires a stable SSE infrastructure on the server side. ASGI deployment (e.g. Daphne or Uvicorn behind nginx/Caddy) instead of WSGI-only Gunicorn — see [0015](0015-real-time.md).
+- Chart.js is loaded on every page that has a dashboard. Lazy-load via inline `<script>` only on the relevant pages.
+- Drag-and-drop kanban is now in MVP scope (was out previously). `sortable.js` plus HTMX `PATCH` handler — about a day of work.
+- Per-page JS modules under `static/js/pages/{page}.js` are still allowed for page-specific glue logic, but should stay small. Anything growing past ~200 lines should be re-examined: probably should be an HTMX fragment endpoint instead.
 
 ## Open Questions
 
-- Whether to use `markdown` (older, simpler) or `markdown-it-py` (more modern, better extension support). Decide at implementation time based on which has cleaner integration with `bleach` allowlists.
-- Whether mentions (`@username`) inside comments and task descriptions are MVP scope — currently no, but the markdown pipeline should be designed so adding mentions later is a serializer extension, not a frontend rewrite.
-- Whether to ship a minimal CSS file alongside the Tailwind CDN for app-specific tweaks (utility classes Tailwind doesn't cover) — likely yes, a single small `acta.css` in `static/css/`.
+- Whether to use `markdown` (older, simpler) or `markdown-it-py` (more modern). Same as before — pick at implementation time.
+- Whether some screens (e.g. the kanban) eventually warrant an Alpine-driven "client state" model in addition to HTMX. Default is no — prefer HTMX server fragments. Revisit case-by-case.
+- Whether to keep Chart.js or evaluate ApexCharts / lightweight-charts when dashboard design firms up. Defer; Chart.js is the safe default to start.

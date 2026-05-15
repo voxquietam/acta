@@ -19,11 +19,11 @@ Within Django, **DRF** vs **Django Ninja** was considered. Ninja is newer (Pydan
 
 ## Decision
 
-- **Backend:** Django 5 + Django REST Framework
-- **Database:** PostgreSQL (containerized)
-- **Frontend:** Django templates + Tailwind CSS + vanilla JS (no React, no build step)
-- **Deployment:** Docker Compose (separate stack on the server, sitting next to Kaneo)
-- **Auth:** see [0002-auth.md](0002-auth.md)
+- **Backend:** Django 5 + Django REST Framework, running on **ASGI** (Uvicorn).
+- **Database:** PostgreSQL (containerized).
+- **Frontend:** Django templates + Tailwind CSS + HTMX + Alpine.js + Chart.js + `sortable.js` (no React, no build step). See [0014](0014-frontend-architecture.md).
+- **Deployment:** Docker Compose (separate stack on the server, sitting next to Kaneo). Uvicorn behind Caddy or nginx; **never sync WSGI Gunicorn** — would break SSE per [0015](0015-real-time.md).
+- **Auth:** see [0002-auth.md](0002-auth.md).
 
 ## Why
 
@@ -34,7 +34,7 @@ Within Django, **DRF** vs **Django Ninja** was considered. Ninja is newer (Pydan
 
 ## Consequences
 
-- Async work (background jobs, heavy reports) — handled later via Celery/RQ; DRF is not async-first. Not needed for MVP.
-- Real-time updates (WebSocket/SSE) — out of MVP scope (see [0006-mvp-scope.md](0006-mvp-scope.md)).
-- Rewriting to an async-first stack later would be non-trivial, but is not on the roadmap.
-- A build-less frontend means no React/Vue/Svelte components. Drag-and-drop kanban will use `sortable.js` (vanilla) post-MVP.
+- Async background work (Celery/RQ) — not needed for MVP. ASGI handles long-lived SSE connections in-process; CPU-bound batch jobs are deferred.
+- Real-time updates (SSE) are in MVP scope and require the ASGI deployment — see [0015](0015-real-time.md).
+- ASGI is a deliberate departure from `ksu24.back`'s WSGI Gunicorn setup. Django 5 supports sync views unchanged under ASGI (auto-wrapped by `sync_to_async`), so application code style is unaffected.
+- A build-less frontend means no React/Vue/Svelte components. Drag-and-drop kanban uses `sortable.js` (vanilla, no deps) wired through HTMX — already in MVP.

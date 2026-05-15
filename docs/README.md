@@ -20,7 +20,10 @@ ADR format: **Context → Options → Decision → Why → Consequences**.
 | 0011 | accepted | Activity Log: explicit logging, honest actor, anti-Kaneo rules | [0011-activity-log.md](decisions/0011-activity-log.md) |
 | 0012 | accepted | Bulk operations: single PATCH endpoint, all-or-nothing       | [0012-bulk-operations.md](decisions/0012-bulk-operations.md) |
 | 0013 | accepted | API conventions: v1 prefix, snake_case, ISO 8601, session auth | [0013-api-conventions.md](decisions/0013-api-conventions.md) |
-| 0014 | accepted | Frontend: server-rendered + vanilla JS, Tailwind CDN, dark default | [0014-frontend-architecture.md](decisions/0014-frontend-architecture.md) |
+| 0014 | accepted | Frontend: server-rendered + HTMX + Alpine + Chart.js, no build step | [0014-frontend-architecture.md](decisions/0014-frontend-architecture.md) |
+| 0015 | accepted | Real-time updates via SSE (`django-eventstream`), one stream per workspace | [0015-real-time.md](decisions/0015-real-time.md) |
+| 0016 | accepted | Dashboards: live ORM queries, Chart.js, fixed time windows         | [0016-dashboards.md](decisions/0016-dashboards.md) |
+| 0017 | accepted | Notifications: in-app toasts over SSE, no inbox in MVP             | [0017-notifications.md](decisions/0017-notifications.md) |
 
 ## Spec (filled in as decisions land)
 
