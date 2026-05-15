@@ -39,6 +39,12 @@ env/
 ENV/
 .python-version
 
+# ---- uv ----
+# uv.lock is uv's lockfile. Source of truth for deps currently lives in
+# requirements/*.txt, so the lockfile derived from an empty pyproject.toml
+# is noise. Re-include this file when we migrate deps into pyproject.toml.
+uv.lock
+
 # ---- Django ----
 *.log
 local_settings.py
