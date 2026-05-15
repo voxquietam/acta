@@ -1,15 +1,20 @@
+from django.conf import settings
 from django.contrib.auth.models import AbstractUser
+from django.db import models
 
 
 class User(AbstractUser):
     """Custom user model.
 
-    Empty extension of :class:`AbstractUser` so future fields (theme
-    preference, display-name overrides, etc.) can be added without a
-    destructive migration. Declared from day one is the recommended
-    Django practice; see docs/decisions/0002-auth.md and
-    docs/decisions/0014-frontend-architecture.md for the upcoming theme
-    preference field.
+    Extension of :class:`AbstractUser` declared from day one so future
+    fields (theme preference, display-name overrides) can be added
+    without a destructive migration. Currently carries a per-user UI
+    language preference; see docs/decisions/0018-i18n.md.
     """
 
-    pass
+    language = models.CharField(
+        max_length=8,
+        blank=True,
+        choices=settings.LANGUAGES,
+        help_text="Preferred UI language. Overrides browser cookie and Accept-Language",
+    )
