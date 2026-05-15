@@ -13,6 +13,13 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Keep some breathing room when the browser auto-scrolls a focused
+   input (e.g. a growing comment textarea) into view, so the form never
+   gets pinned flush against the viewport bottom edge. */
+main {
+  scroll-padding-bottom: 6rem;
+}
+
 /* GitHub-style task lists rendered by pymdownx.tasklist inside the
    markdown body. Typography plugin doesn't style these natively; tighten
    the layout so checkboxes sit on the same baseline as their text. */

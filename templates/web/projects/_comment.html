@@ -1,0 +1,23 @@
+{% load i18n %}
+{% load web_extras %}
+{% comment %}
+A single comment list item. Rendered both inside the comments list on
+the task page and as the HTMX append target when a new comment is
+posted from the inline form.
+{% endcomment %}
+<li class="bg-zinc-900 border border-zinc-800 rounded-lg p-3 max-w-3xl">
+  <div class="flex items-center gap-2 text-xs text-zinc-500 mb-1.5">
+    <span class="w-5 h-5 rounded-full bg-brand-600 text-white grid place-items-center font-medium text-[10px]">
+      {{ comment.author.username|slice:":1"|upper }}
+    </span>
+    <span class="text-zinc-300">{{ comment.author.username }}</span>
+    <span>·</span>
+    <span>{{ comment.created_at|date:"M j, H:i" }}</span>
+    {% if comment.updated_at != comment.created_at %}
+    <span class="italic">({% trans "edited" %})</span>
+    {% endif %}
+  </div>
+  <div class="prose prose-invert prose-sm max-w-none text-zinc-300">
+    {{ comment.body|markdown }}
+  </div>
+</li>

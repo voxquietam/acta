@@ -1,0 +1,40 @@
+{% load i18n %}
+{% load web_extras %}
+{% comment %}
+The list of recent activity events for a single task. Includes a
+"show more" toggle so long timelines stay collapsed by default; full
+history beyond the loaded slice would land on a dedicated page later.
+{% endcomment %}
+{% if activity %}
+<div x-data="{ open: false }">
+  <ul class="space-y-2">
+    {% for event in activity %}
+    <li class="text-xs text-zinc-400"
+        {% if forloop.counter > 5 %}x-show="open" x-cloak{% endif %}>
+      <div>
+        <span class="text-zinc-300">{{ event.actor.username|default:"system" }}</span>
+        <span class="text-zinc-500">{{ event.event_type|event_label }}</span>
+        {% if event.event_type == "task.status_changed" %}
+          <span class="text-zinc-500">
+            {{ event.payload.from|default:"—" }} → {{ event.payload.to|default:"—" }}
+          </span>
+        {% endif %}
+      </div>
+      <div class="text-[10px] text-zinc-600">{{ event.created_at|date:"M j, H:i" }}</div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% if activity|length > 5 %}
+  <button type="button"
+          @click="open = !open"
+          class="mt-2 text-[11px] text-zinc-500 hover:text-zinc-300">
+    <span x-show="!open">
+      {% blocktrans count counter=activity|length|add:"-5" %}Show {{ counter }} more{% plural %}Show {{ counter }} more{% endblocktrans %}
+    </span>
+    <span x-show="open" x-cloak>{% trans "Show less" %}</span>
+  </button>
+  {% endif %}
+</div>
+{% else %}
+<div class="text-xs text-zinc-600 italic">{% trans "No activity yet." %}</div>
+{% endif %}

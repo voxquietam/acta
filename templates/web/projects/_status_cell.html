@@ -1,0 +1,55 @@
+{% load i18n %}
+{% load web_extras %}
+{% comment %}
+Status badge with click-to-open Alpine dropdown. Each option is a tiny
+HTMX form that posts to set_task_status and swaps the cell with the
+freshly rendered fragment.
+
+Each dropdown row carries the same color treatment as the current-state
+badge — a colored dot plus matching text — so you can pick visually
+without parsing the labels.
+{% endcomment %}
+<div id="status-cell" x-data="{ open: false }" class="relative inline-block">
+  <button type="button"
+          @click="open = !open"
+          class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded cursor-pointer
+            {% if task.status == 'planned' %}bg-zinc-800 text-zinc-400 hover:bg-zinc-700
+            {% elif task.status == 'to-do' %}bg-blue-900 text-blue-300 hover:bg-blue-800
+            {% elif task.status == 'in-progress' %}bg-violet-900 text-violet-300 hover:bg-violet-800
+            {% elif task.status == 'in-review' %}bg-amber-900 text-amber-300 hover:bg-amber-800
+            {% elif task.status == 'done' %}bg-emerald-900 text-emerald-300 hover:bg-emerald-800{% endif %}">
+    {{ status_labels|get_item:task.status|default:task.status }}
+  </button>
+  <div x-show="open"
+       @click.outside="open = false"
+       x-cloak
+       class="absolute left-0 mt-1 w-44 bg-zinc-900 border border-zinc-800 rounded-md shadow-lg overflow-hidden z-20">
+    {% for status_key, status_label in status_labels.items %}
+    <form method="post"
+          hx-post="{% url 'web:set_task_status' slug_prefix=task.project.slug_prefix number=task.number %}"
+          hx-target="#status-cell"
+          hx-swap="outerHTML"
+          @htmx:after-request="open = false">
+      {% csrf_token %}
+      <input type="hidden" name="status" value="{{ status_key }}">
+      <button type="submit"
+              class="w-full text-left px-3 py-1.5 text-[11px] uppercase tracking-wider hover:bg-zinc-800 flex items-center gap-2
+                {% if status_key == 'planned' %}text-zinc-400
+                {% elif status_key == 'to-do' %}text-blue-300
+                {% elif status_key == 'in-progress' %}text-violet-300
+                {% elif status_key == 'in-review' %}text-amber-300
+                {% elif status_key == 'done' %}text-emerald-300{% endif %}
+                {% if status_key == task.status %}font-medium{% endif %}">
+        <span class="inline-block w-2 h-2 rounded-full
+          {% if status_key == 'planned' %}bg-zinc-500
+          {% elif status_key == 'to-do' %}bg-blue-500
+          {% elif status_key == 'in-progress' %}bg-violet-500
+          {% elif status_key == 'in-review' %}bg-amber-500
+          {% elif status_key == 'done' %}bg-emerald-500{% endif %}"></span>
+        <span class="flex-1">{{ status_label }}</span>
+        {% if status_key == task.status %}<span class="text-zinc-500">✓</span>{% endif %}
+      </button>
+    </form>
+    {% endfor %}
+  </div>
+</div>

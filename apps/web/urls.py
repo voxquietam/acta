@@ -1,6 +1,14 @@
 from django.urls import path
 
-from .views import DashboardView, ProjectDetailView, ProjectListView, TaskDetailView
+from .views import (
+    DashboardView,
+    ProjectDetailView,
+    ProjectListView,
+    TaskDetailView,
+    post_comment,
+    set_task_priority,
+    set_task_status,
+)
 
 app_name = "web"
 
@@ -12,5 +20,20 @@ urlpatterns = [
         "projects/<str:slug_prefix>/<int:number>/",
         TaskDetailView.as_view(),
         name="task_detail",
+    ),
+    path(
+        "projects/<str:slug_prefix>/<int:number>/status/",
+        set_task_status,
+        name="set_task_status",
+    ),
+    path(
+        "projects/<str:slug_prefix>/<int:number>/priority/",
+        set_task_priority,
+        name="set_task_priority",
+    ),
+    path(
+        "projects/<str:slug_prefix>/<int:number>/comments/",
+        post_comment,
+        name="post_comment",
     ),
 ]

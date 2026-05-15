@@ -1,0 +1,54 @@
+{% load i18n %}
+{% load web_extras %}
+{% comment %}
+Priority cell with the same click-to-edit pattern as the status cell.
+The leading colored dot makes the priority recognizable at a glance
+without relying on color alone (also helps when scanning the cell next
+to the equally-colored status badge).
+{% endcomment %}
+<div id="priority-cell" x-data="{ open: false }" class="relative inline-block">
+  <button type="button"
+          @click="open = !open"
+          class="text-xs cursor-pointer hover:text-zinc-100 flex items-center gap-1.5">
+    <span class="inline-block w-2 h-2 rounded-full
+      {% if task.priority == 1 %}bg-rose-500
+      {% elif task.priority == 2 %}bg-orange-500
+      {% elif task.priority == 3 %}bg-amber-500
+      {% elif task.priority == 4 %}bg-zinc-400
+      {% else %}bg-zinc-700{% endif %}"></span>
+    <span class="
+      {% if task.priority == 1 %}text-rose-400
+      {% elif task.priority == 2 %}text-orange-400
+      {% elif task.priority == 3 %}text-amber-400
+      {% elif task.priority == 4 %}text-zinc-400
+      {% else %}text-zinc-500{% endif %}">
+      {{ priority_labels|get_item:task.priority }}
+    </span>
+  </button>
+  <div x-show="open"
+       @click.outside="open = false"
+       x-cloak
+       class="absolute left-0 mt-1 w-44 bg-zinc-900 border border-zinc-800 rounded-md shadow-lg overflow-hidden z-20">
+    {% for priority_key, priority_label in priority_labels.items %}
+    <form method="post"
+          hx-post="{% url 'web:set_task_priority' slug_prefix=task.project.slug_prefix number=task.number %}"
+          hx-target="#priority-cell"
+          hx-swap="outerHTML"
+          @htmx:after-request="open = false">
+      {% csrf_token %}
+      <input type="hidden" name="priority" value="{{ priority_key }}">
+      <button type="submit"
+              class="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-800 flex items-center gap-1.5
+                {% if priority_key == task.priority %}text-brand-500{% else %}text-zinc-300{% endif %}">
+        <span class="inline-block w-2 h-2 rounded-full
+          {% if priority_key == 1 %}bg-rose-500
+          {% elif priority_key == 2 %}bg-orange-500
+          {% elif priority_key == 3 %}bg-amber-500
+          {% elif priority_key == 4 %}bg-zinc-400
+          {% else %}bg-zinc-700{% endif %}"></span>
+        {{ priority_label }}
+      </button>
+    </form>
+    {% endfor %}
+  </div>
+</div>

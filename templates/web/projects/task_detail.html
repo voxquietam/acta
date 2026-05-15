@@ -14,10 +14,20 @@
 {% endblock %}
 
 {% block app_main %}
-<div class="max-w-screen-xl mx-auto grid lg:grid-cols-[minmax(0,1fr)_22rem] gap-8 items-start">
+{% comment %}
+Two-column grid on xl+: description (1fr) and right rail (22rem). The
+description block uses ``max-w-3xl mx-auto`` so it sits centered inside
+its column — and with ``gap-0`` the empty space on each side of the
+description ends up symmetric: same distance from the app sidebar's
+right edge to the description as from the description to the rail's
+left edge. The rail's own panel padding provides the visual breathing
+room between the two. Single column on smaller screens (rail stacks
+below).
+{% endcomment %}
+<div class="xl:grid xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
 
-  {# --- Main column --- #}
-  <div class="space-y-6 min-w-0">
+  <div class="min-w-0">
+   <div class="max-w-3xl mx-auto w-full space-y-6">
 
     <div>
       <h2 class="text-2xl font-semibold leading-tight">{{ task.title }}</h2>
@@ -76,42 +86,29 @@
       <div class="text-xs uppercase tracking-wider text-zinc-500 mb-2">
         {% blocktrans count counter=comments|length %}{{ counter }} comment{% plural %}{{ counter }} comments{% endblocktrans %}
       </div>
-      {% if comments %}
-      <ul class="space-y-3 max-w-3xl">
+      <ul id="comment-list" class="space-y-3 max-w-3xl">
         {% for comment in comments %}
-        <li class="bg-zinc-900 border border-zinc-800 rounded-lg p-3">
-          <div class="flex items-center gap-2 text-xs text-zinc-500 mb-1.5">
-            <span class="w-5 h-5 rounded-full bg-brand-600 text-white grid place-items-center font-medium text-[10px]">
-              {{ comment.author.username|slice:":1"|upper }}
-            </span>
-            <span class="text-zinc-300">{{ comment.author.username }}</span>
-            <span>·</span>
-            <span>{{ comment.created_at|date:"M j, H:i" }}</span>
-            {% if comment.updated_at != comment.created_at %}
-            <span class="italic">({% trans "edited" %})</span>
-            {% endif %}
-          </div>
-          <div class="prose prose-invert prose-sm max-w-none text-zinc-300">
-            {{ comment.body|markdown }}
-          </div>
-        </li>
+        {% include "web/projects/_comment.html" with comment=comment %}
         {% endfor %}
       </ul>
-      {% else %}
-      <div class="text-sm text-zinc-600 italic">{% trans "No comments yet." %}</div>
+      {% if not comments %}
+      <div class="text-sm text-zinc-600 italic mt-2">{% trans "No comments yet." %}</div>
       {% endif %}
-      <div class="mt-3 text-xs text-zinc-600 italic">
-        {% trans "Inline comment posting lands in the next iteration." %}
+
+      <div class="mt-4">
+        {% include "web/projects/_comment_form.html" %}
       </div>
     </div>
+   </div>
   </div>
 
   {% comment %}
-  Right rail: sticky to viewport top so metadata is always visible.
-  Quick jumps to Description/Subtasks/Comments sit at the top of the rail
-  when the description is long enough to scroll past them.
+  Right rail: sits in the third grid column on xl+, so it hugs the
+  right edge of main while the middle column stays centered. Sticky to
+  viewport top so metadata is always visible. Stacks below on smaller
+  screens.
   {% endcomment %}
-  <aside class="lg:sticky lg:top-0 space-y-4 text-sm lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto lg:pb-4">
+  <aside class="mt-8 xl:mt-0 space-y-4 text-sm xl:sticky xl:top-0 xl:max-h-[calc(100vh-4rem)] xl:overflow-y-auto xl:pb-4">
 
     {# Jump links — visible only on lg+ where the rail is sticky #}
     <div class="hidden lg:flex flex-wrap gap-3 text-[11px] text-zinc-500">
@@ -131,21 +128,14 @@
       <div>
         <div class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Status" %}</div>
         <div class="mt-1">
-          <span class="text-xs px-1.5 py-0.5 rounded
-            {% if task.status == 'planned' %}bg-zinc-800 text-zinc-400
-            {% elif task.status == 'to-do' %}bg-blue-900 text-blue-300
-            {% elif task.status == 'in-progress' %}bg-violet-900 text-violet-300
-            {% elif task.status == 'in-review' %}bg-amber-900 text-amber-300
-            {% elif task.status == 'done' %}bg-emerald-900 text-emerald-300{% endif %}">
-            {{ status_labels|get_item:task.status|default:task.status }}
-          </span>
+          {% include "web/projects/_status_cell.html" %}
         </div>
       </div>
 
       <div>
         <div class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Priority" %}</div>
-        <div class="mt-1 text-zinc-300">
-          {{ priority_labels|get_item:task.priority }}
+        <div class="mt-1">
+          {% include "web/projects/_priority_cell.html" %}
         </div>
       </div>
 
@@ -207,29 +197,12 @@
       </div>
     </div>
 
-    {# Activity timeline #}
+    {# Activity timeline — re-rendered via OOB swap after inline edits. #}
     <div>
       <div class="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">{% trans "Activity" %}</div>
-      {% if activity %}
-      <ul class="space-y-2">
-        {% for event in activity %}
-        <li class="text-xs text-zinc-400">
-          <div>
-            <span class="text-zinc-300">{{ event.actor.username|default:"system" }}</span>
-            <span class="text-zinc-500">{{ event.event_type|event_label }}</span>
-            {% if event.event_type == "task.status_changed" %}
-              <span class="text-zinc-500">
-                {{ event.payload.from|default:"—" }} → {{ event.payload.to|default:"—" }}
-              </span>
-            {% endif %}
-          </div>
-          <div class="text-[10px] text-zinc-600">{{ event.created_at|date:"M j, H:i" }}</div>
-        </li>
-        {% endfor %}
-      </ul>
-      {% else %}
-      <div class="text-xs text-zinc-600 italic">{% trans "No activity yet." %}</div>
-      {% endif %}
+      <div id="activity-list">
+        {% include "web/projects/_activity_list.html" %}
+      </div>
     </div>
   </aside>
 

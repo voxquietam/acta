@@ -1,0 +1,8 @@
+{% comment %}
+HTMX out-of-band swap target. Inline-edit endpoints concatenate this
+fragment after their primary response so the activity timeline in the
+right rail updates without a separate request.
+{% endcomment %}
+<div id="activity-list" hx-swap-oob="true">
+  {% include "web/projects/_activity_list.html" %}
+</div>

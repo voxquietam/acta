@@ -27,7 +27,7 @@
              class="text-zinc-100 hover:text-brand-500">{{ task.title }}</a>
         </td>
         <td class="px-3 py-2">
-          <span class="text-xs px-1.5 py-0.5 rounded
+          <span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded
             {% if task.status == 'planned' %}bg-zinc-800 text-zinc-400
             {% elif task.status == 'to-do' %}bg-blue-900 text-blue-300
             {% elif task.status == 'in-progress' %}bg-violet-900 text-violet-300
