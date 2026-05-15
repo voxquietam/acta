@@ -16,6 +16,18 @@ history beyond the loaded slice would land on a dedicated page later.
         <span class="text-zinc-500">{{ event.event_type|event_label }}</span>
         {% if event.event_type == "task.status_changed" %}
           <span class="text-zinc-500">
+            {{ status_labels|get_item:event.payload.from|default:event.payload.from|default:"—" }}
+            →
+            {{ status_labels|get_item:event.payload.to|default:event.payload.to|default:"—" }}
+          </span>
+        {% elif event.event_type == "task.priority_changed" %}
+          <span class="text-zinc-500">
+            {{ priority_labels|get_item:event.payload.from|default:"—" }}
+            →
+            {{ priority_labels|get_item:event.payload.to|default:"—" }}
+          </span>
+        {% elif event.event_type == "task.due_changed" %}
+          <span class="text-zinc-500">
             {{ event.payload.from|default:"—" }} → {{ event.payload.to|default:"—" }}
           </span>
         {% endif %}

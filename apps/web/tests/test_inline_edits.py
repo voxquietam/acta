@@ -1,8 +1,10 @@
 """Inline-edit endpoints on the task detail page.
 
-Covers status quick-change, priority quick-change, and comment posting
-(:mod:`apps.web.views`).
+Covers status quick-change, priority quick-change, due-date setting,
+and comment posting (:mod:`apps.web.views`).
 """
+
+import datetime
 
 from django.urls import reverse
 
@@ -128,6 +130,89 @@ class TestSetTaskPriority:
         client.force_login(user)
         resp = client.post(self._url(project, task), {"priority": "abc"})
         assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+class TestSetTaskDueDate:
+    """``POST /projects/<slug>/<number>/due-date/`` updates the deadline."""
+
+    def _url(self, project, task):
+        return reverse(
+            "web:set_task_due_date",
+            kwargs={"slug_prefix": project.slug_prefix, "number": task.number},
+        )
+
+    def test_set_due_date_from_empty(self, client, setup):
+        user, project, task = setup
+        assert task.due_date is None
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"due_date": "2026-12-31"})
+        assert resp.status_code == 200
+        task.refresh_from_db()
+        assert task.due_date == datetime.date(2026, 12, 31)
+        events = ActivityLog.objects.filter(target_id=task.id, event_type="task.due_changed")
+        assert events.count() == 1
+        assert events.get().payload == {"from": None, "to": "2026-12-31"}
+
+    def test_update_existing_due_date(self, client, setup):
+        user, project, task = setup
+        task.due_date = datetime.date(2026, 1, 1)
+        task.save()
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"due_date": "2026-06-15"})
+        assert resp.status_code == 200
+        task.refresh_from_db()
+        assert task.due_date == datetime.date(2026, 6, 15)
+        events = ActivityLog.objects.filter(target_id=task.id, event_type="task.due_changed")
+        assert events.get().payload == {"from": "2026-01-01", "to": "2026-06-15"}
+
+    def test_clear_due_date(self, client, setup):
+        user, project, task = setup
+        task.due_date = datetime.date(2026, 1, 1)
+        task.save()
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"due_date": ""})
+        assert resp.status_code == 200
+        task.refresh_from_db()
+        assert task.due_date is None
+        events = ActivityLog.objects.filter(target_id=task.id, event_type="task.due_changed")
+        assert events.get().payload == {"from": "2026-01-01", "to": None}
+
+    def test_invalid_format_returns_400(self, client, setup):
+        user, project, task = setup
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"due_date": "31/12/2026"})
+        assert resp.status_code == 400
+        task.refresh_from_db()
+        assert task.due_date is None
+
+    def test_response_is_fragment_with_oob_activity(self, client, setup):
+        user, project, task = setup
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"due_date": "2026-12-31"})
+        body = resp.content.decode()
+        assert "<html" not in body
+        assert 'id="due-date-cell"' in body
+        # OOB activity swap is included.
+        assert "hx-swap-oob" in body
+
+    def test_cross_workspace_user_gets_404(self, client, setup):
+        user, _, _ = setup
+        foreign_ws = WorkspaceFactory()
+        foreign_project = ProjectFactory(workspace=foreign_ws)
+        foreign_task = TaskFactory(project=foreign_project, reporter=foreign_ws.owner)
+        client.force_login(user)
+        resp = client.post(
+            reverse(
+                "web:set_task_due_date",
+                kwargs={
+                    "slug_prefix": foreign_project.slug_prefix,
+                    "number": foreign_task.number,
+                },
+            ),
+            {"due_date": "2026-12-31"},
+        )
+        assert resp.status_code == 404
 
 
 @pytest.mark.django_db

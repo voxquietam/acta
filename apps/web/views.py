@@ -5,6 +5,8 @@ rendered Django templates; HTMX handles inline updates from the same
 endpoints (or from `/api/v1/...` for JSON-only consumers).
 """
 
+import datetime
+
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Count, OuterRef, Q, Subquery
 from django.http import HttpResponse, HttpResponseBadRequest
@@ -250,7 +252,11 @@ def _inline_edit_response(request, task, primary_template, primary_context):
     primary_html = render_to_string(primary_template, primary_context, request=request)
     activity_html = render_to_string(
         "web/projects/_activity_oob.html",
-        {"activity": _task_activity(task)},
+        {
+            "activity": _task_activity(task),
+            "status_labels": Task.STATUS_LABELS,
+            "priority_labels": dict(Task.PRIORITY_CHOICES),
+        },
         request=request,
     )
     return HttpResponse(primary_html + activity_html)
@@ -346,6 +352,43 @@ def set_task_priority(request, slug_prefix, number):
             "task": task,
             "priority_labels": dict(Task.PRIORITY_CHOICES),
         },
+    )
+
+
+@require_POST
+def set_task_due_date(request, slug_prefix, number):
+    """Inline due-date change; returns the due-date cell fragment.
+
+    Accepts an ISO-8601 date string (``YYYY-MM-DD``) in the ``due_date``
+    form field, or an empty value to clear the deadline. Invalid formats
+    are rejected with 400 — the picker only ever submits ISO dates, so
+    anything else is a hand-rolled request and not worth tolerating.
+
+    Args:
+        request: Django request carrying a ``due_date`` form field.
+        slug_prefix: Project slug prefix from the URL.
+        number: Task number within the project.
+
+    Returns:
+        Rendered ``_due_date_cell.html`` with the updated task.
+    """
+    if not request.user.is_authenticated:
+        return HttpResponseBadRequest("auth required")
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    raw = (request.POST.get("due_date") or "").strip()
+    if raw == "":
+        new_due_date = None
+    else:
+        try:
+            new_due_date = datetime.date.fromisoformat(raw)
+        except ValueError:
+            return HttpResponseBadRequest("invalid due_date")
+    _apply_task_field_change(task, "due_date", new_due_date, request.user)
+    return _inline_edit_response(
+        request,
+        task,
+        "web/projects/_due_date_cell.html",
+        {"task": task},
     )
 
 

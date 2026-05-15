@@ -1,0 +1,47 @@
+{% load i18n %}
+{% comment %}
+Due-date cell using the browser's native date picker. The visible date
+is a button — clicking it calls ``.showPicker()`` on the hidden
+``<input type="date">`` so the native calendar dropdown opens
+immediately (no popover wrapper). Changing the date auto-submits via
+HTMX. A small "✕" (revealed on hover) clears the deadline; the native
+picker can't fire ``change`` on a same-day click, so the clear stays
+explicit.
+{% endcomment %}
+<div id="due-date-cell"
+     x-data
+     class="inline-flex items-center gap-1.5 group">
+
+  <button type="button"
+          @click="$refs.input.showPicker()"
+          class="text-sm hover:text-white cursor-pointer
+            {% if task.due_date %}text-zinc-300{% else %}text-zinc-600 italic{% endif %}">
+    {% if task.due_date %}{{ task.due_date|date:"M j, Y" }}{% else %}{% trans "Set deadline" %}{% endif %}
+  </button>
+
+  <form hx-post="{% url 'web:set_task_due_date' slug_prefix=task.project.slug_prefix number=task.number %}"
+        hx-target="#due-date-cell"
+        hx-swap="outerHTML"
+        class="contents">
+    {% csrf_token %}
+    <input x-ref="input"
+           type="date"
+           name="due_date"
+           value="{{ task.due_date|date:'Y-m-d' }}"
+           @change="$el.form.requestSubmit()"
+           class="sr-only">
+  </form>
+
+  {% if task.due_date %}
+  <form hx-post="{% url 'web:set_task_due_date' slug_prefix=task.project.slug_prefix number=task.number %}"
+        hx-target="#due-date-cell"
+        hx-swap="outerHTML"
+        class="inline">
+    {% csrf_token %}
+    <input type="hidden" name="due_date" value="">
+    <button type="submit"
+            class="text-zinc-600 hover:text-rose-400 text-xs opacity-0 group-hover:opacity-100 transition"
+            title="{% trans 'Clear deadline' %}">✕</button>
+  </form>
+  {% endif %}
+</div>

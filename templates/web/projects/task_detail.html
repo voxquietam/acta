@@ -169,12 +169,12 @@ below).
         </div>
       </div>
 
-      {% if task.due_date %}
       <div>
         <div class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Due date" %}</div>
-        <div class="mt-1 text-zinc-300">{{ task.due_date|date:"M j, Y" }}</div>
+        <div class="mt-1">
+          {% include "web/projects/_due_date_cell.html" %}
+        </div>
       </div>
-      {% endif %}
 
       {% if task.labels.all %}
       <div>
