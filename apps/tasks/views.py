@@ -54,12 +54,29 @@ class TaskViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """Return tasks from projects in workspaces the user belongs to.
 
+        Eagerly loads project (with workspace), assignee, reporter, parent
+        via ``select_related`` and labels via ``prefetch_related`` so list
+        rendering and ``perform_*`` hooks stay O(1) in query count
+        regardless of row count.
+
         Returns:
             A queryset of :class:`Task` instances visible to the user.
         """
-        return Task.objects.filter(
-            project__workspace__memberships__user=self.request.user,
-        ).distinct()
+        return (
+            Task.objects.filter(
+                project__workspace__memberships__user=self.request.user,
+            )
+            .select_related(
+                "project__workspace",
+                "assignee",
+                "reporter",
+                "parent",
+            )
+            .prefetch_related(
+                "labels",
+            )
+            .distinct()
+        )
 
     def perform_create(self, serializer):
         """Save the new task and emit a ``task.created`` activity event.

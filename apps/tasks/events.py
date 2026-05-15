@@ -15,7 +15,6 @@ from typing import Any
 from uuid import UUID
 
 from apps.activity.models import ActivityLog
-from apps.activity.services import log_event
 
 from .models import Task
 
@@ -36,7 +35,10 @@ def snapshot_task(task: Task) -> dict[str, Any]:
 
     Called with a freshly-loaded instance whose ``.labels`` M2M has not
     been touched in this transaction yet. The returned dict is used as
-    the ``old_state`` argument to :func:`emit_task_diff_events`.
+    the ``old_state`` argument to :func:`build_diff_events`. Reads
+    labels via ``.all()`` (not ``.values_list``) so that any
+    ``prefetch_related("labels")`` on the source queryset is honoured
+    instead of triggering a fresh query per task.
 
     Args:
         task: The :class:`Task` instance to snapshot.
@@ -54,7 +56,7 @@ def snapshot_task(task: Task) -> dict[str, Any]:
         "due_date": task.due_date,
         "assignee_id": task.assignee_id,
         "parent_id": task.parent_id,
-        "labels_ids": list(task.labels.values_list("id", flat=True)),
+        "labels_ids": [label.id for label in task.labels.all()],
     }
 
 
@@ -70,107 +72,114 @@ def _iso_or_none(value):
     return value.isoformat() if value else None
 
 
-def emit_task_diff_events(
+def build_diff_events(
     *,
     old_state: dict[str, Any],
     task: Task,
     actor,
     bulk_id: UUID | None = None,
-) -> int:
-    """Emit one ``ActivityLog`` row per changed watched field on a task.
+) -> list[ActivityLog]:
+    """Compute one ``ActivityLog`` instance per changed watched field.
 
-    Compares the pre-save ``old_state`` to the freshly-saved ``task`` and
-    emits the appropriate ``task.*`` events. Unchanged fields produce no
-    events. Multiple field changes on the same task produce multiple
-    events that share the same ``bulk_id``.
+    Pure builder: does not write to the database. Caller is expected to
+    persist the returned list via :func:`emit_task_diff_events` (single
+    diff) or :meth:`ActivityLog.objects.bulk_create` (many diffs across
+    a bulk operation, to amortize INSERT cost).
 
     Args:
         old_state: Dict produced by :func:`snapshot_task` before the
             mutation.
-        task: The :class:`Task` instance after ``save()`` completed and
-            after any M2M operations on ``labels`` ran.
+        task: The :class:`Task` after ``save()`` and after any M2M
+            mutations on ``labels`` have committed.
         actor: The :class:`User` who performed the change. Set from
             ``request.user`` in the view layer.
         bulk_id: Shared UUID for events emitted from a bulk operation.
             ``None`` for single-task edits.
 
     Returns:
-        The number of activity log rows written for this diff.
+        A list of unsaved :class:`ActivityLog` instances, one per
+        changed watched field plus a catch-all ``task.updated`` for
+        text/size edits.
     """
     workspace = task.project.workspace
     project = task.project
-    common = {
-        "workspace": workspace,
-        "project": project,
-        "actor": actor,
-        "target_type": ActivityLog.TARGET_TASK,
-        "target_id": task.id,
-        "bulk_id": bulk_id,
-    }
-    count = 0
+    common = dict(
+        workspace=workspace,
+        project=project,
+        actor=actor,
+        target_type=ActivityLog.TARGET_TASK,
+        target_id=task.id,
+        bulk_id=bulk_id,
+    )
+    events: list[ActivityLog] = []
 
     if old_state["status"] != task.status:
-        log_event(
-            event_type="task.status_changed",
-            payload={"from": old_state["status"], "to": task.status},
-            **common,
+        events.append(
+            ActivityLog(
+                event_type="task.status_changed",
+                payload={"from": old_state["status"], "to": task.status},
+                **common,
+            ),
         )
-        count += 1
 
     if old_state["assignee_id"] != task.assignee_id:
-        log_event(
-            event_type="task.assigned",
-            payload={
-                "from_user_id": old_state["assignee_id"],
-                "to_user_id": task.assignee_id,
-            },
-            **common,
+        events.append(
+            ActivityLog(
+                event_type="task.assigned",
+                payload={
+                    "from_user_id": old_state["assignee_id"],
+                    "to_user_id": task.assignee_id,
+                },
+                **common,
+            ),
         )
-        count += 1
 
     if old_state["due_date"] != task.due_date:
-        log_event(
-            event_type="task.due_changed",
-            payload={
-                "from": _iso_or_none(old_state["due_date"]),
-                "to": _iso_or_none(task.due_date),
-            },
-            **common,
+        events.append(
+            ActivityLog(
+                event_type="task.due_changed",
+                payload={
+                    "from": _iso_or_none(old_state["due_date"]),
+                    "to": _iso_or_none(task.due_date),
+                },
+                **common,
+            ),
         )
-        count += 1
 
     if old_state["priority"] != task.priority:
-        log_event(
-            event_type="task.priority_changed",
-            payload={"from": old_state["priority"], "to": task.priority},
-            **common,
+        events.append(
+            ActivityLog(
+                event_type="task.priority_changed",
+                payload={"from": old_state["priority"], "to": task.priority},
+                **common,
+            ),
         )
-        count += 1
 
     if old_state["parent_id"] != task.parent_id:
-        log_event(
-            event_type="task.parent_changed",
-            payload={
-                "from_task_id": old_state["parent_id"],
-                "to_task_id": task.parent_id,
-            },
-            **common,
+        events.append(
+            ActivityLog(
+                event_type="task.parent_changed",
+                payload={
+                    "from_task_id": old_state["parent_id"],
+                    "to_task_id": task.parent_id,
+                },
+                **common,
+            ),
         )
-        count += 1
 
     old_labels = set(old_state.get("labels_ids") or [])
-    new_labels = set(task.labels.values_list("id", flat=True))
+    new_labels = {label.id for label in task.labels.all()}
     added = sorted(new_labels - old_labels)
     removed = sorted(old_labels - new_labels)
     if added or removed:
-        log_event(
-            event_type="task.labels_changed",
-            payload={"added_ids": added, "removed_ids": removed},
-            **common,
+        events.append(
+            ActivityLog(
+                event_type="task.labels_changed",
+                payload={"added_ids": added, "removed_ids": removed},
+                **common,
+            ),
         )
-        count += 1
 
-    # Catch-all for remaining text/size edits.
     changes: dict[str, dict[str, Any]] = {}
     if old_state["title"] != task.title:
         changes["title"] = {"old": old_state["title"], "new": task.title}
@@ -182,11 +191,42 @@ def emit_task_diff_events(
     if old_state["size"] != task.size:
         changes["size"] = {"old": old_state["size"], "new": task.size}
     if changes:
-        log_event(
-            event_type="task.updated",
-            payload={"changes": changes},
-            **common,
+        events.append(
+            ActivityLog(
+                event_type="task.updated",
+                payload={"changes": changes},
+                **common,
+            ),
         )
-        count += 1
 
-    return count
+    return events
+
+
+def emit_task_diff_events(
+    *,
+    old_state: dict[str, Any],
+    task: Task,
+    actor,
+    bulk_id: UUID | None = None,
+) -> int:
+    """Build and persist diff events for a single task in one INSERT.
+
+    Thin wrapper over :func:`build_diff_events` that calls
+    ``ActivityLog.objects.bulk_create`` so all events from one diff
+    commit in a single SQL statement (versus one INSERT per event).
+
+    Args:
+        old_state: Dict produced by :func:`snapshot_task` before the
+            mutation.
+        task: The :class:`Task` instance after the mutation.
+        actor: The :class:`User` who performed the change.
+        bulk_id: Shared UUID for events from a bulk operation. ``None``
+            for single-task edits.
+
+    Returns:
+        The number of activity log rows written for this diff.
+    """
+    events = build_diff_events(old_state=old_state, task=task, actor=actor, bulk_id=bulk_id)
+    if events:
+        ActivityLog.objects.bulk_create(events)
+    return len(events)

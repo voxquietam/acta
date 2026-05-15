@@ -17,6 +17,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from django.db import transaction
+from django.utils import timezone
 
 from rest_framework import serializers, status
 from rest_framework.permissions import IsAuthenticated
@@ -24,11 +25,10 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.activity.models import ActivityLog
-from apps.activity.services import log_event
 from apps.labels.models import Label
 from apps.workspaces.models import WorkspaceMember
 
-from .events import emit_task_diff_events, snapshot_task
+from .events import build_diff_events, snapshot_task
 from .models import Task
 
 BULK_LIMIT = 500
@@ -104,7 +104,9 @@ def _accessible_task_qs(user, ids):
     """Return the queryset of tasks among ``ids`` accessible to ``user``.
 
     Access is granted via :class:`WorkspaceMember` membership in the
-    task's project's workspace.
+    task's project's workspace. Eagerly loads the project (and its
+    workspace) plus the labels M2M so the per-task loop in bulk
+    operations does not regress into N+1.
 
     Args:
         user: The acting :class:`User`.
@@ -113,10 +115,19 @@ def _accessible_task_qs(user, ids):
     Returns:
         A queryset of :class:`Task` instances the user can act on.
     """
-    return Task.objects.filter(
-        id__in=ids,
-        project__workspace__memberships__user=user,
-    ).distinct()
+    return (
+        Task.objects.filter(
+            id__in=ids,
+            project__workspace__memberships__user=user,
+        )
+        .select_related(
+            "project__workspace",
+        )
+        .prefetch_related(
+            "labels",
+        )
+        .distinct()
+    )
 
 
 def _validate_labels_belong_to_workspaces(label_ids, workspace_ids):
@@ -150,33 +161,58 @@ def _validate_labels_belong_to_workspaces(label_ids, workspace_ids):
     return list(found_ids)
 
 
-def _apply_updates(task: Task, updates: dict[str, Any], add_labels, remove_labels):
-    """Apply a validated bulk update payload to a single task.
+def _bulk_apply_scalars(ids: list[int], updates: dict[str, Any]) -> None:
+    """Apply scalar field updates to all rows in a single SQL UPDATE.
 
-    Scalar fields are assigned in memory; ``save()`` is called once. Label
-    add/remove operations run after save to ensure the row exists.
+    Bypasses :meth:`Task.save` so this stays O(1) in query count regardless
+    of batch size. ``updated_at`` is set explicitly because ``auto_now``
+    only fires on ``save()``.
+
+    Scalar fields handled: ``status``, ``due_date``, ``priority``, ``size``,
+    ``assignee`` (mapped to ``assignee_id``). Label add/remove are M2M and
+    handled separately in :func:`_bulk_apply_labels`.
 
     Args:
-        task: The :class:`Task` instance to mutate.
-        updates: The validated ``updates`` dict from the request.
-        add_labels: List of :class:`Label` instances to attach.
-        remove_labels: List of label IDs to detach.
+        ids: List of task primary keys to update.
+        updates: Validated ``updates`` dict from the request.
     """
+    payload: dict[str, Any] = {}
     if "status" in updates:
-        task.status = updates["status"]
-    if "assignee" in updates:
-        task.assignee_id = updates["assignee"]
+        payload["status"] = updates["status"]
     if "due_date" in updates:
-        task.due_date = updates["due_date"]
+        payload["due_date"] = updates["due_date"]
     if "priority" in updates:
-        task.priority = updates["priority"]
+        payload["priority"] = updates["priority"]
     if "size" in updates:
-        task.size = updates["size"]
-    task.save()
-    if add_labels:
-        task.labels.add(*add_labels)
-    if remove_labels:
-        task.labels.remove(*remove_labels)
+        payload["size"] = updates["size"]
+    if "assignee" in updates:
+        payload["assignee_id"] = updates["assignee"]
+    if not payload:
+        return
+    payload["updated_at"] = timezone.now()
+    Task.objects.filter(id__in=ids).update(**payload)
+
+
+def _bulk_apply_labels(ids: list[int], add_label_ids: list[int], remove_label_ids: list[int]) -> None:
+    """Bulk add and remove labels on a set of tasks via the through table.
+
+    Skips Django's per-row M2M descriptor (which would run 1 query per
+    task). The through model is accessed directly so the whole batch
+    commits in two queries at most (one bulk_create, one delete).
+
+    Args:
+        ids: List of task primary keys.
+        add_label_ids: Label IDs to attach to each task.
+        remove_label_ids: Label IDs to detach from each task.
+    """
+    through = Task.labels.through
+    if add_label_ids:
+        through.objects.bulk_create(
+            [through(task_id=tid, label_id=lid) for tid in ids for lid in add_label_ids],
+            ignore_conflicts=True,
+        )
+    if remove_label_ids:
+        through.objects.filter(task_id__in=ids, label_id__in=remove_label_ids).delete()
 
 
 def _run_bulk_update(*, user, ids: list[int], updates: dict[str, Any]) -> tuple[UUID, int]:
@@ -196,26 +232,40 @@ def _run_bulk_update(*, user, ids: list[int], updates: dict[str, Any]) -> tuple[
             user has no business touching.
     """
     requested = set(ids)
-    accessible_qs = _accessible_task_qs(user, ids).select_related("project__workspace")
-    accessible_ids = set(accessible_qs.values_list("id", flat=True))
+    accessible_qs = _accessible_task_qs(user, ids)
+    pre_tasks = list(accessible_qs)
+    accessible_ids = {t.id for t in pre_tasks}
     if accessible_ids != requested:
         raise PermissionError("inaccessible task(s) in batch")
 
-    workspace_ids = set(t.project.workspace_id for t in accessible_qs)
+    workspace_ids = {t.project.workspace_id for t in pre_tasks}
     add_label_ids = _validate_labels_belong_to_workspaces(updates.get("labels_add", []), workspace_ids)
     remove_label_ids = _validate_labels_belong_to_workspaces(updates.get("labels_remove", []), workspace_ids)
-    add_labels = list(Label.objects.filter(id__in=add_label_ids))
 
     bulk_id = uuid4()
-    updated = 0
+    valid_ids = list(accessible_ids)
     with transaction.atomic():
-        for task in accessible_qs.prefetch_related("labels"):
-            old_state = snapshot_task(task)
-            _apply_updates(task, updates, add_labels=add_labels, remove_labels=remove_label_ids)
-            task.refresh_from_db()
-            emit_task_diff_events(old_state=old_state, task=task, actor=user, bulk_id=bulk_id)
-            updated += 1
-    return bulk_id, updated
+        snapshots = {t.id: snapshot_task(t) for t in pre_tasks}
+        _bulk_apply_scalars(valid_ids, updates)
+        _bulk_apply_labels(valid_ids, add_label_ids, remove_label_ids)
+        # Refetch with eager loads so event building does not refetch
+        # project/workspace/labels per task.
+        post_tasks = (
+            Task.objects.filter(id__in=valid_ids).select_related("project__workspace").prefetch_related("labels")
+        )
+        all_events: list[ActivityLog] = []
+        for task in post_tasks:
+            all_events.extend(
+                build_diff_events(
+                    old_state=snapshots[task.id],
+                    task=task,
+                    actor=user,
+                    bulk_id=bulk_id,
+                ),
+            )
+        if all_events:
+            ActivityLog.objects.bulk_create(all_events)
+    return bulk_id, len(valid_ids)
 
 
 def _run_bulk_delete(*, user, ids: list[int]) -> tuple[UUID, int]:
@@ -238,38 +288,34 @@ def _run_bulk_delete(*, user, ids: list[int]) -> tuple[UUID, int]:
         raise PermissionError("inaccessible task(s) in batch")
 
     bulk_id = uuid4()
-    deleted = 0
     with transaction.atomic():
-        snapshots: list[tuple[int, dict[str, Any], Any, Any]] = []
+        events_to_create: list[ActivityLog] = []
         for task in accessible_qs:
-            snapshots.append(
-                (
-                    task.id,
-                    {
-                        "title": task.title,
-                        "project_id": task.project_id,
-                        "number": task.number,
-                        "status": task.status,
+            events_to_create.append(
+                ActivityLog(
+                    workspace=task.project.workspace,
+                    project=task.project,
+                    actor=user,
+                    event_type="task.deleted",
+                    target_type=ActivityLog.TARGET_TASK,
+                    target_id=task.id,
+                    payload={
+                        "snapshot": {
+                            "title": task.title,
+                            "project_id": task.project_id,
+                            "number": task.number,
+                            "status": task.status,
+                        },
                     },
-                    task.project.workspace,
-                    task.project,
+                    bulk_id=bulk_id,
                 ),
             )
+        deleted = len(events_to_create)
         # Delete first, then write events. Activity rows survive the
         # delete because target_id is plain int, not a FK.
         accessible_qs.delete()
-        for task_id, snapshot, workspace, project in snapshots:
-            log_event(
-                workspace=workspace,
-                project=project,
-                actor=user,
-                event_type="task.deleted",
-                target_type=ActivityLog.TARGET_TASK,
-                target_id=task_id,
-                payload={"snapshot": snapshot},
-                bulk_id=bulk_id,
-            )
-            deleted += 1
+        if events_to_create:
+            ActivityLog.objects.bulk_create(events_to_create)
     return bulk_id, deleted
 
 
