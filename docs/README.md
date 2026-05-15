@@ -19,13 +19,16 @@ ADR format: **Context → Options → Decision → Why → Consequences**.
 | 0010 | accepted | Permissions: owner/admin/member + onboarding flow      | [0010-permissions.md](decisions/0010-permissions.md) |
 | 0011 | accepted | Activity Log: explicit logging, honest actor, anti-Kaneo rules | [0011-activity-log.md](decisions/0011-activity-log.md) |
 | 0012 | accepted | Bulk operations: single PATCH endpoint, all-or-nothing       | [0012-bulk-operations.md](decisions/0012-bulk-operations.md) |
+| 0013 | accepted | API conventions: v1 prefix, snake_case, ISO 8601, session auth | [0013-api-conventions.md](decisions/0013-api-conventions.md) |
+| 0014 | accepted | Frontend: server-rendered + vanilla JS, Tailwind CDN, dark default | [0014-frontend-architecture.md](decisions/0014-frontend-architecture.md) |
 
 ## Spec (filled in as decisions land)
 
-- `spec/data-model.md` — models, fields, foreign keys
-- `spec/api.md` — endpoints and payload formats
-- `spec/activity-log.md` — event schema
-- `spec/bulk-operations.md` — bulk endpoints, contracts
+- `spec/project-layout.md` — directory tree, Django apps, settings/requirements split ✅
+- `spec/data-model.md` — models, fields, foreign keys (TBD)
+- `spec/api.md` — endpoints and payload formats (TBD)
+- `spec/activity-log.md` — event schema details (TBD)
+- `spec/bulk-operations.md` — bulk endpoints, edge cases (TBD)
 
 ## Open Questions
 
