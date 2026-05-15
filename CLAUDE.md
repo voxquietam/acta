@@ -164,6 +164,38 @@ quotes.
 - Never write an inline comment that restates what the code does — that
   belongs in the docstring or is implicit in good naming.
 
+### Database query discipline (no N+1)
+
+Avoiding N+1 is a hard rule. Before declaring an endpoint, serializer
+method, or `perform_*` hook done, verify it does not explode query
+counts.
+
+```python
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
+
+with CaptureQueriesContext(connection) as ctx:
+    list(SomeModel.objects.filter(...))  # plus serializer reads if needed
+print(len(ctx.captured_queries))
+```
+
+`qs.query` shows the SQL Django will run without executing it.
+`CaptureQueriesContext` counts real queries during evaluation.
+
+Active patterns to audit when writing a new view:
+
+1. Serializer methods touching FK chains (`obj.project.workspace.name`)
+   → `select_related("project__workspace")` on the queryset.
+2. Loop bodies accessing FK attributes → `select_related`.
+3. M2M iteration per row → `prefetch_related`.
+4. `perform_create` / `perform_destroy` that read FK chains after save
+   (e.g. `log_event(workspace=task.project.workspace, ...)`) → make
+   sure the lookup queryset preloads them.
+
+Workflow for any new endpoint: write it, exercise it through
+`CaptureQueriesContext`, confirm the query count does not grow linearly
+with the row count, fix proactively.
+
 ### Formatting and linting
 
 The repo uses **black** (line-length 120), **isort** (profile=black),
