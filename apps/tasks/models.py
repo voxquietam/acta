@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
+from django.utils.translation import gettext_lazy as _
 
 
 class Task(models.Model):
@@ -41,6 +42,16 @@ class Task(models.Model):
         STATUS_IN_REVIEW,
         STATUS_DONE,
     )
+    # Human-readable status labels for the UI. Kept separate from
+    # STATUS_VALUES because the DB stores internal codes (per ADR 0004);
+    # only UI rendering uses these.
+    STATUS_LABELS = {
+        STATUS_PLANNED: _("Planned"),
+        STATUS_TODO: _("To do"),
+        STATUS_IN_PROGRESS: _("In progress"),
+        STATUS_IN_REVIEW: _("In review"),
+        STATUS_DONE: _("Done"),
+    }
 
     SIZE_VALUES = (
         1,
