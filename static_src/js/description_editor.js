@@ -40,8 +40,13 @@ function initEditor(root) {
   const mount = root.querySelector(".description-editor-mount");
   const bubble = root.querySelector(".description-editor-bubble");
   const source = root.querySelector(".description-editor-source");
-  const hidden = root.querySelector('input[name="description"]');
+  // ``[data-editor-output]`` is the hidden input the editor's markdown
+  // value gets piped into so the surrounding form POSTs the latest
+  // text. Description and comment forms both wire their own input
+  // through this marker so the same JS works for both.
+  const hidden = root.querySelector("[data-editor-output]");
   const fallback = root.querySelector(".description-editor-fallback");
+  const autosave = root.dataset.noAutosave === undefined;
   if (!mount || !source || !hidden) {
     return null;
   }
@@ -58,7 +63,11 @@ function initEditor(root) {
         codeBlock: { HTMLAttributes: { class: "bg-zinc-800 rounded p-2 text-sm" } },
       }),
       Link.configure({
-        openOnClick: false,
+        // Click to navigate (opens in a new tab thanks to the
+        // target="_blank" attribute). Editing a link goes through the
+        // bubble-menu link button — select text containing the link,
+        // click 🔗, prompt is pre-filled with the current href.
+        openOnClick: true,
         HTMLAttributes: { rel: "noopener noreferrer nofollow", target: "_blank" },
       }),
       Placeholder.configure({
@@ -117,11 +126,25 @@ function initEditor(root) {
       // Keep the hidden input in sync so the form POST carries the
       // latest markdown without an extra step.
       hidden.value = editor.storage.markdown.getMarkdown();
+      // Reactive signal for any surrounding Alpine form to enable /
+      // disable its submit button. Comment form uses this to grey
+      // out "Post comment" until the editor has content.
+      root.dispatchEvent(
+        new CustomEvent("editor:change", {
+          detail: { empty: editor.isEmpty, markdown: hidden.value },
+          bubbles: true,
+        }),
+      );
     },
     onBlur({ editor, event }) {
       // Bubble menu clicks fire blur; ignore those by checking whether
       // focus moved into the bubble UI.
       if (event && event.relatedTarget && bubble && bubble.contains(event.relatedTarget)) {
+        return;
+      }
+      // Comment editor opts out of blur-save: comments need an
+      // explicit submit, not autosave on every focus change.
+      if (!autosave) {
         return;
       }
       // Skip save when the whole window / tab lost focus
@@ -212,7 +235,10 @@ function initEditor(root) {
   // Pagehide beacon: post the latest markdown if it differs from the
   // baseline. WeakMap entry will be garbage-collected when root is
   // removed from DOM during HTMX swap; new mount runs initEditor again.
+  // Skipped for comments (no autosave) — half-typed comments
+  // shouldn't be flushed as accidental posts on tab close.
   function onPageHide() {
+    if (!autosave) return;
     const current = editor.storage.markdown.getMarkdown();
     const baseline = root.dataset.baseline || "";
     if (current === baseline) return;

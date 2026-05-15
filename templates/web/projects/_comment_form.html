@@ -1,42 +1,47 @@
 {% load i18n %}
 {% comment %}
-Inline comment posting form. On submit:
-  * HTMX POSTs to post_comment.
-  * Server returns a single <li> appended to #comment-list, plus an
-    OOB swap for #activity-list so the timeline reflects the new event.
-  * Alpine grows the textarea with content up to a max height and
-    clears it on success. Past the cap the textarea scrolls inside
-    itself so the browser doesn't yank the form to viewport bottom.
+Comment posting form — same TipTap rich editor used for descriptions
+(``[data-description-editor]``), wired in "comment" mode:
+
+* ``data-no-autosave`` skips the blur autosave and pagehide beacon —
+  comments require an explicit submit, half-typed text shouldn't fly
+  off on focus loss or tab close.
+* The hidden ``input[name="body"]`` carries the markdown the editor
+  serializes on every keystroke (via ``onUpdate`` -> ``data-editor-output``).
+* The form's ``submit`` button stays disabled while the editor is
+  empty. The editor dispatches an ``editor:change`` custom event on
+  every update that the surrounding Alpine form listens to.
+* After a successful POST, the editor is cleared via
+  ``commands.clearContent()`` so the form is ready for the next
+  comment without a page reload.
 {% endcomment %}
-<form x-data="{
-        body: '',
-        autosize() {
-          const ta = this.$refs.body;
-          ta.style.height = 'auto';
-          const cap = 320;
-          const next = Math.min(ta.scrollHeight + 2, cap);
-          ta.style.height = next + 'px';
-          ta.style.overflowY = ta.scrollHeight > cap ? 'auto' : 'hidden';
-        }
-      }"
+<form x-data="{ empty: true }"
+      @editor:change="empty = $event.detail.empty"
       hx-post="{% url 'web:post_comment' slug_prefix=task.project.slug_prefix number=task.number %}"
       hx-target="#comment-list"
       hx-swap="beforeend"
-      @htmx:after-request="body = ''; $refs.body.value = ''; autosize()"
+      @htmx:after-request="
+        if ($event.detail.successful) {
+          const ed = $el.querySelector('[data-description-editor]')?._editor;
+          if (ed) ed.commands.clearContent();
+        }
+      "
       class="max-w-3xl space-y-2">
   {% csrf_token %}
-  <textarea name="body"
-            x-ref="body"
-            x-model="body"
-            @input="autosize"
-            x-init="autosize"
-            rows="3"
-            placeholder="{% trans 'Write a comment in Markdown…' %}"
-            class="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-3 text-sm text-zinc-200 focus:outline-none focus:border-zinc-700 placeholder:text-zinc-600 resize-none min-h-[5rem] max-h-[20rem]"></textarea>
-  <div class="flex items-center justify-between">
-    <span class="text-[11px] text-zinc-600">{% trans "Supports Markdown." %}</span>
+
+  <div data-description-editor
+       data-no-autosave
+       data-placeholder="{% trans 'Write a comment…' %}"
+       class="bg-zinc-900 border border-zinc-800 rounded-lg p-3">
+    <input type="hidden" name="body" value="" data-editor-output>
+    <textarea class="description-editor-source hidden" readonly></textarea>
+    <div class="description-editor-mount min-h-[3rem]"></div>
+    {% include "web/projects/_editor_bubble.html" %}
+  </div>
+
+  <div class="flex items-center justify-end">
     <button type="submit"
-            :disabled="!body.trim()"
+            :disabled="empty"
             class="px-3 py-1.5 text-xs rounded-md bg-brand-600 text-white hover:bg-brand-500 disabled:opacity-40 disabled:cursor-not-allowed">
       {% trans "Post comment" %}
     </button>

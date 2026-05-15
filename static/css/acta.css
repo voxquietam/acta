@@ -91,10 +91,28 @@ main {
   pointer-events: none;
 }
 
-/* Tighten list-item spacing inside the editor. Tailwind typography's
-   default ``prose-sm`` gives ``li > p`` a vertical margin of ~0.57em
-   each side, so a 3-item list spreads across the panel. Inside the
-   editor we want tight rows like Linear / Notion. */
+/* Tighten paragraph + list spacing inside the editor AND the
+   server-rendered markdown view (.prose). Tailwind typography's
+   ``prose-sm`` defaults are sized for articles, not for a task
+   tracker: ``<p>`` gets ~1.14em top/bottom margin AND line-height
+   1.71, so pressing Enter once leaves a visible gap of nearly two
+   blank lines, and rendered comments / descriptions look airy. Same
+   rule on both surfaces so the editor and the rendered view share
+   the same rhythm — what you typed is what you see. */
+.ProseMirror p,
+.prose p {
+  margin-top: 0.25em;
+  margin-bottom: 0.25em;
+  line-height: 1.5;
+}
+.ProseMirror > p:first-child,
+.prose > p:first-child {
+  margin-top: 0;
+}
+.ProseMirror > p:last-child,
+.prose > p:last-child {
+  margin-bottom: 0;
+}
 .ProseMirror ul > li > p,
 .ProseMirror ol > li > p,
 .ProseMirror ul[data-type="taskList"] li > div > p {
