@@ -1,0 +1,89 @@
+# ---- IDE ----
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+
+# ---- OS ----
+.DS_Store
+Thumbs.db
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ---- Virtualenv ----
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# ---- Django ----
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+media/
+staticfiles/
+static_collected/
+
+# ---- Env / secrets ----
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# ---- Docker ----
+docker-compose.override.yml
+
+# ---- Postgres data (если когда-то будет bind-mount) ----
+pgdata/
+postgres-data/
+
+# ---- Coverage / tests ----
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.pytest_cache/
+.cache/
+coverage.xml
+*.cover
+
+# ---- Mypy / ruff / linters ----
+.mypy_cache/
+.ruff_cache/
+.dmypy.json
+
+# ---- Node (на случай если когда-то прикрутится tailwind CLI с npm) ----
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+
+# ---- Misc ----
+*.bak
+*.tmp
