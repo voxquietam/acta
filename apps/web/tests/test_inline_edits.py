@@ -408,6 +408,68 @@ class TestSetTaskTitle:
 
 
 @pytest.mark.django_db
+class TestSetTaskDescription:
+    """``POST /projects/<slug>/<number>/description/`` updates description."""
+
+    def _url(self, project, task):
+        return reverse(
+            "web:set_task_description",
+            kwargs={"slug_prefix": project.slug_prefix, "number": task.number},
+        )
+
+    def test_set_description_from_empty(self, client, setup):
+        user, project, task = setup
+        assert task.description == ""
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"description": "## Heading\n\nText"})
+        assert resp.status_code == 200
+        task.refresh_from_db()
+        assert task.description == "## Heading\n\nText"
+        events = ActivityLog.objects.filter(target_id=task.id, event_type="task.updated")
+        assert events.count() == 1
+        payload = events.get().payload
+        assert "description" in payload["changes"]
+        assert payload["changes"]["description"]["new_len"] == len("## Heading\n\nText")
+
+    def test_clear_description(self, client, setup):
+        user, project, task = setup
+        task.description = "Original markdown"
+        task.save()
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"description": ""})
+        assert resp.status_code == 200
+        task.refresh_from_db()
+        assert task.description == ""
+
+    def test_response_fragment_with_oob_activity(self, client, setup):
+        user, project, task = setup
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"description": "New body"})
+        body = resp.content.decode()
+        assert "<html" not in body
+        assert 'id="description-cell"' in body
+        assert "hx-swap-oob" in body
+
+    def test_cross_workspace_user_gets_404(self, client, setup):
+        user, _, _ = setup
+        foreign_ws = WorkspaceFactory()
+        foreign_project = ProjectFactory(workspace=foreign_ws)
+        foreign_task = TaskFactory(project=foreign_project, reporter=foreign_ws.owner)
+        client.force_login(user)
+        resp = client.post(
+            reverse(
+                "web:set_task_description",
+                kwargs={
+                    "slug_prefix": foreign_project.slug_prefix,
+                    "number": foreign_task.number,
+                },
+            ),
+            {"description": "leaked"},
+        )
+        assert resp.status_code == 404
+
+
+@pytest.mark.django_db
 class TestToggleTaskLabel:
     """``POST /projects/<slug>/<number>/labels/toggle/`` attaches/detaches."""
 

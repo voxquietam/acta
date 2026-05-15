@@ -18,12 +18,24 @@
   <script src="https://unpkg.com/htmx-ext-sse@2"></script>
   <script defer src="https://unpkg.com/alpinejs@3"></script>
 
+  {# tippy.js styles for the TipTap bubble menu (positioning + animation). #}
+  <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/dist/tippy.css">
   <link rel="stylesheet" href="{% static 'css/acta.css' %}">
 </head>
 <body class="bg-zinc-950 text-zinc-100 min-h-screen">
   {% block body %}{% endblock %}
 
   <script src="{% static 'js/acta.js' %}"></script>
+  {% comment %}
+  Description editor bundle — TipTap + extensions + tippy compiled
+  from ``static_src/js/description_editor.js`` via esbuild. Built with
+  ``make build-js`` (runs inside a Docker node image, no host Node
+  required). The bundle is committed so the runtime / deploy pipeline
+  doesn't need Node. See docs/decisions/0014-frontend-architecture.md
+  for the rationale of bundling this one specific editor while the
+  rest of the app stays on CDN.
+  {% endcomment %}
+  <script src="{% static 'js/description_editor.bundle.js' %}" defer></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -427,6 +427,41 @@ def set_task_priority(request, slug_prefix, number):
 
 
 @require_POST
+def set_task_description(request, slug_prefix, number):
+    """Inline description change; returns the description-cell fragment.
+
+    Description is optional — an empty string is allowed (clears the
+    description). No length cap beyond the model's ``TextField``. The
+    delta is captured by the ``task.updated`` event under
+    ``payload.changes.description`` (handled by
+    :func:`build_diff_events`, which only stores the old/new lengths
+    — not the full text — to keep activity payloads bounded).
+
+    Args:
+        request: Django request carrying a ``description`` form field.
+        slug_prefix: Project slug prefix from the URL.
+        number: Task number within the project.
+
+    Returns:
+        Rendered ``_description_cell.html`` with the updated task.
+    """
+    if not request.user.is_authenticated:
+        return HttpResponseBadRequest("auth required")
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    # Empty string is valid (clears the description). No strip — the
+    # editor produces canonical markdown and trailing whitespace can
+    # be meaningful inside code blocks.
+    new_description = request.POST.get("description", "")
+    _apply_task_field_change(task, "description", new_description, request.user)
+    return _inline_edit_response(
+        request,
+        task,
+        "web/projects/_description_cell.html",
+        {"task": task},
+    )
+
+
+@require_POST
 def set_task_title(request, slug_prefix, number):
     """Inline title change; returns the title-cell fragment.
 

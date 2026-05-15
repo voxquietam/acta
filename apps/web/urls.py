@@ -7,6 +7,7 @@ from .views import (
     TaskDetailView,
     post_comment,
     set_task_assignee,
+    set_task_description,
     set_task_due_date,
     set_task_priority,
     set_task_status,
@@ -49,6 +50,11 @@ urlpatterns = [
         "projects/<str:slug_prefix>/<int:number>/title/",
         set_task_title,
         name="set_task_title",
+    ),
+    path(
+        "projects/<str:slug_prefix>/<int:number>/description/",
+        set_task_description,
+        name="set_task_description",
     ),
     path(
         "projects/<str:slug_prefix>/<int:number>/labels/toggle/",

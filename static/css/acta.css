@@ -36,3 +36,97 @@ main {
   margin-right: 0.5em;
   vertical-align: middle;
 }
+
+/* Tailwind typography wraps inline <code> with literal backticks via
+   ::before / ::after — wanted on a documentation site, undesirable in
+   our task descriptions where we want a styled inline-code chip. Strip
+   the decorators and add a subtle background + monospace styling. */
+.prose code::before,
+.prose code::after {
+  content: none;
+}
+.prose code {
+  background-color: rgb(39 39 42);
+  color: rgb(229 231 235);
+  padding: 0.125rem 0.35rem;
+  border-radius: 0.25rem;
+  font-weight: 400;
+  font-size: 0.875em;
+}
+.prose pre code {
+  background-color: transparent;
+  padding: 0;
+  font-size: inherit;
+}
+
+/* TipTap TaskList / TaskItem rendering: nested <ul data-type="taskList">
+   with <li data-type="taskItem">. The native checkbox stays usable, the
+   row layout aligns checkbox + text on one baseline. */
+.prose ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+.prose ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.prose ul[data-type="taskList"] li > label {
+  margin-top: 0.2rem;
+}
+.prose ul[data-type="taskList"] li > div {
+  flex: 1;
+}
+.prose ul[data-type="taskList"] li > div > p {
+  margin: 0;
+}
+
+/* TipTap placeholder for the empty editor: shown via a CSS pseudo-element
+   when the first paragraph has no content. */
+.ProseMirror p.is-editor-empty:first-child::before {
+  color: rgb(82 82 91);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+/* Tighten list-item spacing inside the editor. Tailwind typography's
+   default ``prose-sm`` gives ``li > p`` a vertical margin of ~0.57em
+   each side, so a 3-item list spreads across the panel. Inside the
+   editor we want tight rows like Linear / Notion. */
+.ProseMirror ul > li > p,
+.ProseMirror ol > li > p,
+.ProseMirror ul[data-type="taskList"] li > div > p {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+.ProseMirror ul > li,
+.ProseMirror ol > li,
+.ProseMirror ul[data-type="taskList"] > li {
+  margin-top: 0.125em;
+  margin-bottom: 0.125em;
+}
+
+/* TipTap highlight mark — yellow marker pen on selected text. */
+.ProseMirror mark {
+  background-color: rgba(250, 204, 21, 0.35);
+  color: inherit;
+  padding: 0.05em 0.15em;
+  border-radius: 0.2em;
+}
+
+/* Strip tippy.js's default gray ``.tippy-box`` chrome — the
+   description editor's BubbleMenu renders its own dark "chip" inside
+   and shouldn't sit on top of a ``#333`` panel. We only need tippy
+   for positioning + animation, not its visual container. */
+.tippy-box {
+  background-color: transparent;
+  color: inherit;
+}
+.tippy-box > .tippy-content {
+  padding: 0;
+}
+.tippy-box > .tippy-arrow {
+  display: none;
+}

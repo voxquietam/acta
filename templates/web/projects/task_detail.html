@@ -34,13 +34,7 @@ below).
     {# Description #}
     <div id="description">
       <div class="text-xs uppercase tracking-wider text-zinc-500 mb-2">{% trans "Description" %}</div>
-      {% if task.description %}
-      <div class="prose prose-invert prose-base max-w-3xl text-zinc-200">
-        {{ task.description|markdown }}
-      </div>
-      {% else %}
-      <div class="text-sm text-zinc-600 italic">{% trans "No description." %}</div>
-      {% endif %}
+      {% include "web/projects/_description_cell.html" %}
     </div>
 
     {# Subtasks #}

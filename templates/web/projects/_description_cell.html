@@ -1,0 +1,163 @@
+{% load i18n %}
+{% load static %}
+{% load web_extras %}
+{% comment %}
+WYSIWYG markdown description editor (TipTap, Linear-style). The user
+sees formatted text — never raw ``**bold**`` syntax — and selects
+text to surface the bubble menu with Bold / Italic / Code / Link /
+list / heading toggles.
+
+Wiring:
+
+* ``.description-editor-source`` is a hidden textarea holding the
+  initial markdown source rendered server-side. The JS reads its
+  value to seed the TipTap document.
+* ``.description-editor-mount`` is the element TipTap takes over.
+* ``.description-editor-bubble`` is the floating toolbar that
+  ``BubbleMenu`` shows above the current selection.
+* ``input[name="description"]`` is kept in sync with the editor on
+  every update so the form POST carries the latest markdown.
+* ``data-baseline`` stores the original markdown so the JS can skip
+  saves when the value hasn't changed.
+
+Save fires on editor blur (``onBlur`` callback in
+``description_editor.js``) via ``form.requestSubmit()`` which HTMX
+intercepts. A pagehide listener uses ``navigator.sendBeacon`` as a
+safety net for navigation-without-blur scenarios.
+{% endcomment %}
+<div id="description-cell"
+     data-description-editor
+     data-baseline="{{ task.description|default:'' }}"
+     data-placeholder="{% trans 'Write a description…' %}">
+  <form action="{% url 'web:set_task_description' slug_prefix=task.project.slug_prefix number=task.number %}"
+        hx-post="{% url 'web:set_task_description' slug_prefix=task.project.slug_prefix number=task.number %}"
+        hx-target="#description-cell"
+        hx-swap="outerHTML">
+    {% csrf_token %}
+    <input type="hidden" name="description" value="{{ task.description|default:'' }}">
+    <textarea class="description-editor-source hidden" readonly>{{ task.description|default:'' }}</textarea>
+
+    {% comment %}
+    Server-rendered fallback so the user sees the description
+    immediately on page load — TipTap initializes as a JS module via
+    ESM CDN, which has a measurable delay. The editor's mount script
+    hides this fallback once the editor is ready. If JS fails to load
+    entirely the fallback stays visible so the description is at
+    least readable.
+    {% endcomment %}
+    <div class="description-editor-fallback prose prose-invert prose-sm max-w-none min-h-[6rem] text-zinc-200">
+      {% if task.description %}
+        {{ task.description|markdown }}
+      {% else %}
+        <p class="text-zinc-600 italic">{% trans 'Write a description…' %}</p>
+      {% endif %}
+    </div>
+
+    <div class="description-editor-mount hidden"></div>
+
+    {% comment %}
+    Floating toolbar positioned by TipTap's BubbleMenu plugin (uses tippy).
+    Minimal chrome — only the buttons + a faint ring so the bubble reads as
+    "floating chips" instead of a gray panel on top of the text.
+
+    The bubble has two modes via Alpine state — "menu" (default toolbar
+    buttons) and "link" (an inline URL input replacing the buttons, so we
+    don't fall back to the native ``window.prompt`` UI on link insertion).
+    {% endcomment %}
+    <div class="description-editor-bubble bg-zinc-950 ring-1 ring-zinc-800 rounded-lg shadow-xl p-0.5"
+         x-data="{
+           mode: 'menu',
+           url: '',
+           ed() { return this.$el.closest('[data-description-editor]')?._editor; },
+           openLink() {
+             const e = this.ed();
+             if (!e) return;
+             this.url = e.getAttributes('link').href || '';
+             this.mode = 'link';
+             this.$nextTick(() => this.$refs.linkInput.focus());
+           },
+           applyLink() {
+             const e = this.ed();
+             if (!e) return;
+             const u = this.url.trim();
+             if (u === '') {
+               e.chain().focus().extendMarkRange('link').unsetLink().run();
+             } else {
+               e.chain().focus().extendMarkRange('link').setLink({ href: u }).run();
+             }
+             this.mode = 'menu';
+           },
+           cancelLink() {
+             this.mode = 'menu';
+             this.ed()?.commands.focus();
+           },
+         }">
+
+      <div x-show="mode === 'menu'" class="flex items-center gap-0.5">
+        <button type="button"
+                onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleBold().run()"
+                class="w-7 h-7 grid place-items-center rounded hover:bg-zinc-800 text-zinc-300 text-sm font-bold"
+                title="{% trans 'Bold' %}">B</button>
+        <button type="button"
+                onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleItalic().run()"
+                class="w-7 h-7 grid place-items-center rounded hover:bg-zinc-800 text-zinc-300 text-sm italic"
+                title="{% trans 'Italic' %}">I</button>
+        <button type="button"
+                onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleStrike().run()"
+                class="w-7 h-7 grid place-items-center rounded hover:bg-zinc-800 text-zinc-300 text-sm line-through"
+                title="{% trans 'Strike' %}">S</button>
+        <button type="button"
+                onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleUnderline().run()"
+                class="w-7 h-7 grid place-items-center rounded hover:bg-zinc-800 text-zinc-300 text-sm underline"
+                title="{% trans 'Underline' %}">U</button>
+        <button type="button"
+                onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleCode().run()"
+                class="w-7 h-7 grid place-items-center rounded hover:bg-zinc-800 text-zinc-300 text-xs font-mono"
+                title="{% trans 'Inline code' %}">&lt;/&gt;</button>
+        <button type="button"
+                onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleHighlight().run()"
+                class="w-7 h-7 grid place-items-center rounded hover:bg-zinc-800 text-amber-300 text-sm"
+                title="{% trans 'Highlight' %}">H</button>
+        <button type="button"
+                @click="openLink()"
+                class="w-7 h-7 grid place-items-center rounded hover:bg-zinc-800 text-zinc-300 text-sm"
+                title="{% trans 'Link' %}">🔗</button>
+        <span class="w-px h-4 bg-zinc-800 mx-1"></span>
+        <button type="button"
+                onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleHeading({ level: 2 }).run()"
+                class="px-2 h-7 grid place-items-center rounded hover:bg-zinc-800 text-zinc-300 text-xs"
+                title="{% trans 'Heading' %}">H</button>
+        <button type="button"
+                onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleBulletList().run()"
+                class="px-2 h-7 grid place-items-center rounded hover:bg-zinc-800 text-zinc-300 text-xs"
+                title="{% trans 'Bullet list' %}">•</button>
+        <button type="button"
+                onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleOrderedList().run()"
+                class="px-2 h-7 grid place-items-center rounded hover:bg-zinc-800 text-zinc-300 text-xs"
+                title="{% trans 'Numbered list' %}">1.</button>
+        <button type="button"
+                onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleTaskList && this.closest('[data-description-editor]')._editor?.chain().focus().toggleTaskList().run()"
+                class="w-7 h-7 grid place-items-center rounded hover:bg-zinc-800 text-zinc-300 text-xs"
+                title="{% trans 'Task list' %}">☐</button>
+      </div>
+
+      <div x-show="mode === 'link'" x-cloak class="flex items-center gap-1 px-1 py-0.5">
+        <input x-ref="linkInput"
+               x-model="url"
+               type="url"
+               placeholder="{% trans 'Paste link…' %}"
+               @keydown.enter.prevent="applyLink()"
+               @keydown.escape.prevent="cancelLink()"
+               class="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-brand-500 w-56">
+        <button type="button"
+                @click="applyLink()"
+                class="px-2 h-7 grid place-items-center rounded hover:bg-zinc-800 text-zinc-300 text-xs"
+                title="{% trans 'Apply' %}">↵</button>
+        <button type="button"
+                @click="cancelLink()"
+                class="w-7 h-7 grid place-items-center rounded hover:bg-zinc-800 text-zinc-500 text-xs"
+                title="{% trans 'Cancel' %}">✕</button>
+      </div>
+    </div>
+  </form>
+</div>
