@@ -10,6 +10,7 @@ from django.db.models import Count, OuterRef, Q, Subquery
 from django.shortcuts import get_object_or_404
 from django.views.generic import DetailView, ListView, TemplateView
 
+from apps.activity.models import ActivityLog
 from apps.projects.models import Project, ProjectUpdate
 from apps.tasks.models import Task
 from apps.workspaces.models import WorkspaceMember
@@ -153,4 +154,73 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
                 },
             )
         ctx["columns"] = columns
+        return ctx
+
+
+class TaskDetailView(LoginRequiredMixin, DetailView):
+    """Single-task page at ``/projects/<slug_prefix>/<number>/``.
+
+    Renders the task with all metadata, the rendered Markdown
+    description, its subtasks, comments, and a workspace-scoped
+    activity timeline for events targeting this task.
+    """
+
+    context_object_name = "task"
+    template_name = "web/projects/task_detail.html"
+
+    def get_object(self, queryset=None):
+        """Resolve the task by ``slug_prefix`` + ``number``.
+
+        Raises 404 when the project is not in the user's workspaces, so
+        the existence of foreign tasks is not leaked.
+
+        Args:
+            queryset: Optional override; unused, kept for Django API.
+
+        Returns:
+            The :class:`Task` instance with project / workspace /
+            assignee / reporter / parent eagerly loaded.
+        """
+        slug_prefix = self.kwargs["slug_prefix"]
+        number = self.kwargs["number"]
+        return get_object_or_404(
+            Task.objects.filter(
+                project__slug_prefix=slug_prefix,
+                number=number,
+                project__workspace__memberships__user=self.request.user,
+            )
+            .select_related(
+                "project__workspace",
+                "assignee",
+                "reporter",
+                "parent",
+            )
+            .prefetch_related("labels"),
+        )
+
+    def get_context_data(self, **kwargs):
+        """Attach subtasks, comments, and activity timeline.
+
+        Returns:
+            Context dict with ``task``, ``subtasks``, ``comments``,
+            ``activity``, ``status_labels``, and ``priority_labels``.
+        """
+        ctx = super().get_context_data(**kwargs)
+        task = self.object
+        ctx["subtasks"] = list(
+            task.subtasks.select_related("assignee").order_by("number"),
+        )
+        ctx["comments"] = list(
+            task.comments.select_related("author").order_by("created_at"),
+        )
+        ctx["activity"] = list(
+            ActivityLog.objects.filter(
+                target_type=ActivityLog.TARGET_TASK,
+                target_id=task.id,
+            )
+            .select_related("actor")
+            .order_by("-created_at")[:25],
+        )
+        ctx["status_labels"] = Task.STATUS_LABELS
+        ctx["priority_labels"] = dict(Task.PRIORITY_CHOICES)
         return ctx
