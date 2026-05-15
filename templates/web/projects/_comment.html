@@ -13,7 +13,7 @@ posted from the inline form.
     <span class="text-zinc-300">{{ comment.author.username }}</span>
     <span>·</span>
     <span>{{ comment.created_at|date:"M j, H:i" }}</span>
-    {% if comment.updated_at != comment.created_at %}
+    {% if comment.was_edited %}
     <span class="italic">({% trans "edited" %})</span>
     {% endif %}
   </div>

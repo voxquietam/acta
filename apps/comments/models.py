@@ -47,3 +47,22 @@ class Comment(models.Model):
         """Return author, task, and a preview of the comment body."""
         preview = self.body[:60].replace("\n", " ")
         return f"{self.author} on {self.task}: {preview}"
+
+    @property
+    def was_edited(self) -> bool:
+        """Return True if the comment was edited after it was posted.
+
+        ``auto_now_add`` and ``auto_now`` issue separate ``timezone.now()``
+        calls during the initial INSERT, so the two timestamps can differ
+        by a few microseconds even when the comment was never edited.
+        Comparing the raw timestamps would mark every fresh comment as
+        ``(edited)`` in the UI. We use a one-second tolerance to make
+        ``was_edited`` reflect actual user edits.
+
+        Returns:
+            True iff ``updated_at`` is more than one second after
+            ``created_at``.
+        """
+        if self.created_at is None or self.updated_at is None:
+            return False
+        return (self.updated_at - self.created_at).total_seconds() > 1
