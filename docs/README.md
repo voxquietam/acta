@@ -16,6 +16,9 @@ ADR format: **Context → Options → Decision → Why → Consequences**.
 | 0007 | accepted | Data model: Task and Project fields, numbering, delete | [0007-data-model-task-project.md](decisions/0007-data-model-task-project.md) |
 | 0008 | accepted | Labels with optional groups (Linear-style)             | [0008-labels.md](decisions/0008-labels.md)        |
 | 0009 | accepted | Project Updates (Linear-style status posts)            | [0009-project-updates.md](decisions/0009-project-updates.md) |
+| 0010 | accepted | Permissions: owner/admin/member + onboarding flow      | [0010-permissions.md](decisions/0010-permissions.md) |
+| 0011 | accepted | Activity Log: explicit logging, honest actor, anti-Kaneo rules | [0011-activity-log.md](decisions/0011-activity-log.md) |
+| 0012 | accepted | Bulk operations: single PATCH endpoint, all-or-nothing       | [0012-bulk-operations.md](decisions/0012-bulk-operations.md) |
 
 ## Spec (filled in as decisions land)
 
