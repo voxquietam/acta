@@ -9,9 +9,11 @@ COMPOSE_DEV   := docker compose -f docker-compose.yml -f docker-compose.dev.yml
 EXEC          := $(COMPOSE) exec web
 MANAGE        := $(EXEC) python manage.py
 
+NODE_RUN      := docker run --rm -v "$(PWD):/work" -w /work node:20-alpine
+
 .PHONY: help up down restart logs build rebuild ps shell dbshell migrate \
 	makemigrations createsuperuser test test-fast format lint pre-commit \
-	i18n-extract i18n-compile
+	i18n-extract i18n-compile build-js watch-js install-js
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -82,3 +84,18 @@ i18n-extract: ## scan code/templates for translatable strings
 
 i18n-compile: ## compile .po into .mo for runtime
 	$(MANAGE) compilemessages
+
+# ---- Frontend bundle (description editor) --------------------------
+# Runs Node in a throwaway container so the host doesn't need Node
+# installed. See docs/decisions/0014-frontend-architecture.md for the
+# bundling rationale (the editor is the only piece of the app that
+# needs a build step; the rest stays on CDN).
+
+install-js: ## install npm dependencies for the editor bundle
+	$(NODE_RUN) npm install --no-audit --no-fund
+
+build-js: ## bundle static_src/js/description_editor.js -> static/js/*.bundle.js
+	$(NODE_RUN) npm run build:js
+
+watch-js: ## rebuild the bundle on every save (Ctrl-C to stop)
+	$(NODE_RUN) -it npm run watch:js

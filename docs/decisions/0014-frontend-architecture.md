@@ -91,3 +91,21 @@ Unchanged from the first version. Tailwind `darkMode: 'class'`. Class on `<html>
 - Whether to use `markdown` (older, simpler) or `markdown-it-py` (more modern). Same as before — pick at implementation time.
 - Whether some screens (e.g. the kanban) eventually warrant an Alpine-driven "client state" model in addition to HTMX. Default is no — prefer HTMX server fragments. Revisit case-by-case.
 - Whether to keep Chart.js or evaluate ApexCharts / lightweight-charts when dashboard design firms up. Defer; Chart.js is the safe default to start.
+
+## Amendment (2026-05-16): single-bundle build step for the rich-text editor
+
+The "no build step" rule above held for HTMX, Alpine, Tailwind (Play CDN), Chart.js, and sortable.js — each loads as a single `<script>` from a CDN with no peer-dep gymnastics. It did **not** hold for **TipTap** (ProseMirror-based WYSIWYG editor used for inline task description editing, see Stage 5d-2):
+
+- TipTap is split across ~10 packages (`@tiptap/core`, `@tiptap/pm/*`, `@tiptap/starter-kit`, `@tiptap/extension-link`, `@tiptap/extension-placeholder`, `@tiptap/extension-bubble-menu`, `tippy.js`, `tiptap-markdown`) with cross-package imports.
+- ESM-CDN delivery (esm.sh + importmap) loaded the modules but quietly failed on peer deps — bubble menu positioning broke (tippy.js not pulled), inline `code` mark misbehaved.
+
+**Decision**: bundle TipTap (and only TipTap) with **esbuild**, output `static/js/description_editor.bundle.js`. Source lives under `static_src/js/`. Bundle is committed so deploy does not need Node.
+
+- Build runs via `make build-js` inside a throwaway `node:20-alpine` container — host never installs Node.
+- `package.json` + `package-lock.json` are checked in; `node_modules/` is gitignored.
+- Watch mode for editor work: `make watch-js`.
+- Everything else (HTMX, Alpine, Tailwind, sortable, Chart.js) stays on CDN per the original decision.
+
+**Scope of the exception**: this bundle is *only* for editor JS that fundamentally requires bundling. Page-glue JS, Alpine snippets, and HTMX wiring stay vanilla / inline / `static/js/*.js`. If a new feature wants to add another bundle entry, push back first — almost everything is one HTMX fragment away from not needing one.
+
+**Why this isn't a slippery slope**: the build pipeline is one esbuild command, no transpiler, no framework, no dev server. Adding a second entry costs minutes. The cost of a Node toolchain on the host is zero (Docker-wrapped). The boundary is "WYSIWYG editors and similar JS libraries that ship as a peer-dep graph" — not "any JS we want to write."
