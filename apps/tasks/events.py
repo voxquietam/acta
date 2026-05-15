@@ -56,6 +56,8 @@ def snapshot_task(task: Task) -> dict[str, Any]:
         "due_date": task.due_date,
         "assignee_id": task.assignee_id,
         "parent_id": task.parent_id,
+        "project_id": task.project_id,
+        "number": task.number,
         "labels_ids": [label.id for label in task.labels.all()],
     }
 
@@ -190,6 +192,10 @@ def build_diff_events(
         }
     if old_state["size"] != task.size:
         changes["size"] = {"old": old_state["size"], "new": task.size}
+    if old_state.get("project_id") != task.project_id:
+        changes["project"] = {"old": old_state.get("project_id"), "new": task.project_id}
+    if old_state.get("number") != task.number:
+        changes["number"] = {"old": old_state.get("number"), "new": task.number}
     if changes:
         events.append(
             ActivityLog(

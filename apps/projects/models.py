@@ -92,6 +92,39 @@ class Project(models.Model):
         )
         return number
 
+    def allocate_task_numbers(self, count: int) -> list[int]:
+        """Reserve and return ``count`` consecutive task numbers.
+
+        Bulk variant of :meth:`allocate_task_number` for batch operations
+        (project moves, future bulk imports). Atomically increments the
+        counter by ``count`` so a single ``SELECT FOR UPDATE`` plus one
+        ``UPDATE`` reserves the whole range — no per-row locking.
+
+        Caller MUST be inside ``transaction.atomic()``; the lock is held
+        until the surrounding transaction commits.
+
+        Args:
+            count: Number of consecutive task numbers to reserve. Must be
+                positive.
+
+        Returns:
+            A list of length ``count`` with the reserved numbers in
+            ascending order.
+
+        Raises:
+            ValueError: If ``count`` is not positive.
+            Project.DoesNotExist: If the project row was deleted while
+                this transaction was preparing to lock it.
+        """
+        if count <= 0:
+            raise ValueError("count must be positive")
+        locked = Project.objects.select_for_update().get(pk=self.pk)
+        start = locked.next_task_number
+        Project.objects.filter(pk=self.pk).update(
+            next_task_number=F("next_task_number") + count,
+        )
+        return list(range(start, start + count))
+
 
 class ProjectUpdate(models.Model):
     """A Linear-style manual status post on a project.
