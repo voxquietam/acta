@@ -19,10 +19,12 @@
       {% for task in tasks %}
       <tr class="hover:bg-zinc-800/30">
         <td class="px-3 py-2 font-mono text-xs text-zinc-500">
-          <a href="#" class="hover:text-zinc-300">{{ task.slug }}</a>
+          <a href="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
+             class="hover:text-zinc-300">{{ task.slug }}</a>
         </td>
         <td class="px-3 py-2">
-          <a href="#" class="text-zinc-100 hover:text-brand-500">{{ task.title }}</a>
+          <a href="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
+             class="text-zinc-100 hover:text-brand-500">{{ task.title }}</a>
         </td>
         <td class="px-3 py-2">
           <span class="text-xs px-1.5 py-0.5 rounded

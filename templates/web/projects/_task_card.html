@@ -1,7 +1,9 @@
 {% load i18n %}
 {% load web_extras %}
 {# Single task card used inside a kanban column. #}
-<a href="#" class="block bg-zinc-900 border border-zinc-800 rounded-md p-2.5 hover:border-zinc-700 transition group">
+<a href="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
+   data-task-id="{{ task.id }}"
+   class="block bg-zinc-900 border border-zinc-800 rounded-md p-2.5 hover:border-zinc-700 transition group cursor-grab active:cursor-grabbing">
   <div class="flex items-center gap-1.5 text-[11px]">
     <span class="font-mono text-zinc-500">{{ task.slug }}</span>
     {% if task.priority %}
