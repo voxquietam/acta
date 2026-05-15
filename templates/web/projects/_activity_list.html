@@ -30,6 +30,12 @@ history beyond the loaded slice would land on a dedicated page later.
           <span class="text-zinc-500">
             {{ event.payload.from|default:"—" }} → {{ event.payload.to|default:"—" }}
           </span>
+        {% elif event.event_type == "task.assigned" %}
+          <span class="text-zinc-500">
+            {{ event.assigned_from_username|default:"—" }}
+            →
+            {{ event.assigned_to_username|default:"unassigned" }}
+          </span>
         {% endif %}
       </div>
       <div class="text-[10px] text-zinc-600">{{ event.created_at|date:"M j, H:i" }}</div>

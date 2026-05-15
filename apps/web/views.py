@@ -7,6 +7,7 @@ endpoints (or from `/api/v1/...` for JSON-only consumers).
 
 import datetime
 
+from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Count, OuterRef, Q, Subquery
 from django.http import HttpResponse, HttpResponseBadRequest
@@ -22,6 +23,8 @@ from apps.projects.models import Project, ProjectUpdate
 from apps.tasks.events import emit_task_diff_events, snapshot_task
 from apps.tasks.models import Task
 from apps.workspaces.models import WorkspaceMember
+
+User = get_user_model()
 
 _OPEN_STATUSES = [
     Task.STATUS_PLANNED,
@@ -200,6 +203,7 @@ class TaskDetailView(LoginRequiredMixin, DetailView):
         ctx["activity"] = _task_activity(task)
         ctx["status_labels"] = Task.STATUS_LABELS
         ctx["priority_labels"] = dict(Task.PRIORITY_CHOICES)
+        ctx["workspace_members"] = _workspace_members(task)
         return ctx
 
 
@@ -213,20 +217,60 @@ def _task_activity(task, limit=25):
           table) means an event remains visible on the task even after
           the underlying comment row is deleted.
 
+    Attaches ``assigned_from_username`` and ``assigned_to_username`` to
+    every ``task.assigned`` event, resolving the user ids in a single
+    batched query so the template can show ``X → Y`` without per-row
+    lookups.
+
     Args:
         task: The :class:`Task` whose feed to load.
         limit: Maximum number of events to return.
 
     Returns:
-        A list of :class:`ActivityLog` rows, newest first.
+        A list of :class:`ActivityLog` rows, newest first, with the
+        assigned-event enrichment described above.
     """
-    return list(
+    events = list(
         ActivityLog.objects.filter(
             Q(target_type=ActivityLog.TARGET_TASK, target_id=task.id)
             | Q(target_type=ActivityLog.TARGET_COMMENT, payload__task_id=task.id),
         )
         .select_related("actor")
         .order_by("-created_at")[:limit],
+    )
+    user_ids = set()
+    for e in events:
+        if e.event_type == "task.assigned" and e.payload:
+            for key in ("from_user_id", "to_user_id"):
+                uid = e.payload.get(key)
+                if uid is not None:
+                    user_ids.add(uid)
+    usernames = {}
+    if user_ids:
+        usernames = dict(User.objects.filter(id__in=user_ids).values_list("id", "username"))
+    for e in events:
+        if e.event_type == "task.assigned" and e.payload:
+            e.assigned_from_username = usernames.get(e.payload.get("from_user_id"))
+            e.assigned_to_username = usernames.get(e.payload.get("to_user_id"))
+    return events
+
+
+def _workspace_members(task):
+    """Return the workspace's members ordered by username.
+
+    Used by the assignee picker to populate its dropdown. Eager-loads
+    ``user`` so the template can render avatar + username without N+1.
+
+    Args:
+        task: The :class:`Task` whose workspace's members to fetch.
+
+    Returns:
+        A queryset of :class:`WorkspaceMember` rows.
+    """
+    return (
+        WorkspaceMember.objects.filter(workspace=task.project.workspace)
+        .select_related("user")
+        .order_by("user__username")
     )
 
 
@@ -351,6 +395,52 @@ def set_task_priority(request, slug_prefix, number):
         {
             "task": task,
             "priority_labels": dict(Task.PRIORITY_CHOICES),
+        },
+    )
+
+
+@require_POST
+def set_task_assignee(request, slug_prefix, number):
+    """Inline assignee change; returns the assignee cell fragment.
+
+    Accepts an integer ``assignee_id`` form field, or an empty value to
+    unassign. The user must be a member of the task's workspace —
+    non-member ids return 400 rather than 404, since the request is
+    against an existing task but with malformed input.
+
+    Args:
+        request: Django request carrying an ``assignee_id`` form field.
+        slug_prefix: Project slug prefix from the URL.
+        number: Task number within the project.
+
+    Returns:
+        Rendered ``_assignee_cell.html`` with the updated task.
+    """
+    if not request.user.is_authenticated:
+        return HttpResponseBadRequest("auth required")
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    raw = (request.POST.get("assignee_id") or "").strip()
+    if raw == "":
+        new_assignee = None
+    else:
+        try:
+            user_id = int(raw)
+        except (TypeError, ValueError):
+            return HttpResponseBadRequest("invalid assignee_id")
+        new_assignee = User.objects.filter(
+            workspace_memberships__workspace=task.project.workspace,
+            id=user_id,
+        ).first()
+        if new_assignee is None:
+            return HttpResponseBadRequest("user not a workspace member")
+    _apply_task_field_change(task, "assignee", new_assignee, request.user)
+    return _inline_edit_response(
+        request,
+        task,
+        "web/projects/_assignee_cell.html",
+        {
+            "task": task,
+            "workspace_members": _workspace_members(task),
         },
     )
 

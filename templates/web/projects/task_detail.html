@@ -149,16 +149,7 @@ below).
       <div>
         <div class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Assignee" %}</div>
         <div class="mt-1">
-          {% if task.assignee %}
-          <div class="flex items-center gap-1.5">
-            <span class="w-5 h-5 rounded-full bg-brand-600 text-white grid place-items-center font-medium text-[10px]">
-              {{ task.assignee.username|slice:":1"|upper }}
-            </span>
-            <span class="text-zinc-300">{{ task.assignee.username }}</span>
-          </div>
-          {% else %}
-          <span class="text-zinc-600 italic">{% trans "Unassigned" %}</span>
-          {% endif %}
+          {% include "web/projects/_assignee_cell.html" %}
         </div>
       </div>
 

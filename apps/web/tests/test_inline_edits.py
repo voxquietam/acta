@@ -1,7 +1,7 @@
 """Inline-edit endpoints on the task detail page.
 
 Covers status quick-change, priority quick-change, due-date setting,
-and comment posting (:mod:`apps.web.views`).
+assignee picking, and comment posting (:mod:`apps.web.views`).
 """
 
 import datetime
@@ -10,12 +10,13 @@ from django.urls import reverse
 
 import pytest
 
+from apps.accounts.tests.factories import UserFactory
 from apps.activity.models import ActivityLog
 from apps.comments.models import Comment
 from apps.projects.tests.factories import ProjectFactory
 from apps.tasks.models import Task
 from apps.tasks.tests.factories import TaskFactory
-from apps.workspaces.tests.factories import WorkspaceFactory
+from apps.workspaces.tests.factories import WorkspaceFactory, WorkspaceMemberFactory
 
 
 @pytest.fixture
@@ -211,6 +212,112 @@ class TestSetTaskDueDate:
                 },
             ),
             {"due_date": "2026-12-31"},
+        )
+        assert resp.status_code == 404
+
+
+@pytest.mark.django_db
+class TestSetTaskAssignee:
+    """``POST /projects/<slug>/<number>/assignee/`` sets the assignee."""
+
+    def _url(self, project, task):
+        return reverse(
+            "web:set_task_assignee",
+            kwargs={"slug_prefix": project.slug_prefix, "number": task.number},
+        )
+
+    def test_assign_member(self, client, setup):
+        user, project, task = setup
+        member = UserFactory()
+        WorkspaceMemberFactory(workspace=project.workspace, user=member)
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"assignee_id": member.id})
+        assert resp.status_code == 200
+        task.refresh_from_db()
+        assert task.assignee == member
+        events = ActivityLog.objects.filter(target_id=task.id, event_type="task.assigned")
+        assert events.count() == 1
+        assert events.get().payload == {"from_user_id": None, "to_user_id": member.id}
+
+    def test_reassign_to_different_member(self, client, setup):
+        user, project, task = setup
+        first = UserFactory()
+        second = UserFactory()
+        WorkspaceMemberFactory(workspace=project.workspace, user=first)
+        WorkspaceMemberFactory(workspace=project.workspace, user=second)
+        task.assignee = first
+        task.save()
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"assignee_id": second.id})
+        assert resp.status_code == 200
+        task.refresh_from_db()
+        assert task.assignee == second
+        events = ActivityLog.objects.filter(target_id=task.id, event_type="task.assigned")
+        assert events.get().payload == {"from_user_id": first.id, "to_user_id": second.id}
+
+    def test_unassign(self, client, setup):
+        user, project, task = setup
+        member = UserFactory()
+        WorkspaceMemberFactory(workspace=project.workspace, user=member)
+        task.assignee = member
+        task.save()
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"assignee_id": ""})
+        assert resp.status_code == 200
+        task.refresh_from_db()
+        assert task.assignee is None
+        events = ActivityLog.objects.filter(target_id=task.id, event_type="task.assigned")
+        assert events.get().payload == {"from_user_id": member.id, "to_user_id": None}
+
+    def test_non_member_user_returns_400(self, client, setup):
+        user, project, task = setup
+        stranger = UserFactory()
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"assignee_id": stranger.id})
+        assert resp.status_code == 400
+        task.refresh_from_db()
+        assert task.assignee is None
+
+    def test_nonexistent_user_returns_400(self, client, setup):
+        user, project, task = setup
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"assignee_id": "999999"})
+        assert resp.status_code == 400
+
+    def test_non_int_returns_400(self, client, setup):
+        user, project, task = setup
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"assignee_id": "lol"})
+        assert resp.status_code == 400
+
+    def test_response_fragment_with_oob_activity(self, client, setup):
+        user, project, task = setup
+        member = UserFactory()
+        WorkspaceMemberFactory(workspace=project.workspace, user=member)
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"assignee_id": member.id})
+        body = resp.content.decode()
+        assert "<html" not in body
+        assert 'id="assignee-cell"' in body
+        assert "hx-swap-oob" in body
+        # Activity OOB block shows the resolved usernames for from→to.
+        assert member.username in body
+
+    def test_cross_workspace_user_gets_404(self, client, setup):
+        user, _, _ = setup
+        foreign_ws = WorkspaceFactory()
+        foreign_project = ProjectFactory(workspace=foreign_ws)
+        foreign_task = TaskFactory(project=foreign_project, reporter=foreign_ws.owner)
+        client.force_login(user)
+        resp = client.post(
+            reverse(
+                "web:set_task_assignee",
+                kwargs={
+                    "slug_prefix": foreign_project.slug_prefix,
+                    "number": foreign_task.number,
+                },
+            ),
+            {"assignee_id": foreign_ws.owner.id},
         )
         assert resp.status_code == 404
 

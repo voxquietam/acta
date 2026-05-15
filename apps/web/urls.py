@@ -6,6 +6,7 @@ from .views import (
     ProjectListView,
     TaskDetailView,
     post_comment,
+    set_task_assignee,
     set_task_due_date,
     set_task_priority,
     set_task_status,
@@ -31,6 +32,11 @@ urlpatterns = [
         "projects/<str:slug_prefix>/<int:number>/priority/",
         set_task_priority,
         name="set_task_priority",
+    ),
+    path(
+        "projects/<str:slug_prefix>/<int:number>/assignee/",
+        set_task_assignee,
+        name="set_task_assignee",
     ),
     path(
         "projects/<str:slug_prefix>/<int:number>/due-date/",

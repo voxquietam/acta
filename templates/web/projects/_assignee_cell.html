@@ -1,0 +1,102 @@
+{% load i18n %}
+{% comment %}
+Assignee cell with click-to-open Alpine dropdown. Lists every member
+of the task's workspace as a single-row HTMX form that posts to
+``set_task_assignee`` and swaps the cell with the freshly rendered
+fragment.
+
+Includes a client-side search input that filters the rendered member
+list as you type (case-insensitive substring on username). For our
+~10-user scale this stays simpler than an HTMX server round-trip per
+keystroke and keeps the dropdown latency-free.
+
+Unassigned trigger renders as a dashed avatar placeholder + neutral
+text — the dashed circle reads as "slot empty, clickable", which is
+nicer than the previous italic-grey-only treatment.
+
+Clearing the assignee uses a hover-revealed "✕" button next to the
+current name (same pattern as the due-date cell), keeping the
+dropdown focused on member selection rather than mixing in a no-op
+"Unassign" row that looked off-style.
+{% endcomment %}
+<div id="assignee-cell"
+     x-data="{
+       open: false,
+       q: '',
+       matches(name) {
+         return name.toLowerCase().includes(this.q.toLowerCase());
+       },
+     }"
+     class="relative inline-block group">
+
+  <div class="flex items-center gap-1.5">
+    <button type="button"
+            @click="open = !open"
+            class="cursor-pointer text-left">
+      {% if task.assignee %}
+      <div class="flex items-center gap-1.5">
+        <span class="w-5 h-5 rounded-full bg-brand-600 text-white grid place-items-center font-medium text-[10px]">
+          {{ task.assignee.username|slice:":1"|upper }}
+        </span>
+        <span class="text-zinc-300">{{ task.assignee.username }}</span>
+      </div>
+      {% else %}
+      <div class="flex items-center gap-1.5">
+        <span class="w-5 h-5 rounded-full border border-dashed border-zinc-600 grid place-items-center text-zinc-500 text-[10px]">?</span>
+        <span class="text-zinc-500">{% trans "Unassigned" %}</span>
+      </div>
+      {% endif %}
+    </button>
+
+    {% if task.assignee %}
+    <form hx-post="{% url 'web:set_task_assignee' slug_prefix=task.project.slug_prefix number=task.number %}"
+          hx-target="#assignee-cell"
+          hx-swap="outerHTML"
+          class="inline">
+      {% csrf_token %}
+      <input type="hidden" name="assignee_id" value="">
+      <button type="submit"
+              class="text-zinc-600 hover:text-rose-400 text-xs opacity-0 group-hover:opacity-100 transition"
+              title="{% trans 'Unassign' %}">✕</button>
+    </form>
+    {% endif %}
+  </div>
+
+  <div x-show="open"
+       @click.outside="open = false"
+       x-effect="if (open) $nextTick(() => $refs.search.focus())"
+       x-cloak
+       class="absolute left-0 mt-1 w-60 bg-zinc-900 border border-zinc-800 rounded-lg shadow-lg overflow-hidden z-20">
+
+    <div class="p-2 border-b border-zinc-800">
+      <input x-ref="search"
+             x-model="q"
+             @keydown.escape.prevent="open = false"
+             type="text"
+             placeholder="{% trans 'Search members…' %}"
+             class="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-brand-500">
+    </div>
+
+    <div class="max-h-64 overflow-y-auto">
+      {% for member in workspace_members %}
+      <form hx-post="{% url 'web:set_task_assignee' slug_prefix=task.project.slug_prefix number=task.number %}"
+            hx-target="#assignee-cell"
+            hx-swap="outerHTML"
+            @htmx:after-request="open = false"
+            x-show="matches('{{ member.user.username|escapejs }}')">
+        {% csrf_token %}
+        <input type="hidden" name="assignee_id" value="{{ member.user.id }}">
+        <button type="submit"
+                class="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-800 flex items-center gap-2
+                  {% if task.assignee_id == member.user.id %}font-medium text-white bg-zinc-800/40{% else %}text-zinc-300{% endif %}">
+          <span class="w-5 h-5 rounded-full bg-brand-600 text-white grid place-items-center font-medium text-[10px]">
+            {{ member.user.username|slice:":1"|upper }}
+          </span>
+          <span class="flex-1">{{ member.user.username }}</span>
+          {% if task.assignee_id == member.user.id %}<span class="text-zinc-500">✓</span>{% endif %}
+        </button>
+      </form>
+      {% endfor %}
+    </div>
+  </div>
+</div>
