@@ -65,7 +65,6 @@ ALLOWED_PROTOCOLS = [
 _MD_EXTENSIONS = [
     "fenced_code",
     "tables",
-    "nl2br",
     "sane_lists",
     "pymdownx.tasklist",
 ]
