@@ -1,7 +1,7 @@
 """Inline-edit endpoints on the task detail page.
 
-Covers status quick-change, priority quick-change, due-date setting,
-assignee picking, and comment posting (:mod:`apps.web.views`).
+Covers status / priority / due-date / assignee / labels / title
+inline edits and comment posting (:mod:`apps.web.views`).
 """
 
 import datetime
@@ -319,6 +319,90 @@ class TestSetTaskAssignee:
                 },
             ),
             {"assignee_id": foreign_ws.owner.id},
+        )
+        assert resp.status_code == 404
+
+
+@pytest.mark.django_db
+class TestSetTaskTitle:
+    """``POST /projects/<slug>/<number>/title/`` renames the task."""
+
+    def _url(self, project, task):
+        return reverse(
+            "web:set_task_title",
+            kwargs={"slug_prefix": project.slug_prefix, "number": task.number},
+        )
+
+    def test_rename_emits_task_updated_event(self, client, setup):
+        user, project, task = setup
+        original = task.title
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"title": "Renamed via inline edit"})
+        assert resp.status_code == 200
+        task.refresh_from_db()
+        assert task.title == "Renamed via inline edit"
+        events = ActivityLog.objects.filter(target_id=task.id, event_type="task.updated")
+        assert events.count() == 1
+        payload = events.get().payload
+        assert payload["changes"]["title"] == {"old": original, "new": "Renamed via inline edit"}
+
+    def test_title_is_stripped(self, client, setup):
+        user, project, task = setup
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"title": "   spaced out   "})
+        assert resp.status_code == 200
+        task.refresh_from_db()
+        assert task.title == "spaced out"
+
+    def test_empty_title_returns_400(self, client, setup):
+        user, project, task = setup
+        original = task.title
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"title": ""})
+        assert resp.status_code == 400
+        task.refresh_from_db()
+        assert task.title == original
+
+    def test_whitespace_only_title_returns_400(self, client, setup):
+        user, project, task = setup
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"title": "   "})
+        assert resp.status_code == 400
+
+    def test_overlong_title_returns_400(self, client, setup):
+        user, project, task = setup
+        original = task.title
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"title": "x" * 201})
+        assert resp.status_code == 400
+        task.refresh_from_db()
+        assert task.title == original
+
+    def test_response_fragment_with_oob_activity(self, client, setup):
+        user, project, task = setup
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"title": "New title"})
+        body = resp.content.decode()
+        assert "<html" not in body
+        assert 'id="title-cell"' in body
+        assert "hx-swap-oob" in body
+        assert "New title" in body
+
+    def test_cross_workspace_user_gets_404(self, client, setup):
+        user, _, _ = setup
+        foreign_ws = WorkspaceFactory()
+        foreign_project = ProjectFactory(workspace=foreign_ws)
+        foreign_task = TaskFactory(project=foreign_project, reporter=foreign_ws.owner)
+        client.force_login(user)
+        resp = client.post(
+            reverse(
+                "web:set_task_title",
+                kwargs={
+                    "slug_prefix": foreign_project.slug_prefix,
+                    "number": foreign_task.number,
+                },
+            ),
+            {"title": "Leaked"},
         )
         assert resp.status_code == 404
 

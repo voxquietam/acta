@@ -427,6 +427,40 @@ def set_task_priority(request, slug_prefix, number):
 
 
 @require_POST
+def set_task_title(request, slug_prefix, number):
+    """Inline title change; returns the title-cell fragment.
+
+    Title is required and must not exceed the model's ``max_length``
+    (200). Empty / whitespace-only / overlong values 400. The title
+    change is captured by the ``task.updated`` event under
+    ``payload.changes.title`` (handled by :func:`build_diff_events`).
+
+    Args:
+        request: Django request carrying a ``title`` form field.
+        slug_prefix: Project slug prefix from the URL.
+        number: Task number within the project.
+
+    Returns:
+        Rendered ``_title_cell.html`` with the updated task.
+    """
+    if not request.user.is_authenticated:
+        return HttpResponseBadRequest("auth required")
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    new_title = (request.POST.get("title") or "").strip()
+    if not new_title:
+        return HttpResponseBadRequest("title required")
+    if len(new_title) > 200:
+        return HttpResponseBadRequest("title too long")
+    _apply_task_field_change(task, "title", new_title, request.user)
+    return _inline_edit_response(
+        request,
+        task,
+        "web/projects/_title_cell.html",
+        {"task": task},
+    )
+
+
+@require_POST
 def toggle_task_label(request, slug_prefix, number):
     """Atomically attach or detach a single label on the task.
 

@@ -10,6 +10,7 @@ from .views import (
     set_task_due_date,
     set_task_priority,
     set_task_status,
+    set_task_title,
     toggle_task_label,
 )
 
@@ -43,6 +44,11 @@ urlpatterns = [
         "projects/<str:slug_prefix>/<int:number>/due-date/",
         set_task_due_date,
         name="set_task_due_date",
+    ),
+    path(
+        "projects/<str:slug_prefix>/<int:number>/title/",
+        set_task_title,
+        name="set_task_title",
     ),
     path(
         "projects/<str:slug_prefix>/<int:number>/labels/toggle/",

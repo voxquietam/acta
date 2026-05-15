@@ -1,0 +1,64 @@
+{% load i18n %}
+{% comment %}
+Inline-editable task title — always a ``<textarea>`` styled to match
+an ``h2`` so long titles wrap naturally to multiple lines (Linear /
+Notion behaviour) instead of being clipped on a single line. The
+textarea auto-grows on every input event by resetting its height to
+``scrollHeight``; ``resize-none`` removes the corner handle and
+``overflow-hidden`` hides the scrollbar that would otherwise flash
+during the grow.
+
+Enter blurs the textarea instead of inserting a newline — titles are
+single-paragraph values, so the same blur-save path runs either way.
+Save fires on blur via ``form.requestSubmit()`` (HTMX intercepts the
+form's submit) only when the value differs from ``defaultValue``.
+
+Safety net for "user navigates away without blur firing" (closing the
+tab, follow-link before blur, browser back gesture): a
+``pagehide``-listener uses ``navigator.sendBeacon`` to POST the
+current value in the background.
+
+Empty values are restored to the original on blur — titles are
+required at the model level, so a silent restore beats a 400.
+{% endcomment %}
+<div id="title-cell"
+     x-data
+     @pagehide.window="
+       const inp = $refs.input;
+       if (inp.value !== inp.defaultValue && inp.value.trim()) {
+         navigator.sendBeacon(inp.form.action, new FormData(inp.form));
+       }
+     ">
+  <form action="{% url 'web:set_task_title' slug_prefix=task.project.slug_prefix number=task.number %}"
+        hx-post="{% url 'web:set_task_title' slug_prefix=task.project.slug_prefix number=task.number %}"
+        hx-target="#title-cell"
+        hx-swap="outerHTML">
+    {% csrf_token %}
+    <textarea x-ref="input"
+              name="title"
+              maxlength="200"
+              rows="1"
+              x-init="$nextTick(() => { $el.style.height = 'auto'; $el.style.height = $el.scrollHeight + 'px'; })"
+              @input="$el.style.height = 'auto'; $el.style.height = $el.scrollHeight + 'px'"
+              @keydown.enter.prevent="$el.blur()"
+              @keydown.escape.prevent="$el.value = $el.defaultValue; $el.dispatchEvent(new Event('input')); $el.blur()"
+              @blur="
+                if (!$el.value.trim()) {
+                  $el.value = $el.defaultValue;
+                  $el.dispatchEvent(new Event('input'));
+                  return;
+                }
+                if ($el.value !== $el.defaultValue) {
+                  $el.form.requestSubmit();
+                }
+              "
+              class="text-2xl font-semibold leading-tight w-full bg-transparent border-0 outline-none focus:outline-none p-0 m-0 text-zinc-100 resize-none overflow-hidden">{{ task.title }}</textarea>
+  </form>
+  {% if task.parent %}
+  <div class="text-xs text-zinc-500 mt-1">
+    {% trans "Subtask of" %}
+    <a href="{% url 'web:task_detail' slug_prefix=task.parent.project.slug_prefix number=task.parent.number %}"
+       class="hover:text-zinc-300">{{ task.parent.slug }} — {{ task.parent.title }}</a>
+  </div>
+  {% endif %}
+</div>
