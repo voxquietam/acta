@@ -1,1 +1,31 @@
 /* Acta-specific tweaks that Tailwind utilities don't cover. */
+
+/* Kanban empty placeholder: hide when the column has any task card.
+   :has() is widely supported in 2025+ browsers (Safari 15.4+, Chrome 105+,
+   Firefox 121+). Falls back to "always visible" on ancient browsers,
+   which is harmless. */
+.kanban-column:has([data-task-id]) .empty-placeholder {
+  display: none;
+}
+
+/* Smooth anchor scrolling for in-page TOCs (task detail sections). */
+html {
+  scroll-behavior: smooth;
+}
+
+/* GitHub-style task lists rendered by pymdownx.tasklist inside the
+   markdown body. Typography plugin doesn't style these natively; tighten
+   the layout so checkboxes sit on the same baseline as their text. */
+.prose ul.task-list,
+.prose .task-list {
+  list-style: none;
+  padding-left: 0;
+}
+.prose .task-list-item {
+  list-style: none;
+  padding-left: 0;
+}
+.prose .task-list-item input[type="checkbox"] {
+  margin-right: 0.5em;
+  vertical-align: middle;
+}

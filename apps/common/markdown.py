@@ -24,6 +24,7 @@ ALLOWED_TAGS = [
     "h6",
     "hr",
     "img",
+    "input",
     "li",
     "ol",
     "p",
@@ -37,7 +38,7 @@ ALLOWED_TAGS = [
     "tr",
     "ul",
 ]
-ALLOWED_ATTRS = {
+_ALLOWED_ATTRS_BY_TAG = {
     "a": [
         "href",
         "title",
@@ -47,6 +48,12 @@ ALLOWED_ATTRS = {
         "src",
         "alt",
         "title",
+    ],
+    "li": [
+        "class",
+    ],
+    "ul": [
+        "class",
     ],
 }
 ALLOWED_PROTOCOLS = [
@@ -60,7 +67,37 @@ _MD_EXTENSIONS = [
     "tables",
     "nl2br",
     "sane_lists",
+    "pymdownx.tasklist",
 ]
+_MD_EXTENSION_CONFIGS = {
+    "pymdownx.tasklist": {
+        "custom_checkbox": False,
+        "clickable_checkbox": False,
+    },
+}
+
+
+def _attr_filter(tag, name, value):
+    """Per-tag attribute allowlist used by bleach.
+
+    ``<input>`` is allowed only for the task-list extension; we restrict
+    it hard to ``type="checkbox"`` with optional ``disabled`` / ``checked``.
+    Any other ``<input>`` shape (text, hidden, etc.) is stripped, so the
+    XSS surface from rendering user-supplied Markdown stays nil.
+
+    Args:
+        tag: The HTML tag being filtered (e.g. ``"a"``, ``"input"``).
+        name: The attribute name.
+        value: The attribute value.
+
+    Returns:
+        ``True`` if the attribute is allowed, ``False`` otherwise.
+    """
+    if tag == "input":
+        if name == "type":
+            return value == "checkbox"
+        return name in {"disabled", "checked"}
+    return name in _ALLOWED_ATTRS_BY_TAG.get(tag, [])
 
 
 def render_markdown(text: str | None) -> str:
@@ -68,7 +105,10 @@ def render_markdown(text: str | None) -> str:
 
     Empty input returns an empty string. The output is safe to inject
     directly into a template via ``{{ value|safe }}`` since bleach has
-    already enforced the tag / attribute allowlists.
+    already enforced the tag / attribute allowlists. Supports GitHub-style
+    task lists (``- [ ]``, ``- [x]``) via the ``pymdownx.tasklist``
+    extension; the rendered ``<input>`` elements are constrained to
+    ``type="checkbox"`` by :func:`_attr_filter`.
 
     Args:
         text: Raw Markdown source. ``None`` is treated as empty.
@@ -78,11 +118,16 @@ def render_markdown(text: str | None) -> str:
     """
     if not text:
         return ""
-    rendered = markdown.markdown(text, extensions=_MD_EXTENSIONS, output_format="html")
+    rendered = markdown.markdown(
+        text,
+        extensions=_MD_EXTENSIONS,
+        extension_configs=_MD_EXTENSION_CONFIGS,
+        output_format="html",
+    )
     return bleach.clean(
         rendered,
         tags=ALLOWED_TAGS,
-        attributes=ALLOWED_ATTRS,
+        attributes=_attr_filter,
         protocols=ALLOWED_PROTOCOLS,
         strip=True,
     )
