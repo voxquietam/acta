@@ -16,6 +16,9 @@ api_v1_patterns = [
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    # Custom account routes (language switcher) come before allauth so
+    # /accounts/set-language/ is owned by us.
+    path("accounts/", include("apps.accounts.urls", namespace="accounts")),
     path("accounts/", include("allauth.urls")),
     path("api/v1/", include((api_v1_patterns, "api_v1"))),
     path("", include("apps.web.urls", namespace="web")),

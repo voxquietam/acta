@@ -1,0 +1,326 @@
+# Ukrainian translations for Acta.
+# Copyright (C) 2026 Acta team
+# This file is distributed under the same license as the Acta package.
+# Acta team, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Acta 0.1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-05-15 17:16+0000\n"
+"PO-Revision-Date: 2026-05-15 17:30+0000\n"
+"Last-Translator: Acta team\n"
+"Language-Team: Ukrainian\n"
+"Language: uk\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=4; plural=(n % 1 == 0 && n % 10 == 1 && n % 100 != "
+"11 ? 0 : n % 1 == 0 && n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % "
+"100 > 14) ? 1 : n % 1 == 0 && (n % 10 ==0 || (n % 10 >=5 && n % 10 <=9) || "
+"(n % 100 >=11 && n % 100 <=14 )) ? 2: 3);\n"
+
+#: acta/settings/base.py:184
+msgid "English"
+msgstr "Англійська"
+
+#: acta/settings/base.py:185
+msgid "Ukrainian"
+msgstr "Українська"
+
+#: acta/settings/base.py:234 apps/workspaces/models.py:40
+msgid "Workspace"
+msgstr "Робочий простір"
+
+#: acta/settings/base.py:238 apps/workspaces/models.py:41
+msgid "Workspaces"
+msgstr "Робочі простори"
+
+#: acta/settings/base.py:243
+msgid "Members"
+msgstr "Учасники"
+
+#: acta/settings/base.py:250 acta/settings/base.py:254
+#: apps/projects/models.py:58
+msgid "Projects"
+msgstr "Проєкти"
+
+#: acta/settings/base.py:259 apps/projects/models.py:183
+msgid "Project updates"
+msgstr "Оновлення проєктів"
+
+#: acta/settings/base.py:266 acta/settings/base.py:270
+msgid "Tasks"
+msgstr "Задачі"
+
+#: acta/settings/base.py:275 apps/comments/models.py:41
+msgid "Comments"
+msgstr "Коментарі"
+
+#: acta/settings/base.py:280 apps/labels/models.py:87
+msgid "Labels"
+msgstr "Мітки"
+
+#: acta/settings/base.py:285 apps/labels/models.py:35
+msgid "Label groups"
+msgstr "Групи міток"
+
+#: acta/settings/base.py:292
+msgid "Activity"
+msgstr "Активність"
+
+#: acta/settings/base.py:296 apps/activity/models.py:79
+msgid "Activity log"
+msgstr "Журнал активності"
+
+#: acta/settings/base.py:303
+msgid "System"
+msgstr "Система"
+
+#: acta/settings/base.py:308 apps/accounts/models.py:25
+msgid "Users"
+msgstr "Користувачі"
+
+#: acta/settings/base.py:313
+msgid "Groups"
+msgstr "Групи"
+
+#: acta/settings/base.py:319
+msgid "Sites"
+msgstr "Сайти"
+
+#: acta/settings/base.py:325
+msgid "Email addresses"
+msgstr "Електронні адреси"
+
+#: acta/settings/base.py:331
+msgid "Social apps"
+msgstr "Соціальні застосунки"
+
+#: acta/settings/base.py:337
+msgid "Social accounts"
+msgstr "Соціальні акаунти"
+
+#: apps/accounts/models.py:24
+msgid "User"
+msgstr "Користувач"
+
+#: apps/accounts/views.py:32
+msgid "Unsupported language"
+msgstr "Непідтримувана мова"
+
+#: apps/activity/models.py:78
+msgid "Activity log entry"
+msgstr "Запис журналу активності"
+
+#: apps/comments/models.py:40
+msgid "Comment"
+msgstr "Коментар"
+
+#: apps/comments/serializers.py:60
+msgid "You are not a member of this task's workspace."
+msgstr "Ви не є учасником робочого простору цієї задачі."
+
+#: apps/labels/models.py:34
+msgid "Label group"
+msgstr "Група міток"
+
+#: apps/labels/models.py:86
+msgid "Label"
+msgstr "Мітка"
+
+#: apps/labels/serializers.py:38 apps/labels/serializers.py:72
+#: apps/projects/serializers.py:58
+msgid "You are not a member of this workspace."
+msgstr "Ви не є учасником цього робочого простору."
+
+#: apps/labels/serializers.py:92
+msgid "Label group must belong to the same workspace as the label."
+msgstr "Група міток повинна належати тому ж робочому простору, що й сама мітка."
+
+#: apps/projects/models.py:9
+msgid "Slug prefix must be 2–6 uppercase Latin letters."
+msgstr "Префікс slug має містити 2–6 великих латинських літер."
+
+#: apps/projects/models.py:57
+msgid "Project"
+msgstr "Проєкт"
+
+#: apps/projects/models.py:145
+msgid "On track"
+msgstr "За планом"
+
+#: apps/projects/models.py:146
+msgid "At risk"
+msgstr "Під загрозою"
+
+#: apps/projects/models.py:147
+msgid "Off track"
+msgstr "Зірвано"
+
+#: apps/projects/models.py:148
+msgid "Completed"
+msgstr "Завершено"
+
+#: apps/projects/models.py:182
+msgid "Project update"
+msgstr "Оновлення проєкту"
+
+#: apps/tasks/bulk.py:91
+#, python-format
+msgid "Unknown update fields: %(fields)s"
+msgstr "Невідомі поля оновлення: %(fields)s"
+
+#: apps/tasks/bulk.py:96
+#, python-format
+msgid "Unknown status: %(value)s. Allowed: %(allowed)s"
+msgstr "Невідомий статус: %(value)s. Дозволено: %(allowed)s"
+
+#: apps/tasks/bulk.py:103
+#, python-format
+msgid "Invalid size: %(value)s. Allowed: %(allowed)s or null"
+msgstr "Некоректний розмір: %(value)s. Дозволено: %(allowed)s або null"
+
+#: apps/tasks/bulk.py:108
+msgid "Must be 0..4"
+msgstr "Має бути від 0 до 4"
+
+#: apps/tasks/bulk.py:111
+msgid "Must be a list of label IDs"
+msgstr "Має бути списком ID міток"
+
+#: apps/tasks/bulk.py:113
+msgid "Must be a project ID (int)"
+msgstr "Має бути ID проєкту (число)"
+
+#: apps/tasks/bulk.py:178
+#, python-format
+msgid "Labels not found: %(ids)s"
+msgstr "Мітки не знайдено: %(ids)s"
+
+#: apps/tasks/bulk.py:183
+#, python-format
+msgid "Labels not in affected workspaces: %(ids)s"
+msgstr "Мітки не належать задіяним робочим просторам: %(ids)s"
+
+#: apps/tasks/bulk.py:239
+#, python-format
+msgid "Project %(id)s not found"
+msgstr "Проєкт %(id)s не знайдено"
+
+#: apps/tasks/bulk.py:389
+#, python-format
+msgid "Cross-workspace bulk move not allowed for tasks: %(ids)s"
+msgstr "Масове переміщення між робочими просторами заборонене для задач: %(ids)s"
+
+#: apps/tasks/bulk.py:520 apps/tasks/bulk.py:546
+msgid "Permission denied for one or more tasks in the batch."
+msgstr "Доступ заборонено для однієї або кількох задач у пакеті."
+
+#: apps/tasks/serializers.py:70
+msgid "You are not a member of this project's workspace."
+msgstr "Ви не є учасником робочого простору цього проєкту."
+
+#: apps/tasks/serializers.py:87
+#, python-format
+msgid "Unknown status: %(value)s. Must be one of %(allowed)s."
+msgstr "Невідомий статус: %(value)s. Має бути одним зі значень: %(allowed)s."
+
+#: apps/tasks/serializers.py:116
+msgid "Subtask must be in the same project as its parent."
+msgstr "Підзадача має бути в тому ж проєкті, що й батьківська задача."
+
+#: apps/tasks/serializers.py:120
+msgid "Subtasks cannot have their own subtasks (depth limit 1)."
+msgstr "Підзадачі не можуть мати власних підзадач (максимальна вкладеність — 1)."
+
+#: apps/tasks/serializers.py:127
+#, python-format
+msgid "Labels %(ids)s are not in this project's workspace."
+msgstr "Мітки %(ids)s не належать робочому простору цього проєкту."
+
+#: apps/workspaces/models.py:59
+msgid "Owner"
+msgstr "Власник"
+
+#: apps/workspaces/models.py:60 templates/base_app.html:45
+#: templates/base_app.html:93
+msgid "Admin"
+msgstr "Адміністратор"
+
+#: apps/workspaces/models.py:61
+msgid "Member"
+msgstr "Учасник"
+
+#: apps/workspaces/models.py:88
+msgid "Workspace member"
+msgstr "Учасник робочого простору"
+
+#: apps/workspaces/models.py:89
+msgid "Workspace members"
+msgstr "Учасники робочого простору"
+
+#: templates/base_app.html:15
+msgid "task tracker"
+msgstr "трекер задач"
+
+#: templates/base_app.html:35
+msgid "no projects yet"
+msgstr "ще немає проєктів"
+
+#: templates/base_app.html:40
+msgid "no workspaces yet"
+msgstr "ще немає робочих просторів"
+
+#: templates/base_app.html:96
+msgid "Log out"
+msgstr "Вийти"
+
+#: templates/web/dashboard.html:4 templates/web/dashboard.html:7
+msgid "Dashboard"
+msgstr "Панель"
+
+#: templates/web/dashboard.html:14
+msgid "Your workspaces"
+msgstr "Ваші робочі простори"
+
+#: templates/web/dashboard.html:20
+#, python-format
+msgid "%(counter)s project"
+msgid_plural "%(counter)s projects"
+msgstr[0] "%(counter)s проєкт"
+msgstr[1] "%(counter)s проєкти"
+msgstr[2] "%(counter)s проєктів"
+msgstr[3] "%(counter)s проєкту"
+
+#: templates/web/dashboard.html:28
+msgid ""
+"Real-time activity feed, throughput charts, and workload widgets come next."
+msgstr ""
+"Стрічка активності в реальному часі, графіки пропускної здатності та "
+"віджети навантаження зʼявляться далі."
+
+#: templates/web/no_workspaces.html:4
+msgid "No workspace"
+msgstr "Немає робочого простору"
+
+#: templates/web/no_workspaces.html:7
+msgid "Welcome"
+msgstr "Вітаємо"
+
+#: templates/web/no_workspaces.html:15
+msgid "You're not in a workspace yet"
+msgstr "Ви ще не належите до жодного робочого простору"
+
+#: templates/web/no_workspaces.html:17
+msgid "Ask an admin to add you. Share this email so they can find you:"
+msgstr ""
+"Попросіть адміністратора додати вас. Поділіться цією електронною адресою, "
+"щоб вас знайшли:"
+
+#: templates/web/no_workspaces.html:23
+msgid ""
+"Once added, this page will turn into your workspace dashboard automatically."
+msgstr ""
+"Після додавання ця сторінка автоматично перетвориться на панель вашого "
+"робочого простору."

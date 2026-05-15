@@ -1,3 +1,5 @@
+from django.utils.translation import gettext_lazy as _
+
 from rest_framework import serializers
 
 from apps.common.markdown import render_markdown
@@ -54,7 +56,7 @@ class ProjectSerializer(serializers.ModelSerializer):
         """
         user = self.context["request"].user
         if not WorkspaceMember.objects.filter(user=user, workspace=workspace).exists():
-            raise serializers.ValidationError("You are not a member of this workspace.")
+            raise serializers.ValidationError(_("You are not a member of this workspace."))
         return workspace
 
 

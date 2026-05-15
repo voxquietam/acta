@@ -1,29 +1,31 @@
 {% extends "base_app.html" %}
+{% load i18n %}
 
-{% block title %}Dashboard · Acta{% endblock %}
+{% block title %}{% trans "Dashboard" %} · Acta{% endblock %}
 
 {% block topbar_left %}
-<h1 class="text-base font-medium">Dashboard</h1>
+<h1 class="text-base font-medium">{% trans "Dashboard" %}</h1>
 {% endblock %}
 
 {% block app_main %}
 <div class="space-y-8 max-w-6xl">
 
   <section>
-    <h2 class="text-sm font-medium text-zinc-400 mb-3">Your workspaces</h2>
+    <h2 class="text-sm font-medium text-zinc-400 mb-3">{% trans "Your workspaces" %}</h2>
     <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
       {% for ws in nav_workspaces %}
       <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
         <div class="text-base font-medium">{{ ws.name }}</div>
-        <div class="text-xs text-zinc-500 mt-0.5">{{ ws.projects.count }} project{{ ws.projects.count|pluralize }}</div>
+        <div class="text-xs text-zinc-500 mt-0.5">
+          {% blocktrans count counter=ws.projects.count %}{{ counter }} project{% plural %}{{ counter }} projects{% endblocktrans %}
+        </div>
       </div>
       {% endfor %}
     </div>
   </section>
 
   <section class="text-sm text-zinc-500">
-    Real-time activity feed, throughput charts, and workload widgets come next.
-    Track progress in <code class="text-zinc-400">docs/decisions/0016-dashboards.md</code>.
+    {% trans "Real-time activity feed, throughput charts, and workload widgets come next." %}
   </section>
 
 </div>

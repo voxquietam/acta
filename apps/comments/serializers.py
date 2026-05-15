@@ -1,3 +1,5 @@
+from django.utils.translation import gettext_lazy as _
+
 from rest_framework import serializers
 
 from apps.common.markdown import render_markdown
@@ -56,5 +58,5 @@ class CommentSerializer(serializers.ModelSerializer):
             user=user,
             workspace=task.project.workspace,
         ).exists():
-            raise serializers.ValidationError("You are not a member of this task's workspace.")
+            raise serializers.ValidationError(_("You are not a member of this task's workspace."))
         return task

@@ -196,6 +196,26 @@ Workflow for any new endpoint: write it, exercise it through
 `CaptureQueriesContext`, confirm the query count does not grow linearly
 with the row count, fix proactively.
 
+### i18n / translation workflow
+
+The repo supports English (source language, default) and Ukrainian.
+See `docs/decisions/0018-i18n.md` for the policy.
+
+- Wrap every user-visible string with translation calls:
+  - Python: `from django.utils.translation import gettext_lazy as _` then
+    `_("Save")`.
+  - Templates: `{% load i18n %}` and `{% trans "Save" %}` or
+    `{% blocktrans %}…{% endblocktrans %}`.
+- Internal codes (status keys, event types) must **not** be translated.
+- Workflow:
+  ```bash
+  docker compose exec web python manage.py makemessages -l uk
+  # …edit locale/uk/LC_MESSAGES/django.po…
+  docker compose exec web python manage.py compilemessages
+  ```
+- `.po` files are committed; `.mo` files are built at deploy time and
+  not committed.
+
 ### Formatting and linting
 
 The repo uses **black** (line-length 120), **isort** (profile=black),

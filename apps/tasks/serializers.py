@@ -1,3 +1,5 @@
+from django.utils.translation import gettext_lazy as _
+
 from rest_framework import serializers
 
 from apps.common.markdown import render_markdown
@@ -66,7 +68,7 @@ class TaskSerializer(serializers.ModelSerializer):
         """
         user = self.context["request"].user
         if not WorkspaceMember.objects.filter(user=user, workspace=project.workspace).exists():
-            raise serializers.ValidationError("You are not a member of this project's workspace.")
+            raise serializers.ValidationError(_("You are not a member of this project's workspace."))
         return project
 
     def validate_status(self, value):
@@ -83,7 +85,8 @@ class TaskSerializer(serializers.ModelSerializer):
         """
         if value not in Task.STATUS_VALUES:
             raise serializers.ValidationError(
-                f"Unknown status: {value!r}. Must be one of {Task.STATUS_VALUES}.",
+                _("Unknown status: %(value)s. Must be one of %(allowed)s.")
+                % {"value": value, "allowed": ", ".join(Task.STATUS_VALUES)},
             )
         return value
 
@@ -111,16 +114,18 @@ class TaskSerializer(serializers.ModelSerializer):
 
         if parent and project and parent.project_id != project.id:
             raise serializers.ValidationError(
-                {"parent": "Subtask must be in the same project as its parent."},
+                {"parent": _("Subtask must be in the same project as its parent.")},
             )
         if parent and parent.parent_id is not None:
             raise serializers.ValidationError(
-                {"parent": "Subtasks cannot have their own subtasks (depth limit 1)."},
+                {"parent": _("Subtasks cannot have their own subtasks (depth limit 1).")},
             )
         if labels and project:
             wrong = [lab.id for lab in labels if lab.workspace_id != project.workspace_id]
             if wrong:
                 raise serializers.ValidationError(
-                    {"labels": f"Labels {wrong} are not in this project's workspace."},
+                    {
+                        "labels": _("Labels %(ids)s are not in this project's workspace.") % {"ids": wrong},
+                    },
                 )
         return attrs

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load i18n %}
 {% comment %}
 Shared shell for all authenticated pages: top bar + sidebar + main content.
 Pages extend this and override the `app_main` block.
@@ -11,7 +12,7 @@ Pages extend this and override the `app_main` block.
   <aside class="hidden md:flex md:flex-col w-64 shrink-0 bg-zinc-900 border-r border-zinc-800">
     <a href="{% url 'web:dashboard' %}" class="px-5 py-4 flex items-center gap-2 border-b border-zinc-800">
       <span class="text-lg font-semibold tracking-tight">Acta</span>
-      <span class="text-[10px] uppercase tracking-wider text-zinc-500">task tracker</span>
+      <span class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "task tracker" %}</span>
     </a>
 
     <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-6 text-sm">
@@ -31,17 +32,17 @@ Pages extend this and override the `app_main` block.
           </li>
           {% endif %}
           {% empty %}
-          <li class="px-2 py-1 text-xs text-zinc-600 italic">no projects yet</li>
+          <li class="px-2 py-1 text-xs text-zinc-600 italic">{% trans "no projects yet" %}</li>
           {% endfor %}
         </ul>
       </div>
       {% empty %}
-      <p class="px-2 text-xs text-zinc-500">no workspaces yet</p>
+      <p class="px-2 text-xs text-zinc-500">{% trans "no workspaces yet" %}</p>
       {% endfor %}
     </nav>
 
     <div class="px-3 py-3 border-t border-zinc-800 text-xs text-zinc-500">
-      <a href="/admin/" class="hover:text-zinc-300">Admin</a>
+      <a href="/admin/" class="hover:text-zinc-300">{% trans "Admin" %}</a>
     </div>
   </aside>
 
@@ -55,6 +56,29 @@ Pages extend this and override the `app_main` block.
       </div>
 
       <div class="flex items-center gap-3">
+        {# Language switcher #}
+        <div x-data="{ open: false }" class="relative">
+          <button @click="open = !open"
+                  class="px-2 py-1.5 rounded-md text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 uppercase tracking-wider">
+            {{ LANGUAGE_CODE|default:"en" }}
+          </button>
+          <div x-show="open" @click.outside="open = false" x-cloak
+               class="absolute right-0 mt-2 w-32 bg-zinc-900 border border-zinc-800 rounded-md shadow-lg overflow-hidden">
+            {% get_available_languages as LANGUAGES %}
+            {% get_language_info_list for LANGUAGES as languages %}
+            {% for lang in languages %}
+            <form method="post" action="{% url 'accounts:set_language' %}">
+              {% csrf_token %}
+              <input type="hidden" name="language" value="{{ lang.code }}">
+              <button type="submit"
+                      class="w-full text-left px-3 py-2 text-sm hover:bg-zinc-800 {% if lang.code == LANGUAGE_CODE %}text-brand-500{% endif %}">
+                {{ lang.name_local }}
+              </button>
+            </form>
+            {% endfor %}
+          </div>
+        </div>
+
         {% if user.is_authenticated %}
         <div x-data="{ open: false }" class="relative">
           <button @click="open = !open"
@@ -66,10 +90,10 @@ Pages extend this and override the `app_main` block.
           </button>
           <div x-show="open" @click.outside="open = false" x-cloak
                class="absolute right-0 mt-2 w-44 bg-zinc-900 border border-zinc-800 rounded-md shadow-lg overflow-hidden">
-            <a href="/admin/" class="block px-3 py-2 text-sm hover:bg-zinc-800">Admin</a>
+            <a href="/admin/" class="block px-3 py-2 text-sm hover:bg-zinc-800">{% trans "Admin" %}</a>
             <form method="post" action="{% url 'account_logout' %}">
               {% csrf_token %}
-              <button class="w-full text-left px-3 py-2 text-sm hover:bg-zinc-800" type="submit">Log out</button>
+              <button class="w-full text-left px-3 py-2 text-sm hover:bg-zinc-800" type="submit">{% trans "Log out" %}</button>
             </form>
           </div>
         </div>

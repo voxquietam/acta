@@ -82,6 +82,11 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    # i18n: LocaleMiddleware reads cookie / Accept-Language; the custom
+    # UserLanguageMiddleware after it overrides with User.language if set.
+    # Both must run after AuthenticationMiddleware. See ADR 0018.
+    "django.middleware.locale.LocaleMiddleware",
+    "apps.accounts.middleware.UserLanguageMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",
@@ -170,10 +175,18 @@ REST_FRAMEWORK = {
 # Internationalization
 # -----------------------------------------------------------------------------
 
-LANGUAGE_CODE = "en-us"
+LANGUAGE_CODE = "en"
 TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
+
+LANGUAGES = [
+    ("en", _("English")),
+    ("uk", _("Ukrainian")),
+]
+LOCALE_PATHS = [
+    BASE_DIR / "locale",
+]
 
 
 # -----------------------------------------------------------------------------

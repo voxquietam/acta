@@ -24,6 +24,7 @@ ADR format: **Context → Options → Decision → Why → Consequences**.
 | 0015 | accepted | Real-time updates via SSE (`django-eventstream`), one stream per workspace | [0015-real-time.md](decisions/0015-real-time.md) |
 | 0016 | accepted | Dashboards: live ORM queries, Chart.js, fixed time windows         | [0016-dashboards.md](decisions/0016-dashboards.md) |
 | 0017 | accepted | Notifications: in-app toasts over SSE, no inbox in MVP             | [0017-notifications.md](decisions/0017-notifications.md) |
+| 0018 | accepted | i18n: en + uk, User.language preference, LocaleMiddleware          | [0018-i18n.md](decisions/0018-i18n.md) |
 
 ## Spec (filled in as decisions land)
 

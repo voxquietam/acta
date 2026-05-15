@@ -21,6 +21,7 @@ from uuid import UUID, uuid4
 
 from django.db import transaction
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 
 from rest_framework import serializers, status
 from rest_framework.permissions import IsAuthenticated
@@ -86,22 +87,30 @@ class BulkUpdateSerializer(serializers.Serializer):
         """
         unknown = set(updates.keys()) - ALLOWED_UPDATE_FIELDS
         if unknown:
-            raise serializers.ValidationError(f"Unknown update fields: {sorted(unknown)}")
+            raise serializers.ValidationError(
+                _("Unknown update fields: %(fields)s") % {"fields": sorted(unknown)},
+            )
         if "status" in updates and updates["status"] not in Task.STATUS_VALUES:
             raise serializers.ValidationError(
-                {"status": f"Unknown status: {updates['status']!r}. Allowed: {list(Task.STATUS_VALUES)}"},
+                {
+                    "status": _("Unknown status: %(value)s. Allowed: %(allowed)s")
+                    % {"value": updates["status"], "allowed": list(Task.STATUS_VALUES)},
+                },
             )
         if "size" in updates and updates["size"] is not None and updates["size"] not in Task.SIZE_VALUES:
             raise serializers.ValidationError(
-                {"size": f"Invalid size: {updates['size']}. Allowed: {list(Task.SIZE_VALUES)} or null"},
+                {
+                    "size": _("Invalid size: %(value)s. Allowed: %(allowed)s or null")
+                    % {"value": updates["size"], "allowed": list(Task.SIZE_VALUES)},
+                },
             )
         if "priority" in updates and updates["priority"] not in {0, 1, 2, 3, 4}:
-            raise serializers.ValidationError({"priority": "Must be 0..4"})
+            raise serializers.ValidationError({"priority": _("Must be 0..4")})
         for key in ("labels_add", "labels_remove"):
             if key in updates and not isinstance(updates[key], list):
-                raise serializers.ValidationError({key: "Must be a list of label IDs"})
+                raise serializers.ValidationError({key: _("Must be a list of label IDs")})
         if "project" in updates and not isinstance(updates["project"], int):
-            raise serializers.ValidationError({"project": "Must be a project ID (int)"})
+            raise serializers.ValidationError({"project": _("Must be a project ID (int)")})
         return updates
 
 
@@ -166,12 +175,12 @@ def _validate_labels_belong_to_workspaces(label_ids, workspace_ids):
     missing = set(label_ids) - found_ids
     if missing:
         raise serializers.ValidationError(
-            {"labels": f"Labels not found: {sorted(missing)}"},
+            {"labels": _("Labels not found: %(ids)s") % {"ids": sorted(missing)}},
         )
     bad = [row["id"] for row in found if row["workspace_id"] not in workspace_ids]
     if bad:
         raise serializers.ValidationError(
-            {"labels": f"Labels not in affected workspaces: {sorted(bad)}"},
+            {"labels": _("Labels not in affected workspaces: %(ids)s") % {"ids": sorted(bad)}},
         )
     return list(found_ids)
 
@@ -226,7 +235,9 @@ def _resolve_target_project(target_id: int, user) -> Project:
     try:
         project = Project.objects.select_related("workspace").get(pk=target_id)
     except Project.DoesNotExist as exc:
-        raise serializers.ValidationError({"project": f"Project {target_id} not found"}) from exc
+        raise serializers.ValidationError(
+            {"project": _("Project %(id)s not found") % {"id": target_id}},
+        ) from exc
     if not WorkspaceMember.objects.filter(user=user, workspace=project.workspace).exists():
         raise PermissionError("inaccessible target project")
     return project
@@ -374,7 +385,9 @@ def _run_bulk_update(*, user, ids: list[int], updates: dict[str, Any]) -> tuple[
         bad = [t.id for t in pre_requested if t.project.workspace_id != target_workspace_id]
         if bad:
             raise serializers.ValidationError(
-                {"project": f"Cross-workspace bulk move not allowed for tasks: {sorted(bad)}"},
+                {
+                    "project": _("Cross-workspace bulk move not allowed for tasks: %(ids)s") % {"ids": sorted(bad)},
+                },
             )
 
     if target_project is not None:
@@ -503,7 +516,7 @@ class TaskBulkView(APIView):
             bulk_id, updated_count = _run_bulk_update(user=request.user, ids=ids, updates=updates)
         except PermissionError:
             return Response(
-                {"detail": "Permission denied for one or more tasks in the batch."},
+                {"detail": _("Permission denied for one or more tasks in the batch.")},
                 status=status.HTTP_403_FORBIDDEN,
             )
         return Response(
@@ -529,7 +542,7 @@ class TaskBulkView(APIView):
             bulk_id, deleted_count = _run_bulk_delete(user=request.user, ids=ids)
         except PermissionError:
             return Response(
-                {"detail": "Permission denied for one or more tasks in the batch."},
+                {"detail": _("Permission denied for one or more tasks in the batch.")},
                 status=status.HTTP_403_FORBIDDEN,
             )
         return Response(
