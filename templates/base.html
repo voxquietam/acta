@@ -1,0 +1,29 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Acta{% endblock %}</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: { extend: {} },
+    };
+  </script>
+
+  <script src="https://unpkg.com/htmx.org@2"></script>
+  <script src="https://unpkg.com/htmx-ext-sse@2"></script>
+  <script defer src="https://unpkg.com/alpinejs@3"></script>
+
+  <link rel="stylesheet" href="{% static 'css/acta.css' %}">
+</head>
+<body class="bg-zinc-950 text-zinc-100 min-h-screen">
+  {% block body %}{% endblock %}
+
+  <script src="{% static 'js/acta.js' %}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -84,6 +84,9 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 
+# ---- Acta-specific ----
+static_collected/
+
 # ---- Misc ----
 *.bak
 *.tmp

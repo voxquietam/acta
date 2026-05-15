@@ -1,0 +1,15 @@
+services:
+  web:
+    build:
+      context: .
+      args:
+        REQUIREMENTS: requirements/dev.txt
+    environment:
+      DJANGO_SETTINGS_MODULE: acta.settings.dev
+    volumes:
+      - .:/app
+    command: >
+      uvicorn acta.asgi:application
+      --host 0.0.0.0
+      --port 8000
+      --reload
