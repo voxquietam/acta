@@ -7,6 +7,9 @@ Environment-specific overrides live in dev.py and prod.py.
 import os
 from pathlib import Path
 
+from django.urls import reverse_lazy
+from django.utils.translation import gettext_lazy as _
+
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
@@ -189,9 +192,11 @@ UNFOLD = {
     "SITE_TITLE": "Acta",
     "SITE_HEADER": "Acta",
     "SITE_SUBHEADER": "task tracker · admin",
+    "SITE_SYMBOL": "checklist",
     "SITE_URL": "/",
     "SHOW_HISTORY": True,
     "SHOW_VIEW_ON_SITE": False,
+    "SHOW_BACK_BUTTON": True,
     "COLORS": {
         "primary": {
             "50": "250 245 255",
@@ -206,5 +211,122 @@ UNFOLD = {
             "900": "88 28 135",
             "950": "59 7 100",
         },
+    },
+    "SIDEBAR": {
+        "show_search": True,
+        "show_all_applications": True,
+        "navigation": [
+            {
+                "title": _("Workspace"),
+                "separator": True,
+                "items": [
+                    {
+                        "title": _("Workspaces"),
+                        "icon": "domain",
+                        "link": reverse_lazy("admin:workspaces_workspace_changelist"),
+                    },
+                    {
+                        "title": _("Members"),
+                        "icon": "group",
+                        "link": reverse_lazy("admin:workspaces_workspacemember_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": _("Projects"),
+                "separator": True,
+                "items": [
+                    {
+                        "title": _("Projects"),
+                        "icon": "folder",
+                        "link": reverse_lazy("admin:projects_project_changelist"),
+                    },
+                    {
+                        "title": _("Project updates"),
+                        "icon": "campaign",
+                        "link": reverse_lazy("admin:projects_projectupdate_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": _("Tasks"),
+                "separator": True,
+                "items": [
+                    {
+                        "title": _("Tasks"),
+                        "icon": "task",
+                        "link": reverse_lazy("admin:tasks_task_changelist"),
+                    },
+                    {
+                        "title": _("Comments"),
+                        "icon": "chat",
+                        "link": reverse_lazy("admin:comments_comment_changelist"),
+                    },
+                    {
+                        "title": _("Labels"),
+                        "icon": "sell",
+                        "link": reverse_lazy("admin:labels_label_changelist"),
+                    },
+                    {
+                        "title": _("Label groups"),
+                        "icon": "category",
+                        "link": reverse_lazy("admin:labels_labelgroup_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": _("Activity"),
+                "separator": True,
+                "items": [
+                    {
+                        "title": _("Activity log"),
+                        "icon": "timeline",
+                        "link": reverse_lazy("admin:activity_activitylog_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": _("System"),
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": _("Users"),
+                        "icon": "person",
+                        "link": reverse_lazy("admin:accounts_user_changelist"),
+                    },
+                    {
+                        "title": _("Groups"),
+                        "icon": "shield_person",
+                        "link": reverse_lazy("admin:auth_group_changelist"),
+                        "permission": lambda request: request.user.is_superuser,
+                    },
+                    {
+                        "title": _("Sites"),
+                        "icon": "public",
+                        "link": reverse_lazy("admin:sites_site_changelist"),
+                        "permission": lambda request: request.user.is_superuser,
+                    },
+                    {
+                        "title": _("Email addresses"),
+                        "icon": "alternate_email",
+                        "link": reverse_lazy("admin:account_emailaddress_changelist"),
+                        "permission": lambda request: request.user.is_superuser,
+                    },
+                    {
+                        "title": _("Social apps"),
+                        "icon": "key",
+                        "link": reverse_lazy("admin:socialaccount_socialapp_changelist"),
+                        "permission": lambda request: request.user.is_superuser,
+                    },
+                    {
+                        "title": _("Social accounts"),
+                        "icon": "account_circle",
+                        "link": reverse_lazy("admin:socialaccount_socialaccount_changelist"),
+                        "permission": lambda request: request.user.is_superuser,
+                    },
+                ],
+            },
+        ],
     },
 }
