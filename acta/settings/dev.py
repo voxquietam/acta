@@ -1,4 +1,5 @@
 """Development settings."""
+
 import os
 
 from .base import *  # noqa: F401,F403
@@ -21,3 +22,7 @@ DATABASES = {
 }
 
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
+# Force-disable browser caching in dev so template / static edits show up
+# on the first reload. Never use this in production.
+MIDDLEWARE = MIDDLEWARE + ["apps.web.middleware.NoBrowserCacheMiddleware"]  # noqa: F405
