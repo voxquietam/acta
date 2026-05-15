@@ -4,44 +4,75 @@
 The list of recent activity events for a single task. Includes a
 "show more" toggle so long timelines stay collapsed by default; full
 history beyond the loaded slice would land on a dedicated page later.
+
+Each event renders ``actor + verb + diff``. For ``task.updated`` (a
+catch-all event covering title / description / size / project), the
+verb is chosen per-field so the user reads "renamed task" instead of
+the opaque "updated fields". Long values wrap (``break-words``) rather
+than truncate, so the rail can grow vertically and nothing gets
+chopped at the edge.
 {% endcomment %}
 {% if activity %}
-<div x-data="{ open: false }">
+<div>
   <ul class="space-y-2">
-    {% for event in activity %}
-    <li class="text-xs text-zinc-400"
-        {% if forloop.counter > 5 %}x-show="open" x-cloak{% endif %}>
+    {% for event in activity|slice:":5" %}
+    <li class="text-xs text-zinc-400 break-words">
       <div>
         <span class="text-zinc-300">{{ event.actor.username|default:"system" }}</span>
-        <span class="text-zinc-500">{{ event.event_type|event_label }}</span>
         {% if event.event_type == "task.status_changed" %}
+          <span class="text-zinc-500">{% trans "changed status" %}</span>
           <span class="text-zinc-500">
             {{ status_labels|get_item:event.payload.from|default:event.payload.from|default:"—" }}
             →
             {{ status_labels|get_item:event.payload.to|default:event.payload.to|default:"—" }}
           </span>
         {% elif event.event_type == "task.priority_changed" %}
+          <span class="text-zinc-500">{% trans "changed priority" %}</span>
           <span class="text-zinc-500">
             {{ priority_labels|get_item:event.payload.from|default:"—" }}
             →
             {{ priority_labels|get_item:event.payload.to|default:"—" }}
           </span>
         {% elif event.event_type == "task.due_changed" %}
+          <span class="text-zinc-500">{% trans "changed due date" %}</span>
           <span class="text-zinc-500">
             {{ event.payload.from|default:"—" }} → {{ event.payload.to|default:"—" }}
           </span>
         {% elif event.event_type == "task.assigned" %}
+          <span class="text-zinc-500">{% trans "changed assignee" %}</span>
           <span class="text-zinc-500">
             {{ event.assigned_from_username|default:"—" }}
             →
             {{ event.assigned_to_username|default:"unassigned" }}
           </span>
         {% elif event.event_type == "task.labels_changed" %}
+          <span class="text-zinc-500">{% trans "changed labels" %}</span>
           <span class="text-zinc-500">
             {% if event.added_label_names %}+{{ event.added_label_names|join:", " }}{% endif %}
             {% if event.added_label_names and event.removed_label_names %} · {% endif %}
             {% if event.removed_label_names %}−{{ event.removed_label_names|join:", " }}{% endif %}
           </span>
+        {% elif event.event_type == "task.updated" %}
+          {% if event.payload.changes.title %}
+            <span class="text-zinc-500">{% trans "renamed task" %}</span>
+            <span class="text-zinc-500 block truncate"
+                  title='"{{ event.payload.changes.title.old }}" → "{{ event.payload.changes.title.new }}"'>
+              "{{ event.payload.changes.title.old }}" → "{{ event.payload.changes.title.new }}"
+            </span>
+          {% elif event.payload.changes.description %}
+            <span class="text-zinc-500">{% trans "updated description" %}</span>
+          {% elif event.payload.changes.size %}
+            <span class="text-zinc-500">{% trans "changed size" %}</span>
+            <span class="text-zinc-500">
+              {{ event.payload.changes.size.old|default:"—" }}
+              →
+              {{ event.payload.changes.size.new|default:"—" }}
+            </span>
+          {% else %}
+            <span class="text-zinc-500">{{ event.event_type|event_label }}</span>
+          {% endif %}
+        {% else %}
+          <span class="text-zinc-500">{{ event.event_type|event_label }}</span>
         {% endif %}
       </div>
       <div class="text-[10px] text-zinc-600">{{ event.created_at|date:"M j, H:i" }}</div>
@@ -50,12 +81,10 @@ history beyond the loaded slice would land on a dedicated page later.
   </ul>
   {% if activity|length > 5 %}
   <button type="button"
-          @click="open = !open"
-          class="mt-2 text-[11px] text-zinc-500 hover:text-zinc-300">
-    <span x-show="!open">
-      {% blocktrans count counter=activity|length|add:"-5" %}Show {{ counter }} more{% plural %}Show {{ counter }} more{% endblocktrans %}
-    </span>
-    <span x-show="open" x-cloak>{% trans "Show less" %}</span>
+          disabled
+          title="{% trans 'Coming soon: a dedicated page or modal with the full activity history.' %}"
+          class="mt-2 text-[11px] text-zinc-500 opacity-50 cursor-not-allowed">
+    {% blocktrans count counter=activity|length|add:"-5" %}Show {{ counter }} more{% plural %}Show {{ counter }} more{% endblocktrans %}
   </button>
   {% endif %}
 </div>
