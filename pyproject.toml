@@ -1,0 +1,12 @@
+[project]
+name = "acta"
+version = "0.1.0"
+description = "Acta — a task tracker with bulk operations and an honest activity log."
+requires-python = ">=3.13"
+
+# Dependencies are pinned in requirements/base.txt, requirements/dev.txt,
+# and requirements/prod.txt. This file holds only project metadata so uv
+# can create a venv. Install deps with:
+#   uv pip install -r requirements/dev.txt    # for local development
+#   uv pip install -r requirements/prod.txt   # for production-like installs
+dependencies = []
