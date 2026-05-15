@@ -1,3 +1,11 @@
 -r base.txt
+
+# Dev tooling
 django-debug-toolbar>=4.4
 ipython>=8
+
+# Formatting / linting — versions matched to ksu24.back for consistency
+black==24.8.0
+isort==5.13.2
+flake8==7.1.1
+pre-commit>=3.8,<4

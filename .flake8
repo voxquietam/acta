@@ -1,0 +1,16 @@
+[flake8]
+max-line-length = 120
+max-complexity = 25
+show-source = true
+statistics = true
+exclude =
+    .git
+    .github
+    .idea
+    .venv
+    */migrations/*
+    static_collected
+per-file-ignores =
+    */__init__.py:F401,F403,F405
+    */admin.py:F403,F405
+    */settings/*.py:F401,F403,F405

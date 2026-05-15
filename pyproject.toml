@@ -10,3 +10,29 @@ requires-python = ">=3.13"
 #   uv pip install -r requirements/dev.txt    # for local development
 #   uv pip install -r requirements/prod.txt   # for production-like installs
 dependencies = []
+
+
+[tool.black]
+line-length = 120
+target-version = ["py313"]
+extend-exclude = '''
+/(
+    \.git
+  | \.github
+  | \.idea
+  | \.venv
+  | migrations
+  | static_collected
+)/
+'''
+
+
+[tool.isort]
+profile = "black"
+line_length = 120
+force_sort_within_sections = true
+atomic = true
+skip_glob = ["**/migrations/*", ".venv/*"]
+known_django = ["django"]
+known_first_party = ["acta", "apps"]
+sections = ["FUTURE", "STDLIB", "DJANGO", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
