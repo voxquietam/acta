@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import models
+from django.utils.translation import gettext_lazy as _
 
 
 class Workspace(models.Model):
@@ -35,6 +36,10 @@ class Workspace(models.Model):
         help_text="Users with access to the workspace, with their role",
     )
 
+    class Meta:
+        verbose_name = _("Workspace")
+        verbose_name_plural = _("Workspaces")
+
     def __str__(self) -> str:
         """Return the workspace name."""
         return self.name
@@ -51,9 +56,9 @@ class WorkspaceMember(models.Model):
     ADMIN = "admin"
     MEMBER = "member"
     ROLE_CHOICES = [
-        (OWNER, "Owner"),
-        (ADMIN, "Admin"),
-        (MEMBER, "Member"),
+        (OWNER, _("Owner")),
+        (ADMIN, _("Admin")),
+        (MEMBER, _("Member")),
     ]
 
     user = models.ForeignKey(
@@ -80,6 +85,8 @@ class WorkspaceMember(models.Model):
     )
 
     class Meta:
+        verbose_name = _("Workspace member")
+        verbose_name_plural = _("Workspace members")
         constraints = [
             models.UniqueConstraint(
                 fields=[

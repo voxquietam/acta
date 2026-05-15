@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils.translation import gettext_lazy as _
 
 
 class LabelGroup(models.Model):
@@ -30,6 +31,8 @@ class LabelGroup(models.Model):
     )
 
     class Meta:
+        verbose_name = _("Label group")
+        verbose_name_plural = _("Label groups")
         constraints = [
             models.UniqueConstraint(
                 fields=[
@@ -80,6 +83,8 @@ class Label(models.Model):
     )
 
     class Meta:
+        verbose_name = _("Label")
+        verbose_name_plural = _("Labels")
         constraints = [
             models.UniqueConstraint(
                 fields=[

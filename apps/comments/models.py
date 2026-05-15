@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import models
+from django.utils.translation import gettext_lazy as _
 
 
 class Comment(models.Model):
@@ -36,6 +37,8 @@ class Comment(models.Model):
     )
 
     class Meta:
+        verbose_name = _("Comment")
+        verbose_name_plural = _("Comments")
         ordering = [
             "created_at",
         ]

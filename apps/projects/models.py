@@ -2,10 +2,11 @@ from django.conf import settings
 from django.core.validators import RegexValidator
 from django.db import models
 from django.db.models import F
+from django.utils.translation import gettext_lazy as _
 
 SLUG_PREFIX_VALIDATOR = RegexValidator(
     regex=r"^[A-Z]{2,6}$",
-    message="Slug prefix must be 2–6 uppercase Latin letters.",
+    message=_("Slug prefix must be 2–6 uppercase Latin letters."),
 )
 
 
@@ -53,6 +54,8 @@ class Project(models.Model):
     )
 
     class Meta:
+        verbose_name = _("Project")
+        verbose_name_plural = _("Projects")
         constraints = [
             models.UniqueConstraint(
                 fields=[
@@ -139,10 +142,10 @@ class ProjectUpdate(models.Model):
     OFF_TRACK = "off_track"
     COMPLETED = "completed"
     HEALTH_CHOICES = [
-        (ON_TRACK, "On track"),
-        (AT_RISK, "At risk"),
-        (OFF_TRACK, "Off track"),
-        (COMPLETED, "Completed"),
+        (ON_TRACK, _("On track")),
+        (AT_RISK, _("At risk")),
+        (OFF_TRACK, _("Off track")),
+        (COMPLETED, _("Completed")),
     ]
 
     project = models.ForeignKey(
@@ -176,6 +179,8 @@ class ProjectUpdate(models.Model):
     )
 
     class Meta:
+        verbose_name = _("Project update")
+        verbose_name_plural = _("Project updates")
         ordering = [
             "-created_at",
         ]
