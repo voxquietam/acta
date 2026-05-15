@@ -1,0 +1,54 @@
+{% extends "base_app.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Projects" %} · Acta{% endblock %}
+
+{% block topbar_left %}
+<h1 class="text-base font-medium">{% trans "Projects" %}</h1>
+{% endblock %}
+
+{% block app_main %}
+<div class="space-y-4 max-w-6xl">
+
+  <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+    {% for project in projects %}
+    <a href="{% url 'web:project_detail' slug_prefix=project.slug_prefix %}"
+       class="block bg-zinc-900 border border-zinc-800 rounded-lg p-4 hover:border-zinc-700 transition">
+      <div class="flex items-start justify-between gap-2">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2">
+            <span class="font-mono text-xs text-zinc-500">{{ project.slug_prefix }}</span>
+            {% if project.archived %}
+            <span class="text-[10px] uppercase tracking-wider text-zinc-500 px-1.5 py-0.5 rounded bg-zinc-800">
+              {% trans "archived" %}
+            </span>
+            {% endif %}
+          </div>
+          <div class="text-base font-medium truncate mt-0.5">{{ project.name }}</div>
+          <div class="text-xs text-zinc-500 mt-1">{{ project.workspace.name }}</div>
+        </div>
+
+        {% if project.latest_health %}
+        <span class="shrink-0 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded
+          {% if project.latest_health == 'on_track' %}bg-emerald-900 text-emerald-300
+          {% elif project.latest_health == 'at_risk' %}bg-amber-900 text-amber-300
+          {% elif project.latest_health == 'off_track' %}bg-rose-900 text-rose-300
+          {% else %}bg-zinc-800 text-zinc-400{% endif %}">
+          {{ project.latest_health }}
+        </span>
+        {% endif %}
+      </div>
+
+      <div class="text-xs text-zinc-400 mt-3">
+        {% blocktrans count counter=project.open_task_count %}{{ counter }} open task{% plural %}{{ counter }} open tasks{% endblocktrans %}
+      </div>
+    </a>
+    {% empty %}
+    <div class="col-span-full text-sm text-zinc-500 italic py-12 text-center">
+      {% trans "No projects yet. Create one in admin to get started." %}
+    </div>
+    {% endfor %}
+  </div>
+
+</div>
+{% endblock %}

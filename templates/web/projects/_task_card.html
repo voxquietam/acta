@@ -1,0 +1,39 @@
+{% load i18n %}
+{% load web_extras %}
+{# Single task card used inside a kanban column. #}
+<a href="#" class="block bg-zinc-900 border border-zinc-800 rounded-md p-2.5 hover:border-zinc-700 transition group">
+  <div class="flex items-center gap-1.5 text-[11px]">
+    <span class="font-mono text-zinc-500">{{ task.slug }}</span>
+    {% if task.priority %}
+    <span class="px-1.5 py-0.5 rounded
+      {% if task.priority == 1 %}bg-rose-900 text-rose-300
+      {% elif task.priority == 2 %}bg-orange-900 text-orange-300
+      {% elif task.priority == 3 %}bg-amber-900 text-amber-300
+      {% else %}bg-zinc-800 text-zinc-400{% endif %}">
+      {{ priority_labels|get_item:task.priority }}
+    </span>
+    {% endif %}
+    {% if task.size %}
+    <span class="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 font-mono">{{ task.size }}</span>
+    {% endif %}
+  </div>
+
+  <div class="text-sm text-zinc-100 mt-1.5 leading-snug">{{ task.title }}</div>
+
+  <div class="flex items-center justify-between mt-2 text-[11px] text-zinc-500">
+    <div class="flex items-center gap-1.5">
+      {% if task.due_date %}
+      <span>{{ task.due_date|date:"M j" }}</span>
+      {% endif %}
+      {% for label in task.labels.all %}
+      <span class="w-2 h-2 rounded-full" style="background-color: {{ label.color }};" title="{{ label.name }}"></span>
+      {% endfor %}
+    </div>
+    {% if task.assignee %}
+    <span class="w-5 h-5 rounded-full bg-brand-600 text-white grid place-items-center font-medium text-[10px]"
+          title="{{ task.assignee.username }}">
+      {{ task.assignee.username|slice:":1"|upper }}
+    </span>
+    {% endif %}
+  </div>
+</a>

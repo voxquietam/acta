@@ -1,0 +1,81 @@
+{% load i18n %}
+{% load web_extras %}
+{# Tabular task list — alternative to the kanban view. #}
+<div class="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-zinc-900/60 text-zinc-400 text-xs uppercase tracking-wider">
+      <tr>
+        <th class="text-left px-3 py-2 font-medium">{% trans "ID" %}</th>
+        <th class="text-left px-3 py-2 font-medium">{% trans "Title" %}</th>
+        <th class="text-left px-3 py-2 font-medium">{% trans "Status" %}</th>
+        <th class="text-left px-3 py-2 font-medium">{% trans "Priority" %}</th>
+        <th class="text-left px-3 py-2 font-medium">{% trans "Size" %}</th>
+        <th class="text-left px-3 py-2 font-medium">{% trans "Assignee" %}</th>
+        <th class="text-left px-3 py-2 font-medium">{% trans "Due" %}</th>
+        <th class="text-left px-3 py-2 font-medium">{% trans "Updated" %}</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-zinc-800">
+      {% for task in tasks %}
+      <tr class="hover:bg-zinc-800/30">
+        <td class="px-3 py-2 font-mono text-xs text-zinc-500">
+          <a href="#" class="hover:text-zinc-300">{{ task.slug }}</a>
+        </td>
+        <td class="px-3 py-2">
+          <a href="#" class="text-zinc-100 hover:text-brand-500">{{ task.title }}</a>
+        </td>
+        <td class="px-3 py-2">
+          <span class="text-xs px-1.5 py-0.5 rounded
+            {% if task.status == 'planned' %}bg-zinc-800 text-zinc-400
+            {% elif task.status == 'to-do' %}bg-blue-900 text-blue-300
+            {% elif task.status == 'in-progress' %}bg-violet-900 text-violet-300
+            {% elif task.status == 'in-review' %}bg-amber-900 text-amber-300
+            {% elif task.status == 'done' %}bg-emerald-900 text-emerald-300{% endif %}">
+            {{ status_labels|get_item:task.status|default:task.status }}
+          </span>
+        </td>
+        <td class="px-3 py-2 text-xs">
+          {% if task.priority %}
+          <span class="
+            {% if task.priority == 1 %}text-rose-400
+            {% elif task.priority == 2 %}text-orange-400
+            {% elif task.priority == 3 %}text-amber-400
+            {% else %}text-zinc-500{% endif %}">
+            {{ priority_labels|get_item:task.priority }}
+          </span>
+          {% else %}
+          <span class="text-zinc-600">—</span>
+          {% endif %}
+        </td>
+        <td class="px-3 py-2 text-xs text-zinc-400">
+          {{ task.size|default:"—" }}
+        </td>
+        <td class="px-3 py-2 text-xs">
+          {% if task.assignee %}
+          <div class="flex items-center gap-1.5">
+            <span class="w-5 h-5 rounded-full bg-brand-600 text-white grid place-items-center font-medium text-[10px]">
+              {{ task.assignee.username|slice:":1"|upper }}
+            </span>
+            <span class="text-zinc-300">{{ task.assignee.username }}</span>
+          </div>
+          {% else %}
+          <span class="text-zinc-600">{% trans "Unassigned" %}</span>
+          {% endif %}
+        </td>
+        <td class="px-3 py-2 text-xs text-zinc-400">
+          {{ task.due_date|date:"M j"|default:"—" }}
+        </td>
+        <td class="px-3 py-2 text-xs text-zinc-500">
+          {{ task.updated_at|date:"M j" }}
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="8" class="px-3 py-8 text-center text-sm text-zinc-500 italic">
+          {% trans "No tasks in this project yet." %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

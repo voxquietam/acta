@@ -1,0 +1,21 @@
+{% load i18n %}
+{# Kanban board: 5 fixed-status columns of task cards. #}
+<div class="flex gap-3 overflow-x-auto pb-3">
+  {% for col in columns %}
+  <div class="w-72 shrink-0 bg-zinc-900/50 border border-zinc-800 rounded-lg flex flex-col max-h-[calc(100vh-12rem)]">
+    <div class="px-3 py-2 border-b border-zinc-800 flex items-center justify-between text-xs uppercase tracking-wider">
+      <span class="text-zinc-300">{{ col.label }}</span>
+      <span class="text-zinc-500">{{ col.tasks|length }}</span>
+    </div>
+    <div class="flex-1 overflow-y-auto p-2 space-y-2">
+      {% for task in col.tasks %}
+      {% include "web/projects/_task_card.html" with task=task %}
+      {% empty %}
+      <div class="text-xs text-zinc-600 italic px-2 py-3 text-center">
+        {% trans "empty" %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>

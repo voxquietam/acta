@@ -15,7 +15,18 @@ Pages extend this and override the `app_main` block.
       <span class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "task tracker" %}</span>
     </a>
 
-    <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-6 text-sm">
+    <div class="px-3 pt-4 pb-3 space-y-0.5 text-sm border-b border-zinc-800/60">
+      <a href="{% url 'web:dashboard' %}"
+         class="block px-2 py-1.5 rounded-md text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100">
+        {% trans "Dashboard" %}
+      </a>
+      <a href="{% url 'web:project_list' %}"
+         class="block px-2 py-1.5 rounded-md text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100">
+        {% trans "Projects" %}
+      </a>
+    </div>
+
+    <nav class="flex-1 overflow-y-auto px-3 py-3 space-y-6 text-sm">
       {% for ws in nav_workspaces %}
       <div>
         <div class="px-2 mb-1 flex items-center justify-between text-xs uppercase tracking-wider text-zinc-500">
@@ -25,7 +36,7 @@ Pages extend this and override the `app_main` block.
           {% for project in ws.projects.all %}
           {% if not project.archived %}
           <li>
-            <a href="#"
+            <a href="{% url 'web:project_detail' slug_prefix=project.slug_prefix %}"
                class="block px-2 py-1.5 rounded-md text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100">
               <span class="font-mono text-xs text-zinc-500 mr-1.5">{{ project.slug_prefix }}</span>{{ project.name }}
             </a>

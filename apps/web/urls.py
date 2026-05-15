@@ -1,9 +1,11 @@
 from django.urls import path
 
-from .views import DashboardView
+from .views import DashboardView, ProjectDetailView, ProjectListView
 
 app_name = "web"
 
 urlpatterns = [
     path("", DashboardView.as_view(), name="dashboard"),
+    path("projects/", ProjectListView.as_view(), name="project_list"),
+    path("projects/<str:slug_prefix>/", ProjectDetailView.as_view(), name="project_detail"),
 ]

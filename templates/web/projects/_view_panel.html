@@ -1,0 +1,35 @@
+{% load i18n %}
+{% comment %}
+Tab nav + selected view body. Rendered both inside detail.html and as
+the HTMX-swap target when the user toggles between views.
+{% endcomment %}
+<nav class="flex items-center gap-1 border-b border-zinc-800 mb-5">
+  <a href="?view=kanban"
+     hx-get="?view=kanban"
+     hx-target="#project-panel"
+     hx-swap="outerHTML"
+     hx-push-url="true"
+     class="px-3 py-2 text-sm border-b-2 -mb-px
+       {% if view_mode == 'kanban' %}border-brand-500 text-zinc-100{% else %}border-transparent text-zinc-400 hover:text-zinc-200{% endif %}">
+    {% trans "Kanban" %}
+  </a>
+  <a href="?view=table"
+     hx-get="?view=table"
+     hx-target="#project-panel"
+     hx-swap="outerHTML"
+     hx-push-url="true"
+     class="px-3 py-2 text-sm border-b-2 -mb-px
+       {% if view_mode == 'table' %}border-brand-500 text-zinc-100{% else %}border-transparent text-zinc-400 hover:text-zinc-200{% endif %}">
+    {% trans "Table" %}
+  </a>
+
+  <div class="ml-auto text-xs text-zinc-500 pr-1">
+    {% blocktrans count counter=tasks|length %}{{ counter }} task{% plural %}{{ counter }} tasks{% endblocktrans %}
+  </div>
+</nav>
+
+{% if view_mode == 'kanban' %}
+  {% include "web/projects/_kanban.html" %}
+{% else %}
+  {% include "web/projects/_table.html" %}
+{% endif %}
