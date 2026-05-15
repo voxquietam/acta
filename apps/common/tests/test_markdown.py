@@ -41,6 +41,26 @@ class TestParagraphReflow:
         assert "<br" in html
 
 
+class TestHighlight:
+    """``pymdownx.mark`` turns ``==text==`` into a ``<mark>`` element.
+
+    Matches the markdown TipTap's Highlight extension serializes to,
+    so a yellow-highlighted span in the editor survives the round-trip
+    through the server render. Bleach's ALLOWED_TAGS must include
+    ``mark`` or it'd be stripped silently.
+    """
+
+    def test_double_equals_renders_mark(self):
+        html = render_markdown("normal ==yellow== normal")
+        assert "<mark>yellow</mark>" in html
+
+    def test_mark_text_content_survives_even_if_tag_stripped(self):
+        # Defensive check: even if a future bleach config drops mark,
+        # the inner text shouldn't disappear.
+        html = render_markdown("normal ==still here== normal")
+        assert "still here" in html
+
+
 class TestTaskList:
     """``pymdownx.tasklist`` renders GitHub-style checkboxes."""
 

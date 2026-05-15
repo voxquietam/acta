@@ -108,8 +108,12 @@ main {
   margin-bottom: 0.125em;
 }
 
-/* TipTap highlight mark — yellow marker pen on selected text. */
-.ProseMirror mark {
+/* Highlight mark — yellow marker pen. Applies inside the TipTap
+   editor (.ProseMirror) AND in the server-rendered .prose view, so
+   the highlight looks identical before / after the markdown
+   round-trip (==text== <-> <mark>). */
+.ProseMirror mark,
+.prose mark {
   background-color: rgba(250, 204, 21, 0.35);
   color: inherit;
   padding: 0.05em 0.15em;

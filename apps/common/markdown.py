@@ -26,9 +26,11 @@ ALLOWED_TAGS = [
     "img",
     "input",
     "li",
+    "mark",
     "ol",
     "p",
     "pre",
+    "s",
     "strong",
     "table",
     "tbody",
@@ -36,6 +38,7 @@ ALLOWED_TAGS = [
     "th",
     "thead",
     "tr",
+    "u",
     "ul",
 ]
 _ALLOWED_ATTRS_BY_TAG = {
@@ -67,6 +70,10 @@ _MD_EXTENSIONS = [
     "tables",
     "sane_lists",
     "pymdownx.tasklist",
+    # ``==text==`` -> <mark>text</mark>. Matches the syntax TipTap's
+    # Highlight extension serializes to, so a yellow-highlighted span
+    # in the editor survives the round-trip through the server render.
+    "pymdownx.mark",
 ]
 _MD_EXTENSION_CONFIGS = {
     "pymdownx.tasklist": {
