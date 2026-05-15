@@ -238,6 +238,113 @@ pre-commit run --all-files
 
 ## Testing Rules
 
+### UI consistency — design tokens
+
+When building or editing a template, stick to the tokens below. New
+components that introduce off-grid values (random radii, ad-hoc grey
+shades, one-off padding) erode the look-and-feel — the rule of thumb
+is "if you need a value not in this table, the design needs a
+decision, not a new arbitrary value."
+
+#### Surfaces and borders
+
+| Token              | Use                                              |
+|--------------------|--------------------------------------------------|
+| `bg-zinc-900`      | Panel / card / dropdown / list backgrounds       |
+| `bg-zinc-800`      | Sub-panel, inline input, "raised within panel"   |
+| `border-zinc-800`  | Default border on every panel-level surface      |
+| `border-zinc-700`  | Input borders / hover-darker borders             |
+| `rounded-lg`       | **Every** panel, card, dropdown, list, popover   |
+| `rounded-md`       | Reserved for small inline buttons (CTA chips)    |
+| `rounded-full`     | Avatars, status/priority dots                    |
+| `shadow-lg`        | Floating overlays (dropdowns)                    |
+
+**Hard rule:** mixing `rounded-md` and `rounded-lg` on adjacent
+containers reads as inconsistency. Default to `rounded-lg`.
+
+#### Text colours (dark theme)
+
+| Token              | Use                                              |
+|--------------------|--------------------------------------------------|
+| `text-zinc-100`    | Section heading on a dark surface (rare, strong) |
+| `text-zinc-200`    | Body text in inputs / textareas                  |
+| `text-zinc-300`    | Default primary text on panels                   |
+| `text-zinc-400`    | Subtle hover / secondary chips                   |
+| `text-zinc-500`    | Section labels, metadata, muted text             |
+| `text-zinc-600`    | Placeholder / empty-state ("Set deadline" etc.)  |
+
+Italic + `text-zinc-600` is reserved for empty-state placeholders. Do
+not italicise interactive elements (the `Unassign` button taught us).
+
+#### Type scale
+
+| Token              | Use                                              |
+|--------------------|--------------------------------------------------|
+| `text-[10px] uppercase tracking-wider` | Section labels in the rail / cards |
+| `text-[11px]`      | Tag / chip text                                  |
+| `text-xs`          | Buttons, dropdown rows, metadata lines           |
+| `text-sm`          | Body, comment body, search inputs                |
+| `text-base`        | H2 inline forms                                  |
+| `text-2xl font-semibold leading-tight` | Page H1 (task title etc.) |
+
+#### Spacing
+
+- Section label → control: `mt-1`
+- Inline gap (icon + text, dot + label): `gap-1.5`
+- Tighter group: `gap-1`, looser group: `gap-2`
+- Panel padding: `p-3` (small) / `p-4` (default rail panel)
+- Section vertical rhythm: `space-y-3` (within a panel) / `space-y-6`
+  (between major task-detail blocks)
+
+#### Brand and state colours
+
+- Primary: `bg-brand-600 hover:bg-brand-500 text-white` for primary
+  CTAs; `text-brand-500` for highlights / selected-state text.
+- Status palette (badges, dots) — see `_status_cell.html`:
+  - `planned` → `zinc-800` / `zinc-400`
+  - `to-do` → `blue-900` / `blue-300`, dot `blue-500`
+  - `in-progress` → `violet-900` / `violet-300`, dot `violet-500`
+  - `in-review` → `amber-900` / `amber-300`, dot `amber-500`
+  - `done` → `emerald-900` / `emerald-300`, dot `emerald-500`
+- Priority palette (text + dot) — see `_priority_cell.html`:
+  - 1 Urgent → `rose-400` / dot `rose-500`
+  - 2 High → `orange-400` / dot `orange-500`
+  - 3 Medium → `amber-400` / dot `amber-500`
+  - 4 Low → `zinc-400` / dot `zinc-400`
+  - 5 No priority → `zinc-500` / dot `zinc-700`
+- Destructive hover (clear "✕"): `text-zinc-600 hover:text-rose-400`.
+
+#### Interactive patterns
+
+- **Empty-slot trigger** (no value set yet): dashed circle placeholder
+  (`border border-dashed border-zinc-600` with `?` or icon) + muted
+  text. Reads as "clickable empty slot". Used for unassigned assignee
+  and would suit other empty cells.
+- **Clear ("✕") affordance**: `text-zinc-600 hover:text-rose-400 text-xs
+  opacity-0 group-hover:opacity-100 transition`, sitting inline next
+  to the value. Requires `group` on the wrapping container. Use for
+  removing optional values (due date, assignee, future fields).
+- **Dropdown z-index**: `z-20` so it sits above the rail but below
+  modals.
+- **Dropdown autofocus pattern** (with search): `x-effect="if (open)
+  $nextTick(() => $refs.search.focus())"` — open the dropdown,
+  the search input gets focus on the next tick.
+
+#### Checklist before merging a new component
+
+1. Container: `bg-zinc-900 border border-zinc-800 rounded-lg`?
+2. Section label: `text-[10px] uppercase tracking-wider text-zinc-500`?
+3. Body text: one of `text-zinc-200/300/400/500/600` — no off-palette
+   greys?
+4. Empty state: dashed placeholder + `text-zinc-500/600`, no italic
+   on interactive elements?
+5. Clear / destructive affordance: hover `rose-400`?
+6. If introducing a new colour or radius — is it really new, or is
+   there already a token for the case?
+
+When in doubt, **grep an existing similar component and copy its
+class string verbatim** rather than guessing values.
+
 ### Run tests when you touch logic
 
 When you modify any code that has business behavior (models, services,
