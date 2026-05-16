@@ -8,8 +8,14 @@ services:
       DJANGO_SETTINGS_MODULE: acta.settings.dev
     volumes:
       - .:/app
+    # ``--timeout-graceful-shutdown 1``: on every WatchFiles auto-reload
+    # uvicorn waits for in-flight connections to drain. SSE streams from
+    # ``django-eventstream`` are long-lived, so without a cap the dev
+    # server hangs several seconds on every save before serving the
+    # next request — visible to the browser as a stalled page reload.
     command: >
       uvicorn acta.asgi:application
       --host 0.0.0.0
       --port 8000
       --reload
+      --timeout-graceful-shutdown 1

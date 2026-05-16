@@ -235,6 +235,20 @@
     const url = root.getAttribute("data-workspace-sse");
     const meId = root.getAttribute("data-current-user-id") || "";
     const source = new EventSource(url);
+    // Close the stream cleanly on navigation/reload. Without this the
+    // browser keeps the TCP connection half-open until the OS times it
+    // out, which makes the next request to the same origin wait — most
+    // visibly in dev where uvicorn's graceful reload pauses on every
+    // open stream ("Waiting for connections to close.").
+    const closeStream = () => {
+      try {
+        source.close();
+      } catch (_) {
+        /* already closed */
+      }
+    };
+    window.addEventListener("pagehide", closeStream);
+    window.addEventListener("beforeunload", closeStream);
 
     const handle = (eventName, fn) => {
       source.addEventListener(eventName, (e) => {
