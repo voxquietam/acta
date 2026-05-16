@@ -1,5 +1,29 @@
 /* Acta-specific tweaks that Tailwind utilities don't cover. */
 
+/* Visible thin scrollbar for filter sidebar's scrollable lists
+   (project / assignee multi-select). Modern dark themes auto-hide
+   scrollbars in macOS / iOS, which makes scrollable sections look
+   static and confuses users. Force a thin always-visible track
+   matching the zinc palette so the sticky-stack scroll cue is
+   obvious. */
+[data-sticky-stack] {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(63 63 70) transparent;
+}
+[data-sticky-stack]::-webkit-scrollbar {
+  width: 6px;
+}
+[data-sticky-stack]::-webkit-scrollbar-track {
+  background: transparent;
+}
+[data-sticky-stack]::-webkit-scrollbar-thumb {
+  background: rgb(63 63 70);
+  border-radius: 3px;
+}
+[data-sticky-stack]::-webkit-scrollbar-thumb:hover {
+  background: rgb(82 82 91);
+}
+
 /* Kanban empty placeholder: hide when the column has any task card.
    :has() is widely supported in 2025+ browsers (Safari 15.4+, Chrome 105+,
    Firefox 121+). Falls back to "always visible" on ancient browsers,
