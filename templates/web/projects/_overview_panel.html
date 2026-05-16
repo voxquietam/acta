@@ -14,14 +14,19 @@ placeholders pending their dedicated TODOs.
       <div class="font-mono text-xs text-zinc-500">{{ project.slug_prefix }}</div>
     </header>
 
-    <section class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 space-y-4">
-      <div>
-        <div class="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">{% trans "Lead" %}</div>
+    {% comment %}
+    Single-row metadata: lead pinned to the left, members chips
+    wrapping into available space on the right. Card chrome dropped —
+    two fields don't justify a bordered section.
+    {% endcomment %}
+    <section class="flex flex-wrap items-start gap-x-6 gap-y-3">
+      <div class="shrink-0">
+        <div class="text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">{% trans "Lead" %}</div>
         {% include "web/projects/_overview_lead.html" %}
       </div>
 
-      <div>
-        <div class="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">
+      <div class="min-w-0 flex-1">
+        <div class="text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">
           {% trans "Members" %}
           <span class="text-zinc-600">{{ members|length }}</span>
         </div>
