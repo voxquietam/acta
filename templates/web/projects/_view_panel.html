@@ -8,7 +8,7 @@ panel and scrolls internally without clipping its rounded corners.
   <nav class="shrink-0 flex items-center gap-1 border-b border-zinc-800 mb-4">
     <a href="?view=kanban"
        hx-get="?view=kanban"
-       hx-target="#project-view-panel"
+       hx-target="{{ view_panel_target|default:'#project-view-panel' }}"
        hx-swap="innerHTML"
        hx-push-url="true"
        class="px-3 py-2 text-sm border-b-2 -mb-px
@@ -17,7 +17,7 @@ panel and scrolls internally without clipping its rounded corners.
     </a>
     <a href="?view=table"
        hx-get="?view=table"
-       hx-target="#project-view-panel"
+       hx-target="{{ view_panel_target|default:'#project-view-panel' }}"
        hx-swap="innerHTML"
        hx-push-url="true"
        class="px-3 py-2 text-sm border-b-2 -mb-px

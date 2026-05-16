@@ -1,17 +1,19 @@
 {% load i18n %}
 {% load web_extras %}
 {% comment %}
-Inner fragment of the All Tasks page — task table + pagination + empty
-state. Rendered both inside the full page on initial load and
-returned standalone for HTMX filter submits so the page chrome
-(sidebar / topbar / static assets) stays cached.
+Inner fragment of the All Tasks page — view-mode toggle + kanban or
+table body + empty state. Rendered both inside the full page on
+initial load and returned standalone for HTMX filter / view-toggle
+submits so the page chrome (sidebar / topbar / static assets) stays
+cached.
 
-Reuses ``web/projects/_table.html`` with ``show_project`` and
-``show_labels`` flags on — All Tasks lives across projects, so both
-columns are useful.
+Reuses ``web/projects/_view_panel.html`` so the Kanban / Table tab
+nav and view-body switching match the per-project page. Context flag
+``show_project`` is True here so the table view shows the project
+column and the kanban cards still identify their project via the slug.
 {% endcomment %}
 {% if tasks %}
-{% include "web/projects/_table.html" with tasks=tasks status_labels=status_labels priority_labels=priority_labels today=today show_project=True show_labels=True %}
+{% include "web/projects/_view_panel.html" %}
 {% else %}
 <div class="flex-1 min-h-0 grid place-items-center text-center">
   <div>

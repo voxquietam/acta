@@ -40,6 +40,29 @@ _OPEN_STATUSES = [
 ]
 
 
+def _resolve_view_mode(request, *, default):
+    """Resolve view_mode in the canonical order.
+
+    Order: ``?view=`` querystring → ``acta_view_mode`` cookie → page
+    default. Anything that doesn't validate falls back to ``default``.
+    Used by AllTasksView (default ``table``) and ProjectDetailView
+    (default ``kanban``) so both share the same persistence flow.
+
+    Args:
+        request: The active ``HttpRequest``.
+        default: Fallback mode for the page when neither querystring
+            nor cookie carries a valid value.
+
+    Returns:
+        Either ``"kanban"`` or ``"table"``.
+    """
+    view_mode = request.GET.get("view")
+    if view_mode in {"kanban", "table"}:
+        return view_mode
+    cookie_pref = request.COOKIES.get("acta_view_mode")
+    return cookie_pref if cookie_pref in {"kanban", "table"} else default
+
+
 def _user_task_qs(user):
     """Return the base queryset of tasks the request user can access.
 
@@ -171,15 +194,51 @@ class AllTasksView(LoginRequiredMixin, ListView):
         return ["web/all_tasks.html"]
 
     def get_queryset(self):
-        """Filter the user's accessible tasks by querystring params."""
+        """Filter the user's accessible tasks by querystring params.
+
+        Kanban view groups by status and uses the fixed ordering
+        ``(status, -priority, -updated_at)`` so columns are coherent;
+        table view respects the ``?order=`` column click.
+        """
         qs = _user_task_qs(self.request.user)
         qs = apply_task_filters(qs, self.request.GET, request_user=self.request.user)
+        if _resolve_view_mode(self.request, default="table") == "kanban":
+            return qs.order_by("status", "-priority", "-updated_at")
         return apply_task_ordering(qs, self.request.GET)
 
+    def render_to_response(self, context, **response_kwargs):
+        """Persist the resolved ``view_mode`` to a long-lived cookie."""
+        response = super().render_to_response(context, **response_kwargs)
+        response.set_cookie(
+            "acta_view_mode",
+            context.get("view_mode", "kanban"),
+            max_age=60 * 60 * 24 * 365,
+            samesite="Lax",
+        )
+        return response
+
     def get_context_data(self, **kwargs):
-        """Attach filter sidebar context. Assignee lives in the top strip,
-        not in the sidebar."""
+        """Attach filter sidebar context + kanban columns when needed.
+
+        Assignee lives in the top strip, not in the sidebar.
+        """
         ctx = super().get_context_data(**kwargs)
+        view_mode = _resolve_view_mode(self.request, default="table")
+        ctx["view_mode"] = view_mode
+        ctx["view_panel_target"] = "#task-list-wrapper"
+        ctx["show_project"] = True
+        ctx["show_labels"] = True
+        if view_mode == "kanban":
+            tasks = list(ctx["tasks"])
+            ctx["tasks"] = tasks
+            ctx["columns"] = [
+                {
+                    "key": status,
+                    "label": Task.STATUS_LABELS[status],
+                    "tasks": [t for t in tasks if t.status == status],
+                }
+                for status in Task.STATUS_VALUES
+            ]
         ctx.update(filter_sidebar_context(self.request, hide_assignee=True))
         return ctx
 
@@ -306,10 +365,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         toggle sticks for the next project switch.
         """
         ctx = super().get_context_data(**kwargs)
-        view_mode = self.request.GET.get("view")
-        if view_mode not in {"kanban", "table"}:
-            cookie_pref = self.request.COOKIES.get("acta_view_mode")
-            view_mode = cookie_pref if cookie_pref in {"kanban", "table"} else "kanban"
+        view_mode = _resolve_view_mode(self.request, default="kanban")
         ctx["view_mode"] = view_mode
 
         base = (

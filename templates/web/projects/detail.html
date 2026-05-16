@@ -19,7 +19,7 @@
      data-current-user-id="{{ request.user.id }}">
   {% include "web/_assignee_strip.html" %}
   <div class="flex-1 min-h-0 flex flex-col lg:flex-row gap-4 lg:items-stretch">
-    <div id="project-view-panel" class="flex-1 min-h-0 flex flex-col">
+    <div id="project-view-panel" class="flex-1 min-w-0 min-h-0 flex flex-col">
       {% include "web/projects/_view_panel.html" %}
     </div>
     {% include "web/_filters_sidebar.html" %}
