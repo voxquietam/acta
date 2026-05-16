@@ -1,14 +1,19 @@
 {% load i18n %}
 {% comment %}
-Reusable bubble menu for the TipTap rich editor. Drop this partial
-inside any element marked ``[data-description-editor]`` and the JS
-module wires it up to the editor in that container.
+Static toolbar above the TipTap editor (always visible while the
+editor is mounted). Drop this partial inside any element marked
+``[data-description-editor]`` and the JS module wires it up to the
+editor in that container.
 
-Two modes via Alpine state — "menu" (default toolbar) and "link" (an
-inline URL input so we don't fall back to the native ``window.prompt``
-dialog on link insertion).
+We swapped from a tippy-positioned bubble menu to a static toolbar
+after the bubble's show/hide kept misfiring in edge cases — see
+``feedback_stop_kostyling`` memory for the lesson learned.
+
+Two modes via Alpine state — "menu" (default toolbar) and "link"
+(an inline URL input replacing the buttons, so we don't fall back to
+the native ``window.prompt`` dialog on link insertion).
 {% endcomment %}
-<div class="description-editor-bubble bg-zinc-950 ring-1 ring-zinc-800 rounded-lg shadow-xl p-0.5"
+<div class="description-editor-toolbar flex flex-wrap items-center justify-center gap-0.5 border-b border-zinc-800 pb-1.5 mb-2 sticky -top-6 z-10 bg-zinc-950/95 backdrop-blur-sm"
      x-data="{
        mode: 'menu',
        url: '',
@@ -43,7 +48,7 @@ dialog on link insertion).
        },
      }">
 
-  <div x-show="mode === 'menu'" class="flex items-center gap-0.5">
+  <div x-show="mode === 'menu'" class="flex flex-wrap items-center gap-0.5">
     <button type="button"
             onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleBold().run()"
             class="w-7 h-7 grid place-items-center rounded hover:bg-zinc-800 text-zinc-300 text-sm font-bold"
@@ -91,7 +96,7 @@ dialog on link insertion).
             title="{% trans 'Task list' %}">☐</button>
   </div>
 
-  <div x-show="mode === 'link'" x-cloak class="flex items-center gap-1 px-1 py-0.5">
+  <div x-show="mode === 'link'" x-cloak class="flex items-center gap-1">
     <input x-ref="linkInput"
            x-model="url"
            type="url"

@@ -22,7 +22,6 @@ import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
-import BubbleMenu from "@tiptap/extension-bubble-menu";
 import Underline from "@tiptap/extension-underline";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
@@ -38,7 +37,7 @@ function initEditor(root) {
   }
 
   const mount = root.querySelector(".description-editor-mount");
-  const bubble = root.querySelector(".description-editor-bubble");
+  const toolbar = root.querySelector(".description-editor-toolbar");
   const source = root.querySelector(".description-editor-source");
   // ``[data-editor-output]`` is the hidden input the editor's markdown
   // value gets piped into so the surrounding form POSTs the latest
@@ -87,34 +86,6 @@ function initEditor(root) {
         breaks: false,
         transformPastedText: true,
       }),
-      ...(bubble
-        ? [
-            BubbleMenu.configure({
-              element: bubble,
-              // Strict visibility: editor must own DOM focus AND have a
-              // non-empty text selection. The plugin's default already
-              // checks ``view.hasFocus()``, but in our flow we've seen
-              // the bubble linger after focus moved to another element
-              // (e.g. clicking a comment) — likely a stale selection
-              // re-evaluation. Re-asserting both conditions here keeps
-              // the bubble from popping up over the description while
-              // the user is interacting with something else.
-              shouldShow: ({ view, state, from, to }) => {
-                // Belt-and-braces focus check: the plugin's default
-                // ``view.hasFocus()`` can race with the live DOM state
-                // when blur events haven't propagated yet, leading to
-                // the bubble briefly re-showing after focus moved
-                // elsewhere. ``document.activeElement`` reflects the
-                // current focused node synchronously.
-                if (document.activeElement !== view.dom) return false;
-                if (!view.hasFocus()) return false;
-                if (state.selection.empty) return false;
-                const text = state.doc.textBetween(from, to);
-                return text.length > 0;
-              },
-            }),
-          ]
-        : []),
     ],
     content: initialMarkdown,
     editorProps: {
@@ -136,12 +107,7 @@ function initEditor(root) {
         }),
       );
     },
-    onBlur({ editor, event }) {
-      // Bubble menu clicks fire blur; ignore those by checking whether
-      // focus moved into the bubble UI.
-      if (event && event.relatedTarget && bubble && bubble.contains(event.relatedTarget)) {
-        return;
-      }
+    onBlur({ editor }) {
       // Comment editor opts out of blur-save: comments need an
       // explicit submit, not autosave on every focus change.
       if (!autosave) {
@@ -169,53 +135,15 @@ function initEditor(root) {
   // Initial sync so the hidden input matches what the editor shows.
   hidden.value = editor.storage.markdown.getMarkdown();
 
-  if (bubble) {
-    // Prevent toolbar buttons from stealing focus on click. Without
-    // this, mousedown on a button blurs the editor → the blur
-    // handler below hides the bubble → the click never lands on the
-    // button. preventDefault on mousedown keeps focus inside the
-    // editor so the chain command fires against the real selection.
-    // Exception: inputs *must* be focusable (e.g. the link-URL field
-    // that replaces the toolbar in "link" mode).
-    bubble.addEventListener("mousedown", (event) => {
+  if (toolbar) {
+    // Toolbar buttons must not steal focus from the editor on click,
+    // otherwise the chain commands they dispatch fire against an
+    // empty selection. preventDefault on mousedown keeps focus
+    // inside the editor view. Inputs (e.g. the link-URL field) are
+    // exempt — they *should* take focus while the user types.
+    toolbar.addEventListener("mousedown", (event) => {
       if (event.target instanceof HTMLInputElement) return;
       event.preventDefault();
-    });
-
-    // Force-hide the bubble when the editor loses focus to something
-    // outside the bubble itself. tippy's visibility is driven by
-    // ProseMirror transactions; clicking outside the editor (into
-    // the comment textarea, another input, anywhere) doesn't fire
-    // one, so the bubble would linger at its last selection position.
-    editor.on("blur", ({ event }) => {
-      if (event && event.relatedTarget && bubble.contains(event.relatedTarget)) {
-        return;
-      }
-      bubble.style.display = "none";
-    });
-    editor.on("focus", () => {
-      bubble.style.display = "";
-    });
-
-    // Click outside editor / bubble → force-blur the editor. Without
-    // this, clicks on non-focusable elements (plain text, headings,
-    // ``<span>``s) don't shift focus away from the editor view, so
-    // the bubble lingers at the last selection. Force-blurring sends
-    // ProseMirror through its real blur path, which lets the editor
-    // ``blur`` handler above hide the bubble.
-    const onDocumentMouseDown = (event) => {
-      if (root.contains(event.target)) return;
-      if (bubble && bubble.contains(event.target)) return;
-      if (editor.isFocused) {
-        editor.commands.blur();
-      }
-    };
-    document.addEventListener("mousedown", onDocumentMouseDown);
-    document.body.addEventListener("htmx:beforeCleanupElement", function cleanup(e) {
-      if (e.detail && e.detail.elt === root) {
-        document.removeEventListener("mousedown", onDocumentMouseDown);
-        document.body.removeEventListener("htmx:beforeCleanupElement", cleanup);
-      }
     });
   }
 

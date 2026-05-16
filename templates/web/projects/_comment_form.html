@@ -29,14 +29,19 @@ Comment posting form — same TipTap rich editor used for descriptions
       class="max-w-3xl space-y-2">
   {% csrf_token %}
 
+  {% comment %}
+  The toolbar sits *outside* the input panel — keeps the typing area
+  visually small when the toolbar is hidden, and lets the reserved
+  vertical slot live between the last comment and the input rather
+  than inflating the input box.
+  {% endcomment %}
   <div data-description-editor
        data-no-autosave
-       data-placeholder="{% trans 'Write a comment…' %}"
-       class="bg-zinc-900 border border-zinc-800 rounded-lg p-3">
+       data-placeholder="{% trans 'Write a comment…' %}">
     <input type="hidden" name="body" value="" data-editor-output>
     <textarea class="description-editor-source hidden" readonly></textarea>
-    <div class="description-editor-mount min-h-[3rem]"></div>
-    {% include "web/projects/_editor_bubble.html" %}
+    {% include "web/projects/_editor_toolbar.html" %}
+    <div class="description-editor-mount min-h-[3rem] bg-zinc-900 border border-zinc-800 rounded-lg p-3"></div>
   </div>
 
   <div class="flex items-center justify-end">

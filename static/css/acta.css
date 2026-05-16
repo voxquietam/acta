@@ -126,6 +126,31 @@ main {
   margin-bottom: 0.125em;
 }
 
+/* TipTap editor toolbar fades in only when the editor (or any of its
+   own controls like the link-input or a toolbar button) holds focus.
+   Reserves vertical space at all times so the page doesn't jump when
+   the toolbar appears / disappears — only the opacity + visibility
+   change, not the height.
+
+   The ``transition: visibility 0s linear 150ms`` trick lets us animate
+   opacity smoothly while keeping ``visibility`` discrete: on hide we
+   wait 150 ms for the fade-out before snapping visibility to hidden;
+   on show we flip visibility immediately and then fade opacity in. */
+.description-editor-toolbar {
+  visibility: hidden;
+  opacity: 0;
+  transition:
+    opacity 150ms ease,
+    visibility 0s linear 150ms;
+}
+[data-description-editor]:focus-within .description-editor-toolbar {
+  visibility: visible;
+  opacity: 1;
+  transition:
+    opacity 150ms ease,
+    visibility 0s linear 0s;
+}
+
 /* Highlight mark — yellow marker pen. Applies inside the TipTap
    editor (.ProseMirror) AND in the server-rendered .prose view, so
    the highlight looks identical before / after the markdown
@@ -138,17 +163,3 @@ main {
   border-radius: 0.2em;
 }
 
-/* Strip tippy.js's default gray ``.tippy-box`` chrome — the
-   description editor's BubbleMenu renders its own dark "chip" inside
-   and shouldn't sit on top of a ``#333`` panel. We only need tippy
-   for positioning + animation, not its visual container. */
-.tippy-box {
-  background-color: transparent;
-  color: inherit;
-}
-.tippy-box > .tippy-content {
-  padding: 0;
-}
-.tippy-box > .tippy-arrow {
-  display: none;
-}

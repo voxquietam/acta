@@ -12,7 +12,6 @@
   },
   "dependencies": {
     "@tiptap/core": "^2.10.3",
-    "@tiptap/extension-bubble-menu": "^2.10.3",
     "@tiptap/extension-highlight": "^2.10.3",
     "@tiptap/extension-link": "^2.10.3",
     "@tiptap/extension-placeholder": "^2.10.3",
@@ -22,7 +21,6 @@
     "@tiptap/extension-underline": "^2.10.3",
     "@tiptap/pm": "^2.10.3",
     "@tiptap/starter-kit": "^2.10.3",
-    "tippy.js": "^6.3.7",
     "tiptap-markdown": "^0.8.10"
   }
 }
