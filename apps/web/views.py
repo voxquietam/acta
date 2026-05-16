@@ -461,8 +461,16 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
                 available_labels=list(
                     Label.objects.filter(workspace=self.object.workspace).order_by("name"),
                 ),
+                # Scoped to users who actually have a task in this
+                # project (any status) — picking from every workspace
+                # member would clutter the strip with people who never
+                # appeared on the board.
                 available_assignees=list(
-                    self.object.workspace.members.exclude(pk=self.request.user.pk).order_by("username"),
+                    get_user_model()
+                    .objects.filter(assigned_tasks__project=self.object)
+                    .exclude(pk=self.request.user.pk)
+                    .order_by("first_name", "last_name", "username")
+                    .distinct(),
                 ),
             )
         )

@@ -308,11 +308,15 @@ def filter_sidebar_context(
         )
     if available_assignees is None:
         User = get_user_model()
+        # Exclude the request user — the strip pins them as a separate
+        # "you" chip on the leftmost slot, so listing them again here
+        # would render two chips for the same person.
         available_assignees = list(
             User.objects.filter(
                 workspace_memberships__workspace__memberships__user=user,
             )
-            .order_by("username")
+            .exclude(pk=user.pk)
+            .order_by("first_name", "last_name", "username")
             .distinct(),
         )
 
