@@ -1048,6 +1048,28 @@ def set_task_due_date(request, slug_prefix, number):
     )
 
 
+@require_POST
+@login_required
+def set_project_description(request, slug_prefix):
+    """Inline description (Markdown) update on the project overview.
+
+    Mirrors the task-description edit flow: the TipTap editor blurs,
+    submits the latest Markdown via HTMX, server saves and re-renders
+    the cell. No length cap — descriptions can be long.
+    """
+    project = _get_user_project_or_404(request.user, slug_prefix)
+    new_description = request.POST.get("description", "")
+    project.description = new_description
+    project.save(update_fields=["description"])
+    return HttpResponse(
+        render_to_string(
+            "web/projects/_overview_description.html",
+            {"project": project},
+            request=request,
+        ),
+    )
+
+
 def _get_user_project_or_404(user, slug_prefix):
     """Look up a project by slug_prefix, 404 when foreign / missing.
 

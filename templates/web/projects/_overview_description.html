@@ -1,0 +1,35 @@
+{% load i18n %}
+{% load static %}
+{% load web_extras %}
+{% comment %}
+Project description editor — reuses the TipTap setup from the task
+description cell. The JS module (``description_editor.bundle.js``)
+attaches to any element with ``data-description-editor``, so the
+same editor logic, toolbar, autosave-on-blur, and pagehide beacon
+all work here without changes.
+{% endcomment %}
+<div id="project-description-cell"
+     data-description-editor
+     data-baseline="{{ project.description|default:'' }}"
+     data-placeholder="{% trans 'Write a description…' %}">
+  <form action="{% url 'web:set_project_description' slug_prefix=project.slug_prefix %}"
+        hx-post="{% url 'web:set_project_description' slug_prefix=project.slug_prefix %}"
+        hx-target="#project-description-cell"
+        hx-swap="outerHTML">
+    {% csrf_token %}
+    <input type="hidden" name="description" value="{{ project.description|default:'' }}" data-editor-output>
+    <textarea class="description-editor-source hidden" readonly>{{ project.description|default:'' }}</textarea>
+
+    <div class="description-editor-fallback prose prose-invert prose-sm max-w-none min-h-[6rem] text-zinc-200">
+      {% if project.description %}
+        {{ project.description|markdown }}
+      {% else %}
+        <p class="text-zinc-600 italic">{% trans 'Write a description…' %}</p>
+      {% endif %}
+    </div>
+
+    {% include "web/projects/_editor_toolbar.html" %}
+
+    <div class="description-editor-mount hidden"></div>
+  </form>
+</div>

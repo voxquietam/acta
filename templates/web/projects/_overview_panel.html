@@ -31,11 +31,7 @@ placeholders pending their dedicated TODOs.
 
     <section>
       <div class="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">{% trans "Description" %}</div>
-      {% if description_html %}
-      <div class="prose prose-invert prose-sm max-w-none">{{ description_html|safe }}</div>
-      {% else %}
-      <p class="text-sm text-zinc-500 italic">{% trans "No description yet." %}</p>
-      {% endif %}
+      {% include "web/projects/_overview_description.html" %}
     </section>
 
     {% comment %}

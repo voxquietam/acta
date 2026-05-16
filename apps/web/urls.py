@@ -8,6 +8,7 @@ from .views import (
     ProjectListView,
     TaskDetailView,
     post_comment,
+    set_project_description,
     set_project_lead,
     set_task_assignee,
     set_task_description,
@@ -37,6 +38,11 @@ urlpatterns = [
         "projects/<str:slug_prefix>/lead/",
         set_project_lead,
         name="set_project_lead",
+    ),
+    path(
+        "projects/<str:slug_prefix>/description/",
+        set_project_description,
+        name="set_project_description",
     ),
     path(
         "projects/<str:slug_prefix>/members/toggle/",
