@@ -7,13 +7,18 @@
   <div class="flex items-center gap-1.5 text-[11px]">
     <span class="font-mono text-zinc-500">{{ task.slug }}</span>
     {% if task.priority %}
-    <span class="px-1.5 py-0.5 rounded
-      {% if task.priority == 1 %}bg-rose-900 text-rose-300
-      {% elif task.priority == 2 %}bg-orange-900 text-orange-300
-      {% elif task.priority == 3 %}bg-amber-900 text-amber-300
-      {% elif task.priority == 4 %}bg-sky-900 text-sky-300
-      {% else %}bg-zinc-800 text-zinc-400{% endif %}">
-      {{ priority_labels|get_item:task.priority }}
+    <span class="inline-flex items-center
+      {% if task.priority == 1 %}text-rose-400
+      {% elif task.priority == 2 %}text-orange-400
+      {% elif task.priority == 3 %}text-amber-400
+      {% elif task.priority == 4 %}text-sky-400
+      {% else %}text-zinc-500{% endif %}"
+          title="{{ priority_labels|get_item:task.priority }}">
+      {% if task.priority == 1 %}<i data-lucide="chevrons-up" class="w-3.5 h-3.5"></i>
+      {% elif task.priority == 2 %}<i data-lucide="chevron-up" class="w-3.5 h-3.5"></i>
+      {% elif task.priority == 3 %}<i data-lucide="minus" class="w-3.5 h-3.5"></i>
+      {% elif task.priority == 4 %}<i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
+      {% else %}<i data-lucide="circle-dashed" class="w-3.5 h-3.5"></i>{% endif %}
     </span>
     {% endif %}
     {% if task.size %}

@@ -9,21 +9,18 @@ to the equally-colored status badge).
 <div id="priority-cell" x-data="{ open: false }" class="relative inline-block">
   <button type="button"
           @click="open = !open"
-          class="text-xs cursor-pointer hover:text-zinc-100 flex items-center gap-1.5">
-    <span class="inline-block w-2 h-2 rounded-full
-      {% if task.priority == 1 %}bg-rose-500
-      {% elif task.priority == 2 %}bg-orange-500
-      {% elif task.priority == 3 %}bg-amber-500
-      {% elif task.priority == 4 %}bg-sky-500
-      {% else %}bg-zinc-700{% endif %}"></span>
-    <span class="
-      {% if task.priority == 1 %}text-rose-400
-      {% elif task.priority == 2 %}text-orange-400
-      {% elif task.priority == 3 %}text-amber-400
-      {% elif task.priority == 4 %}text-sky-400
-      {% else %}text-zinc-500{% endif %}">
-      {{ priority_labels|get_item:task.priority }}
-    </span>
+          class="text-xs cursor-pointer hover:text-zinc-100 inline-flex items-center gap-1.5
+            {% if task.priority == 1 %}text-rose-400
+            {% elif task.priority == 2 %}text-orange-400
+            {% elif task.priority == 3 %}text-amber-400
+            {% elif task.priority == 4 %}text-sky-400
+            {% else %}text-zinc-500{% endif %}">
+    {% if task.priority == 1 %}<i data-lucide="chevrons-up" class="w-3.5 h-3.5"></i>
+    {% elif task.priority == 2 %}<i data-lucide="chevron-up" class="w-3.5 h-3.5"></i>
+    {% elif task.priority == 3 %}<i data-lucide="minus" class="w-3.5 h-3.5"></i>
+    {% elif task.priority == 4 %}<i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
+    {% else %}<i data-lucide="circle-dashed" class="w-3.5 h-3.5"></i>{% endif %}
+    <span>{{ priority_labels|get_item:task.priority }}</span>
   </button>
   <div x-show="open"
        @click.outside="open = false"
@@ -40,12 +37,18 @@ to the equally-colored status badge).
       <button type="submit"
               class="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-800 flex items-center gap-1.5
                 {% if priority_key == task.priority %}text-brand-500{% else %}text-zinc-300{% endif %}">
-        <span class="inline-block w-2 h-2 rounded-full
-          {% if priority_key == 1 %}bg-rose-500
-          {% elif priority_key == 2 %}bg-orange-500
-          {% elif priority_key == 3 %}bg-amber-500
-          {% elif priority_key == 4 %}bg-sky-500
-          {% else %}bg-zinc-700{% endif %}"></span>
+        <span class="
+          {% if priority_key == 1 %}text-rose-400
+          {% elif priority_key == 2 %}text-orange-400
+          {% elif priority_key == 3 %}text-amber-400
+          {% elif priority_key == 4 %}text-sky-400
+          {% else %}text-zinc-500{% endif %}">
+          {% if priority_key == 1 %}<i data-lucide="chevrons-up" class="w-3.5 h-3.5"></i>
+          {% elif priority_key == 2 %}<i data-lucide="chevron-up" class="w-3.5 h-3.5"></i>
+          {% elif priority_key == 3 %}<i data-lucide="minus" class="w-3.5 h-3.5"></i>
+          {% elif priority_key == 4 %}<i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
+          {% else %}<i data-lucide="circle-dashed" class="w-3.5 h-3.5"></i>{% endif %}
+        </span>
         {{ priority_label }}
       </button>
     </form>
