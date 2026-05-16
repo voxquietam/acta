@@ -17,20 +17,7 @@ placeholders pending their dedicated TODOs.
     <section class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 space-y-4">
       <div>
         <div class="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">{% trans "Lead" %}</div>
-        {% if project.lead %}
-        <div class="flex items-center gap-2 text-sm">
-          <span class="w-7 h-7 rounded-full text-white grid place-items-center font-medium text-xs"
-                style="background-color: {{ project.lead.avatar_color }};">
-            {{ project.lead.display_name|slice:":1"|upper }}
-          </span>
-          <span class="text-zinc-200">{{ project.lead.display_name }}</span>
-        </div>
-        {% else %}
-        <div class="flex items-center gap-2 text-sm">
-          <span class="w-7 h-7 rounded-full border border-dashed border-zinc-600 grid place-items-center text-zinc-500 text-xs">?</span>
-          <span class="text-zinc-500 italic">{% trans "No lead set" %}</span>
-        </div>
-        {% endif %}
+        {% include "web/projects/_overview_lead.html" %}
       </div>
 
       <div>
@@ -38,21 +25,7 @@ placeholders pending their dedicated TODOs.
           {% trans "Members" %}
           <span class="text-zinc-600">{{ members|length }}</span>
         </div>
-        {% if members %}
-        <ul class="flex flex-wrap gap-2">
-          {% for member in members %}
-          <li class="flex items-center gap-1.5 bg-zinc-800/60 rounded-full pl-1 pr-2 py-0.5 text-xs">
-            <span class="w-5 h-5 rounded-full text-white grid place-items-center font-medium text-[10px]"
-                  style="background-color: {{ member.avatar_color }};">
-              {{ member.display_name|slice:":1"|upper }}
-            </span>
-            <span class="text-zinc-300">{{ member.display_name }}</span>
-          </li>
-          {% endfor %}
-        </ul>
-        {% else %}
-        <p class="text-sm text-zinc-500 italic">{% trans "No members yet." %}</p>
-        {% endif %}
+        {% include "web/projects/_overview_members.html" %}
       </div>
     </section>
 

@@ -15,8 +15,9 @@
     <a href="{% url 'web:project_detail' slug_prefix=project.slug_prefix %}"
        class="block bg-zinc-900 border border-zinc-800 rounded-lg p-4 hover:border-zinc-700 transition">
       <div class="flex items-start justify-between gap-2">
-        <div class="min-w-0">
-          <div class="flex items-center gap-2">
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-1.5">
+            <i data-lucide="{{ project.icon|default:'folder' }}" class="w-3.5 h-3.5 text-zinc-500 shrink-0"></i>
             <span class="font-mono text-xs text-zinc-500">{{ project.slug_prefix }}</span>
             {% if project.archived %}
             <span class="text-[10px] uppercase tracking-wider text-zinc-500 px-1.5 py-0.5 rounded bg-zinc-800">
@@ -39,8 +40,30 @@
         {% endif %}
       </div>
 
-      <div class="text-xs text-zinc-400 mt-3">
-        {% blocktrans count counter=project.open_task_count %}{{ counter }} open task{% plural %}{{ counter }} open tasks{% endblocktrans %}
+      {% if project.description %}
+      <p class="text-xs text-zinc-400 mt-3 line-clamp-2 leading-relaxed">
+        {{ project.description|truncatechars:140 }}
+      </p>
+      {% endif %}
+
+      <div class="flex items-center gap-3 mt-3 text-xs text-zinc-500">
+        {% if project.lead %}
+        <span class="flex items-center gap-1.5" title="{% trans 'Lead' %}: {{ project.lead.display_name }}">
+          <span class="w-5 h-5 rounded-full text-white grid place-items-center font-medium text-[10px]"
+                style="background-color: {{ project.lead.avatar_color }};">
+            {{ project.lead.display_name|slice:":1"|upper }}
+          </span>
+          <span class="truncate">{{ project.lead.display_name }}</span>
+        </span>
+        {% endif %}
+        {% if project.member_count %}
+        <span class="shrink-0 flex items-center gap-1" title="{% trans 'Members' %}">
+          <i data-lucide="users" class="w-3 h-3"></i>{{ project.member_count }}
+        </span>
+        {% endif %}
+        <span class="shrink-0 ml-auto">
+          {% blocktrans count counter=project.open_task_count %}{{ counter }} open task{% plural %}{{ counter }} open tasks{% endblocktrans %}
+        </span>
       </div>
     </a>
     {% empty %}

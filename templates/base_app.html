@@ -51,9 +51,16 @@ Pages extend this and override the `app_main` block.
           {% if not project.archived %}
           <li>
             <a href="{% url 'web:project_detail' slug_prefix=project.slug_prefix %}"
-               class="block px-2 py-1.5 rounded-md hover:bg-zinc-800 hover:text-zinc-100
+               class="flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-zinc-800 hover:text-zinc-100
                {% if request.resolver_match.kwargs.slug_prefix == project.slug_prefix %}bg-brand-500/15 text-brand-300{% else %}text-zinc-300{% endif %}">
-              <span class="font-mono text-xs text-zinc-500 mr-1.5">{{ project.slug_prefix }}</span>{{ project.name }}
+              {% comment %}
+              ``project.icon`` is an opt-in Lucide name from admin /
+              project settings. Fallback ``folder`` keeps the column
+              aligned for projects that haven't set an icon yet.
+              {% endcomment %}
+              <i data-lucide="{{ project.icon|default:'folder' }}" class="w-3.5 h-3.5 text-zinc-500 shrink-0"></i>
+              <span class="font-mono text-xs text-zinc-500">{{ project.slug_prefix }}</span>
+              <span class="truncate">{{ project.name }}</span>
             </a>
           </li>
           {% endif %}

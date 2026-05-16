@@ -8,6 +8,7 @@ from .views import (
     ProjectListView,
     TaskDetailView,
     post_comment,
+    set_project_lead,
     set_task_assignee,
     set_task_description,
     set_task_due_date,
@@ -20,6 +21,7 @@ from .views import (
     task_meta_fragment,
     task_title_fragment,
     task_topbar_title_fragment,
+    toggle_project_member,
     toggle_task_label,
 )
 
@@ -31,6 +33,16 @@ urlpatterns = [
     path("tasks/", AllTasksView.as_view(), name="all_tasks"),
     path("projects/", ProjectListView.as_view(), name="project_list"),
     path("projects/<str:slug_prefix>/", ProjectDetailView.as_view(), name="project_detail"),
+    path(
+        "projects/<str:slug_prefix>/lead/",
+        set_project_lead,
+        name="set_project_lead",
+    ),
+    path(
+        "projects/<str:slug_prefix>/members/toggle/",
+        toggle_project_member,
+        name="toggle_project_member",
+    ),
     path(
         "projects/<str:slug_prefix>/<int:number>/",
         TaskDetailView.as_view(),

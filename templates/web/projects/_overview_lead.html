@@ -1,0 +1,66 @@
+{% load i18n %}
+{% comment %}
+Lead avatar + click-to-open dropdown picker. Posts to
+``set_project_lead`` and swaps itself with the freshly rendered
+fragment. Empty value clears the lead.
+{% endcomment %}
+<div id="project-lead-cell"
+     x-data="{ open: false }"
+     class="relative inline-block">
+
+  <button type="button"
+          @click="open = !open"
+          class="cursor-pointer text-left flex items-center gap-2 text-sm rounded-md hover:bg-zinc-800/50 px-2 py-1 -ml-2 transition">
+    {% if project.lead %}
+    <span class="w-7 h-7 rounded-full text-white grid place-items-center font-medium text-xs"
+          style="background-color: {{ project.lead.avatar_color }};">
+      {{ project.lead.display_name|slice:":1"|upper }}
+    </span>
+    <span class="text-zinc-200">{{ project.lead.display_name }}</span>
+    {% else %}
+    <span class="w-7 h-7 rounded-full border border-dashed border-zinc-600 grid place-items-center text-zinc-500 text-xs">?</span>
+    <span class="text-zinc-500 italic">{% trans "No lead set" %}</span>
+    {% endif %}
+  </button>
+
+  <div x-show="open"
+       @click.outside="open = false"
+       x-cloak
+       class="absolute left-0 mt-1 w-60 bg-zinc-900 border border-zinc-800 rounded-lg shadow-lg overflow-hidden z-20">
+
+    <div class="max-h-64 overflow-y-auto">
+      {% if project.lead %}
+      <form hx-post="{% url 'web:set_project_lead' slug_prefix=project.slug_prefix %}"
+            hx-target="#project-lead-cell"
+            hx-swap="outerHTML"
+            @htmx:after-request="open = false">
+        {% csrf_token %}
+        <input type="hidden" name="lead_id" value="">
+        <button type="submit"
+                class="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-800 text-zinc-500 italic border-b border-zinc-800">
+          {% trans "Clear lead" %}
+        </button>
+      </form>
+      {% endif %}
+      {% for member in workspace_members %}
+      <form hx-post="{% url 'web:set_project_lead' slug_prefix=project.slug_prefix %}"
+            hx-target="#project-lead-cell"
+            hx-swap="outerHTML"
+            @htmx:after-request="open = false">
+        {% csrf_token %}
+        <input type="hidden" name="lead_id" value="{{ member.id }}">
+        <button type="submit"
+                class="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-800 flex items-center gap-2
+                  {% if project.lead_id == member.id %}font-medium text-white bg-zinc-800/40{% else %}text-zinc-300{% endif %}">
+          <span class="w-5 h-5 rounded-full text-white grid place-items-center font-medium text-[10px]"
+                style="background-color: {{ member.avatar_color }};">
+            {{ member.display_name|slice:":1"|upper }}
+          </span>
+          <span class="flex-1">{{ member.display_name }}</span>
+          {% if project.lead_id == member.id %}<span class="text-zinc-500">✓</span>{% endif %}
+        </button>
+      </form>
+      {% endfor %}
+    </div>
+  </div>
+</div>

@@ -326,16 +326,23 @@ class ProjectListView(LoginRequiredMixin, ListView):
     context_object_name = "projects"
 
     def get_queryset(self):
-        """Return user-accessible projects with annotated stats."""
+        """Return user-accessible projects with annotated stats.
+
+        ``select_related("lead")`` keeps the lead avatar rendering
+        N+1-free; ``distinct=True`` on member count prevents the
+        member JOIN from inflating the open_task_count.
+        """
         latest = ProjectUpdate.objects.filter(project=OuterRef("pk")).order_by("-created_at").values("health")[:1]
         return (
             Project.objects.filter(workspace__memberships__user=self.request.user)
-            .select_related("workspace")
+            .select_related("workspace", "lead")
             .annotate(
                 open_task_count=Count(
                     "tasks",
                     filter=Q(tasks__status__in=_OPEN_STATUSES),
+                    distinct=True,
                 ),
+                member_count=Count("members", distinct=True),
                 latest_health=Subquery(latest),
             )
             .order_by("archived", "workspace__name", "name")
@@ -405,6 +412,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         ctx["members"] = list(
             project.members.order_by("first_name", "last_name", "username"),
         )
+        ctx["workspace_members"] = _project_workspace_members(project, exclude_user=None)
 
         base = (
             Task.objects.filter(project=project)
@@ -1038,6 +1046,121 @@ def set_task_due_date(request, slug_prefix, number):
         "web/projects/_due_date_cell.html",
         {"task": task},
     )
+
+
+def _get_user_project_or_404(user, slug_prefix):
+    """Look up a project by slug_prefix, 404 when foreign / missing.
+
+    Args:
+        user: Acting :class:`User`.
+        slug_prefix: Project slug prefix from the URL.
+
+    Returns:
+        The :class:`Project` instance with ``workspace`` + ``lead``
+        pre-fetched.
+    """
+    return get_object_or_404(
+        Project.objects.filter(
+            slug_prefix=slug_prefix,
+            workspace__memberships__user=user,
+        ).select_related("workspace", "lead"),
+    )
+
+
+@require_POST
+@login_required
+def set_project_lead(request, slug_prefix):
+    """Inline lead change on the project overview.
+
+    Accepts an integer ``lead_id`` form field, or an empty value to
+    clear the lead. The chosen user must be a member of the project's
+    workspace; non-member ids 400. Returns the rendered lead cell
+    fragment so HTMX can swap it in place.
+    """
+    project = _get_user_project_or_404(request.user, slug_prefix)
+    raw = (request.POST.get("lead_id") or "").strip()
+    if raw == "":
+        new_lead = None
+    else:
+        try:
+            user_id = int(raw)
+        except (TypeError, ValueError):
+            return HttpResponseBadRequest("invalid lead_id")
+        new_lead = User.objects.filter(
+            workspace_memberships__workspace=project.workspace,
+            id=user_id,
+        ).first()
+        if new_lead is None:
+            return HttpResponseBadRequest("user not a workspace member")
+    project.lead = new_lead
+    project.save(update_fields=["lead"])
+    project.refresh_from_db(fields=["lead"])
+    return HttpResponse(
+        render_to_string(
+            "web/projects/_overview_lead.html",
+            {
+                "project": project,
+                "workspace_members": _project_workspace_members(project, exclude_user=None),
+            },
+            request=request,
+        ),
+    )
+
+
+@require_POST
+@login_required
+def toggle_project_member(request, slug_prefix):
+    """Toggle a single user in / out of the project's members M2M.
+
+    Accepts an integer ``user_id`` form field. The user must be a
+    member of the project's workspace; non-member ids 400. Returns
+    the rendered members chip list fragment.
+    """
+    project = _get_user_project_or_404(request.user, slug_prefix)
+    raw = (request.POST.get("user_id") or "").strip()
+    try:
+        user_id = int(raw)
+    except (TypeError, ValueError):
+        return HttpResponseBadRequest("invalid user_id")
+    user = User.objects.filter(
+        workspace_memberships__workspace=project.workspace,
+        id=user_id,
+    ).first()
+    if user is None:
+        return HttpResponseBadRequest("user not a workspace member")
+    if project.members.filter(pk=user.pk).exists():
+        project.members.remove(user)
+    else:
+        project.members.add(user)
+    members = list(project.members.order_by("first_name", "last_name", "username"))
+    return HttpResponse(
+        render_to_string(
+            "web/projects/_overview_members.html",
+            {
+                "project": project,
+                "members": members,
+                "workspace_members": _project_workspace_members(project, exclude_user=None),
+            },
+            request=request,
+        ),
+    )
+
+
+def _project_workspace_members(project, *, exclude_user):
+    """Return workspace members eligible to be project lead / members.
+
+    Args:
+        project: The :class:`Project` providing the workspace scope.
+        exclude_user: Optionally drop this user from the result (used
+            when the picker is for "add others").
+
+    Returns:
+        Ordered list of :class:`User`.
+    """
+    qs = project.workspace.members.order_by("first_name", "last_name", "username")
+    if exclude_user is not None:
+        qs = qs.exclude(pk=exclude_user.pk)
+    return list(qs)
 
 
 @require_POST

@@ -212,6 +212,114 @@ class TestProjectDetailView:
         # Table body: every body div is in the DOM (x-show selects).
         assert body.count("$store.viewMode.current ===") >= 3
 
+    def test_set_lead_assigns_workspace_member(self, client, member_user):
+        from apps.workspaces.tests.factories import WorkspaceMemberFactory
+
+        user, _, project = member_user
+        new_lead = WorkspaceMemberFactory(workspace=project.workspace).user
+        client.force_login(user)
+        resp = client.post(
+            reverse("web:set_project_lead", kwargs={"slug_prefix": project.slug_prefix}),
+            {"lead_id": new_lead.id},
+        )
+        assert resp.status_code == 200
+        project.refresh_from_db()
+        assert project.lead == new_lead
+        assert 'id="project-lead-cell"' in resp.content.decode()
+
+    def test_set_lead_with_empty_clears(self, client, member_user):
+        from apps.workspaces.tests.factories import WorkspaceMemberFactory
+
+        user, _, project = member_user
+        previous = WorkspaceMemberFactory(workspace=project.workspace).user
+        project.lead = previous
+        project.save(update_fields=["lead"])
+        client.force_login(user)
+        resp = client.post(
+            reverse("web:set_project_lead", kwargs={"slug_prefix": project.slug_prefix}),
+            {"lead_id": ""},
+        )
+        assert resp.status_code == 200
+        project.refresh_from_db()
+        assert project.lead is None
+
+    def test_set_lead_rejects_non_workspace_member(self, client, member_user):
+        from apps.accounts.tests.factories import UserFactory
+
+        user, _, project = member_user
+        outsider = UserFactory()
+        client.force_login(user)
+        resp = client.post(
+            reverse("web:set_project_lead", kwargs={"slug_prefix": project.slug_prefix}),
+            {"lead_id": outsider.id},
+        )
+        assert resp.status_code == 400
+        project.refresh_from_db()
+        assert project.lead is None
+
+    def test_set_lead_invalid_id_returns_400(self, client, member_user):
+        user, _, project = member_user
+        client.force_login(user)
+        resp = client.post(
+            reverse("web:set_project_lead", kwargs={"slug_prefix": project.slug_prefix}),
+            {"lead_id": "notanint"},
+        )
+        assert resp.status_code == 400
+
+    def test_set_lead_foreign_project_returns_404(self, client, member_user):
+        from apps.workspaces.tests.factories import WorkspaceFactory
+
+        user, _, _ = member_user
+        foreign_ws = WorkspaceFactory()
+        foreign_project = ProjectFactory(workspace=foreign_ws)
+        client.force_login(user)
+        resp = client.post(
+            reverse("web:set_project_lead", kwargs={"slug_prefix": foreign_project.slug_prefix}),
+            {"lead_id": ""},
+        )
+        assert resp.status_code == 404
+
+    def test_toggle_member_adds_workspace_member(self, client, member_user):
+        from apps.workspaces.tests.factories import WorkspaceMemberFactory
+
+        user, _, project = member_user
+        candidate = WorkspaceMemberFactory(workspace=project.workspace).user
+        client.force_login(user)
+        resp = client.post(
+            reverse("web:toggle_project_member", kwargs={"slug_prefix": project.slug_prefix}),
+            {"user_id": candidate.id},
+        )
+        assert resp.status_code == 200
+        assert project.members.filter(pk=candidate.pk).exists()
+        assert 'id="project-members-cell"' in resp.content.decode()
+
+    def test_toggle_member_removes_existing(self, client, member_user):
+        from apps.workspaces.tests.factories import WorkspaceMemberFactory
+
+        user, _, project = member_user
+        existing = WorkspaceMemberFactory(workspace=project.workspace).user
+        project.members.add(existing)
+        client.force_login(user)
+        resp = client.post(
+            reverse("web:toggle_project_member", kwargs={"slug_prefix": project.slug_prefix}),
+            {"user_id": existing.id},
+        )
+        assert resp.status_code == 200
+        assert not project.members.filter(pk=existing.pk).exists()
+
+    def test_toggle_member_rejects_non_workspace_member(self, client, member_user):
+        from apps.accounts.tests.factories import UserFactory
+
+        user, _, project = member_user
+        outsider = UserFactory()
+        client.force_login(user)
+        resp = client.post(
+            reverse("web:toggle_project_member", kwargs={"slug_prefix": project.slug_prefix}),
+            {"user_id": outsider.id},
+        )
+        assert resp.status_code == 400
+        assert not project.members.filter(pk=outsider.pk).exists()
+
     def test_overview_view_keeps_tab_default_and_hides_sidebar(self, client, member_user):
         """When ``?view=overview`` is active server-side, the assignee
         strip and filter sidebar are absent from the response (the

@@ -1,0 +1,76 @@
+{% load i18n %}
+{% comment %}
+Members chips + add-dropdown. Each chip has a hover-revealed ✕ that
+posts to ``toggle_project_member`` to remove the member; the +
+dropdown is the same endpoint, just adding.
+{% endcomment %}
+<div id="project-members-cell"
+     x-data="{ open: false }"
+     class="relative">
+
+  <ul class="flex flex-wrap gap-2">
+    {% for member in members %}
+    <li class="group flex items-center gap-1.5 bg-zinc-800/60 rounded-full pl-1 pr-2 py-0.5 text-xs">
+      <span class="w-5 h-5 rounded-full text-white grid place-items-center font-medium text-[10px]"
+            style="background-color: {{ member.avatar_color }};">
+        {{ member.display_name|slice:":1"|upper }}
+      </span>
+      <span class="text-zinc-300">{{ member.display_name }}</span>
+      <form hx-post="{% url 'web:toggle_project_member' slug_prefix=project.slug_prefix %}"
+            hx-target="#project-members-cell"
+            hx-swap="outerHTML"
+            class="inline">
+        {% csrf_token %}
+        <input type="hidden" name="user_id" value="{{ member.id }}">
+        <button type="submit"
+                class="text-zinc-600 hover:text-rose-400 text-xs opacity-0 group-hover:opacity-100 transition ml-0.5"
+                title="{% trans 'Remove from project' %}">✕</button>
+      </form>
+    </li>
+    {% endfor %}
+
+    <li>
+      <button type="button"
+              @click="open = !open"
+              class="flex items-center gap-1 bg-zinc-800/30 hover:bg-zinc-800 border border-dashed border-zinc-700 hover:border-zinc-600 rounded-full px-2 py-0.5 text-xs text-zinc-400 transition">
+        <i data-lucide="plus" class="w-3 h-3"></i>
+        {% trans "Add" %}
+      </button>
+    </li>
+  </ul>
+
+  <div x-show="open"
+       @click.outside="open = false"
+       x-cloak
+       class="absolute left-0 mt-1 w-60 bg-zinc-900 border border-zinc-800 rounded-lg shadow-lg overflow-hidden z-20">
+
+    <div class="max-h-64 overflow-y-auto">
+      {% for candidate in workspace_members %}
+      {% if candidate not in members %}
+      <form hx-post="{% url 'web:toggle_project_member' slug_prefix=project.slug_prefix %}"
+            hx-target="#project-members-cell"
+            hx-swap="outerHTML"
+            @htmx:after-request="open = false">
+        {% csrf_token %}
+        <input type="hidden" name="user_id" value="{{ candidate.id }}">
+        <button type="submit"
+                class="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-800 flex items-center gap-2 text-zinc-300">
+          <span class="w-5 h-5 rounded-full text-white grid place-items-center font-medium text-[10px]"
+                style="background-color: {{ candidate.avatar_color }};">
+            {{ candidate.display_name|slice:":1"|upper }}
+          </span>
+          <span class="flex-1">{{ candidate.display_name }}</span>
+        </button>
+      </form>
+      {% endif %}
+      {% empty %}
+      <p class="px-3 py-2 text-xs text-zinc-500 italic">{% trans "No more workspace members." %}</p>
+      {% endfor %}
+      {% with addable=workspace_members|length %}
+      {% if addable == members|length %}
+      <p class="px-3 py-2 text-xs text-zinc-500 italic">{% trans "Everyone in the workspace is already a member." %}</p>
+      {% endif %}
+      {% endwith %}
+    </div>
+  </div>
+</div>
