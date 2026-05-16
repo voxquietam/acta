@@ -282,12 +282,34 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             ).select_related("workspace"),
         )
 
+    def render_to_response(self, context, **response_kwargs):
+        """Persist the resolved ``view_mode`` to a long-lived cookie."""
+        response = super().render_to_response(context, **response_kwargs)
+        response.set_cookie(
+            "acta_view_mode",
+            context.get("view_mode", "kanban"),
+            max_age=60 * 60 * 24 * 365,
+            samesite="Lax",
+        )
+        return response
+
     def get_context_data(self, **kwargs):
-        """Attach the filtered task list, columns, and filter sidebar context."""
+        """Attach the filtered task list, columns, and filter sidebar context.
+
+        View mode resolution order:
+        1. ``?view=`` querystring — explicit user click on the toggle.
+        2. ``acta_view_mode`` cookie — remembered choice from the
+           previous project the user looked at.
+        3. ``kanban`` — first-time default.
+
+        The cookie is refreshed in :meth:`render_to_response` so every
+        toggle sticks for the next project switch.
+        """
         ctx = super().get_context_data(**kwargs)
-        view_mode = self.request.GET.get("view", "kanban")
+        view_mode = self.request.GET.get("view")
         if view_mode not in {"kanban", "table"}:
-            view_mode = "kanban"
+            cookie_pref = self.request.COOKIES.get("acta_view_mode")
+            view_mode = cookie_pref if cookie_pref in {"kanban", "table"} else "kanban"
         ctx["view_mode"] = view_mode
 
         base = (

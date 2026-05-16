@@ -96,6 +96,46 @@ class TestProjectDetailView:
         )
         assert resp.context["view_mode"] == "kanban"
 
+    def test_view_choice_persists_via_cookie(self, client, member_user):
+        """First request with ``?view=table`` sets a cookie; the next
+        cookie-only request gets table by default."""
+        user, ws, project = member_user
+        other_project = ProjectFactory(workspace=ws)
+        client.force_login(user)
+        # 1. Pick table on project A.
+        resp1 = client.get(
+            reverse("web:project_detail", kwargs={"slug_prefix": project.slug_prefix}),
+            data={"view": "table"},
+        )
+        assert resp1.cookies["acta_view_mode"].value == "table"
+        # 2. Open project B with no querystring — cookie carries the choice.
+        resp2 = client.get(
+            reverse("web:project_detail", kwargs={"slug_prefix": other_project.slug_prefix}),
+        )
+        assert resp2.context["view_mode"] == "table"
+
+    def test_cookie_ignored_when_view_param_present(self, client, member_user):
+        """An explicit ``?view=kanban`` overrides a ``table`` cookie."""
+        user, _, project = member_user
+        client.cookies["acta_view_mode"] = "table"
+        client.force_login(user)
+        resp = client.get(
+            reverse("web:project_detail", kwargs={"slug_prefix": project.slug_prefix}),
+            data={"view": "kanban"},
+        )
+        assert resp.context["view_mode"] == "kanban"
+        # And the cookie now reflects the new choice.
+        assert resp.cookies["acta_view_mode"].value == "kanban"
+
+    def test_garbage_cookie_falls_back_to_kanban(self, client, member_user):
+        user, _, project = member_user
+        client.cookies["acta_view_mode"] = "evilbits"
+        client.force_login(user)
+        resp = client.get(
+            reverse("web:project_detail", kwargs={"slug_prefix": project.slug_prefix}),
+        )
+        assert resp.context["view_mode"] == "kanban"
+
     def test_foreign_project_returns_404(self, client, member_user):
         user, _, _ = member_user
         foreign_ws = WorkspaceFactory()
