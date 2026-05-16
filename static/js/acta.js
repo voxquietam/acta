@@ -209,7 +209,19 @@
     tmp.innerHTML = cardHtml.trim();
     const fresh = tmp.firstElementChild;
     if (!fresh) return;
-    column.appendChild(fresh);
+    // Server sorts each column by ``-priority, -updated_at`` (see
+    // ProjectDetailView.get_context_data) — a freshly moved card has the
+    // newest ``updated_at`` so on reload it lands at the top of its
+    // priority bucket. Insert just after the ``.empty-placeholder`` so
+    // peers see the same order without a refresh.
+    const placeholder = column.querySelector(".empty-placeholder");
+    if (placeholder && placeholder.nextSibling) {
+      column.insertBefore(fresh, placeholder.nextSibling);
+    } else if (placeholder) {
+      column.appendChild(fresh);
+    } else {
+      column.insertBefore(fresh, column.firstChild);
+    }
     renderIcons();
   }
   function applyCardRemove(taskId) {
