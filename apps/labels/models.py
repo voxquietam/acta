@@ -1,5 +1,11 @@
+from django.core.validators import RegexValidator
 from django.db import models
 from django.utils.translation import gettext_lazy as _
+
+HEX_COLOR_VALIDATOR = RegexValidator(
+    regex=r"^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+    message=_("Color must be a hex code: #RRGGBB or #RRGGBBAA " "(e.g. #a855f7 for purple)."),
+)
 
 
 class LabelGroup(models.Model):
@@ -75,7 +81,8 @@ class Label(models.Model):
     )
     color = models.CharField(
         max_length=9,
-        help_text="Hex color code (#RRGGBB or #RRGGBBAA)",
+        validators=[HEX_COLOR_VALIDATOR],
+        help_text="Hex color code (#RRGGBB or #RRGGBBAA). Required — labels must be visually distinguishable",
     )
     created_at = models.DateTimeField(
         auto_now_add=True,

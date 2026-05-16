@@ -404,6 +404,21 @@ Rules:
 
 - **Subject line ≤ 80 characters**, lowercase, imperative ("add",
   "fix", "refactor", not "added" / "adds").
+- **Mark breaking / major commits with `!` after the scope** —
+  Conventional Commits' breaking-change marker. We use it whenever
+  a commit:
+  - introduces a migration (any `apps/*/migrations/*.py` file),
+  - changes a public API endpoint shape (URL, request fields,
+    response fields, status codes),
+  - changes a model field (add / rename / drop / type change),
+  - changes settings semantics that downstream code depends on,
+  - is otherwise "major" enough that a reviewer or downstream
+    deployer should pay extra attention.
+
+  Examples: `fix(labels)!: require valid hex color, color picker
+  in admin` (adds a migration), `feat(tasks)!: add bulk PATCH
+  endpoint` (new public surface). The `!` does NOT replace a
+  proper body explanation — it's a marker, not a substitute.
 - Use a body only when *why* needs explaining beyond the subject;
   wrap the body at 80 chars too.
 - **Never add a `Co-Authored-By: Claude …` trailer.** The user
