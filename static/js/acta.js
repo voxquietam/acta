@@ -372,6 +372,26 @@
         collapsed = [];
       }
     }
+    // Current view mode (kanban / table). Read from the
+    // ``acta_view_mode`` cookie which the server resets on every
+    // page-level render of AllTasksView / ProjectDetailView. The
+    // view toggle in ``_view_panel.html`` calls ``set(...)`` so the
+    // sidebar (Status section in particular) re-evaluates without
+    // waiting for a full page reload.
+    function readViewModeCookie() {
+      const m = document.cookie.match(/(?:^|;\s*)acta_view_mode=([^;]+)/);
+      const value = m ? m[1] : "";
+      return value === "kanban" || value === "table" ? value : "kanban";
+    }
+    window.Alpine.store("viewMode", {
+      current: readViewModeCookie(),
+      set(value) {
+        if (value === "kanban" || value === "table") {
+          this.current = value;
+        }
+      },
+    });
+
     window.Alpine.store("kanban", {
       collapsed: new Set(collapsed),
       isCollapsed(key) {

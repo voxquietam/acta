@@ -11,6 +11,7 @@ panel and scrolls internally without clipping its rounded corners.
        hx-target="{{ view_panel_target|default:'#project-view-panel' }}"
        hx-swap="innerHTML"
        hx-push-url="true"
+       @click="$store.viewMode.set('kanban')"
        class="px-3 py-2 text-sm border-b-2 -mb-px
          {% if view_mode == 'kanban' %}border-brand-500 text-zinc-100{% else %}border-transparent text-zinc-400 hover:text-zinc-200{% endif %}">
       {% trans "Kanban" %}
@@ -20,6 +21,7 @@ panel and scrolls internally without clipping its rounded corners.
        hx-target="{{ view_panel_target|default:'#project-view-panel' }}"
        hx-swap="innerHTML"
        hx-push-url="true"
+       @click="$store.viewMode.set('table')"
        class="px-3 py-2 text-sm border-b-2 -mb-px
          {% if view_mode == 'table' %}border-brand-500 text-zinc-100{% else %}border-transparent text-zinc-400 hover:text-zinc-200{% endif %}">
       {% trans "Table" %}

@@ -258,7 +258,9 @@ def filter_sidebar_context(
     hide_assignee=False,
     hide_workspace=False,
     hide_project=False,
+    hide_status=False,
     preserved_params=None,
+    extra_preserved=None,
     form_url=None,
     htmx_target=None,
 ):
@@ -269,9 +271,18 @@ def filter_sidebar_context(
         available_projects / workspaces / labels: Optional querysets /
             lists. If ``None``, computed from the user's accessible
             data.
-        hide_assignee / hide_workspace / hide_project: Sections the
-            sidebar should not render (e.g. assignee on My Work,
-            project on per-project view).
+        hide_assignee / hide_workspace / hide_project / hide_status:
+            Sections the sidebar should not render (e.g. assignee on
+            My Work, status on kanban view where columns already group
+            by status).
+        preserved_params: Names of querystring params to round-trip on
+            filter submit by reading their current values from
+            ``request.GET``.
+        extra_preserved: Mapping of name → resolved value to inject
+            into the hidden inputs unconditionally. Useful when the
+            value comes from a cookie / view default rather than from
+            the current URL — e.g. ``view=table`` must travel with
+            every filter submit even when the URL doesn't yet carry it.
         form_url: Action URL for the filter form. Defaults to the
             current path.
         htmx_target: CSS selector for the HTMX swap target.
@@ -341,7 +352,15 @@ def filter_sidebar_context(
     )
 
     preserved_pairs = []
+    consumed_keys = set()
+    for key, value in (extra_preserved or {}).items():
+        if value in (None, ""):
+            continue
+        preserved_pairs.append((key, value))
+        consumed_keys.add(key)
     for key in preserved_params or ():
+        if key in consumed_keys:
+            continue
         for value in params.getlist(key):
             preserved_pairs.append((key, value))
 
@@ -352,6 +371,7 @@ def filter_sidebar_context(
         "filter_hide_assignee": hide_assignee,
         "filter_hide_workspace": hide_workspace,
         "filter_hide_project": hide_project,
+        "filter_hide_status": hide_status,
         "selected_statuses": selected_statuses,
         "selected_priorities": selected_priorities,
         "selected_projects": selected_projects,

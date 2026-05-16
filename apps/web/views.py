@@ -239,7 +239,14 @@ class AllTasksView(LoginRequiredMixin, ListView):
                 }
                 for status in Task.STATUS_VALUES
             ]
-        ctx.update(filter_sidebar_context(self.request, hide_assignee=True))
+        ctx.update(
+            filter_sidebar_context(
+                self.request,
+                hide_assignee=True,
+                hide_status=(view_mode == "kanban"),
+                extra_preserved={"view": view_mode},
+            )
+        )
         return ctx
 
 
@@ -407,8 +414,9 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
                 hide_assignee=True,
                 hide_workspace=True,
                 hide_project=True,
+                hide_status=(view_mode == "kanban"),
                 htmx_target="#project-view-panel",
-                preserved_params=["view"],
+                extra_preserved={"view": view_mode},
                 available_labels=list(
                     Label.objects.filter(workspace=self.object.workspace).order_by("name"),
                 ),

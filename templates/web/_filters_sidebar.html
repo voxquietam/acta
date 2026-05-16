@@ -19,6 +19,7 @@ Section visibility flags:
 * ``filter_hide_assignee`` — drop Assignee (handled by the top strip).
 * ``filter_hide_workspace`` — drop Workspace (only one workspace).
 * ``filter_hide_project`` — drop Project (page is scoped or hoisted).
+* ``filter_hide_status`` — drop Status (kanban columns already group by it).
 {% endcomment %}
 <aside x-data="{ ready: false }"
        x-init="$nextTick(() => ready = true)"
@@ -114,7 +115,7 @@ Section visibility flags:
                class="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-brand-500">
       </div>
 
-      <div>
+      <div x-show="$store.viewMode.current !== 'kanban'" x-cloak>
         <div class="text-[10px] uppercase tracking-wider text-zinc-500 font-medium mb-1.5">{% trans "Status" %}</div>
         <div class="flex gap-1 flex-wrap">
           {% for key, label in status_labels.items %}
