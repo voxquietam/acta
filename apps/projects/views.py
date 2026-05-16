@@ -34,9 +34,11 @@ class ProjectViewSet(viewsets.ModelViewSet):
         Returns:
             A queryset of :class:`Project` instances visible to the user.
         """
-        return Project.objects.filter(
-            workspace__memberships__user=self.request.user,
-        ).distinct()
+        return (
+            Project.objects.select_related("workspace")
+            .filter(workspace__memberships__user=self.request.user)
+            .distinct()
+        )
 
 
 class ProjectUpdateViewSet(viewsets.ModelViewSet):
@@ -66,9 +68,11 @@ class ProjectUpdateViewSet(viewsets.ModelViewSet):
             A queryset of :class:`ProjectUpdate` instances visible to the
             user.
         """
-        return ProjectUpdate.objects.filter(
-            project__workspace__memberships__user=self.request.user,
-        ).distinct()
+        return (
+            ProjectUpdate.objects.select_related("project__workspace", "author")
+            .filter(project__workspace__memberships__user=self.request.user)
+            .distinct()
+        )
 
     def perform_create(self, serializer):
         """Save the update with the request user as its author.

@@ -28,12 +28,23 @@ class CommentViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """Return comments from tasks in workspaces the user belongs to.
 
+        ``select_related`` pulls in the FK chain that every write hook
+        (``perform_create``/``update``/``destroy``) and permission
+        check (``IsAuthorOrWorkspaceAdmin.has_object_permission``)
+        walks via ``comment.task.project.workspace`` — without it each
+        comment write fires three extra SELECTs.
+
         Returns:
             A queryset of :class:`Comment` instances visible to the user.
         """
-        return Comment.objects.filter(
-            task__project__workspace__memberships__user=self.request.user,
-        ).distinct()
+        return (
+            Comment.objects.select_related(
+                "task__project__workspace",
+                "author",
+            )
+            .filter(task__project__workspace__memberships__user=self.request.user)
+            .distinct()
+        )
 
     def perform_create(self, serializer):
         """Save the comment with the request user as its author.

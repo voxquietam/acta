@@ -42,15 +42,28 @@ class TaskSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
 
-    def get_description_html(self, obj) -> str:
+    def get_description_html(self, obj) -> str | None:
         """Render the task description from Markdown to sanitized HTML.
+
+        Only renders when the request opted in via ``?expand=description_html``
+        — otherwise list endpoints would pay the markdown+bleach cost
+        on every row (50 rows = 50 sanitisation passes) even though
+        the kanban / table UIs only render the body on the detail
+        page. Detail clients ask for the expansion explicitly.
 
         Args:
             obj: The :class:`Task` instance.
 
         Returns:
-            Sanitized HTML produced from ``obj.description``.
+            Sanitized HTML produced from ``obj.description``, or
+            ``None`` when not requested.
         """
+        request = self.context.get("request")
+        if request is None:
+            return render_markdown(obj.description)
+        expand = request.query_params.get("expand", "") if hasattr(request, "query_params") else ""
+        if "description_html" not in {p.strip() for p in expand.split(",") if p.strip()}:
+            return None
         return render_markdown(obj.description)
 
     def validate_project(self, project):
