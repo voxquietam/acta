@@ -71,10 +71,44 @@ class IsWorkspaceMember(BasePermission):
 class IsWorkspaceAdmin(BasePermission):
     """Allow access only to owners and admins of the workspace.
 
-    For methods that don't load an object (list, create), the check defers
-    to ``has_permission`` returning ``True`` so per-action view code can
-    enforce admin-only semantics on its own.
+    For create operations DRF doesn't yet have an instance, so the
+    workspace is resolved from ``request.data['workspace']`` (or
+    ``request.data['workspace_id']``) before checking membership. A
+    missing / non-numeric / inaccessible workspace id is treated as a
+    permission failure — the request can't pretend it's just authn
+    against a free-form payload.
+
+    Without this check, any authenticated user could ``POST`` a
+    ``WorkspaceMember`` row promoting themselves to ``owner`` of any
+    workspace.
     """
+
+    def has_permission(self, request, view):
+        """Allow membership-creating requests only to admins / owners.
+
+        Safe methods (``GET``/``HEAD``/``OPTIONS``) and detail-route
+        accesses defer to ``has_object_permission``; only the
+        body-payload-bearing methods need the workspace resolution
+        from the request body here.
+        """
+        if not (request.user and request.user.is_authenticated):
+            return False
+        if request.method in SAFE_METHODS:
+            return True
+        # For PUT/PATCH/DELETE on a detail route DRF calls
+        # ``has_object_permission`` against the loaded instance. The
+        # only path that lacks that hook is ``POST`` on the list route,
+        # which is the one this branch defends.
+        if view.action != "create":
+            return True
+        raw_workspace = request.data.get("workspace") or request.data.get("workspace_id")
+        try:
+            workspace_id = int(raw_workspace)
+        except (TypeError, ValueError):
+            return False
+        workspace = Workspace.objects.filter(pk=workspace_id).first()
+        m = membership(request.user, workspace)
+        return m is not None and m.role in (WorkspaceMember.OWNER, WorkspaceMember.ADMIN)
 
     def has_object_permission(self, request, view, obj):
         """Allow when the user is admin or owner of the object's workspace.
