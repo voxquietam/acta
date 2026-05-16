@@ -13,6 +13,37 @@
   window.acta = {
     csrfToken: () => getCookie("csrftoken"),
     updateStickyStack: null, // assigned below once defined
+
+    // Untoggle one filter value (e.g. ``status=to-do``) inside the
+    // sidebar form and re-submit so HTMX refreshes the result list.
+    // Dispatches a real ``change`` event so per-row Alpine handlers
+    // (assignee / project sticky-stack rows) update their state.
+    removeFilter(name, value) {
+      const form = document.getElementById("filter-form");
+      if (!form) return;
+      const inp = form.querySelector(
+        `input[name="${name}"][value="${CSS.escape(value)}"]`,
+      );
+      if (!inp) return;
+      inp.checked = false;
+      inp.dispatchEvent(new Event("change", { bubbles: true }));
+    },
+
+    // Clear a non-value filter input (search ``q`` or the lone
+    // ``show_done`` toggle) and re-submit.
+    clearFilter(name) {
+      const form = document.getElementById("filter-form");
+      if (!form) return;
+      const inp = form.querySelector(`input[name="${name}"]`);
+      if (!inp) return;
+      if (inp.type === "checkbox" || inp.type === "radio") {
+        inp.checked = false;
+        inp.dispatchEvent(new Event("change", { bubbles: true }));
+      } else {
+        inp.value = "";
+        form.requestSubmit();
+      }
+    },
   };
 
   // Lucide icons: replace every ``<i data-lucide="...">`` placeholder
@@ -86,12 +117,62 @@
     });
   }
 
+  // Page-top assignee / project strip: counts off-screen chips on
+  // each edge, sets ``data-overflow-left`` / ``data-overflow-right``
+  // on the wrapper, and updates the ``+N`` text inside the counter
+  // overlays. CSS handles the actual fade-in / fade-out via opacity
+  // transitions tied to those attributes — keeps the overlays in the
+  // DOM (and out of flex flow, via ``absolute`` positioning) so the
+  // strip never shifts when off-screen counts change.
+  function updateStripCounters(strip) {
+    const scrollLeft = strip.scrollLeft;
+    const viewRight = scrollLeft + strip.clientWidth;
+    const chips = [...strip.querySelectorAll("[data-strip-chip]")];
+    let leftCount = 0;
+    let rightCount = 0;
+    chips.forEach((chip) => {
+      const natLeft = chip.offsetLeft;
+      const natRight = natLeft + chip.offsetWidth;
+      if (natRight <= scrollLeft) leftCount += 1;
+      else if (natLeft >= viewRight) rightCount += 1;
+    });
+    const wrap = strip.parentElement;
+    wrap.toggleAttribute("data-overflow-left", leftCount > 0);
+    wrap.toggleAttribute("data-overflow-right", rightCount > 0);
+    const leftCountEl = wrap.querySelector("[data-strip-left-counter] [data-count]");
+    const rightCountEl = wrap.querySelector("[data-strip-right-counter] [data-count]");
+    if (leftCountEl) leftCountEl.textContent = leftCount;
+    if (rightCountEl) rightCountEl.textContent = rightCount;
+  }
+  window.acta.updateStripCounters = updateStripCounters;
+
+  function initStrips() {
+    document.querySelectorAll("[data-strip]").forEach((strip) => {
+      if (strip.dataset.stripBound === "true") return;
+      strip.dataset.stripBound = "true";
+      updateStripCounters(strip);
+      strip.addEventListener("scroll", () => updateStripCounters(strip), {
+        passive: true,
+      });
+      window.addEventListener("resize", () => updateStripCounters(strip), {
+        passive: true,
+      });
+    });
+  }
+
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initStickyStacks);
+    document.addEventListener("DOMContentLoaded", () => {
+      initStickyStacks();
+      initStrips();
+    });
   } else {
     initStickyStacks();
+    initStrips();
   }
-  document.body.addEventListener("htmx:afterSwap", initStickyStacks);
+  document.body.addEventListener("htmx:afterSwap", () => {
+    initStickyStacks();
+    initStrips();
+  });
 
   // Shared Alpine store for the filter sidebar's open / collapsed state.
   // Drives both the sidebar itself (collapsed button vs full form) and

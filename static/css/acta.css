@@ -24,6 +24,38 @@
   background: rgb(82 82 91);
 }
 
+/* Top assignee / project strip — hide native scrollbar entirely.
+   On a single-line strip a 6px bar reads as visual noise. Off-screen
+   content is signalled by edge fade gradients + ``+N`` counters
+   overlaid via JS — see ``_assignee_strip.html``. */
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* Edge overlays are hidden by default. JS sets ``data-overflow-left``
+   / ``data-overflow-right`` on the wrapper when the corresponding
+   side has off-screen content, and the fade + counter pop in. The
+   transition smooths the appear/disappear so the page doesn't flicker
+   as chips scroll past either edge. */
+[data-strip-wrap] > [data-strip-left-fade],
+[data-strip-wrap] > [data-strip-right-fade],
+[data-strip-wrap] > [data-strip-left-counter],
+[data-strip-wrap] > [data-strip-right-counter] {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+[data-strip-wrap][data-overflow-left] > [data-strip-left-fade],
+[data-strip-wrap][data-overflow-left] > [data-strip-left-counter] {
+  opacity: 1;
+}
+[data-strip-wrap][data-overflow-right] > [data-strip-right-fade],
+[data-strip-wrap][data-overflow-right] > [data-strip-right-counter] {
+  opacity: 1;
+}
+
 /* Kanban empty placeholder: hide when the column has any task card.
    :has() is widely supported in 2025+ browsers (Safari 15.4+, Chrome 105+,
    Firefox 121+). Falls back to "always visible" on ancient browsers,

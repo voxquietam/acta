@@ -185,9 +185,10 @@ class AllTasksView(LoginRequiredMixin, ListView):
         return apply_task_filters(qs, self.request.GET, request_user=self.request.user)
 
     def get_context_data(self, **kwargs):
-        """Attach filter sidebar context."""
+        """Attach filter sidebar context. Assignee lives in the top strip,
+        not in the sidebar."""
         ctx = super().get_context_data(**kwargs)
-        ctx.update(filter_sidebar_context(self.request))
+        ctx.update(filter_sidebar_context(self.request, hide_assignee=True))
         return ctx
 
 
@@ -214,6 +215,7 @@ class MyWorkView(LoginRequiredMixin, TemplateView):
             filter_sidebar_context(
                 self.request,
                 hide_assignee=True,
+                hide_project=True,
                 hide_show_done=True,
                 htmx_target="#my-work-content",
             )
@@ -329,6 +331,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         ctx.update(
             filter_sidebar_context(
                 self.request,
+                hide_assignee=True,
                 hide_workspace=True,
                 hide_project=True,
                 hide_show_done=True,
