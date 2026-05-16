@@ -4,6 +4,7 @@ from django.conf import settings
 from django.http import HttpResponseBadRequest, HttpResponseRedirect
 from django.urls import reverse
 from django.utils import translation
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.translation import gettext
 from django.views.decorators.http import require_POST
 
@@ -18,13 +19,20 @@ def set_language(request):
     ``django_language`` cookie is set in all cases so anonymous users get
     a sticky choice too. See docs/decisions/0018-i18n.md.
 
+    The post-redirect target is taken from the ``Referer`` header but
+    validated with ``url_has_allowed_host_and_scheme`` against the
+    request's own host — without this check the form would be an open
+    redirect (a crafted ``Referer`` would send the user off-site after
+    submit).
+
     Args:
         request: The DRF/Django :class:`HttpRequest` carrying the form.
 
     Returns:
-        A :class:`HttpResponseRedirect` to the referring page (or ``/``
-        if the ``Referer`` header is missing), with the language cookie
-        set and the user record updated when applicable.
+        A :class:`HttpResponseRedirect` to the referring page (or to
+        the dashboard if the ``Referer`` is missing / off-site), with
+        the language cookie set and the user record updated when
+        applicable.
     """
     lang = request.POST.get("language", "").strip()
     allowed = {code for code, _ in settings.LANGUAGES}
@@ -36,7 +44,15 @@ def set_language(request):
         request.user.save(update_fields=["language"])
 
     translation.activate(lang)
-    next_url = request.META.get("HTTP_REFERER") or reverse("web:dashboard")
+    referer = request.META.get("HTTP_REFERER") or ""
+    if referer and url_has_allowed_host_and_scheme(
+        referer,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        next_url = referer
+    else:
+        next_url = reverse("web:dashboard")
     response = HttpResponseRedirect(next_url)
     response.set_cookie(
         settings.LANGUAGE_COOKIE_NAME,
