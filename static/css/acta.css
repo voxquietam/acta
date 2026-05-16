@@ -151,6 +151,15 @@ main {
     visibility 0s linear 0s;
 }
 
+/* Links inside the editor inherit the contenteditable text cursor by
+   default. Force ``pointer`` so the hover affordance matches normal
+   anchor behaviour — without it, the user has no visual cue that the
+   click navigates (especially relevant now that ``openOnClick`` is
+   true on the TipTap Link extension). */
+.ProseMirror a {
+  cursor: pointer;
+}
+
 /* Highlight mark — yellow marker pen. Applies inside the TipTap
    editor (.ProseMirror) AND in the server-rendered .prose view, so
    the highlight looks identical before / after the markdown
