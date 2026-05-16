@@ -18,7 +18,7 @@ from django.db import transaction
 from django.template.loader import render_to_string
 
 from apps.activity.models import ActivityLog
-from apps.activity.services import _broadcast
+from apps.activity.services import broadcast_event
 
 from .models import Task
 
@@ -212,6 +212,56 @@ def build_diff_events(
     return events
 
 
+def broadcast_task_events(events: list[ActivityLog], tasks_by_id: dict[int, Task], actor) -> None:
+    """Queue SSE broadcasts for a batch of just-persisted activity rows.
+
+    Shared by the single-task path (:func:`emit_task_diff_events`) and
+    the bulk endpoint (``apps.tasks.bulk._run_bulk_update`` and
+    ``_run_bulk_delete``). Each event reaches the workspace SSE
+    channel via :func:`apps.activity.services.broadcast_event`. For
+    events whose ``target_id`` is in ``tasks_by_id`` the broadcast
+    payload carries pre-rendered card HTML so connected kanban
+    clients swap in place; deletion events omit ``card_html`` (the
+    task is gone) and clients remove the card.
+
+    Args:
+        events: The :class:`ActivityLog` rows about to be broadcast.
+            Each row's ``workspace_id`` decides which channel it lands on.
+        tasks_by_id: Mapping of task pk → fresh :class:`Task` with
+            ``select_related('project', 'assignee')`` and
+            ``prefetch_related('labels')`` so the card template
+            renders without extra queries.
+        actor: The acting :class:`User`. Embedded in every payload as
+            ``actor_id`` for client-side self-event filtering.
+    """
+    if not events:
+        return
+    actor_id = actor.id if actor else None
+    card_html_by_task: dict[int, str] = {}
+    priority_labels = dict(Task.PRIORITY_CHOICES)
+    for task_id, task in tasks_by_id.items():
+        card_html_by_task[task_id] = render_to_string(
+            "web/projects/_task_card.html",
+            {"task": task, "priority_labels": priority_labels},
+        )
+    for ev in events:
+        workspace_id = ev.workspace_id
+        payload = {
+            "target_type": ev.target_type,
+            "target_id": ev.target_id,
+            "project_id": ev.project_id,
+            "bulk_id": str(ev.bulk_id) if ev.bulk_id else None,
+            **(ev.payload or {}),
+        }
+        card_html = card_html_by_task.get(ev.target_id)
+        if card_html:
+            payload["card_html"] = card_html
+        event_type = ev.event_type
+        transaction.on_commit(
+            lambda wid=workspace_id, et=event_type, p=payload, aid=actor_id: broadcast_event(wid, et, p, aid),
+        )
+
+
 def emit_task_diff_events(
     *,
     old_state: dict[str, Any],
@@ -224,6 +274,8 @@ def emit_task_diff_events(
     Thin wrapper over :func:`build_diff_events` that calls
     ``ActivityLog.objects.bulk_create`` so all events from one diff
     commit in a single SQL statement (versus one INSERT per event).
+    Also fans the events out to the workspace SSE stream via
+    :func:`broadcast_task_events`.
 
     Args:
         old_state: Dict produced by :func:`snapshot_task` before the
@@ -239,36 +291,6 @@ def emit_task_diff_events(
     events = build_diff_events(old_state=old_state, task=task, actor=actor, bulk_id=bulk_id)
     if events:
         ActivityLog.objects.bulk_create(events)
-        # SSE broadcast — bulk_create skips ``log_event()``, so we queue
-        # the workspace-stream pushes ourselves on transaction commit.
-        # See ADR 0015 + ``apps/activity/services._broadcast``. The
-        # pre-rendered card HTML is included so connected clients can
-        # swap the kanban card in place without an extra request.
-        workspace_id = task.project.workspace_id
-        actor_id = actor.id if actor else None
-        # The card template touches ``task.project``, ``task.assignee``,
-        # and iterates ``task.labels.all`` — refetch with the matching
-        # ``select_related`` / ``prefetch_related`` so we add two
-        # SELECTs total rather than one-per-field.
         task_for_render = Task.objects.select_related("project", "assignee").prefetch_related("labels").get(pk=task.pk)
-        card_html = render_to_string(
-            "web/projects/_task_card.html",
-            {
-                "task": task_for_render,
-                "priority_labels": dict(Task.PRIORITY_CHOICES),
-            },
-        )
-        for ev in events:
-            payload = {
-                "target_type": ev.target_type,
-                "target_id": ev.target_id,
-                "project_id": ev.project_id,
-                "bulk_id": str(ev.bulk_id) if ev.bulk_id else None,
-                "card_html": card_html,
-                **(ev.payload or {}),
-            }
-            event_type = ev.event_type
-            transaction.on_commit(
-                lambda wid=workspace_id, et=event_type, p=payload, aid=actor_id: _broadcast(wid, et, p, aid),
-            )
+        broadcast_task_events(events, {task.pk: task_for_render}, actor)
     return len(events)

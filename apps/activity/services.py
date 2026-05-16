@@ -22,12 +22,26 @@ import django_eventstream
 from .models import ActivityLog
 
 
-def _broadcast(workspace_id: int, event_type: str, payload: dict[str, Any], actor_id: int | None) -> None:
+def broadcast_event(workspace_id: int, event_type: str, payload: dict[str, Any], actor_id: int | None) -> None:
     """Push one event to the workspace's SSE stream.
 
-    The payload carries ``actor_id`` so connected clients can ignore
-    events they triggered themselves (they already updated their UI
-    optimistically from the original HTTP response).
+    Public helper used both internally by :func:`log_event` and by
+    callers that bulk-persist activity rows themselves (the bulk
+    endpoint in ``apps.tasks.bulk`` and the diff-event batcher in
+    ``apps.tasks.events``). The payload carries ``actor_id`` so
+    connected clients can ignore events they triggered themselves
+    (they already updated their UI optimistically from the original
+    HTTP response).
+
+    Args:
+        workspace_id: Channel partition. Maps 1:1 to the
+            ``workspace-<id>`` SSE channel.
+        event_type: Same string as the underlying
+            ``ActivityLog.event_type`` (see ADR 0011).
+        payload: Event-specific dict, JSON-serialised by
+            django_eventstream.
+        actor_id: User id of the originator, or ``None`` for system
+            events. Embedded into the broadcast payload as-is.
     """
     django_eventstream.send_event(
         f"workspace-{workspace_id}",
@@ -98,6 +112,6 @@ def log_event(
     }
     actor_id = actor.id if actor else None
     transaction.on_commit(
-        lambda: _broadcast(workspace.id, event_type, broadcast_payload, actor_id),
+        lambda: broadcast_event(workspace.id, event_type, broadcast_payload, actor_id),
     )
     return row

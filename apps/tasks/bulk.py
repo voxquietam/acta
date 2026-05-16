@@ -33,7 +33,7 @@ from apps.labels.models import Label
 from apps.projects.models import Project
 from apps.workspaces.models import WorkspaceMember
 
-from .events import build_diff_events, snapshot_task
+from .events import broadcast_task_events, build_diff_events, snapshot_task
 from .models import Task
 
 BULK_LIMIT = 500
@@ -419,8 +419,13 @@ def _run_bulk_update(*, user, ids: list[int], updates: dict[str, Any]) -> tuple[
             _bulk_apply_scalars(list(requested), scalar_updates)
         _bulk_apply_labels(list(requested), add_label_ids, remove_label_ids)
 
-        post_tasks = (
-            Task.objects.filter(id__in=full_ids).select_related("project__workspace").prefetch_related("labels")
+        # ``select_related('assignee')`` matters for the SSE card
+        # render below — ``_task_card.html`` reads ``task.assignee.*``.
+        # Without it the broadcast loop would fire one SELECT per task.
+        post_tasks = list(
+            Task.objects.filter(id__in=full_ids)
+            .select_related("project__workspace", "assignee")
+            .prefetch_related("labels"),
         )
         all_events: list[ActivityLog] = []
         for task in post_tasks:
@@ -434,6 +439,12 @@ def _run_bulk_update(*, user, ids: list[int], updates: dict[str, Any]) -> tuple[
             )
         if all_events:
             ActivityLog.objects.bulk_create(all_events)
+            # SSE broadcast — fan the bulk diff out to connected
+            # workspace streams. ``post_tasks`` is already
+            # ``select_related/prefetch_related``'d for the diff
+            # build so the card render reuses that data.
+            tasks_by_id = {t.pk: t for t in post_tasks}
+            broadcast_task_events(all_events, tasks_by_id, user)
     return bulk_id, len(full_ids)
 
 
@@ -485,6 +496,11 @@ def _run_bulk_delete(*, user, ids: list[int]) -> tuple[UUID, int]:
         accessible_qs.delete()
         if events_to_create:
             ActivityLog.objects.bulk_create(events_to_create)
+            # SSE broadcast — deletion has no surviving task to
+            # render, so the empty mapping means each event's payload
+            # carries no ``card_html`` and clients simply remove the
+            # matching kanban card.
+            broadcast_task_events(events_to_create, {}, user)
     return bulk_id, deleted
 
 
