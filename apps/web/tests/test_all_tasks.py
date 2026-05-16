@@ -124,6 +124,21 @@ class TestAllTasksFilters:
         assert "theirs" in body
         assert "mine" not in body
 
+    def test_assignee_multi_value(self, client, setup):
+        """Multiple ``?assignee=`` values combine as OR (incl. ``unassigned``)."""
+        user, ws1, _, p1, _ = setup
+        other = UserFactory()
+        WorkspaceMemberFactory(workspace=ws1, user=other)
+        TaskFactory(project=p1, reporter=user, assignee=other, title="for-other", status=Task.STATUS_TODO)
+        TaskFactory(project=p1, reporter=user, assignee=None, title="nobody", status=Task.STATUS_TODO)
+        TaskFactory(project=p1, reporter=user, assignee=user, title="mine", status=Task.STATUS_TODO)
+        client.force_login(user)
+        resp = client.get(reverse("web:all_tasks") + f"?assignee={other.id}&assignee=unassigned")
+        body = resp.content.decode()
+        assert "for-other" in body
+        assert "nobody" in body
+        assert "mine" not in body
+
     def test_label_filter(self, client, setup):
         """``?label=<id>`` keeps only tasks tagged with that label."""
         user, _, _, p1, _ = setup

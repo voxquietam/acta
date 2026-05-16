@@ -9,7 +9,6 @@ the three views share one canonical implementation.
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.utils import timezone
-from django.utils.translation import gettext_lazy as _
 
 from apps.labels.models import Label
 from apps.projects.models import Project
@@ -56,16 +55,23 @@ def apply_task_filters(qs, params, *, request_user, default_show_done=False):
         except (TypeError, ValueError):
             pass
 
-    assignee = params.get("assignee")
-    if assignee == "me":
-        qs = qs.filter(assignee=request_user)
-    elif assignee == "unassigned":
-        qs = qs.filter(assignee__isnull=True)
-    elif assignee:
-        try:
-            qs = qs.filter(assignee_id=int(assignee))
-        except (TypeError, ValueError):
-            pass
+    assignees = params.getlist("assignee")
+    if assignees:
+        q_assignee = Q()
+        user_ids = []
+        for a in assignees:
+            if a == "me":
+                q_assignee |= Q(assignee=request_user)
+            elif a == "unassigned":
+                q_assignee |= Q(assignee__isnull=True)
+            else:
+                try:
+                    user_ids.append(int(a))
+                except (TypeError, ValueError):
+                    pass
+        if user_ids:
+            q_assignee |= Q(assignee_id__in=user_ids)
+        qs = qs.filter(q_assignee)
 
     label_ids = params.getlist("label")
     if label_ids:
@@ -135,7 +141,6 @@ def filter_sidebar_context(
             User.objects.filter(
                 workspace_memberships__workspace__memberships__user=user,
             )
-            .exclude(pk=user.pk)
             .order_by("username")
             .distinct(),
         )
@@ -145,13 +150,13 @@ def filter_sidebar_context(
     selected_projects = {int(p) for p in params.getlist("project") if p.isdigit()}
     selected_workspaces = {int(w) for w in params.getlist("workspace") if w.isdigit()}
     selected_labels = {int(i) for i in params.getlist("label") if i.isdigit()}
-    selected_assignee = params.get("assignee", "")
+    selected_assignees = set(params.getlist("assignee"))
     show_done = params.get("show_done") == "1"
     q = params.get("q", "")
 
     active_filter_count = (
         (1 if q else 0)
-        + (1 if selected_assignee else 0)
+        + len(selected_assignees)
         + len(selected_statuses)
         + len(selected_priorities)
         + len(selected_workspaces)
@@ -178,18 +183,13 @@ def filter_sidebar_context(
         "selected_projects": selected_projects,
         "selected_workspaces": selected_workspaces,
         "selected_labels": selected_labels,
-        "selected_assignee": selected_assignee,
+        "selected_assignees": selected_assignees,
         "show_done": show_done,
         "q": q,
         "available_projects": available_projects,
         "available_workspaces": available_workspaces,
         "available_labels": available_labels,
         "available_assignees": available_assignees,
-        "assignee_quick_options": [
-            ("", _("Any")),
-            ("me", _("Me")),
-            ("unassigned", _("Unassigned")),
-        ],
         "active_filter_count": active_filter_count,
         "status_labels": Task.STATUS_LABELS,
         "priority_labels": dict(Task.PRIORITY_CHOICES),
