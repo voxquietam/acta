@@ -46,6 +46,7 @@ _ALLOWED_ATTRS_BY_TAG = {
         "href",
         "title",
         "rel",
+        "target",
     ],
     "img": [
         "src",
@@ -130,10 +131,39 @@ def render_markdown(text: str | None) -> str:
         extension_configs=_MD_EXTENSION_CONFIGS,
         output_format="html",
     )
-    return bleach.clean(
+    cleaned = bleach.clean(
         rendered,
         tags=ALLOWED_TAGS,
         attributes=_attr_filter,
         protocols=ALLOWED_PROTOCOLS,
         strip=True,
     )
+    # Force ``rel="noopener noreferrer nofollow"`` on every link so a
+    # user-supplied ``[click](https://evil)`` can't use ``window.opener``
+    # to navigate this tab once opened in a new one, and so we don't
+    # bleed referrer or pagerank to arbitrary destinations.
+    return bleach.linkifier.Linker(
+        callbacks=[_force_safe_rel],
+        skip_tags=[],
+        parse_email=False,
+    ).linkify(cleaned)
+
+
+def _force_safe_rel(attrs, new=False):
+    """Bleach linkify callback that hardens every rendered anchor.
+
+    Args:
+        attrs: Bleach's per-link attribute dict, keyed by
+            ``(namespace, name)`` tuples.
+        new: ``True`` for new auto-linked text, ``False`` for an
+            anchor already in the input. We apply the same hardening
+            in both cases.
+
+    Returns:
+        The mutated ``attrs`` dict. ``rel`` is always set to
+        ``noopener noreferrer nofollow``; ``target="_blank"`` so the
+        link opens in a new tab.
+    """
+    attrs[(None, "rel")] = "noopener noreferrer nofollow"
+    attrs[(None, "target")] = "_blank"
+    return attrs
