@@ -14,13 +14,17 @@
 {% endblock %}
 
 {% block app_main %}
-<div class="flex flex-col lg:flex-row gap-6 items-start">
-  <div class="flex-1 min-w-0">
-    <div id="project-view-panel">
-      {% include "web/projects/_view_panel.html" %}
-    </div>
+<div x-data="{ ready: false }"
+     x-init="$nextTick(() => ready = true)"
+     :class="[
+       $store.filters.open ? 'lg:pr-[17rem]' : 'lg:pr-14',
+       ready ? 'transition-[padding] duration-200' : '',
+     ]"
+     class="lg:pr-[17rem]">
+  <div id="project-view-panel">
+    {% include "web/projects/_view_panel.html" %}
   </div>
-
-  {% include "web/_filters_sidebar.html" %}
 </div>
+
+{% include "web/_filters_sidebar.html" %}
 {% endblock %}

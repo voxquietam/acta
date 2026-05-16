@@ -5,27 +5,47 @@ Shared task-filter sidebar. Used by All Tasks, My Work, and the
 per-project Kanban / Table page. Context vars come from
 ``apps.web.filters.filter_sidebar_context``.
 
+Layout (kaneo-style floating filter):
+
+* lg+: ``fixed`` to the right edge, vertically centered in the
+  viewport, capped at ``calc(100vh - 2rem)``. The page never has to
+  scroll to reach the filters — they're always on screen. The page
+  content reserves right padding via the ``filters`` Alpine store.
+* <lg: stacks under the content in normal flow, full width.
+
+Internal scroll cascade (top → last-resort):
+
+1. Assignee list capped at ``max-h-64`` (~10 rows) — section gets
+   its own scrollbar when the team grows past that.
+2. Project list is ``flex-1`` — eats every remaining vertical pixel
+   of the form body. When even that's not enough it gets its own
+   internal scrollbar with sticky-selected rows.
+3. Form body itself has ``overflow-y-auto`` — last resort if all
+   sections combined still don't fit.
+
 Section visibility flags:
-* ``filter_hide_assignee`` — drop the assignee section (e.g. My Work
-  where every task is implicitly assigned to the current user).
-* ``filter_hide_workspace`` / ``filter_hide_project`` — drop scope
-  filters when the page is already scoped (per-project view drops both).
+* ``filter_hide_assignee`` — drop the assignee section.
+* ``filter_hide_workspace`` / ``filter_hide_project`` — drop those
+  scope filters when the page is already scoped.
 
 HTMX target / form action come in via ``filter_htmx_target`` and
 ``filter_form_url`` so the same partial works wherever it's mounted.
 {% endcomment %}
-<aside x-data="{
-         open: (typeof localStorage !== 'undefined' && localStorage.getItem('filtersOpen') === 'false') ? false : true,
-       }"
-       x-effect="if (typeof localStorage !== 'undefined') localStorage.setItem('filtersOpen', open)"
-       :class="open ? 'w-full lg:w-64' : 'w-full lg:w-10'"
-       class="shrink-0 transition-[width] duration-200">
+<aside x-data="{ ready: false }"
+       x-init="$nextTick(() => ready = true)"
+       :class="[
+         $store.filters.open ? 'lg:w-64' : 'lg:w-10',
+         ready ? 'transition-[width] duration-200' : '',
+       ]"
+       class="w-full mt-6 lg:mt-0 lg:w-64 shrink-0
+              lg:fixed lg:right-4 lg:top-20
+              lg:max-h-[calc(100vh-6rem)] lg:z-10">
 
-  {# Collapsed: a thin re-open button #}
-  <button x-show="!open"
-          @click="open = true"
+  {# Collapsed: a thin re-open button (only takes the rail's narrow width). #}
+  <button x-show="!$store.filters.open"
+          @click="$store.filters.set(true)"
           x-cloak
-          class="sticky top-0 w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2 hover:border-zinc-700 transition relative"
+          class="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2 hover:border-zinc-700 transition relative"
           title="{% trans 'Show filters' %}">
     <i data-lucide="sliders-horizontal" class="w-4 h-4 text-brand-400 mx-auto"></i>
     {% if active_filter_count %}
@@ -33,20 +53,23 @@ HTMX target / form action come in via ``filter_htmx_target`` and
     {% endif %}
   </button>
 
-  <form x-show="open"
+  <form x-show="$store.filters.open"
         method="get"
         hx-get="{{ filter_form_url }}"
         hx-target="{{ filter_htmx_target }}"
         hx-swap="innerHTML"
         hx-push-url="true"
         hx-indicator="#filter-loading"
-        class="sticky top-0 bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden">
+        class="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden
+               flex flex-col w-full
+               lg:max-h-[calc(100vh-2rem)]">
 
     {% for name, value in filter_preserved_pairs %}
     <input type="hidden" name="{{ name }}" value="{{ value }}">
     {% endfor %}
 
-    <div class="flex items-center justify-between border-b border-zinc-800 px-3 py-2.5">
+    {# Header — fixed height, stays put while the body scrolls under it. #}
+    <div class="shrink-0 flex items-center justify-between border-b border-zinc-800 px-3 py-2.5">
       <h2 class="text-xs uppercase tracking-wider text-zinc-300 font-medium flex items-center gap-1.5">
         <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5 text-brand-400"></i>
         {% trans "Filters" %}
@@ -59,23 +82,20 @@ HTMX target / form action come in via ``filter_htmx_target`` and
       </h2>
       <div class="flex items-center gap-2">
         {% comment %}
-        Reset clears every filter input but keeps params listed in
-        ``filter_preserved_pairs`` (e.g. ``?view=table``) so the user
-        stays on the same tab. Goes through HTMX so the swap target
-        updates inline.
+        Reset does a full page nav (not HTMX) to the form URL with
+        only ``filter_preserved_pairs`` (e.g. ``view=table``) intact.
+        Full nav re-renders the sidebar from the server with clean
+        Alpine initial state — avoids the race between programmatic
+        ``.checked = false`` and Alpine's ``x-model`` reactivity.
         {% endcomment %}
-        <a hx-get="{{ filter_form_url }}{% if filter_preserved_pairs %}?{% for k, v in filter_preserved_pairs %}{{ k }}={{ v|urlencode }}{% if not forloop.last %}&{% endif %}{% endfor %}{% endif %}"
-           hx-target="{{ filter_htmx_target }}"
-           hx-swap="innerHTML"
-           hx-push-url="true"
-           href="{{ filter_form_url }}{% if filter_preserved_pairs %}?{% for k, v in filter_preserved_pairs %}{{ k }}={{ v|urlencode }}{% if not forloop.last %}&{% endif %}{% endfor %}{% endif %}"
-           class="text-[10px] text-zinc-500 hover:text-zinc-300 flex items-center gap-1 cursor-pointer"
+        <a href="{{ filter_form_url }}{% if filter_preserved_pairs %}?{% for k, v in filter_preserved_pairs %}{{ k }}={{ v|urlencode }}{% if not forloop.last %}&{% endif %}{% endfor %}{% endif %}"
+           class="text-[10px] text-zinc-500 hover:text-zinc-300 flex items-center gap-1"
            title="{% trans 'Clear all filters' %}">
           <i data-lucide="refresh-cw" class="w-3 h-3"></i>
           {% trans "Reset" %}
         </a>
         <button type="button"
-                @click="open = false"
+                @click="$store.filters.set(false)"
                 class="text-zinc-500 hover:text-zinc-300"
                 title="{% trans 'Hide filters' %}">
           <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
@@ -83,9 +103,10 @@ HTMX target / form action come in via ``filter_htmx_target`` and
       </div>
     </div>
 
-    <div class="p-3 space-y-4 max-h-[calc(100vh-8rem)] overflow-y-auto">
+    {# Body — flex-1 between header/footer, scrolls only as a last resort. #}
+    <div class="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-4">
 
-      <div>
+      <div class="shrink-0">
         <label class="block text-[10px] uppercase tracking-wider text-zinc-500 font-medium mb-1.5">
           {% trans "Search" %}
         </label>
@@ -95,49 +116,64 @@ HTMX target / form action come in via ``filter_htmx_target`` and
       </div>
 
       {% if not filter_hide_assignee %}
-      <div>
-        <div class="text-[10px] uppercase tracking-wider text-zinc-500 font-medium mb-1.5">
+      {% comment %}
+      Assignee section shrinks only under pressure (default flex
+      behavior + ``min-h-[160px]`` floor for ≈6 rows). When the body
+      has room, the inner list renders at natural height with no
+      scrollbar. When the sidebar can't fit, the section shrinks
+      to the floor and the inner list's ``overflow-y-auto`` engages
+      — which is what makes ``position: sticky`` on selected rows
+      actually pin.
+      {% endcomment %}
+      <div class="flex flex-col min-h-[160px]">
+        <div class="shrink-0 text-[10px] uppercase tracking-wider text-zinc-500 font-medium mb-1.5">
           {% trans "Assignee" %}
         </div>
-        <div class="flex gap-1 flex-wrap">
-          {% for value, label in assignee_quick_options %}
-          <label class="cursor-pointer">
-            <input type="radio" name="assignee" value="{{ value }}"
-                   {% if selected_assignee == value or not selected_assignee and value == "" %}checked{% endif %}
-                   class="peer sr-only"
-                   onchange="this.form.requestSubmit()">
-            <span class="block px-2 py-1 rounded-md border border-zinc-800 bg-zinc-950 text-zinc-400 text-[11px]
-                         hover:bg-zinc-800 transition
-                         peer-checked:border-brand-400 peer-checked:bg-brand-500/25 peer-checked:text-white">
-              {{ label }}
-            </span>
-          </label>
-          {% endfor %}
-        </div>
+        <label class="cursor-pointer block mb-1.5 shrink-0">
+          <input type="checkbox" name="assignee" value="unassigned"
+                 {% if "unassigned" in selected_assignees %}checked{% endif %}
+                 class="peer sr-only"
+                 onchange="this.form.requestSubmit()">
+          <span class="flex items-center gap-1.5 px-2 py-1 rounded-md border border-zinc-800 bg-zinc-950 text-zinc-400 text-[11px]
+                       hover:bg-zinc-800 transition
+                       peer-checked:border-brand-400 peer-checked:bg-brand-500/25 peer-checked:text-white">
+            <span class="w-4 h-4 rounded-full border border-dashed border-zinc-600 grid place-items-center text-[9px] shrink-0">?</span>
+            {% trans "Unassigned" %}
+          </span>
+        </label>
         {% if available_assignees %}
-        <div class="space-y-0.5 max-h-44 overflow-y-auto mt-1.5">
+        <div class="space-y-0.5 overflow-y-auto pr-1 relative flex-1 min-h-0"
+             data-sticky-stack
+             x-data
+             @sticky-row-toggled.window="$nextTick(() => window.acta.updateStickyStack($el))">
           {% for u in available_assignees %}
-          <label class="cursor-pointer flex items-center">
-            <input type="radio" name="assignee" value="{{ u.id }}"
-                   {% if selected_assignee == u.id|stringformat:"s" %}checked{% endif %}
+          {% with sel=u.id|stringformat:"s" %}
+          <label x-data="{ selected: {% if sel in selected_assignees %}true{% else %}false{% endif %} }"
+                 :class="selected ? 'sticky top-0 bottom-0 z-10 bg-zinc-900' : ''"
+                 :data-selected="selected"
+                 class="cursor-pointer flex items-center"
+                 data-sticky-row>
+            <input type="checkbox" name="assignee" value="{{ u.id }}"
+                   {% if sel in selected_assignees %}checked{% endif %}
                    class="peer sr-only"
-                   onchange="this.form.requestSubmit()">
+                   @change="selected = $event.target.checked; $dispatch('sticky-row-toggled'); $event.target.form.requestSubmit()">
             <span class="w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] text-zinc-400
                          hover:bg-zinc-800 transition
                          peer-checked:bg-brand-500/25 peer-checked:text-white truncate">
               <span class="w-4 h-4 rounded-full bg-brand-600 text-white grid place-items-center font-medium text-[9px] shrink-0">
                 {{ u.username|slice:":1"|upper }}
               </span>
-              <span class="truncate">{{ u.username }}</span>
+              <span class="truncate">{{ u.username }}{% if u == request.user %} <span class="text-zinc-500">({% trans "you" %})</span>{% endif %}</span>
             </span>
           </label>
+          {% endwith %}
           {% endfor %}
         </div>
         {% endif %}
       </div>
       {% endif %}
 
-      <div>
+      <div class="shrink-0">
         <div class="text-[10px] uppercase tracking-wider text-zinc-500 font-medium mb-1.5">{% trans "Status" %}</div>
         <div class="flex gap-1 flex-wrap">
           {% for key, label in status_labels.items %}
@@ -162,7 +198,7 @@ HTMX target / form action come in via ``filter_htmx_target`` and
         </div>
       </div>
 
-      <div>
+      <div class="shrink-0">
         <div class="text-[10px] uppercase tracking-wider text-zinc-500 font-medium mb-1.5">{% trans "Priority" %}</div>
         <div class="flex gap-1 flex-wrap">
           {% for key, label in priority_labels.items %}
@@ -188,7 +224,7 @@ HTMX target / form action come in via ``filter_htmx_target`` and
       </div>
 
       {% if available_labels %}
-      <div>
+      <div class="shrink-0">
         <div class="text-[10px] uppercase tracking-wider text-zinc-500 font-medium mb-1.5">{% trans "Labels" %}</div>
         <div class="flex gap-1 flex-wrap">
           {% for label in available_labels %}
@@ -211,7 +247,7 @@ HTMX target / form action come in via ``filter_htmx_target`` and
       {% endif %}
 
       {% if not filter_hide_workspace and available_workspaces|length > 1 %}
-      <div>
+      <div class="shrink-0">
         <div class="text-[10px] uppercase tracking-wider text-zinc-500 font-medium mb-1.5">{% trans "Workspace" %}</div>
         <div class="space-y-0.5 max-h-32 overflow-y-auto">
           {% for ws in available_workspaces %}
@@ -231,15 +267,29 @@ HTMX target / form action come in via ``filter_htmx_target`` and
       {% endif %}
 
       {% if not filter_hide_project %}
-      <div>
-        <div class="text-[10px] uppercase tracking-wider text-zinc-500 font-medium mb-1.5">{% trans "Project" %}</div>
-        <div class="space-y-0.5 max-h-44 overflow-y-auto">
+      {% comment %}
+      Project section — the ``flex-1`` block. Eats every remaining
+      vertical pixel of the body, and only when even that's not enough
+      does its inner list (``flex-1 min-h-0 overflow-y-auto``) get its
+      own scroll. Selected rows pin to ``sticky top-0 bottom-0`` so
+      they stay visible at whichever edge they would otherwise leave.
+      {% endcomment %}
+      <div class="flex flex-col flex-1 min-h-[120px]">
+        <div class="shrink-0 text-[10px] uppercase tracking-wider text-zinc-500 font-medium mb-1.5">{% trans "Project" %}</div>
+        <div class="space-y-0.5 overflow-y-auto pr-1 relative flex-1 min-h-0"
+             data-sticky-stack
+             x-data
+             @sticky-row-toggled.window="$nextTick(() => window.acta.updateStickyStack($el))">
           {% for p in available_projects %}
-          <label class="cursor-pointer flex items-center">
+          <label x-data="{ selected: {% if p.id in selected_projects %}true{% else %}false{% endif %} }"
+                 :class="selected ? 'sticky top-0 bottom-0 z-10 bg-zinc-900' : ''"
+                 :data-selected="selected"
+                 class="cursor-pointer flex items-center"
+                 data-sticky-row>
             <input type="checkbox" name="project" value="{{ p.id }}"
                    {% if p.id in selected_projects %}checked{% endif %}
                    class="peer sr-only"
-                   onchange="this.form.requestSubmit()">
+                   @change="selected = $event.target.checked; $dispatch('sticky-row-toggled'); $event.target.form.requestSubmit()">
             <span class="w-full px-2 py-1 rounded-md text-[11px] text-zinc-400 hover:bg-zinc-800 transition
                          peer-checked:bg-brand-500/25 peer-checked:text-white truncate"
                   title="{{ p.workspace.name }} / {{ p.name }}">
@@ -252,7 +302,7 @@ HTMX target / form action come in via ``filter_htmx_target`` and
       {% endif %}
 
       {% if not filter_hide_show_done %}
-      <div class="pt-3 border-t border-zinc-800">
+      <div class="shrink-0 pt-3 border-t border-zinc-800">
         <label class="cursor-pointer flex items-center gap-2 text-zinc-300 text-[11px]">
           <input type="checkbox" name="show_done" value="1"
                  {% if show_done %}checked{% endif %}
