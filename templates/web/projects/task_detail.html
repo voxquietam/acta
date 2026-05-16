@@ -17,7 +17,35 @@
   {% elif task.priority == 4 %}text-sky-400
   {% else %}text-zinc-300{% endif %}"
   {% if task.priority %}title="{{ priority_labels|get_item:task.priority }}"{% endif %}>{{ task.slug }}</h1>
+
 {% include "web/projects/_topbar_task_title.html" %}
+
+{% comment %}
+Copy buttons: link copies the full task URL, # copies the bare slug
+(``AUD-167``). Briefly flips to a check icon for ~1.5s on success.
+Both icons are hydrated by Lucide on page load and toggled via Alpine
+``x-show`` so the SVGs stay in the DOM and don't need re-hydration.
+{% endcomment %}
+<div class="flex items-center gap-0.5 shrink-0">
+  <button type="button"
+          x-data="{ copied: false }"
+          @click="navigator.clipboard.writeText(window.location.href).then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
+          :title="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy task link' %}'"
+          :aria-label="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy task link' %}'"
+          class="p-1 rounded hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 transition">
+    <i x-show="!copied" data-lucide="link-2" class="w-3.5 h-3.5"></i>
+    <i x-show="copied" x-cloak data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i>
+  </button>
+  <button type="button"
+          x-data="{ copied: false }"
+          @click="navigator.clipboard.writeText('{{ task.slug }}').then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
+          :title="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy task ID' %}'"
+          :aria-label="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy task ID' %}'"
+          class="p-1 rounded hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 transition">
+    <i x-show="!copied" data-lucide="hash" class="w-3.5 h-3.5"></i>
+    <i x-show="copied" x-cloak data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i>
+  </button>
+</div>
 {% endblock %}
 
 {% block app_main %}
