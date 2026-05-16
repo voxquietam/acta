@@ -14,6 +14,7 @@ from .views import (
     set_task_priority,
     set_task_status,
     set_task_title,
+    task_activity_fragment,
     toggle_task_label,
 )
 
@@ -69,5 +70,10 @@ urlpatterns = [
         "projects/<str:slug_prefix>/<int:number>/comments/",
         post_comment,
         name="post_comment",
+    ),
+    path(
+        "projects/<str:slug_prefix>/<int:number>/activity/",
+        task_activity_fragment,
+        name="task_activity_fragment",
     ),
 ]

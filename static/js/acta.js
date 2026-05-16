@@ -183,9 +183,15 @@
   // ``data.actor_id`` vs ``data-current-user-id`` on the wrapper —
   // skip our own change since the originating HTTP response already
   // refreshed the UI.
+  // Kanban-card selector. ``<a data-task-id>`` is the card element
+  // rendered by ``_task_card.html``. The selector deliberately
+  // excludes other elements carrying ``data-task-id`` (the activity
+  // panel uses ``data-activity-for-task`` to avoid the clash).
+  const KANBAN_CARD = (id) => `a[data-task-id="${id}"]`;
+
   function applyCardReplace(taskId, cardHtml) {
     if (!cardHtml) return;
-    const existing = document.querySelector(`[data-task-id="${taskId}"]`);
+    const existing = document.querySelector(KANBAN_CARD(taskId));
     if (!existing) return;
     const tmp = document.createElement("div");
     tmp.innerHTML = cardHtml.trim();
@@ -196,7 +202,7 @@
   }
   function applyCardMove(taskId, newStatus, cardHtml) {
     if (!cardHtml) return;
-    document.querySelectorAll(`[data-task-id="${taskId}"]`).forEach((el) => el.remove());
+    document.querySelectorAll(KANBAN_CARD(taskId)).forEach((el) => el.remove());
     const column = document.querySelector(`.kanban-column[data-status="${newStatus}"]`);
     if (!column) return;
     const tmp = document.createElement("div");
@@ -207,7 +213,7 @@
     renderIcons();
   }
   function applyCardRemove(taskId) {
-    document.querySelectorAll(`[data-task-id="${taskId}"]`).forEach((el) => el.remove());
+    document.querySelectorAll(KANBAN_CARD(taskId)).forEach((el) => el.remove());
   }
 
   function initWorkspaceSse() {
@@ -238,6 +244,30 @@
     handle("task.labels_changed", (d) => applyCardReplace(d.target_id, d.card_html));
     handle("task.updated", (d) => applyCardReplace(d.target_id, d.card_html));
     handle("task.deleted", (d) => applyCardRemove(d.target_id));
+
+    // Activity-feed live refresh on the task detail page. The
+    // ``#activity-list`` element has ``hx-trigger="refresh"`` + a
+    // matching ``hx-get`` to its fragment endpoint, so we just need
+    // to dispatch the ``refresh`` event whenever an event mentions
+    // the current task. Works for direct task targets (target_id)
+    // and ``comment.*`` events (payload.task_id).
+    const refreshActivity = (taskId) => {
+      const el = document.getElementById("activity-list");
+      if (!el || String(el.dataset.activityForTask) !== String(taskId)) return;
+      el.dispatchEvent(new CustomEvent("refresh"));
+    };
+    [
+      "task.status_changed",
+      "task.assigned",
+      "task.priority_changed",
+      "task.due_changed",
+      "task.labels_changed",
+      "task.updated",
+      "task.deleted",
+    ].forEach((t) => handle(t, (d) => refreshActivity(d.target_id)));
+    handle("comment.created", (d) => refreshActivity(d.task_id));
+    handle("comment.updated", (d) => refreshActivity(d.task_id));
+    handle("comment.deleted", (d) => refreshActivity(d.task_id));
   }
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", initWorkspaceSse);

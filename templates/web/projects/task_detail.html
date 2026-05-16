@@ -30,7 +30,9 @@ left edge. The rail's own panel padding provides the visual breathing
 room between the two. Single column on smaller screens (rail stacks
 below).
 {% endcomment %}
-<div class="xl:grid xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
+<div class="xl:grid xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start"
+     data-workspace-sse="/events/workspace/{{ task.project.workspace.id }}"
+     data-current-user-id="{{ request.user.id }}">
 
   <div class="min-w-0">
    <div class="max-w-3xl mx-auto w-full space-y-6">
@@ -179,10 +181,21 @@ below).
       </div>
     </div>
 
-    {# Activity timeline — re-rendered via OOB swap after inline edits. #}
+    {% comment %}
+    Activity timeline. Re-rendered three ways:
+    * OOB swap of ``<ul>`` from inline-edit endpoints (status/priority/etc).
+    * HTMX ``hx-get`` triggered by the ``refresh`` custom event that
+      ``acta.js`` dispatches when a relevant ``task.*`` / ``comment.*``
+      SSE event arrives on the workspace stream.
+    * Full page reload as a fallback.
+    {% endcomment %}
     <div>
       <div class="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">{% trans "Activity" %}</div>
-      <div id="activity-list">
+      <div id="activity-list"
+           data-activity-for-task="{{ task.id }}"
+           hx-get="{% url 'web:task_activity_fragment' slug_prefix=task.project.slug_prefix number=task.number %}"
+           hx-trigger="refresh"
+           hx-swap="innerHTML">
         {% include "web/projects/_activity_list.html" %}
       </div>
     </div>

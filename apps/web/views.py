@@ -8,6 +8,7 @@ endpoints (or from `/api/v1/...` for JSON-only consumers).
 import datetime
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Count, F, OuterRef, Q, Subquery
 from django.http import HttpResponse, HttpResponseBadRequest
@@ -382,6 +383,29 @@ class TaskDetailView(LoginRequiredMixin, DetailView):
         return ctx
 
 
+@login_required
+def task_activity_fragment(request, slug_prefix, number):
+    """Render just the ``_activity_list.html`` partial for one task.
+
+    Used by the SSE-triggered ``hx-get`` on the task detail page —
+    when a relevant ``task.*`` or ``comment.*`` event arrives on the
+    workspace stream, the activity panel refreshes itself without a
+    full page reload. See ADR 0015.
+    """
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    return HttpResponse(
+        render_to_string(
+            "web/projects/_activity_list.html",
+            {
+                "activity": _task_activity(task),
+                "status_labels": Task.STATUS_LABELS,
+                "priority_labels": dict(Task.PRIORITY_CHOICES),
+            },
+            request=request,
+        ),
+    )
+
+
 def _task_activity(task, limit=25):
     """Return the recent activity events relevant to a single task.
 
@@ -498,6 +522,7 @@ def _inline_edit_response(request, task, primary_template, primary_context):
     activity_html = render_to_string(
         "web/projects/_activity_oob.html",
         {
+            "task": task,
             "activity": _task_activity(task),
             "status_labels": Task.STATUS_LABELS,
             "priority_labels": dict(Task.PRIORITY_CHOICES),
@@ -733,6 +758,7 @@ def toggle_task_label(request, slug_prefix, number):
     activity_html = render_to_string(
         "web/projects/_activity_oob.html",
         {
+            "task": task,
             "activity": _task_activity(task),
             "status_labels": Task.STATUS_LABELS,
             "priority_labels": dict(Task.PRIORITY_CHOICES),

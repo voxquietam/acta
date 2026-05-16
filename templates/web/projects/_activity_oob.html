@@ -1,8 +1,17 @@
 {% comment %}
 HTMX out-of-band swap target. Inline-edit endpoints concatenate this
 fragment after their primary response so the activity timeline in the
-right rail updates without a separate request.
+right rail updates without a separate request. The wrapper re-emits
+every ``data-task-id`` / ``hx-get`` / ``hx-trigger`` attribute that
+the original page-rendered ``#activity-list`` carries — the OOB swap
+replaces the whole div, so missing attributes here would silently
+disable the SSE-driven activity refresh after any inline edit.
 {% endcomment %}
-<div id="activity-list" hx-swap-oob="true">
+<div id="activity-list"
+     hx-swap-oob="true"
+     data-activity-for-task="{{ task.id }}"
+     hx-get="{% url 'web:task_activity_fragment' slug_prefix=task.project.slug_prefix number=task.number %}"
+     hx-trigger="refresh"
+     hx-swap="innerHTML">
   {% include "web/projects/_activity_list.html" %}
 </div>
