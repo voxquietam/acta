@@ -36,18 +36,19 @@ via ``form=`` and submits through the existing HTMX pipeline.
              :class="selected ? 'bg-brand-500/15' : ''"
              class="strip-chip group inline-flex items-center gap-1.5 px-1 py-0.5 rounded-full cursor-pointer shrink-0 hover:bg-zinc-800/50 transition"
              data-strip-chip
-             title="{{ u.username }}">
+             title="{{ u.display_name }}">
         <input type="checkbox" name="assignee" value="{{ u.id }}"
                form="filter-form"
                {% if sel in selected_assignees %}checked{% endif %}
                class="sr-only"
                @change="selected = $event.target.checked; $event.target.form.requestSubmit()">
-        <span class="w-6 h-6 rounded-full bg-brand-600 text-white grid place-items-center font-medium text-[10px] shrink-0 transition"
+        <span class="w-6 h-6 rounded-full text-white grid place-items-center font-medium text-[10px] shrink-0 transition"
+              style="background-color: {{ u.avatar_color }};"
               :class="selected ? 'ring-2 ring-brand-400' : ''">
-          {{ u.username|slice:":1"|upper }}
+          {{ u.display_name|slice:":1"|upper }}
         </span>
         <span class="text-xs text-zinc-300 whitespace-nowrap pr-1">
-          {{ u.username }}{% if u == request.user %} <span class="text-zinc-500">({% trans "you" %})</span>{% endif %}
+          {{ u.display_name }}{% if u == request.user %} <span class="text-zinc-500">({% trans "you" %})</span>{% endif %}
         </span>
       </label>
       {% endwith %}

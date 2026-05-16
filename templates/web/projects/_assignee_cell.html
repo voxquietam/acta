@@ -35,10 +35,11 @@ dropdown focused on member selection rather than mixing in a no-op
             class="cursor-pointer text-left">
       {% if task.assignee %}
       <div class="flex items-center gap-1.5">
-        <span class="w-5 h-5 rounded-full bg-brand-600 text-white grid place-items-center font-medium text-[10px]">
-          {{ task.assignee.username|slice:":1"|upper }}
+        <span class="w-5 h-5 rounded-full text-white grid place-items-center font-medium text-[10px]"
+              style="background-color: {{ task.assignee.avatar_color }};">
+          {{ task.assignee.display_name|slice:":1"|upper }}
         </span>
-        <span class="text-zinc-300">{{ task.assignee.username }}</span>
+        <span class="text-zinc-300">{{ task.assignee.display_name }}</span>
       </div>
       {% else %}
       <div class="flex items-center gap-1.5">
@@ -83,16 +84,17 @@ dropdown focused on member selection rather than mixing in a no-op
             hx-target="#assignee-cell"
             hx-swap="outerHTML"
             @htmx:after-request="open = false"
-            x-show="matches('{{ member.user.username|escapejs }}')">
+            x-show="matches('{{ member.user.display_name|escapejs }}')">
         {% csrf_token %}
         <input type="hidden" name="assignee_id" value="{{ member.user.id }}">
         <button type="submit"
                 class="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-800 flex items-center gap-2
                   {% if task.assignee_id == member.user.id %}font-medium text-white bg-zinc-800/40{% else %}text-zinc-300{% endif %}">
-          <span class="w-5 h-5 rounded-full bg-brand-600 text-white grid place-items-center font-medium text-[10px]">
-            {{ member.user.username|slice:":1"|upper }}
+          <span class="w-5 h-5 rounded-full text-white grid place-items-center font-medium text-[10px]"
+                style="background-color: {{ member.user.avatar_color }};">
+            {{ member.user.display_name|slice:":1"|upper }}
           </span>
-          <span class="flex-1">{{ member.user.username }}</span>
+          <span class="flex-1">{{ member.user.display_name }}</span>
           {% if task.assignee_id == member.user.id %}<span class="text-zinc-500">✓</span>{% endif %}
         </button>
       </form>

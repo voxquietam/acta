@@ -392,10 +392,12 @@ def _task_activity(task, limit=25):
           table) means an event remains visible on the task even after
           the underlying comment row is deleted.
 
-    Attaches ``assigned_from_username`` and ``assigned_to_username`` to
-    every ``task.assigned`` event, resolving the user ids in a single
+    Attaches ``assigned_from_name`` and ``assigned_to_name`` to every
+    ``task.assigned`` event, resolving the user ids in a single
     batched query so the template can show ``X → Y`` without per-row
-    lookups.
+    lookups. Names use the user's display name (``First Last`` with
+    username fallback) so the feed reads naturally — usernames are
+    reserved for ``@mention`` autocomplete.
 
     Args:
         task: The :class:`Task` whose feed to load.
@@ -424,16 +426,16 @@ def _task_activity(task, limit=25):
         elif e.event_type == "task.labels_changed" and e.payload:
             for key in ("added_ids", "removed_ids"):
                 label_ids.update(e.payload.get(key) or [])
-    usernames = {}
+    user_names = {}
     if user_ids:
-        usernames = dict(User.objects.filter(id__in=user_ids).values_list("id", "username"))
+        user_names = {u.id: u.display_name for u in User.objects.filter(id__in=user_ids)}
     label_names = {}
     if label_ids:
         label_names = dict(Label.objects.filter(id__in=label_ids).values_list("id", "name"))
     for e in events:
         if e.event_type == "task.assigned" and e.payload:
-            e.assigned_from_username = usernames.get(e.payload.get("from_user_id"))
-            e.assigned_to_username = usernames.get(e.payload.get("to_user_id"))
+            e.assigned_from_name = user_names.get(e.payload.get("from_user_id"))
+            e.assigned_to_name = user_names.get(e.payload.get("to_user_id"))
         elif e.event_type == "task.labels_changed" and e.payload:
             e.added_label_names = [label_names.get(lid, f"#{lid}") for lid in (e.payload.get("added_ids") or [])]
             e.removed_label_names = [label_names.get(lid, f"#{lid}") for lid in (e.payload.get("removed_ids") or [])]

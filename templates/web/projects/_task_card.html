@@ -41,9 +41,10 @@
       {% endfor %}
     </div>
     {% if task.assignee %}
-    <span class="w-5 h-5 rounded-full bg-brand-600 text-white grid place-items-center font-medium text-[10px]"
-          title="{{ task.assignee.username }}">
-      {{ task.assignee.username|slice:":1"|upper }}
+    <span class="w-5 h-5 rounded-full text-white grid place-items-center font-medium text-[10px]"
+          style="background-color: {{ task.assignee.avatar_color }};"
+          title="{{ task.assignee.display_name }}">
+      {{ task.assignee.display_name|slice:":1"|upper }}
     </span>
     {% endif %}
   </div>

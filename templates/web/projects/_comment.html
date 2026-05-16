@@ -7,10 +7,11 @@ posted from the inline form.
 {% endcomment %}
 <li class="bg-zinc-900 border border-zinc-800 rounded-lg p-3 max-w-3xl">
   <div class="flex items-center gap-2 text-xs text-zinc-500 mb-1.5">
-    <span class="w-5 h-5 rounded-full bg-brand-600 text-white grid place-items-center font-medium text-[10px]">
-      {{ comment.author.username|slice:":1"|upper }}
+    <span class="w-5 h-5 rounded-full text-white grid place-items-center font-medium text-[10px]"
+          style="background-color: {{ comment.author.avatar_color }};">
+      {{ comment.author.display_name|slice:":1"|upper }}
     </span>
-    <span class="text-zinc-300">{{ comment.author.username }}</span>
+    <span class="text-zinc-300">{{ comment.author.display_name }}</span>
     <span>·</span>
     <span>{{ comment.created_at|date:"M j, H:i" }}</span>
     {% if comment.was_edited %}

@@ -65,9 +65,10 @@ zinc-500.
     {% endif %}
 
     {% if task.assignee %}
-    <span class="w-5 h-5 rounded-full bg-brand-600 text-white grid place-items-center font-medium text-[10px] shrink-0"
-          title="{{ task.assignee.username }}">
-      {{ task.assignee.username|slice:":1"|upper }}
+    <span class="w-5 h-5 rounded-full text-white grid place-items-center font-medium text-[10px] shrink-0"
+          style="background-color: {{ task.assignee.avatar_color }};"
+          title="{{ task.assignee.display_name }}">
+      {{ task.assignee.display_name|slice:":1"|upper }}
     </span>
     {% else %}
     <span class="w-5 h-5 rounded-full border border-dashed border-zinc-700 grid place-items-center text-zinc-600 text-[10px] shrink-0"

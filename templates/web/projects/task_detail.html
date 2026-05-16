@@ -160,7 +160,7 @@ below).
       <div class="pt-2 border-t border-zinc-800 text-[11px] text-zinc-500 space-y-0.5">
         <div class="flex justify-between">
           <span>{% trans "Reporter" %}</span>
-          <span>{% if task.reporter %}{{ task.reporter.username }}{% else %}—{% endif %}</span>
+          <span>{% if task.reporter %}{{ task.reporter.display_name }}{% else %}—{% endif %}</span>
         </div>
         <div class="flex justify-between"><span>{% trans "Created" %}</span><span>{{ task.created_at|date:"M j, Y" }}</span></div>
         <div class="flex justify-between"><span>{% trans "Updated" %}</span><span>{{ task.updated_at|date:"M j, Y" }}</span></div>

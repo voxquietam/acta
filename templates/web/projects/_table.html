@@ -126,11 +126,12 @@ clip overflowing text with an ellipsis instead of widening.
         {% endif %}
         <td class="px-3 py-2 text-xs overflow-hidden">
           {% if task.assignee %}
-          <span class="flex items-center gap-1.5 min-w-0" title="{{ task.assignee.username }}">
-            <span class="w-5 h-5 rounded-full bg-brand-600 text-white grid place-items-center font-medium text-[10px] shrink-0">
-              {{ task.assignee.username|slice:":1"|upper }}
+          <span class="flex items-center gap-1.5 min-w-0" title="{{ task.assignee.display_name }}">
+            <span class="w-5 h-5 rounded-full text-white grid place-items-center font-medium text-[10px] shrink-0"
+                  style="background-color: {{ task.assignee.avatar_color }};">
+              {{ task.assignee.display_name|slice:":1"|upper }}
             </span>
-            <span class="text-zinc-300 truncate">{{ task.assignee.username }}</span>
+            <span class="text-zinc-300 truncate">{{ task.assignee.display_name }}</span>
           </span>
           {% else %}
           <span class="text-zinc-600">{% trans "—" %}</span>
