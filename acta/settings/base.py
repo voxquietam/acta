@@ -37,6 +37,10 @@ ASGI_APPLICATION = "acta.asgi.application"
 # Migrate to Redis backend if we ever run multiple Uvicorn workers.
 EVENTSTREAM_STORAGE_CLASS = "django_eventstream.storage.DjangoModelStorage"
 
+# SSE channel authorization — restricts ``workspace-<id>`` channels
+# to that workspace's members. See ``apps.workspaces.sse``.
+EVENTSTREAM_CHANNELMANAGER_CLASS = "apps.workspaces.sse.WorkspaceChannelManager"
+
 
 # -----------------------------------------------------------------------------
 # Applications
