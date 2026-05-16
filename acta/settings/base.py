@@ -149,7 +149,10 @@ ACCOUNT_LOGOUT_REDIRECT_URL = "/"
 
 # allauth
 ACCOUNT_LOGIN_METHODS = {"email", "username"}
-ACCOUNT_SIGNUP_FIELDS = ["email*", "username*"]
+# ``password1*`` is required — allauth 65 derives the LoginForm's
+# password field from ``SIGNUP_FIELDS`` and silently drops it when
+# ``password1`` isn't here. ``password2*`` keeps the confirm-on-signup.
+ACCOUNT_SIGNUP_FIELDS = ["email*", "username*", "password1*", "password2*"]
 ACCOUNT_EMAIL_VERIFICATION = "none"
 SOCIALACCOUNT_AUTO_SIGNUP = True
 SOCIALACCOUNT_PROVIDERS = {
