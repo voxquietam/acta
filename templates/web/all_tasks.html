@@ -8,8 +8,12 @@
 <h1 class="text-base font-medium text-zinc-300">{% trans "All Tasks" %}</h1>
 {% endblock %}
 
+{% block topbar_mid %}
+{% include "web/projects/_view_tabs.html" %}
+{% endblock %}
+
 {% block app_main %}
-<div class="h-full flex flex-col">
+<div x-data class="h-full flex flex-col">
   {% include "web/_assignee_strip.html" %}
   <div class="flex-1 min-h-0 flex flex-col lg:flex-row gap-4 lg:items-stretch">
     <div id="task-list-wrapper" class="flex-1 min-w-0 min-h-0 flex flex-col">

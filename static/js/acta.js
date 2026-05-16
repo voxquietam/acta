@@ -378,17 +378,24 @@
     // view toggle in ``_view_panel.html`` calls ``set(...)`` so the
     // sidebar (Status section in particular) re-evaluates without
     // waiting for a full page reload.
+    const VIEW_MODES = new Set(["overview", "kanban", "table"]);
     function readViewModeCookie() {
       const m = document.cookie.match(/(?:^|;\s*)acta_view_mode=([^;]+)/);
       const value = m ? m[1] : "";
-      return value === "kanban" || value === "table" ? value : "kanban";
+      return VIEW_MODES.has(value) ? value : "kanban";
     }
     window.Alpine.store("viewMode", {
       current: readViewModeCookie(),
       set(value) {
-        if (value === "kanban" || value === "table") {
-          this.current = value;
-        }
+        if (!VIEW_MODES.has(value)) return;
+        this.current = value;
+        // Client-side tab toggles ``history.pushState`` instead of
+        // hitting the server, so we mirror the cookie write the server
+        // would have made on a full render. Without it, navigating to
+        // another project after toggling here would fall back to the
+        // previously-server-rendered view.
+        const oneYear = 60 * 60 * 24 * 365;
+        document.cookie = `acta_view_mode=${value}; path=/; max-age=${oneYear}; samesite=Lax`;
       },
     });
 

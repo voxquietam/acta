@@ -1,5 +1,7 @@
 """Tests for the All Tasks page (:class:`apps.web.views.AllTasksView`)."""
 
+import re
+
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
@@ -12,6 +14,19 @@ from apps.projects.tests.factories import ProjectFactory
 from apps.tasks.models import Task
 from apps.tasks.tests.factories import TaskFactory
 from apps.workspaces.tests.factories import WorkspaceFactory, WorkspaceMemberFactory
+
+
+def _table_body(html):
+    """Return the substring covering the table body so ordering asserts
+    don't pick up duplicate task titles rendered in the kanban body.
+
+    Both kanban and table bodies live in the DOM (Alpine ``x-show``
+    selects which is visible). Ordering tests need to inspect the
+    table body in isolation since kanban has its own status-grouped
+    order.
+    """
+    match = re.search(r"<table\b[\s\S]*?</table>", html)
+    return match.group(0) if match else html
 
 
 @pytest.fixture
@@ -246,7 +261,7 @@ class TestAllTasksOrdering:
         TaskFactory(project=p1, reporter=user, title="t-noprio", priority=Task.NO_PRIORITY, status=Task.STATUS_TODO)
         client.force_login(user)
         resp = client.get(reverse("web:all_tasks") + "?order=priority")
-        body = resp.content.decode()
+        body = _table_body(resp.content.decode())
         assert body.index("t-urgent") < body.index("t-low") < body.index("t-noprio")
 
     def test_priority_desc_keeps_no_priority_last(self, client, setup):
@@ -256,7 +271,7 @@ class TestAllTasksOrdering:
         TaskFactory(project=p1, reporter=user, title="t-noprio", priority=Task.NO_PRIORITY, status=Task.STATUS_TODO)
         client.force_login(user)
         resp = client.get(reverse("web:all_tasks") + "?order=-priority")
-        body = resp.content.decode()
+        body = _table_body(resp.content.decode())
         assert body.index("t-low") < body.index("t-urgent") < body.index("t-noprio")
 
     def test_status_uses_logical_order(self, client, setup):
@@ -269,7 +284,7 @@ class TestAllTasksOrdering:
         resp = client.get(
             reverse("web:all_tasks") + "?status=planned&status=to-do&status=in-review&order=status",
         )
-        body = resp.content.decode()
+        body = _table_body(resp.content.decode())
         assert body.index("t-planned") < body.index("t-todo") < body.index("t-review")
 
     def test_assignee_unassigned_sinks_in_both_directions(self, client, setup):
@@ -279,8 +294,8 @@ class TestAllTasksOrdering:
         TaskFactory(project=p1, reporter=user, title="t-alice", assignee=alice, status=Task.STATUS_TODO)
         TaskFactory(project=p1, reporter=user, title="t-unassigned", assignee=None, status=Task.STATUS_TODO)
         client.force_login(user)
-        body_asc = client.get(reverse("web:all_tasks") + "?order=assignee").content.decode()
-        body_desc = client.get(reverse("web:all_tasks") + "?order=-assignee").content.decode()
+        body_asc = _table_body(client.get(reverse("web:all_tasks") + "?order=assignee").content.decode())
+        body_desc = _table_body(client.get(reverse("web:all_tasks") + "?order=-assignee").content.decode())
         assert body_asc.index("t-alice") < body_asc.index("t-unassigned")
         assert body_desc.index("t-alice") < body_desc.index("t-unassigned")
 
@@ -296,7 +311,7 @@ class TestAllTasksOrdering:
         TaskFactory(project=p_a, reporter=user, title="t-AAA-1", number=1, status=Task.STATUS_TODO)
         TaskFactory(project=p_b, reporter=user, title="t-BBB-1", number=1, status=Task.STATUS_TODO)
         client.force_login(user)
-        body = client.get(reverse("web:all_tasks") + "?order=id").content.decode()
+        body = _table_body(client.get(reverse("web:all_tasks") + "?order=id").content.decode())
         # AAA's slug_prefix sorts before BBB; within AAA numbers go asc.
         assert body.index("t-AAA-1") < body.index("t-AAA-2") < body.index("t-BBB-1")
 

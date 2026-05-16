@@ -178,6 +178,60 @@ class TestProjectDetailView:
         assert resp.context["view_mode"] == "table"
         assert ("view", "table") in resp.context["filter_preserved_pairs"]
 
+    def test_all_three_view_bodies_render_simultaneously(self, client, member_user):
+        """Project detail renders Overview + Kanban + Table bodies into
+        the DOM on every load so the Alpine tab-switch is client-side
+        (no extra round-trip). Each body has a unique marker visible in
+        the HTML regardless of which tab is initially active.
+        """
+        user, _, project = member_user
+        # Add a member so the Overview body has something concrete to render.
+        from apps.workspaces.tests.factories import WorkspaceMemberFactory
+
+        member = WorkspaceMemberFactory(workspace=project.workspace).user
+        project.members.add(member)
+        TaskFactory(
+            project=project,
+            reporter=user,
+            title="kanban-marker-task",
+            status=Task.STATUS_TODO,
+        )
+        client.force_login(user)
+        resp = client.get(
+            reverse("web:project_detail", kwargs={"slug_prefix": project.slug_prefix}),
+        )
+        body = resp.content.decode()
+        # Tabs nav present.
+        assert "Overview" in body
+        assert "Kanban" in body
+        assert "Table" in body
+        # Overview body: member's name renders.
+        assert member.display_name in body
+        # Kanban body: card marker.
+        assert "kanban-marker-task" in body
+        # Table body: every body div is in the DOM (x-show selects).
+        assert body.count("$store.viewMode.current ===") >= 3
+
+    def test_overview_view_keeps_tab_default_and_hides_sidebar(self, client, member_user):
+        """When ``?view=overview`` is active server-side, the assignee
+        strip and filter sidebar are absent from the response (the
+        tabs and view bodies are still all present client-side).
+        """
+        user, _, project = member_user
+        client.force_login(user)
+        resp = client.get(
+            reverse("web:project_detail", kwargs={"slug_prefix": project.slug_prefix}) + "?view=overview",
+        )
+        assert resp.status_code == 200
+        assert resp.context["view_mode"] == "overview"
+        # The assignee strip data attribute lives on a wrapper that is
+        # ``x-show``-conditional on overview; both the strip include and
+        # the sidebar still render their static HTML so they pop in
+        # when the user picks Kanban/Table via Alpine.
+        body = resp.content.decode()
+        assert "data-strip" in body  # assignee strip include still in DOM
+        assert "filter-form" in body  # sidebar include still in DOM
+
     def test_status_filter_applies(self, client, member_user):
         """``?status=to-do`` should narrow the in-context tasks list."""
         user, _, project = member_user

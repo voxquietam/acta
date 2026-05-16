@@ -1,0 +1,83 @@
+{% load i18n %}
+{% load web_extras %}
+{% comment %}
+Body of the Overview tab. Shown inside ``_view_panel.html`` when
+``view_mode == "overview"``. Project-level metadata only (no task list).
+Lead, members, description; updates / activity sections are
+placeholders pending their dedicated TODOs.
+{% endcomment %}
+<div class="flex-1 min-h-0 overflow-y-auto">
+  <div class="max-w-3xl mx-auto w-full space-y-8 pb-4">
+
+    <header class="space-y-1">
+      <h1 class="text-2xl font-semibold text-zinc-100 leading-tight">{{ project.name }}</h1>
+      <div class="font-mono text-xs text-zinc-500">{{ project.slug_prefix }}</div>
+    </header>
+
+    <section class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 space-y-4">
+      <div>
+        <div class="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">{% trans "Lead" %}</div>
+        {% if project.lead %}
+        <div class="flex items-center gap-2 text-sm">
+          <span class="w-7 h-7 rounded-full text-white grid place-items-center font-medium text-xs"
+                style="background-color: {{ project.lead.avatar_color }};">
+            {{ project.lead.display_name|slice:":1"|upper }}
+          </span>
+          <span class="text-zinc-200">{{ project.lead.display_name }}</span>
+        </div>
+        {% else %}
+        <div class="flex items-center gap-2 text-sm">
+          <span class="w-7 h-7 rounded-full border border-dashed border-zinc-600 grid place-items-center text-zinc-500 text-xs">?</span>
+          <span class="text-zinc-500 italic">{% trans "No lead set" %}</span>
+        </div>
+        {% endif %}
+      </div>
+
+      <div>
+        <div class="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">
+          {% trans "Members" %}
+          <span class="text-zinc-600">{{ members|length }}</span>
+        </div>
+        {% if members %}
+        <ul class="flex flex-wrap gap-2">
+          {% for member in members %}
+          <li class="flex items-center gap-1.5 bg-zinc-800/60 rounded-full pl-1 pr-2 py-0.5 text-xs">
+            <span class="w-5 h-5 rounded-full text-white grid place-items-center font-medium text-[10px]"
+                  style="background-color: {{ member.avatar_color }};">
+              {{ member.display_name|slice:":1"|upper }}
+            </span>
+            <span class="text-zinc-300">{{ member.display_name }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-sm text-zinc-500 italic">{% trans "No members yet." %}</p>
+        {% endif %}
+      </div>
+    </section>
+
+    <section>
+      <div class="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">{% trans "Description" %}</div>
+      {% if description_html %}
+      <div class="prose prose-invert prose-sm max-w-none">{{ description_html|safe }}</div>
+      {% else %}
+      <p class="text-sm text-zinc-500 italic">{% trans "No description yet." %}</p>
+      {% endif %}
+    </section>
+
+    {% comment %}
+    Future placeholders. Wired by [[project-todo-project-updates-inbox]]
+    and the project-scoped activity feed when those land.
+    {% endcomment %}
+    <section>
+      <div class="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">{% trans "Recent updates" %}</div>
+      <p class="text-sm text-zinc-600 italic">{% trans "Project updates coming soon." %}</p>
+    </section>
+
+    <section>
+      <div class="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">{% trans "Activity" %}</div>
+      <p class="text-sm text-zinc-600 italic">{% trans "Project-level activity feed coming soon." %}</p>
+    </section>
+
+  </div>
+</div>

@@ -13,16 +13,39 @@
 </h1>
 {% endblock %}
 
+{% block topbar_mid %}
+{% include "web/projects/_view_tabs.html" with allow_overview=True %}
+{% endblock %}
+
 {% block app_main %}
-<div class="h-full flex flex-col"
+{% comment %}
+Layout (top to bottom):
+  Tabs (Overview / Kanban / Table)
+  Assignee strip (hidden on overview)
+  Two-column row:
+    project-view-panel (renders all three bodies; ``x-show`` selects)
+    filter sidebar (hidden on overview)
+
+All three view bodies render server-side once; tab switch is a
+client-side ``x-show`` toggle on the ``viewMode`` Alpine store —
+no network round-trip on toggle. Filters and the assignee strip
+flip via ``x-show`` against the same store so they hide when the
+overview tab is active.
+{% endcomment %}
+<div x-data
+     class="h-full flex flex-col"
      data-workspace-sse="/events/workspace/{{ project.workspace.id }}"
      data-current-user-id="{{ request.user.id }}">
-  {% include "web/_assignee_strip.html" %}
+  <div x-show="$store.viewMode.current !== 'overview'" x-cloak>
+    {% include "web/_assignee_strip.html" %}
+  </div>
   <div class="flex-1 min-h-0 flex flex-col lg:flex-row gap-4 lg:items-stretch">
     <div id="project-view-panel" class="flex-1 min-w-0 min-h-0 flex flex-col">
-      {% include "web/projects/_view_panel.html" %}
+      {% include "web/projects/_view_panel.html" with allow_overview=True %}
     </div>
-    {% include "web/_filters_sidebar.html" %}
+    <div x-show="$store.viewMode.current !== 'overview'" x-cloak>
+      {% include "web/_filters_sidebar.html" %}
+    </div>
   </div>
 </div>
 {% endblock %}

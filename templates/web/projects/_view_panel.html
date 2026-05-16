@@ -1,40 +1,26 @@
 {% load i18n %}
 {% comment %}
-Tab nav + selected view body. Wrapped in ``flex flex-col h-full`` so
-the table (or kanban) fills the remaining height inside its parent
-panel and scrolls internally without clipping its rounded corners.
+View body containers — all three (overview / kanban / table) render
+into the DOM on every page load. Switching between them is a pure
+client-side ``x-show`` toggle on the ``viewMode`` Alpine store, so
+no extra HTTP requests fire on tab change. Tabs themselves live in
+``detail.html`` above the assignee strip; they update the store +
+``history.pushState`` so the URL stays in sync.
 {% endcomment %}
 <div class="flex flex-col h-full">
-  <nav class="shrink-0 flex items-center gap-1 border-b border-zinc-800 mb-4">
-    <a href="?view=kanban"
-       hx-get="?view=kanban"
-       hx-target="{{ view_panel_target|default:'#project-view-panel' }}"
-       hx-swap="innerHTML"
-       hx-push-url="true"
-       @click="$store.viewMode.set('kanban')"
-       class="px-3 py-2 text-sm border-b-2 -mb-px
-         {% if view_mode == 'kanban' %}border-brand-500 text-zinc-100{% else %}border-transparent text-zinc-400 hover:text-zinc-200{% endif %}">
-      {% trans "Kanban" %}
-    </a>
-    <a href="?view=table"
-       hx-get="?view=table"
-       hx-target="{{ view_panel_target|default:'#project-view-panel' }}"
-       hx-swap="innerHTML"
-       hx-push-url="true"
-       @click="$store.viewMode.set('table')"
-       class="px-3 py-2 text-sm border-b-2 -mb-px
-         {% if view_mode == 'table' %}border-brand-500 text-zinc-100{% else %}border-transparent text-zinc-400 hover:text-zinc-200{% endif %}">
-      {% trans "Table" %}
-    </a>
 
-    <div class="ml-auto text-xs text-zinc-500 pr-1">
-      {% blocktrans count counter=tasks|length %}{{ counter }} task{% plural %}{{ counter }} tasks{% endblocktrans %}
-    </div>
-  </nav>
-
-  {% if view_mode == 'kanban' %}
-    {% include "web/projects/_kanban.html" %}
-  {% else %}
-    {% include "web/projects/_table.html" with show_labels=True %}
+  {% if allow_overview %}
+  <div x-show="$store.viewMode.current === 'overview'" x-cloak class="flex-1 min-h-0 flex flex-col">
+    {% include "web/projects/_overview_panel.html" %}
+  </div>
   {% endif %}
+
+  <div x-show="$store.viewMode.current === 'kanban'" x-cloak class="flex-1 min-h-0 flex flex-col">
+    {% include "web/projects/_kanban.html" %}
+  </div>
+
+  <div x-show="$store.viewMode.current === 'table'" x-cloak class="flex-1 min-h-0 flex flex-col">
+    {% include "web/projects/_table.html" with tasks=table_tasks|default:tasks show_labels=True %}
+  </div>
+
 </div>

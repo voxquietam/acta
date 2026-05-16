@@ -40,7 +40,10 @@ _OPEN_STATUSES = [
 ]
 
 
-def _resolve_view_mode(request, *, default):
+_VIEW_MODES = {"overview", "kanban", "table"}
+
+
+def _resolve_view_mode(request, *, default, allow_overview=False):
     """Resolve view_mode in the canonical order.
 
     Order: ``?view=`` querystring → ``acta_view_mode`` cookie → page
@@ -52,15 +55,19 @@ def _resolve_view_mode(request, *, default):
         request: The active ``HttpRequest``.
         default: Fallback mode for the page when neither querystring
             nor cookie carries a valid value.
+        allow_overview: When True ``"overview"`` is a valid value
+            (project detail). All Tasks rejects it since there's no
+            single project to show an overview of.
 
     Returns:
-        Either ``"kanban"`` or ``"table"``.
+        One of ``"overview"``, ``"kanban"``, ``"table"``.
     """
+    allowed = _VIEW_MODES if allow_overview else _VIEW_MODES - {"overview"}
     view_mode = request.GET.get("view")
-    if view_mode in {"kanban", "table"}:
+    if view_mode in allowed:
         return view_mode
     cookie_pref = request.COOKIES.get("acta_view_mode")
-    return cookie_pref if cookie_pref in {"kanban", "table"} else default
+    return cookie_pref if cookie_pref in allowed else default
 
 
 def _user_task_qs(user):
@@ -196,14 +203,12 @@ class AllTasksView(LoginRequiredMixin, ListView):
     def get_queryset(self):
         """Filter the user's accessible tasks by querystring params.
 
-        Kanban view groups by status and uses the fixed ordering
-        ``(status, -priority, -updated_at)`` so columns are coherent;
-        table view respects the ``?order=`` column click.
+        Returned in table order (``?order=`` querystring) — kanban
+        ordering is computed in :meth:`get_context_data` from the same
+        filtered set since both bodies render simultaneously.
         """
         qs = _user_task_qs(self.request.user)
         qs = apply_task_filters(qs, self.request.GET, request_user=self.request.user)
-        if _resolve_view_mode(self.request, default="table") == "kanban":
-            return qs.order_by("status", "-priority", "-updated_at")
         return apply_task_ordering(qs, self.request.GET)
 
     def render_to_response(self, context, **response_kwargs):
@@ -228,22 +233,33 @@ class AllTasksView(LoginRequiredMixin, ListView):
         ctx["view_panel_target"] = "#task-list-wrapper"
         ctx["show_project"] = True
         ctx["show_labels"] = True
-        if view_mode == "kanban":
-            tasks = list(ctx["tasks"])
-            ctx["tasks"] = tasks
-            ctx["columns"] = [
-                {
-                    "key": status,
-                    "label": Task.STATUS_LABELS[status],
-                    "tasks": [t for t in tasks if t.status == status],
-                }
-                for status in Task.STATUS_VALUES
-            ]
+        # Both bodies render in the DOM so the Alpine ``viewMode`` store
+        # can toggle visibility with no round-trip. ``tasks`` (from
+        # ``get_queryset``, ``?order=``-aware) feeds the table; columns
+        # group a kanban-ordered copy by status.
+        table_tasks = list(ctx["tasks"])
+        ctx["table_tasks"] = table_tasks
+        kanban_tasks = sorted(
+            table_tasks,
+            key=lambda t: (
+                Task.STATUS_VALUES.index(t.status) if t.status in Task.STATUS_VALUES else 99,
+                -(t.priority or 0),
+                -t.updated_at.timestamp(),
+            ),
+        )
+        ctx["tasks"] = table_tasks
+        ctx["columns"] = [
+            {
+                "key": status,
+                "label": Task.STATUS_LABELS[status],
+                "tasks": [t for t in kanban_tasks if t.status == status],
+            }
+            for status in Task.STATUS_VALUES
+        ]
         ctx.update(
             filter_sidebar_context(
                 self.request,
                 hide_assignee=True,
-                hide_status=(view_mode == "kanban"),
                 extra_preserved={"view": view_mode},
             )
         )
@@ -345,7 +361,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             Project.objects.filter(
                 slug_prefix=slug_prefix,
                 workspace__memberships__user=self.request.user,
-            ).select_related("workspace"),
+            ).select_related("workspace", "lead"),
         )
 
     def render_to_response(self, context, **response_kwargs):
@@ -360,9 +376,16 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         return response
 
     def get_context_data(self, **kwargs):
-        """Attach the filtered task list, columns, and filter sidebar context.
+        """Attach the filtered task list, columns, filter sidebar, and
+        project-overview metadata for all three view tabs.
 
-        View mode resolution order:
+        Every page load renders all three view bodies (overview /
+        kanban / table) into the DOM; switching between tabs is a
+        client-side ``x-show`` toggle via the ``viewMode`` Alpine
+        store, no extra requests. ``view_mode`` here only determines
+        the initial active tab.
+
+        View mode resolution order for the initial active tab:
         1. ``?view=`` querystring — explicit user click on the toggle.
         2. ``acta_view_mode`` cookie — remembered choice from the
            previous project the user looked at.
@@ -371,29 +394,38 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         The cookie is refreshed in :meth:`render_to_response` so every
         toggle sticks for the next project switch.
         """
+        from apps.common.markdown import render_markdown
+
         ctx = super().get_context_data(**kwargs)
-        view_mode = _resolve_view_mode(self.request, default="kanban")
+        view_mode = _resolve_view_mode(self.request, default="kanban", allow_overview=True)
         ctx["view_mode"] = view_mode
 
+        project = self.object
+        ctx["description_html"] = render_markdown(project.description) if project.description else ""
+        ctx["members"] = list(
+            project.members.order_by("first_name", "last_name", "username"),
+        )
+
         base = (
-            Task.objects.filter(project=self.object)
+            Task.objects.filter(project=project)
             .select_related("assignee", "reporter", "parent", "project")
             .prefetch_related("labels")
         )
         base = apply_task_filters(base, self.request.GET, request_user=self.request.user)
-        # Table view honors the ``?order=`` column click; kanban keeps a
-        # fixed status grouping so cards inside each column stay sorted
-        # by priority + recency regardless of the URL param.
-        if view_mode == "table":
-            base = apply_task_ordering(
+        # Both bodies render in the DOM; table honors ``?order=``,
+        # kanban keeps the fixed status grouping. We sort once per
+        # body — the difference is small enough not to need separate
+        # querysets, but mixing orderings on a single list would
+        # confuse one of the two views.
+        table_tasks = list(
+            apply_task_ordering(
                 base,
                 self.request.GET,
                 default_ordering=("status", "-priority", "-updated_at"),
             )
-        else:
-            base = base.order_by("status", "-priority", "-updated_at")
-        tasks = list(base)
-        ctx["tasks"] = tasks
+        )
+        kanban_tasks = list(base.order_by("status", "-priority", "-updated_at"))
+        ctx["tasks"] = table_tasks if view_mode == "table" else kanban_tasks
 
         columns = []
         for status in Task.STATUS_VALUES:
@@ -401,10 +433,11 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
                 {
                     "key": status,
                     "label": Task.STATUS_LABELS[status],
-                    "tasks": [t for t in tasks if t.status == status],
+                    "tasks": [t for t in kanban_tasks if t.status == status],
                 },
             )
         ctx["columns"] = columns
+        ctx["table_tasks"] = table_tasks
 
         # Per-project page: scope project + workspace filters away.
         # Show labels in the table view (matches All Tasks layout).

@@ -1,0 +1,76 @@
+{% load i18n %}
+{% comment %}
+Project view tabs (Overview / Kanban / Table). Lives in the topbar
+``topbar_mid`` block on the project detail page, so the active tab is
+visible regardless of scroll. Clicking a tab updates the ``viewMode``
+Alpine store and pushes the new ``?view=`` URL via
+``history.pushState`` — no full nav, no HTMX request. The tabs'
+highlighted state is data-bound to the store so reverting via
+browser back/forward keeps the active tab in sync.
+{% endcomment %}
+<nav x-data class="flex items-center gap-1 text-sm">
+  {% if allow_overview %}
+  <a href="?view=overview"
+     @click.prevent="
+       $store.viewMode.set('overview');
+       const u = new URL(window.location);
+       u.searchParams.set('view', 'overview');
+       history.pushState({}, '', u);
+     "
+     :class="$store.viewMode.current === 'overview'
+       ? 'bg-zinc-800 text-zinc-100'
+       : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'"
+     class="px-2.5 py-1 rounded-md transition">
+    {% trans "Overview" %}
+  </a>
+  {% else %}
+  {% comment %}
+  Disabled Overview placeholder on All Tasks — see
+  [[project-todo-overview-stats]]: this slot will hold cross-project
+  correlation dashboards (workload, deadline pressure, priority
+  churn). Kept in the nav so the future is visible.
+  {% endcomment %}
+  <span class="px-2.5 py-1 rounded-md text-zinc-600 cursor-not-allowed select-none"
+        title="{% trans 'Coming soon' %}">
+    {% trans "Overview" %}
+  </span>
+  {% endif %}
+  <a href="?view=kanban"
+     @click.prevent="
+       $store.viewMode.set('kanban');
+       const u = new URL(window.location);
+       u.searchParams.set('view', 'kanban');
+       history.pushState({}, '', u);
+     "
+     :class="$store.viewMode.current === 'kanban'
+       ? 'bg-zinc-800 text-zinc-100'
+       : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'"
+     class="px-2.5 py-1 rounded-md transition">
+    {% trans "Kanban" %}
+  </a>
+  <a href="?view=table"
+     @click.prevent="
+       $store.viewMode.set('table');
+       const u = new URL(window.location);
+       u.searchParams.set('view', 'table');
+       history.pushState({}, '', u);
+     "
+     :class="$store.viewMode.current === 'table'
+       ? 'bg-zinc-800 text-zinc-100'
+       : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'"
+     class="px-2.5 py-1 rounded-md transition">
+    {% trans "Table" %}
+  </a>
+
+  {% comment %}
+  Disabled placeholder for the future Gantt-style timeline view —
+  see [[project-todo-timeline-view]]. Stays in the nav so the slot is
+  visible and Vox doesn't forget it's planned. ``pointer-events-none``
+  + ``cursor-not-allowed`` blocks interaction; muted colour makes the
+  disabled state read at a glance.
+  {% endcomment %}
+  <span class="px-2.5 py-1 rounded-md text-zinc-600 cursor-not-allowed select-none"
+        title="{% trans 'Coming soon' %}">
+    {% trans "Timeline" %}
+  </span>
+</nav>
