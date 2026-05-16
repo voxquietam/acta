@@ -19,6 +19,7 @@ from .views import (
     task_description_fragment,
     task_meta_fragment,
     task_title_fragment,
+    task_topbar_title_fragment,
     toggle_task_label,
 )
 
@@ -89,6 +90,11 @@ urlpatterns = [
         "projects/<str:slug_prefix>/<int:number>/title-fragment/",
         task_title_fragment,
         name="task_title_fragment",
+    ),
+    path(
+        "projects/<str:slug_prefix>/<int:number>/topbar-title/",
+        task_topbar_title_fragment,
+        name="task_topbar_title_fragment",
     ),
     path(
         "projects/<str:slug_prefix>/<int:number>/description-fragment/",

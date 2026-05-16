@@ -5,18 +5,19 @@
 {% block title %}{{ task.slug }} · {{ task.title }} · Acta{% endblock %}
 
 {% block topbar_left %}
-<a href="{% url 'web:project_list' %}" class="text-zinc-500 hover:text-zinc-300 text-sm">{% trans "Projects" %}</a>
-<span class="text-zinc-700">/</span>
+<a href="{% url 'web:project_list' %}" class="text-zinc-500 hover:text-zinc-300 text-sm shrink-0">{% trans "Projects" %}</a>
+<span class="text-zinc-700 shrink-0">/</span>
 <a href="{% url 'web:project_detail' slug_prefix=task.project.slug_prefix %}"
-   class="text-zinc-500 hover:text-zinc-300 text-sm">{{ task.project.slug_prefix }}</a>
-<span class="text-zinc-700">/</span>
-<h1 class="text-base font-medium font-mono
+   class="text-zinc-500 hover:text-zinc-300 text-sm shrink-0">{{ task.project.slug_prefix }}</a>
+<span class="text-zinc-700 shrink-0">/</span>
+<h1 class="text-base font-medium font-mono shrink-0
   {% if task.priority == 1 %}text-rose-400
   {% elif task.priority == 2 %}text-orange-400
   {% elif task.priority == 3 %}text-amber-400
   {% elif task.priority == 4 %}text-sky-400
   {% else %}text-zinc-300{% endif %}"
   {% if task.priority %}title="{{ priority_labels|get_item:task.priority }}"{% endif %}>{{ task.slug }}</h1>
+{% include "web/projects/_topbar_task_title.html" %}
 {% endblock %}
 
 {% block app_main %}

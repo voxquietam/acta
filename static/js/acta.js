@@ -289,7 +289,10 @@
     };
     const refreshActivity = (taskId) => refreshIf("#activity-list", "activityForTask", taskId);
     const refreshMeta = (taskId) => refreshIf("#task-meta", "metaForTask", taskId);
-    const refreshTitle = (taskId) => refreshIf("#title-section", "titleForTask", taskId);
+    const refreshTitle = (taskId) => {
+      refreshIf("#title-section", "titleForTask", taskId);
+      refreshIf("#topbar-task-title", "titleTopbarForTask", taskId);
+    };
     const refreshDescription = (taskId) => refreshIf("#description", "descriptionForTask", taskId);
     const refreshComments = (taskId) => refreshIf("#comment-list", "commentsForTask", taskId);
 

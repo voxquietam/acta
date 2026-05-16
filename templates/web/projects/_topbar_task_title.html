@@ -1,0 +1,18 @@
+{% load i18n %}
+{% comment %}
+Topbar fragment for the task detail page — sits next to the
+``Projects / SLUG / NUMBER`` breadcrumb so the title stays visible
+when the user scrolls past the page heading. ``set_task_title``
+returns this fragment with ``hx-swap-oob`` so inline renames refresh
+the topbar in the same response.
+{% endcomment %}
+<span id="topbar-task-title"
+      {% if hx_oob %}hx-swap-oob="true"{% endif %}
+      data-title-topbar-for-task="{{ task.id }}"
+      hx-get="{% url 'web:task_topbar_title_fragment' slug_prefix=task.project.slug_prefix number=task.number %}"
+      hx-trigger="refresh"
+      hx-swap="outerHTML"
+      class="text-sm text-zinc-400 truncate min-w-0"
+      title="{{ task.title }}">
+  <span class="text-zinc-700 mr-1.5">·</span>{{ task.title }}
+</span>

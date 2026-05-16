@@ -389,6 +389,19 @@ def task_title_fragment(request, slug_prefix, number):
 
 
 @login_required
+def task_topbar_title_fragment(request, slug_prefix, number):
+    """Render the topbar task-title span — SSE-triggered refresh."""
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    return HttpResponse(
+        render_to_string(
+            "web/projects/_topbar_task_title.html",
+            {"task": task},
+            request=request,
+        ),
+    )
+
+
+@login_required
 def task_description_fragment(request, slug_prefix, number):
     """Render the description cell HTML for one task — SSE-triggered refresh."""
     task = _get_user_task_or_404(request.user, slug_prefix, number)
@@ -739,12 +752,19 @@ def set_task_title(request, slug_prefix, number):
     if len(new_title) > 200:
         return HttpResponseBadRequest("title too long")
     _apply_task_field_change(task, "title", new_title, request.user)
-    return _inline_edit_response(
+    response = _inline_edit_response(
         request,
         task,
         "web/projects/_title_cell.html",
         {"task": task},
     )
+    topbar_html = render_to_string(
+        "web/projects/_topbar_task_title.html",
+        {"task": task, "hx_oob": True},
+        request=request,
+    )
+    response.content += topbar_html.encode()
+    return response
 
 
 @require_POST
