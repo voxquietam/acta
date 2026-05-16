@@ -163,13 +163,15 @@ class AllTasksView(LoginRequiredMixin, ListView):
 
     Lists every task across every workspace the user belongs to,
     with querystring-driven filters (status, priority, project,
-    workspace, label, assignee, search). Pagination is server-rendered
-    so URLs are shareable / bookmarkable. HTMX requests get the inner
-    partial only — page chrome stays cached.
+    workspace, label, assignee, search). The full filtered set
+    renders into a single scrollable block — the team is small
+    enough that hundreds of rows render fine, and pagination
+    actively gets in the way of the filter-and-scan workflow.
+    HTMX requests get the inner partial only — page chrome stays
+    cached.
     """
 
     context_object_name = "tasks"
-    paginate_by = 50
 
     def get_template_names(self):
         """Full page on cold load, inner fragment for HTMX filter swaps."""
