@@ -14,13 +14,13 @@ to the equally-colored status badge).
       {% if task.priority == 1 %}bg-rose-500
       {% elif task.priority == 2 %}bg-orange-500
       {% elif task.priority == 3 %}bg-amber-500
-      {% elif task.priority == 4 %}bg-zinc-400
+      {% elif task.priority == 4 %}bg-sky-500
       {% else %}bg-zinc-700{% endif %}"></span>
     <span class="
       {% if task.priority == 1 %}text-rose-400
       {% elif task.priority == 2 %}text-orange-400
       {% elif task.priority == 3 %}text-amber-400
-      {% elif task.priority == 4 %}text-zinc-400
+      {% elif task.priority == 4 %}text-sky-400
       {% else %}text-zinc-500{% endif %}">
       {{ priority_labels|get_item:task.priority }}
     </span>
@@ -44,7 +44,7 @@ to the equally-colored status badge).
           {% if priority_key == 1 %}bg-rose-500
           {% elif priority_key == 2 %}bg-orange-500
           {% elif priority_key == 3 %}bg-amber-500
-          {% elif priority_key == 4 %}bg-zinc-400
+          {% elif priority_key == 4 %}bg-sky-500
           {% else %}bg-zinc-700{% endif %}"></span>
         {{ priority_label }}
       </button>

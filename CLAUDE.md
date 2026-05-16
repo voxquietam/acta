@@ -310,7 +310,7 @@ not italicise interactive elements (the `Unassign` button taught us).
   - 1 Urgent → `rose-400` / dot `rose-500`
   - 2 High → `orange-400` / dot `orange-500`
   - 3 Medium → `amber-400` / dot `amber-500`
-  - 4 Low → `zinc-400` / dot `zinc-400`
+  - 4 Low → `sky-400` / dot `sky-500`
   - 5 No priority → `zinc-500` / dot `zinc-700`
 - Destructive hover (clear "✕"): `text-zinc-600 hover:text-rose-400`.
 

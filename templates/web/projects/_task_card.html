@@ -11,12 +11,16 @@
       {% if task.priority == 1 %}bg-rose-900 text-rose-300
       {% elif task.priority == 2 %}bg-orange-900 text-orange-300
       {% elif task.priority == 3 %}bg-amber-900 text-amber-300
+      {% elif task.priority == 4 %}bg-sky-900 text-sky-300
       {% else %}bg-zinc-800 text-zinc-400{% endif %}">
       {{ priority_labels|get_item:task.priority }}
     </span>
     {% endif %}
     {% if task.size %}
-    <span class="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 font-mono">{{ task.size }}</span>
+    <span class="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 font-mono inline-flex items-center gap-1"
+          title="{% trans 'Size estimate' %}">
+      <i data-lucide="gauge" class="w-3 h-3"></i>{{ task.size }}
+    </span>
     {% endif %}
   </div>
 

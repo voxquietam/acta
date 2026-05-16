@@ -10,7 +10,13 @@
 <a href="{% url 'web:project_detail' slug_prefix=task.project.slug_prefix %}"
    class="text-zinc-500 hover:text-zinc-300 text-sm">{{ task.project.slug_prefix }}</a>
 <span class="text-zinc-700">/</span>
-<h1 class="text-base font-medium font-mono text-zinc-300">{{ task.slug }}</h1>
+<h1 class="text-base font-medium font-mono
+  {% if task.priority == 1 %}text-rose-400
+  {% elif task.priority == 2 %}text-orange-400
+  {% elif task.priority == 3 %}text-amber-400
+  {% elif task.priority == 4 %}text-sky-400
+  {% else %}text-zinc-300{% endif %}"
+  {% if task.priority %}title="{{ priority_labels|get_item:task.priority }}"{% endif %}>{{ task.slug }}</h1>
 {% endblock %}
 
 {% block app_main %}
@@ -129,7 +135,9 @@ below).
       {% if task.size %}
       <div class="flex items-center justify-between gap-3">
         <div class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Size" %}</div>
-        <div class="text-zinc-300 font-mono text-sm">{{ task.size }}</div>
+        <div class="text-zinc-300 font-mono text-sm inline-flex items-center gap-1">
+          <i data-lucide="gauge" class="w-3.5 h-3.5"></i>{{ task.size }}
+        </div>
       </div>
       {% endif %}
 
