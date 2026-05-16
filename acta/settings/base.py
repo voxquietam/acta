@@ -29,6 +29,14 @@ ROOT_URLCONF = "acta.urls"
 
 ASGI_APPLICATION = "acta.asgi.application"
 
+# SSE storage — see ADR 0015. ``DjangoModelStorage`` persists events
+# in the DB so they're visible across processes (manage.py shell,
+# bulk-import scripts, etc.) and survive worker restarts. Without
+# this django_eventstream defaults to in-memory-only pub/sub which
+# is fine for in-process broadcasts but invisible from outside.
+# Migrate to Redis backend if we ever run multiple Uvicorn workers.
+EVENTSTREAM_STORAGE_CLASS = "django_eventstream.storage.DjangoModelStorage"
+
 
 # -----------------------------------------------------------------------------
 # Applications
@@ -56,6 +64,8 @@ THIRD_PARTY_APPS = [
     "allauth.account",
     "allauth.socialaccount",
     "allauth.socialaccount.providers.google",
+    # SSE real-time updates — see ADR 0015. Requires ASGI runtime.
+    "django_eventstream",
 ]
 
 LOCAL_APPS = [

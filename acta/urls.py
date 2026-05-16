@@ -3,7 +3,9 @@
 from django.conf import settings
 from django.contrib import admin
 from django.contrib.staticfiles.urls import staticfiles_urlpatterns
-from django.urls import include, path
+from django.urls import include, path, re_path
+
+import django_eventstream
 
 api_v1_patterns = [
     path("", include("apps.workspaces.urls")),
@@ -21,6 +23,16 @@ urlpatterns = [
     path("accounts/", include("apps.accounts.urls", namespace="accounts")),
     path("accounts/", include("allauth.urls")),
     path("api/v1/", include((api_v1_patterns, "api_v1"))),
+    # Real-time SSE — one stream per workspace. See ADR 0015. The
+    # channel name is templated from the URL kwarg so a client
+    # connecting to ``/events/workspace/3`` subscribes to the
+    # ``workspace-3`` channel; broadcasting from the server uses
+    # ``django_eventstream.send_event('workspace-3', ...)``.
+    re_path(
+        r"^events/workspace/(?P<workspace_id>\d+)",
+        include(django_eventstream.urls),
+        {"format-channels": ["workspace-{workspace_id}"]},
+    ),
     path("", include("apps.web.urls", namespace="web")),
 ]
 
