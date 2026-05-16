@@ -251,23 +251,54 @@
     // to dispatch the ``refresh`` event whenever an event mentions
     // the current task. Works for direct task targets (target_id)
     // and ``comment.*`` events (payload.task_id).
-    const refreshActivity = (taskId) => {
-      const el = document.getElementById("activity-list");
-      if (!el || String(el.dataset.activityForTask) !== String(taskId)) return;
+    // Refresh helpers — dispatch a ``refresh`` custom event on the
+    // matching wrapper, which then runs its ``hx-get`` to fetch the
+    // updated fragment. Each wrapper carries a distinct ``data-...-
+    // for-task`` attribute so we only fire on events targeting the
+    // task currently open on this page.
+    const refreshIf = (selector, attr, taskId) => {
+      const el = document.querySelector(selector);
+      if (!el || String(el.dataset[attr]) !== String(taskId)) return;
       el.dispatchEvent(new CustomEvent("refresh"));
     };
-    [
+    const refreshActivity = (taskId) => refreshIf("#activity-list", "activityForTask", taskId);
+    const refreshMeta = (taskId) => refreshIf("#task-meta", "metaForTask", taskId);
+    const refreshTitle = (taskId) => refreshIf("#title-section", "titleForTask", taskId);
+    const refreshDescription = (taskId) => refreshIf("#description", "descriptionForTask", taskId);
+    const refreshComments = (taskId) => refreshIf("#comment-list", "commentsForTask", taskId);
+
+    const taskEvents = [
       "task.status_changed",
       "task.assigned",
       "task.priority_changed",
       "task.due_changed",
       "task.labels_changed",
-      "task.updated",
       "task.deleted",
-    ].forEach((t) => handle(t, (d) => refreshActivity(d.target_id)));
-    handle("comment.created", (d) => refreshActivity(d.task_id));
-    handle("comment.updated", (d) => refreshActivity(d.task_id));
-    handle("comment.deleted", (d) => refreshActivity(d.task_id));
+    ];
+    taskEvents.forEach((t) =>
+      handle(t, (d) => {
+        refreshActivity(d.target_id);
+        refreshMeta(d.target_id);
+      }),
+    );
+    // ``task.updated`` is the catch-all for title / description / size
+    // edits. Inspect ``payload.changes`` so we only refresh the cells
+    // that actually changed rather than retemplating the whole page
+    // on a stray rename.
+    handle("task.updated", (d) => {
+      refreshActivity(d.target_id);
+      refreshMeta(d.target_id);
+      const changes = d.changes || {};
+      if (changes.title) refreshTitle(d.target_id);
+      if (changes.description) refreshDescription(d.target_id);
+    });
+    const commentEvents = ["comment.created", "comment.updated", "comment.deleted"];
+    commentEvents.forEach((t) =>
+      handle(t, (d) => {
+        refreshActivity(d.task_id);
+        refreshComments(d.task_id);
+      }),
+    );
   }
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", initWorkspaceSse);

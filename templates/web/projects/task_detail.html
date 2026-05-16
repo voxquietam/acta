@@ -37,9 +37,28 @@ below).
   <div class="min-w-0">
    <div class="max-w-3xl mx-auto w-full space-y-6">
 
-    {% include "web/projects/_title_cell.html" %}
+    {% comment %}
+    Title + description wrappers carry their own ``hx-trigger="refresh"``
+    so the SSE handler can swap them when a peer's edit lands. The
+    inner ``#title-cell`` / ``#description-cell`` keep their own ids
+    for inline-edit OOB swaps from ``set_task_title`` /
+    ``set_task_description`` — the outer wrapper stays put, the inner
+    cell can be replaced via either path without losing the SSE wiring.
+    {% endcomment %}
+    <div id="title-section"
+         data-title-for-task="{{ task.id }}"
+         hx-get="{% url 'web:task_title_fragment' slug_prefix=task.project.slug_prefix number=task.number %}"
+         hx-trigger="refresh"
+         hx-swap="innerHTML">
+      {% include "web/projects/_title_cell.html" %}
+    </div>
 
-    <div id="description" class="!mt-2">
+    <div id="description"
+         class="!mt-2"
+         data-description-for-task="{{ task.id }}"
+         hx-get="{% url 'web:task_description_fragment' slug_prefix=task.project.slug_prefix number=task.number %}"
+         hx-trigger="refresh"
+         hx-swap="innerHTML">
       {% include "web/projects/_description_cell.html" %}
     </div>
 
@@ -77,7 +96,19 @@ below).
       <div class="text-xs uppercase tracking-wider text-zinc-500 mb-2">
         {% blocktrans count counter=comments|length %}{{ counter }} comment{% plural %}{{ counter }} comments{% endblocktrans %}
       </div>
-      <ul id="comment-list" class="space-y-3 max-w-3xl">
+      {% comment %}
+      The ``post_comment`` view appends one ``<li>`` via
+      ``hx-swap="beforeend"`` from ``_comment_form.html``. For peer
+      comments arriving over SSE, the same element listens for the
+      ``refresh`` custom event and refetches the full list, swapping
+      its inner HTML.
+      {% endcomment %}
+      <ul id="comment-list"
+          class="space-y-3 max-w-3xl"
+          data-comments-for-task="{{ task.id }}"
+          hx-get="{% url 'web:task_comments_fragment' slug_prefix=task.project.slug_prefix number=task.number %}"
+          hx-trigger="refresh"
+          hx-swap="innerHTML">
         {% for comment in comments %}
         {% include "web/projects/_comment.html" with comment=comment %}
         {% endfor %}
@@ -115,70 +146,17 @@ below).
     </div>
 
     {% comment %}
-    Property rows use a horizontal label-left / value-right layout
-    (``flex justify-between``) so the panel reads dense and balanced
-    rather than left-clumped with empty right space. Mirrors the
-    Linear / GitHub side-panel convention. The cell triggers'
-    dropdowns flip to align their right edge with the wrapper
-    (``right-0``) so they don't spill off the panel.
+    Right-rail metadata + labels. Bundled in ``#task-meta`` so a
+    single ``hx-get`` swaps both panels when a peer's edit lands
+    over SSE. ``acta.js`` dispatches a ``refresh`` event here on
+    every ``task.*`` event whose ``target_id`` matches.
     {% endcomment %}
-    <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 space-y-2.5">
-
-      <div class="flex items-center justify-between gap-3">
-        <div class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Status" %}</div>
-        <div class="min-w-0">{% include "web/projects/_status_cell.html" %}</div>
-      </div>
-
-      <div class="flex items-center justify-between gap-3">
-        <div class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Priority" %}</div>
-        <div class="min-w-0">{% include "web/projects/_priority_cell.html" %}</div>
-      </div>
-
-      {% if task.size %}
-      <div class="flex items-center justify-between gap-3">
-        <div class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Size" %}</div>
-        <div class="text-zinc-300 font-mono text-sm inline-flex items-center gap-1">
-          <i data-lucide="gauge" class="w-3.5 h-3.5"></i>{{ task.size }}
-        </div>
-      </div>
-      {% endif %}
-
-      <div class="flex items-center justify-between gap-3">
-        <div class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Assignee" %}</div>
-        <div class="min-w-0">{% include "web/projects/_assignee_cell.html" %}</div>
-      </div>
-
-      <div class="flex items-center justify-between gap-3">
-        <div class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Due date" %}</div>
-        <div class="min-w-0">{% include "web/projects/_due_date_cell.html" %}</div>
-      </div>
-
-      {% comment %}
-      System facts (who reported, when created / updated) live in this
-      muted footer block. They aren't editable, so grouping them away
-      from the interactive rows makes the panel scan as
-      "controls above, facts below".
-      {% endcomment %}
-      <div class="pt-2 border-t border-zinc-800 text-[11px] text-zinc-500 space-y-0.5">
-        <div class="flex justify-between">
-          <span>{% trans "Reporter" %}</span>
-          <span>{% if task.reporter %}{{ task.reporter.display_name }}{% else %}—{% endif %}</span>
-        </div>
-        <div class="flex justify-between"><span>{% trans "Created" %}</span><span>{{ task.created_at|date:"M j, Y" }}</span></div>
-        <div class="flex justify-between"><span>{% trans "Updated" %}</span><span>{{ task.updated_at|date:"M j, Y" }}</span></div>
-      </div>
-    </div>
-
-    {% comment %}
-    Labels live in their own panel below the main metadata so the
-    section has room to grow when label groups land later. Same surface
-    tokens as the panel above for visual continuity.
-    {% endcomment %}
-    <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-      <div class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Labels" %}</div>
-      <div class="mt-1">
-        {% include "web/projects/_labels_cell.html" %}
-      </div>
+    <div id="task-meta"
+         data-meta-for-task="{{ task.id }}"
+         hx-get="{% url 'web:task_meta_fragment' slug_prefix=task.project.slug_prefix number=task.number %}"
+         hx-trigger="refresh"
+         hx-swap="innerHTML">
+      {% include "web/projects/_task_meta.html" %}
     </div>
 
     {% comment %}

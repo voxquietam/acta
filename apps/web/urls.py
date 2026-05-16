@@ -15,6 +15,10 @@ from .views import (
     set_task_status,
     set_task_title,
     task_activity_fragment,
+    task_comments_fragment,
+    task_description_fragment,
+    task_meta_fragment,
+    task_title_fragment,
     toggle_task_label,
 )
 
@@ -75,5 +79,25 @@ urlpatterns = [
         "projects/<str:slug_prefix>/<int:number>/activity/",
         task_activity_fragment,
         name="task_activity_fragment",
+    ),
+    path(
+        "projects/<str:slug_prefix>/<int:number>/meta/",
+        task_meta_fragment,
+        name="task_meta_fragment",
+    ),
+    path(
+        "projects/<str:slug_prefix>/<int:number>/title-fragment/",
+        task_title_fragment,
+        name="task_title_fragment",
+    ),
+    path(
+        "projects/<str:slug_prefix>/<int:number>/description-fragment/",
+        task_description_fragment,
+        name="task_description_fragment",
+    ),
+    path(
+        "projects/<str:slug_prefix>/<int:number>/comments-fragment/",
+        task_comments_fragment,
+        name="task_comments_fragment",
     ),
 ]

@@ -1,0 +1,57 @@
+{% load i18n %}
+{% comment %}
+Right-rail metadata + labels panels for the task detail page. Bundled
+into one partial so the SSE-driven live refresh can swap them as a
+single ``hx-get`` fragment when any of ``status / priority / assignee /
+due_date / labels / size`` change.
+
+Re-included by ``task_detail.html`` and rendered standalone by
+``task_meta_fragment`` view.
+{% endcomment %}
+<div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 space-y-2.5">
+
+  <div class="flex items-center justify-between gap-3">
+    <div class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Status" %}</div>
+    <div class="min-w-0">{% include "web/projects/_status_cell.html" %}</div>
+  </div>
+
+  <div class="flex items-center justify-between gap-3">
+    <div class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Priority" %}</div>
+    <div class="min-w-0">{% include "web/projects/_priority_cell.html" %}</div>
+  </div>
+
+  {% if task.size %}
+  <div class="flex items-center justify-between gap-3">
+    <div class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Size" %}</div>
+    <div class="text-zinc-300 font-mono text-sm inline-flex items-center gap-1">
+      <i data-lucide="gauge" class="w-3.5 h-3.5"></i>{{ task.size }}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="flex items-center justify-between gap-3">
+    <div class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Assignee" %}</div>
+    <div class="min-w-0">{% include "web/projects/_assignee_cell.html" %}</div>
+  </div>
+
+  <div class="flex items-center justify-between gap-3">
+    <div class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Due date" %}</div>
+    <div class="min-w-0">{% include "web/projects/_due_date_cell.html" %}</div>
+  </div>
+
+  <div class="pt-2 border-t border-zinc-800 text-[11px] text-zinc-500 space-y-0.5">
+    <div class="flex justify-between">
+      <span>{% trans "Reporter" %}</span>
+      <span>{% if task.reporter %}{{ task.reporter.display_name }}{% else %}—{% endif %}</span>
+    </div>
+    <div class="flex justify-between"><span>{% trans "Created" %}</span><span>{{ task.created_at|date:"M j, Y" }}</span></div>
+    <div class="flex justify-between"><span>{% trans "Updated" %}</span><span>{{ task.updated_at|date:"M j, Y" }}</span></div>
+  </div>
+</div>
+
+<div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 mt-4">
+  <div class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Labels" %}</div>
+  <div class="mt-1">
+    {% include "web/projects/_labels_cell.html" %}
+  </div>
+</div>

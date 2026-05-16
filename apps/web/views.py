@@ -10,6 +10,7 @@ import datetime
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db import transaction
 from django.db.models import Count, F, OuterRef, Q, Subquery
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404
@@ -94,16 +95,10 @@ def _my_work_sections(user, params):
     today = timezone.localdate()
     week_end = today + datetime.timedelta(days=6)
     done_cutoff = timezone.now() - datetime.timedelta(days=7)
-    open_statuses = [
-        Task.STATUS_PLANNED,
-        Task.STATUS_TODO,
-        Task.STATUS_IN_PROGRESS,
-        Task.STATUS_IN_REVIEW,
-    ]
     base = (
         Task.objects.filter(assignee=user)
         .filter(
-            Q(status__in=open_statuses) | Q(status=Task.STATUS_DONE, updated_at__gte=done_cutoff),
+            Q(status__in=_OPEN_STATUSES) | Q(status=Task.STATUS_DONE, updated_at__gte=done_cutoff),
         )
         .select_related("project__workspace", "assignee", "reporter")
         .prefetch_related("labels")
@@ -384,6 +379,72 @@ class TaskDetailView(LoginRequiredMixin, DetailView):
 
 
 @login_required
+def task_title_fragment(request, slug_prefix, number):
+    """Render the title cell HTML for one task — SSE-triggered refresh."""
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    return HttpResponse(
+        render_to_string(
+            "web/projects/_title_cell.html",
+            {"task": task},
+            request=request,
+        ),
+    )
+
+
+@login_required
+def task_description_fragment(request, slug_prefix, number):
+    """Render the description cell HTML for one task — SSE-triggered refresh."""
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    return HttpResponse(
+        render_to_string(
+            "web/projects/_description_cell.html",
+            {"task": task},
+            request=request,
+        ),
+    )
+
+
+@login_required
+def task_comments_fragment(request, slug_prefix, number):
+    """Render the comments list (``<li>`` rows) for one task.
+
+    Returns just the row HTML so the caller can ``hx-swap="innerHTML"``
+    the existing ``<ul id="comment-list">`` without nesting another
+    list.
+    """
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    comments = list(task.comments.select_related("author").order_by("created_at"))
+    rows = "".join(render_to_string("web/projects/_comment.html", {"comment": c}, request=request) for c in comments)
+    return HttpResponse(rows)
+
+
+@login_required
+def task_meta_fragment(request, slug_prefix, number):
+    """Render the right-rail metadata + labels panels for one task.
+
+    Used by the SSE-triggered ``hx-get`` on the task detail page —
+    when a peer changes ``status / priority / assignee / due_date /
+    labels / size``, the rail refreshes itself without a full page
+    reload. See ADR 0015.
+    """
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    return HttpResponse(
+        render_to_string(
+            "web/projects/_task_meta.html",
+            {
+                "task": task,
+                "status_labels": Task.STATUS_LABELS,
+                "priority_labels": dict(Task.PRIORITY_CHOICES),
+                "workspace_members": _workspace_members(task),
+                "workspace_labels": _workspace_labels(task),
+                "attached_label_ids": set(task.labels.values_list("id", flat=True)),
+            },
+            request=request,
+        ),
+    )
+
+
+@login_required
 def task_activity_fragment(request, slug_prefix, number):
     """Render just the ``_activity_list.html`` partial for one task.
 
@@ -552,7 +613,6 @@ def _apply_task_field_change(task, field, value, actor):
         value: The new value to assign.
         actor: The acting :class:`User`.
     """
-    from django.db import transaction
 
     with transaction.atomic():
         old = snapshot_task(task)
@@ -562,6 +622,7 @@ def _apply_task_field_change(task, field, value, actor):
 
 
 @require_POST
+@login_required
 def set_task_status(request, slug_prefix, number):
     """Inline status change; returns the new status badge fragment.
 
@@ -573,8 +634,6 @@ def set_task_status(request, slug_prefix, number):
     Returns:
         Rendered ``_status_cell.html`` with the updated task.
     """
-    if not request.user.is_authenticated:
-        return HttpResponseBadRequest("auth required")
     task = _get_user_task_or_404(request.user, slug_prefix, number)
     new_status = request.POST.get("status", "")
     if new_status not in Task.STATUS_VALUES:
@@ -592,6 +651,7 @@ def set_task_status(request, slug_prefix, number):
 
 
 @require_POST
+@login_required
 def set_task_priority(request, slug_prefix, number):
     """Inline priority change; returns the priority cell fragment.
 
@@ -603,8 +663,6 @@ def set_task_priority(request, slug_prefix, number):
     Returns:
         Rendered ``_priority_cell.html`` with the updated task.
     """
-    if not request.user.is_authenticated:
-        return HttpResponseBadRequest("auth required")
     task = _get_user_task_or_404(request.user, slug_prefix, number)
     raw = request.POST.get("priority", "")
     try:
@@ -626,6 +684,7 @@ def set_task_priority(request, slug_prefix, number):
 
 
 @require_POST
+@login_required
 def set_task_description(request, slug_prefix, number):
     """Inline description change; returns the description-cell fragment.
 
@@ -644,8 +703,6 @@ def set_task_description(request, slug_prefix, number):
     Returns:
         Rendered ``_description_cell.html`` with the updated task.
     """
-    if not request.user.is_authenticated:
-        return HttpResponseBadRequest("auth required")
     task = _get_user_task_or_404(request.user, slug_prefix, number)
     # Empty string is valid (clears the description). No strip — the
     # editor produces canonical markdown and trailing whitespace can
@@ -661,6 +718,7 @@ def set_task_description(request, slug_prefix, number):
 
 
 @require_POST
+@login_required
 def set_task_title(request, slug_prefix, number):
     """Inline title change; returns the title-cell fragment.
 
@@ -677,8 +735,6 @@ def set_task_title(request, slug_prefix, number):
     Returns:
         Rendered ``_title_cell.html`` with the updated task.
     """
-    if not request.user.is_authenticated:
-        return HttpResponseBadRequest("auth required")
     task = _get_user_task_or_404(request.user, slug_prefix, number)
     new_title = (request.POST.get("title") or "").strip()
     if not new_title:
@@ -695,6 +751,7 @@ def set_task_title(request, slug_prefix, number):
 
 
 @require_POST
+@login_required
 def toggle_task_label(request, slug_prefix, number):
     """Atomically attach or detach a single label on the task.
 
@@ -711,10 +768,7 @@ def toggle_task_label(request, slug_prefix, number):
     Returns:
         Rendered ``_labels_cell.html`` with the updated task.
     """
-    from django.db import transaction
 
-    if not request.user.is_authenticated:
-        return HttpResponseBadRequest("auth required")
     task = _get_user_task_or_404(request.user, slug_prefix, number)
     raw = (request.POST.get("label_id") or "").strip()
     try:
@@ -769,6 +823,7 @@ def toggle_task_label(request, slug_prefix, number):
 
 
 @require_POST
+@login_required
 def set_task_assignee(request, slug_prefix, number):
     """Inline assignee change; returns the assignee cell fragment.
 
@@ -785,8 +840,6 @@ def set_task_assignee(request, slug_prefix, number):
     Returns:
         Rendered ``_assignee_cell.html`` with the updated task.
     """
-    if not request.user.is_authenticated:
-        return HttpResponseBadRequest("auth required")
     task = _get_user_task_or_404(request.user, slug_prefix, number)
     raw = (request.POST.get("assignee_id") or "").strip()
     if raw == "":
@@ -815,6 +868,7 @@ def set_task_assignee(request, slug_prefix, number):
 
 
 @require_POST
+@login_required
 def set_task_due_date(request, slug_prefix, number):
     """Inline due-date change; returns the due-date cell fragment.
 
@@ -831,8 +885,6 @@ def set_task_due_date(request, slug_prefix, number):
     Returns:
         Rendered ``_due_date_cell.html`` with the updated task.
     """
-    if not request.user.is_authenticated:
-        return HttpResponseBadRequest("auth required")
     task = _get_user_task_or_404(request.user, slug_prefix, number)
     raw = (request.POST.get("due_date") or "").strip()
     if raw == "":
@@ -852,6 +904,7 @@ def set_task_due_date(request, slug_prefix, number):
 
 
 @require_POST
+@login_required
 def post_comment(request, slug_prefix, number):
     """Create a comment on the task and return the new comment fragment.
 
@@ -868,8 +921,6 @@ def post_comment(request, slug_prefix, number):
         Rendered ``_comment.html`` for the new comment, or 400 if the
         body is empty.
     """
-    if not request.user.is_authenticated:
-        return HttpResponseBadRequest("auth required")
     task = _get_user_task_or_404(request.user, slug_prefix, number)
     body = (request.POST.get("body") or "").strip()
     if not body:
