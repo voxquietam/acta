@@ -14,7 +14,10 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
+from django.db import transaction
+
 from apps.activity.models import ActivityLog
+from apps.activity.services import _broadcast
 
 from .models import Task
 
@@ -235,4 +238,21 @@ def emit_task_diff_events(
     events = build_diff_events(old_state=old_state, task=task, actor=actor, bulk_id=bulk_id)
     if events:
         ActivityLog.objects.bulk_create(events)
+        # SSE broadcast — bulk_create skips ``log_event()``, so we queue
+        # the workspace-stream pushes ourselves on transaction commit.
+        # See ADR 0015 + ``apps/activity/services._broadcast``.
+        workspace_id = task.project.workspace_id
+        actor_id = actor.id if actor else None
+        for ev in events:
+            payload = {
+                "target_type": ev.target_type,
+                "target_id": ev.target_id,
+                "project_id": ev.project_id,
+                "bulk_id": str(ev.bulk_id) if ev.bulk_id else None,
+                **(ev.payload or {}),
+            }
+            event_type = ev.event_type
+            transaction.on_commit(
+                lambda wid=workspace_id, et=event_type, p=payload, aid=actor_id: _broadcast(wid, et, p, aid),
+            )
     return len(events)
