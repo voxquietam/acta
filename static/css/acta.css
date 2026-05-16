@@ -1,33 +1,33 @@
 /* Acta-specific tweaks that Tailwind utilities don't cover. */
 
-/* Visible thin scrollbar for filter sidebar's scrollable lists
-   (project / assignee multi-select). Modern dark themes auto-hide
-   scrollbars in macOS / iOS, which makes scrollable sections look
-   static and confuses users. Force a thin always-visible track
-   matching the zinc palette so the sticky-stack scroll cue is
-   obvious. */
-[data-sticky-stack] {
+/* Global thin dark scrollbar — applies to every scrollable element
+   in the app (kanban columns, task list panel, filter sidebar lists,
+   sidebar nav, ``main``, modals…). Browser default scrollbars look
+   off-palette on a dark theme, and the macOS default hides on
+   non-hover then pops in as an ugly white bar mid-interaction.
+   ``.scrollbar-none`` opts an element out (top strips use that).
+
+   Firefox uses the ``scrollbar-*`` properties; WebKit / Blink use
+   the pseudo-element rules. Set both so every browser matches. */
+html {
   scrollbar-width: thin;
   scrollbar-color: rgb(63 63 70) transparent;
 }
-[data-sticky-stack]::-webkit-scrollbar {
+::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
 }
-[data-sticky-stack]::-webkit-scrollbar-track {
+::-webkit-scrollbar-track {
   background: transparent;
 }
-[data-sticky-stack]::-webkit-scrollbar-thumb {
+::-webkit-scrollbar-thumb {
   background: rgb(63 63 70);
   border-radius: 3px;
 }
-[data-sticky-stack]::-webkit-scrollbar-thumb:hover {
+::-webkit-scrollbar-thumb:hover {
   background: rgb(82 82 91);
 }
 
-/* Top assignee / project strip — hide native scrollbar entirely.
-   On a single-line strip a 6px bar reads as visual noise. Off-screen
-   content is signalled by edge fade gradients + ``+N`` counters
-   overlaid via JS — see ``_assignee_strip.html``. */
 .scrollbar-none {
   scrollbar-width: none;
 }
