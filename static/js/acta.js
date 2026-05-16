@@ -174,6 +174,78 @@
     initStrips();
   });
 
+  // Workspace SSE — opens a single EventSource per page on the
+  // ``[data-workspace-sse]`` wrapper and dispatches typed events to
+  // DOM updaters. Server pre-renders the affected ``_task_card.html``
+  // and puts it in ``data.card_html``; the client just swaps the
+  // existing card (or moves it to a different kanban column for
+  // status changes). Actor exclusion is client-side via
+  // ``data.actor_id`` vs ``data-current-user-id`` on the wrapper —
+  // skip our own change since the originating HTTP response already
+  // refreshed the UI.
+  function applyCardReplace(taskId, cardHtml) {
+    if (!cardHtml) return;
+    const existing = document.querySelector(`[data-task-id="${taskId}"]`);
+    if (!existing) return;
+    const tmp = document.createElement("div");
+    tmp.innerHTML = cardHtml.trim();
+    const fresh = tmp.firstElementChild;
+    if (!fresh) return;
+    existing.replaceWith(fresh);
+    renderIcons();
+  }
+  function applyCardMove(taskId, newStatus, cardHtml) {
+    if (!cardHtml) return;
+    document.querySelectorAll(`[data-task-id="${taskId}"]`).forEach((el) => el.remove());
+    const column = document.querySelector(`.kanban-column[data-status="${newStatus}"]`);
+    if (!column) return;
+    const tmp = document.createElement("div");
+    tmp.innerHTML = cardHtml.trim();
+    const fresh = tmp.firstElementChild;
+    if (!fresh) return;
+    column.appendChild(fresh);
+    renderIcons();
+  }
+  function applyCardRemove(taskId) {
+    document.querySelectorAll(`[data-task-id="${taskId}"]`).forEach((el) => el.remove());
+  }
+
+  function initWorkspaceSse() {
+    const root = document.querySelector("[data-workspace-sse]");
+    if (!root || root.dataset.sseBound === "true") return;
+    root.dataset.sseBound = "true";
+    const url = root.getAttribute("data-workspace-sse");
+    const meId = root.getAttribute("data-current-user-id") || "";
+    const source = new EventSource(url);
+
+    const handle = (eventName, fn) => {
+      source.addEventListener(eventName, (e) => {
+        let data;
+        try {
+          data = JSON.parse(e.data);
+        } catch (_) {
+          return;
+        }
+        if (String(data.actor_id) === meId) return; // ignore self
+        fn(data);
+      });
+    };
+
+    handle("task.status_changed", (d) => applyCardMove(d.target_id, d.to, d.card_html));
+    handle("task.assigned", (d) => applyCardReplace(d.target_id, d.card_html));
+    handle("task.priority_changed", (d) => applyCardReplace(d.target_id, d.card_html));
+    handle("task.due_changed", (d) => applyCardReplace(d.target_id, d.card_html));
+    handle("task.labels_changed", (d) => applyCardReplace(d.target_id, d.card_html));
+    handle("task.updated", (d) => applyCardReplace(d.target_id, d.card_html));
+    handle("task.deleted", (d) => applyCardRemove(d.target_id));
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initWorkspaceSse);
+  } else {
+    initWorkspaceSse();
+  }
+  document.body.addEventListener("htmx:afterSwap", initWorkspaceSse);
+
   // Shared Alpine store for the filter sidebar's open / collapsed state.
   // Drives both the sidebar itself (collapsed button vs full form) and
   // the page-content wrapper that needs to reserve right padding for the

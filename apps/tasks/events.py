@@ -15,6 +15,7 @@ from typing import Any
 from uuid import UUID
 
 from django.db import transaction
+from django.template.loader import render_to_string
 
 from apps.activity.models import ActivityLog
 from apps.activity.services import _broadcast
@@ -240,15 +241,30 @@ def emit_task_diff_events(
         ActivityLog.objects.bulk_create(events)
         # SSE broadcast — bulk_create skips ``log_event()``, so we queue
         # the workspace-stream pushes ourselves on transaction commit.
-        # See ADR 0015 + ``apps/activity/services._broadcast``.
+        # See ADR 0015 + ``apps/activity/services._broadcast``. The
+        # pre-rendered card HTML is included so connected clients can
+        # swap the kanban card in place without an extra request.
         workspace_id = task.project.workspace_id
         actor_id = actor.id if actor else None
+        # The card template touches ``task.project``, ``task.assignee``,
+        # and iterates ``task.labels.all`` — refetch with the matching
+        # ``select_related`` / ``prefetch_related`` so we add two
+        # SELECTs total rather than one-per-field.
+        task_for_render = Task.objects.select_related("project", "assignee").prefetch_related("labels").get(pk=task.pk)
+        card_html = render_to_string(
+            "web/projects/_task_card.html",
+            {
+                "task": task_for_render,
+                "priority_labels": dict(Task.PRIORITY_CHOICES),
+            },
+        )
         for ev in events:
             payload = {
                 "target_type": ev.target_type,
                 "target_id": ev.target_id,
                 "project_id": ev.project_id,
                 "bulk_id": str(ev.bulk_id) if ev.bulk_id else None,
+                "card_html": card_html,
                 **(ev.payload or {}),
             }
             event_type = ev.event_type

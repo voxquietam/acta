@@ -127,18 +127,24 @@ class TestEmitTaskDiffEvents:
         """Multiple changed fields → exactly ONE INSERT via bulk_create.
 
         Within ``emit_task_diff_events`` the only INSERT we control is
-        the activity log batch. ``build_diff_events`` may also fetch the
-        task's current labels to compute the diff — that's a separate
-        SELECT. The cap (2) reflects ``SELECT labels + INSERT events``.
-        What the test prevents is a regression to N separate INSERTs
-        for N events (which would push the cap to 1 + N).
+        the activity log batch. The other queries are:
+
+        * ``SELECT labels`` (current set, for diff)
+        * ``SELECT task with select_related('project', 'assignee')``
+          (for the SSE card pre-render — see ADR 0015)
+        * ``SELECT labels`` again under the prefetch_related on that
+          fresh task instance
+
+        The cap (4) reflects all of those. What the test prevents is a
+        regression to N separate INSERTs for N events, which would push
+        the cap to 3 + N rather than this constant 4.
         """
         task = TaskFactory()
         old = snapshot_task(task)
         task.status = Task.STATUS_DONE
         task.priority = Task.URGENT
         task.save()
-        with django_assert_max_num_queries(2):
+        with django_assert_max_num_queries(4):
             count = emit_task_diff_events(
                 old_state=old,
                 task=task,
