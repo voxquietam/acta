@@ -1,0 +1,127 @@
+{% extends "base_app.html" %}
+{% load i18n %}
+{% load web_extras %}
+
+{% block title %}{% trans "My Work" %} · Acta{% endblock %}
+
+{% block topbar_left %}
+<h1 class="text-base font-medium text-zinc-300">{% trans "My Work" %}</h1>
+{% endblock %}
+
+{% block app_main %}
+<div class="space-y-8">
+  {% if not has_any_tasks %}
+    {# Empty state — most users will land here on day one. #}
+    <div class="text-center py-20">
+      <div class="w-12 h-12 rounded-full border border-dashed border-zinc-700 grid place-items-center text-zinc-600 mx-auto mb-3">✓</div>
+      <h2 class="text-lg font-medium text-zinc-300">{% trans "Nothing assigned to you" %}</h2>
+      <p class="text-sm text-zinc-500 mt-1">{% trans "When someone assigns you a task it shows up here." %}</p>
+    </div>
+  {% else %}
+    {% for section in sections %}
+      {% if section.tasks %}
+      <section>
+        <div class="flex items-baseline gap-2 mb-3">
+          <h2 class="text-xs uppercase tracking-wider font-medium
+            {% if section.tone == 'rose' %}text-rose-400
+            {% elif section.tone == 'amber' %}text-amber-400
+            {% elif section.tone == 'violet' %}text-violet-400
+            {% elif section.tone == 'emerald' %}text-emerald-400
+            {% else %}text-zinc-500{% endif %}">{{ section.label }}</h2>
+          <span class="text-xs text-zinc-600">{{ section.tasks|length }}</span>
+        </div>
+
+        {% comment %}
+        Each row: slug + title on the left (title takes the leftover
+        flex space), all metadata packed naturally on the right. No
+        column grid — meta chips just sit next to each other and the
+        row stays clean regardless of which fields are populated.
+        {% endcomment %}
+        <ul class="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden divide-y divide-zinc-800">
+          {% for task in section.tasks %}
+          <li>
+            <a href="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
+               class="flex items-center gap-3 px-3 py-2 hover:bg-zinc-800/40 text-sm">
+
+              {% comment %}
+              Priority is encoded as the slug's text colour — saves a
+              separate dot column while making the priority readable at
+              a glance from the row's identity field.
+              {% endcomment %}
+              <span class="font-mono text-xs shrink-0
+                {% if task.priority == 1 %}text-rose-400
+                {% elif task.priority == 2 %}text-orange-400
+                {% elif task.priority == 3 %}text-amber-400
+                {% elif task.priority == 4 %}text-sky-400
+                {% else %}text-zinc-500{% endif %}"
+                {% if task.priority %}title="{{ priority_labels|get_item:task.priority }}"{% endif %}>{{ task.slug }}</span>
+              <span class="flex-1 min-w-0 text-zinc-100 truncate">{{ task.title }}</span>
+
+              <div class="flex items-center gap-2 shrink-0 text-xs">
+                {% if task.size %}
+                <span class="text-zinc-400 font-mono inline-flex items-center gap-1"
+                      title="{% trans 'Size estimate' %}">
+                  <i data-lucide="gauge" class="w-3 h-3"></i>{{ task.size }}
+                </span>
+                {% endif %}
+
+                {% if task.labels.all %}
+                {% comment %}
+                Linear-style label stack — chips overlap by default
+                via negative margin-left, fan out on hover with a
+                smooth transition. ``group/labels`` scopes the hover
+                so other meta items don't affect the spacing.
+
+                Each chip's background paints a translucent label
+                tint on top of a solid ``zinc-900`` layer (the row's
+                own background) via a two-stop ``linear-gradient``.
+                Result: the chip *looks* translucent but is actually
+                opaque, so overlapping chips cleanly occlude each
+                other instead of muddying via alpha compositing.
+                {% endcomment %}
+                <div class="group/labels flex items-center pl-1.5">
+                  {% for label in task.labels.all|slice:":3" %}
+                  <span class="text-[11px] px-1.5 py-0.5 rounded flex items-center gap-1 -ml-2 first:ml-0
+                               group-hover/labels:ml-1 group-hover/labels:first:ml-0 transition-[margin] duration-200"
+                        style="background: linear-gradient({{ label.color }}22, {{ label.color }}22), rgb(24 24 27); border: 1px solid {{ label.color }}55;">
+                    <span class="w-1.5 h-1.5 rounded-full" style="background-color: {{ label.color }};"></span>
+                    <span class="text-zinc-300">{{ label.name }}</span>
+                  </span>
+                  {% endfor %}
+                  {% if task.labels.all|length > 3 %}
+                  <span class="text-[11px] text-zinc-500 ml-1">+{{ task.labels.all|length|add:"-3" }}</span>
+                  {% endif %}
+                </div>
+                {% endif %}
+
+                <span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded
+                  {% if task.status == 'planned' %}bg-zinc-800 text-zinc-400
+                  {% elif task.status == 'to-do' %}bg-blue-900 text-blue-300
+                  {% elif task.status == 'in-progress' %}bg-violet-900 text-violet-300
+                  {% elif task.status == 'in-review' %}bg-amber-900 text-amber-300
+                  {% elif task.status == 'done' %}bg-emerald-900 text-emerald-300{% endif %}">
+                  {{ status_labels|get_item:task.status|default:task.status }}
+                </span>
+
+                <span class="text-zinc-500"
+                      title="{{ task.project.workspace.name }} / {{ task.project.name }}">
+                  {{ task.project.name }}
+                </span>
+
+                {% if task.due_date %}
+                <span class="tabular-nums
+                  {% if section.key == 'overdue' %}text-rose-400
+                  {% elif section.key == 'today' %}text-amber-400
+                  {% else %}text-zinc-500{% endif %}">{{ task.due_date|date:"M j" }}</span>
+                {% endif %}
+              </div>
+            </a>
+          </li>
+          {% endfor %}
+        </ul>
+      </section>
+      {% endif %}
+    {% endfor %}
+  {% endif %}
+</div>
+{% endblock %}

@@ -2,6 +2,7 @@ from django.urls import path
 
 from .views import (
     DashboardView,
+    MyWorkView,
     ProjectDetailView,
     ProjectListView,
     TaskDetailView,
@@ -19,6 +20,7 @@ app_name = "web"
 
 urlpatterns = [
     path("", DashboardView.as_view(), name="dashboard"),
+    path("my-work/", MyWorkView.as_view(), name="my_work"),
     path("projects/", ProjectListView.as_view(), name="project_list"),
     path("projects/<str:slug_prefix>/", ProjectDetailView.as_view(), name="project_detail"),
     path(

@@ -16,6 +16,10 @@ Pages extend this and override the `app_main` block.
     </a>
 
     <div class="px-3 pt-4 pb-3 space-y-0.5 text-sm border-b border-zinc-800/60">
+      <a href="{% url 'web:my_work' %}"
+         class="block px-2 py-1.5 rounded-md text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100">
+        {% trans "My Work" %}
+      </a>
       <a href="{% url 'web:dashboard' %}"
          class="block px-2 py-1.5 rounded-md text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100">
         {% trans "Dashboard" %}

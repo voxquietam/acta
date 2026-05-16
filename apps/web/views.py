@@ -9,10 +9,12 @@ import datetime
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Count, OuterRef, Q, Subquery
+from django.db.models import Count, F, OuterRef, Q, Subquery
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404
 from django.template.loader import render_to_string
+from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_POST
 from django.views.generic import DetailView, ListView, TemplateView
 
@@ -76,6 +78,113 @@ def _get_user_task_or_404(user, slug_prefix, number):
         project__slug_prefix=slug_prefix,
         number=number,
     )
+
+
+def _my_work_sections(user):
+    """Group tasks assigned to ``user`` into deadline-aware buckets.
+
+    Runs a single ``Task`` query (so the page stays N+1-free across
+    every section) and slots rows in Python into:
+
+    1. ``overdue`` — open tasks past their due date
+    2. ``today`` — open tasks due today
+    3. ``week`` — open tasks due in the next six days
+    4. ``later`` — open tasks due more than a week out
+    5. ``no_deadline`` — open tasks with no due date
+    6. ``recently_done`` — tasks closed in the last seven days
+
+    "Open" means anything not in the ``done`` status. Sorting inside
+    each bucket is "soonest due first, then highest priority, then
+    most recently updated", which matches a user picking what to do
+    next.
+
+    Args:
+        user: The acting :class:`User`.
+
+    Returns:
+        A list of section dicts in display order. Each entry is
+        ``{"key": str, "label": lazy str, "tone": str, "tasks": list}``.
+        Sections with no tasks stay in the list so the template can
+        decide whether to render them or skip.
+    """
+    today = timezone.localdate()
+    week_end = today + datetime.timedelta(days=6)
+    done_cutoff = timezone.now() - datetime.timedelta(days=7)
+    open_statuses = [
+        Task.STATUS_PLANNED,
+        Task.STATUS_TODO,
+        Task.STATUS_IN_PROGRESS,
+        Task.STATUS_IN_REVIEW,
+    ]
+    tasks = list(
+        Task.objects.filter(assignee=user)
+        .filter(
+            Q(status__in=open_statuses) | Q(status=Task.STATUS_DONE, updated_at__gte=done_cutoff),
+        )
+        .select_related("project__workspace", "assignee", "reporter")
+        .prefetch_related("labels")
+        .order_by(
+            F("due_date").asc(nulls_last=True),
+            "-priority",
+            "-updated_at",
+        ),
+    )
+    buckets = {
+        "overdue": [],
+        "today": [],
+        "week": [],
+        "later": [],
+        "no_deadline": [],
+        "recently_done": [],
+    }
+    for task in tasks:
+        if task.status == Task.STATUS_DONE:
+            buckets["recently_done"].append(task)
+            continue
+        if task.due_date is None:
+            buckets["no_deadline"].append(task)
+        elif task.due_date < today:
+            buckets["overdue"].append(task)
+        elif task.due_date == today:
+            buckets["today"].append(task)
+        elif task.due_date <= week_end:
+            buckets["week"].append(task)
+        else:
+            buckets["later"].append(task)
+    return [
+        {"key": "overdue", "label": _("Overdue"), "tone": "rose", "tasks": buckets["overdue"]},
+        {"key": "today", "label": _("Today"), "tone": "amber", "tasks": buckets["today"]},
+        {"key": "week", "label": _("This week"), "tone": "violet", "tasks": buckets["week"]},
+        {"key": "later", "label": _("Later"), "tone": "zinc", "tasks": buckets["later"]},
+        {"key": "no_deadline", "label": _("No deadline"), "tone": "zinc", "tasks": buckets["no_deadline"]},
+        {
+            "key": "recently_done",
+            "label": _("Recently done"),
+            "tone": "emerald",
+            "tasks": buckets["recently_done"],
+        },
+    ]
+
+
+class MyWorkView(LoginRequiredMixin, TemplateView):
+    """The user's personal task inbox at ``/my-work/``.
+
+    Lists every task assigned to ``request.user`` across all
+    workspaces they belong to, grouped by a deadline-aware bucket so
+    the page reads top-to-bottom in order of urgency. Companion to
+    the future global task index (every task, not just mine).
+    """
+
+    template_name = "web/my_work.html"
+
+    def get_context_data(self, **kwargs):
+        """Build the bucketed sections + label dicts for rendering."""
+        ctx = super().get_context_data(**kwargs)
+        ctx["sections"] = _my_work_sections(self.request.user)
+        ctx["status_labels"] = Task.STATUS_LABELS
+        ctx["priority_labels"] = dict(Task.PRIORITY_CHOICES)
+        ctx["has_any_tasks"] = any(section["tasks"] for section in ctx["sections"])
+        return ctx
 
 
 class DashboardView(LoginRequiredMixin, TemplateView):
