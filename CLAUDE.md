@@ -419,8 +419,11 @@ Rules:
   in admin` (adds a migration), `feat(tasks)!: add bulk PATCH
   endpoint` (new public surface). The `!` does NOT replace a
   proper body explanation — it's a marker, not a substitute.
-- Use a body only when *why* needs explaining beyond the subject;
-  wrap the body at 80 chars too.
+- **Body: keep it tiny.** Default to subject-only. If a body is
+  genuinely needed, 1-3 short lines max — never an essay. The
+  diff already shows *what* changed; the message just captures the
+  *why* in a sentence. Anything longer belongs in an ADR or a TODO
+  memory, not the commit log.
 - **Never add a `Co-Authored-By: Claude …` trailer.** The user
   explicitly does not want it.
 - Common `<type>`: `feat`, `fix`, `refactor`, `perf`, `docs`, `test`,
