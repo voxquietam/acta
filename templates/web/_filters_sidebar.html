@@ -1,0 +1,271 @@
+{% load i18n %}
+{% load web_extras %}
+{% comment %}
+Shared task-filter sidebar. Used by All Tasks, My Work, and the
+per-project Kanban / Table page. Context vars come from
+``apps.web.filters.filter_sidebar_context``.
+
+Section visibility flags:
+* ``filter_hide_assignee`` — drop the assignee section (e.g. My Work
+  where every task is implicitly assigned to the current user).
+* ``filter_hide_workspace`` / ``filter_hide_project`` — drop scope
+  filters when the page is already scoped (per-project view drops both).
+
+HTMX target / form action come in via ``filter_htmx_target`` and
+``filter_form_url`` so the same partial works wherever it's mounted.
+{% endcomment %}
+<aside x-data="{
+         open: (typeof localStorage !== 'undefined' && localStorage.getItem('filtersOpen') === 'false') ? false : true,
+       }"
+       x-effect="if (typeof localStorage !== 'undefined') localStorage.setItem('filtersOpen', open)"
+       :class="open ? 'w-full lg:w-64' : 'w-full lg:w-10'"
+       class="shrink-0 transition-[width] duration-200">
+
+  {# Collapsed: a thin re-open button #}
+  <button x-show="!open"
+          @click="open = true"
+          x-cloak
+          class="sticky top-0 w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2 hover:border-zinc-700 transition relative"
+          title="{% trans 'Show filters' %}">
+    <i data-lucide="sliders-horizontal" class="w-4 h-4 text-brand-400 mx-auto"></i>
+    {% if active_filter_count %}
+    <span class="absolute -top-1 -right-1 px-1 py-0.5 rounded-full text-[9px] bg-brand-500 text-white font-medium min-w-[16px] text-center">{{ active_filter_count }}</span>
+    {% endif %}
+  </button>
+
+  <form x-show="open"
+        method="get"
+        hx-get="{{ filter_form_url }}"
+        hx-target="{{ filter_htmx_target }}"
+        hx-swap="innerHTML"
+        hx-push-url="true"
+        hx-indicator="#filter-loading"
+        class="sticky top-0 bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden">
+
+    {% for name, value in filter_preserved_pairs %}
+    <input type="hidden" name="{{ name }}" value="{{ value }}">
+    {% endfor %}
+
+    <div class="flex items-center justify-between border-b border-zinc-800 px-3 py-2.5">
+      <h2 class="text-xs uppercase tracking-wider text-zinc-300 font-medium flex items-center gap-1.5">
+        <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5 text-brand-400"></i>
+        {% trans "Filters" %}
+        {% if active_filter_count %}
+        <span class="px-1.5 py-0.5 rounded text-[10px] bg-brand-500/20 text-brand-300">{{ active_filter_count }}</span>
+        {% endif %}
+        <span id="filter-loading" class="htmx-indicator">
+          <i data-lucide="loader-2" class="w-3 h-3 animate-spin text-brand-400"></i>
+        </span>
+      </h2>
+      <div class="flex items-center gap-2">
+        {% comment %}
+        Reset clears every filter input but keeps params listed in
+        ``filter_preserved_pairs`` (e.g. ``?view=table``) so the user
+        stays on the same tab. Goes through HTMX so the swap target
+        updates inline.
+        {% endcomment %}
+        <a hx-get="{{ filter_form_url }}{% if filter_preserved_pairs %}?{% for k, v in filter_preserved_pairs %}{{ k }}={{ v|urlencode }}{% if not forloop.last %}&{% endif %}{% endfor %}{% endif %}"
+           hx-target="{{ filter_htmx_target }}"
+           hx-swap="innerHTML"
+           hx-push-url="true"
+           href="{{ filter_form_url }}{% if filter_preserved_pairs %}?{% for k, v in filter_preserved_pairs %}{{ k }}={{ v|urlencode }}{% if not forloop.last %}&{% endif %}{% endfor %}{% endif %}"
+           class="text-[10px] text-zinc-500 hover:text-zinc-300 flex items-center gap-1 cursor-pointer"
+           title="{% trans 'Clear all filters' %}">
+          <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+          {% trans "Reset" %}
+        </a>
+        <button type="button"
+                @click="open = false"
+                class="text-zinc-500 hover:text-zinc-300"
+                title="{% trans 'Hide filters' %}">
+          <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="p-3 space-y-4 max-h-[calc(100vh-8rem)] overflow-y-auto">
+
+      <div>
+        <label class="block text-[10px] uppercase tracking-wider text-zinc-500 font-medium mb-1.5">
+          {% trans "Search" %}
+        </label>
+        <input type="search" name="q" value="{{ q }}"
+               placeholder="{% trans 'Title or description…' %}"
+               class="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-brand-500">
+      </div>
+
+      {% if not filter_hide_assignee %}
+      <div>
+        <div class="text-[10px] uppercase tracking-wider text-zinc-500 font-medium mb-1.5">
+          {% trans "Assignee" %}
+        </div>
+        <div class="flex gap-1 flex-wrap">
+          {% for value, label in assignee_quick_options %}
+          <label class="cursor-pointer">
+            <input type="radio" name="assignee" value="{{ value }}"
+                   {% if selected_assignee == value or not selected_assignee and value == "" %}checked{% endif %}
+                   class="peer sr-only"
+                   onchange="this.form.requestSubmit()">
+            <span class="block px-2 py-1 rounded-md border border-zinc-800 bg-zinc-950 text-zinc-400 text-[11px]
+                         hover:bg-zinc-800 transition
+                         peer-checked:border-brand-400 peer-checked:bg-brand-500/25 peer-checked:text-white">
+              {{ label }}
+            </span>
+          </label>
+          {% endfor %}
+        </div>
+        {% if available_assignees %}
+        <div class="space-y-0.5 max-h-44 overflow-y-auto mt-1.5">
+          {% for u in available_assignees %}
+          <label class="cursor-pointer flex items-center">
+            <input type="radio" name="assignee" value="{{ u.id }}"
+                   {% if selected_assignee == u.id|stringformat:"s" %}checked{% endif %}
+                   class="peer sr-only"
+                   onchange="this.form.requestSubmit()">
+            <span class="w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] text-zinc-400
+                         hover:bg-zinc-800 transition
+                         peer-checked:bg-brand-500/25 peer-checked:text-white truncate">
+              <span class="w-4 h-4 rounded-full bg-brand-600 text-white grid place-items-center font-medium text-[9px] shrink-0">
+                {{ u.username|slice:":1"|upper }}
+              </span>
+              <span class="truncate">{{ u.username }}</span>
+            </span>
+          </label>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      <div>
+        <div class="text-[10px] uppercase tracking-wider text-zinc-500 font-medium mb-1.5">{% trans "Status" %}</div>
+        <div class="flex gap-1 flex-wrap">
+          {% for key, label in status_labels.items %}
+          <label class="cursor-pointer">
+            <input type="checkbox" name="status" value="{{ key }}"
+                   {% if key in selected_statuses %}checked{% endif %}
+                   class="peer sr-only"
+                   onchange="this.form.requestSubmit()">
+            <span class="flex items-center gap-1 px-2 py-1 rounded-md border border-zinc-800 bg-zinc-950 text-zinc-400 text-[11px]
+                         hover:bg-zinc-800 transition
+                         peer-checked:border-brand-400 peer-checked:bg-brand-500/25 peer-checked:text-white">
+              <span class="w-1.5 h-1.5 rounded-full
+                {% if key == 'planned' %}bg-zinc-500
+                {% elif key == 'to-do' %}bg-blue-500
+                {% elif key == 'in-progress' %}bg-violet-500
+                {% elif key == 'in-review' %}bg-amber-500
+                {% elif key == 'done' %}bg-emerald-500{% endif %}"></span>
+              {{ label }}
+            </span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div>
+        <div class="text-[10px] uppercase tracking-wider text-zinc-500 font-medium mb-1.5">{% trans "Priority" %}</div>
+        <div class="flex gap-1 flex-wrap">
+          {% for key, label in priority_labels.items %}
+          <label class="cursor-pointer">
+            <input type="checkbox" name="priority" value="{{ key }}"
+                   {% if key in selected_priorities %}checked{% endif %}
+                   class="peer sr-only"
+                   onchange="this.form.requestSubmit()">
+            <span class="flex items-center gap-1 px-2 py-1 rounded-md border border-zinc-800 bg-zinc-950 text-zinc-400 text-[11px]
+                         hover:bg-zinc-800 transition
+                         peer-checked:border-brand-400 peer-checked:bg-brand-500/25 peer-checked:text-white">
+              <span class="w-1.5 h-1.5 rounded-full
+                {% if key == 1 %}bg-rose-500
+                {% elif key == 2 %}bg-orange-500
+                {% elif key == 3 %}bg-amber-500
+                {% elif key == 4 %}bg-sky-500
+                {% else %}bg-zinc-700{% endif %}"></span>
+              {{ label }}
+            </span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      {% if available_labels %}
+      <div>
+        <div class="text-[10px] uppercase tracking-wider text-zinc-500 font-medium mb-1.5">{% trans "Labels" %}</div>
+        <div class="flex gap-1 flex-wrap">
+          {% for label in available_labels %}
+          <label class="cursor-pointer">
+            <input type="checkbox" name="label" value="{{ label.id }}"
+                   {% if label.id in selected_labels %}checked{% endif %}
+                   class="peer sr-only"
+                   onchange="this.form.requestSubmit()">
+            <span class="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] text-zinc-300 transition border
+                         hover:brightness-125
+                         peer-checked:brightness-150 peer-checked:font-medium peer-checked:text-white"
+                  style="background: linear-gradient({{ label.color }}22, {{ label.color }}22), rgb(24 24 27); border-color: {{ label.color }}55;">
+              <span class="w-1.5 h-1.5 rounded-full" style="background-color: {{ label.color }};"></span>
+              {{ label.name }}
+            </span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      {% if not filter_hide_workspace and available_workspaces|length > 1 %}
+      <div>
+        <div class="text-[10px] uppercase tracking-wider text-zinc-500 font-medium mb-1.5">{% trans "Workspace" %}</div>
+        <div class="space-y-0.5 max-h-32 overflow-y-auto">
+          {% for ws in available_workspaces %}
+          <label class="cursor-pointer flex items-center">
+            <input type="checkbox" name="workspace" value="{{ ws.id }}"
+                   {% if ws.id in selected_workspaces %}checked{% endif %}
+                   class="peer sr-only"
+                   onchange="this.form.requestSubmit()">
+            <span class="w-full px-2 py-1 rounded-md text-[11px] text-zinc-400 hover:bg-zinc-800 transition
+                         peer-checked:bg-brand-500/25 peer-checked:text-white truncate">
+              {{ ws.name }}
+            </span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      {% if not filter_hide_project %}
+      <div>
+        <div class="text-[10px] uppercase tracking-wider text-zinc-500 font-medium mb-1.5">{% trans "Project" %}</div>
+        <div class="space-y-0.5 max-h-44 overflow-y-auto">
+          {% for p in available_projects %}
+          <label class="cursor-pointer flex items-center">
+            <input type="checkbox" name="project" value="{{ p.id }}"
+                   {% if p.id in selected_projects %}checked{% endif %}
+                   class="peer sr-only"
+                   onchange="this.form.requestSubmit()">
+            <span class="w-full px-2 py-1 rounded-md text-[11px] text-zinc-400 hover:bg-zinc-800 transition
+                         peer-checked:bg-brand-500/25 peer-checked:text-white truncate"
+                  title="{{ p.workspace.name }} / {{ p.name }}">
+              <span class="text-zinc-600">{{ p.workspace.name }} /</span> {{ p.name }}
+            </span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      {% if not filter_hide_show_done %}
+      <div class="pt-3 border-t border-zinc-800">
+        <label class="cursor-pointer flex items-center gap-2 text-zinc-300 text-[11px]">
+          <input type="checkbox" name="show_done" value="1"
+                 {% if show_done %}checked{% endif %}
+                 class="peer sr-only"
+                 onchange="this.form.requestSubmit()">
+          <span class="relative w-8 h-[18px] rounded-full bg-zinc-700 transition peer-checked:bg-brand-500
+                       after:content-[''] after:absolute after:top-[2px] after:left-[2px]
+                       after:w-[14px] after:h-[14px] after:bg-white after:rounded-full
+                       after:transition-transform peer-checked:after:translate-x-[14px]"></span>
+          {% trans "Show done" %}
+        </label>
+      </div>
+      {% endif %}
+    </div>
+  </form>
+</aside>

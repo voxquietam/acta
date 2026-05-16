@@ -1,0 +1,53 @@
+{% load i18n %}
+{% load web_extras %}
+{% comment %}
+Inner fragment of the All Tasks page — task table + pagination + empty
+state. Rendered both inside the full page on initial load and
+returned standalone for HTMX filter submits so the page chrome
+(sidebar / topbar / static assets) stays cached.
+
+Reuses ``web/projects/_table.html`` with ``show_project`` and
+``show_labels`` flags on — All Tasks lives across projects, so both
+columns are useful.
+{% endcomment %}
+{% if tasks %}
+{% include "web/projects/_table.html" with tasks=tasks status_labels=status_labels priority_labels=priority_labels today=today show_project=True show_labels=True %}
+
+{% if is_paginated %}
+<nav class="flex items-center justify-between text-xs text-zinc-500 px-1 mt-4">
+  <span>
+    {% blocktrans count counter=paginator.count %}{{ counter }} task{% plural %}{{ counter }} tasks{% endblocktrans %}
+  </span>
+  <div class="flex items-center gap-3">
+    {% if page_obj.has_previous %}
+    <a href="?{% url_replace request 'page' page_obj.previous_page_number %}"
+       hx-get="?{% url_replace request 'page' page_obj.previous_page_number %}"
+       hx-target="#task-list-wrapper"
+       hx-swap="innerHTML"
+       hx-push-url="true"
+       class="hover:text-zinc-300">{% trans "← Prev" %}</a>
+    {% endif %}
+    <span>
+      {% blocktrans with page=page_obj.number total=paginator.num_pages %}Page {{ page }} of {{ total }}{% endblocktrans %}
+    </span>
+    {% if page_obj.has_next %}
+    <a href="?{% url_replace request 'page' page_obj.next_page_number %}"
+       hx-get="?{% url_replace request 'page' page_obj.next_page_number %}"
+       hx-target="#task-list-wrapper"
+       hx-swap="innerHTML"
+       hx-push-url="true"
+       class="hover:text-zinc-300">{% trans "Next →" %}</a>
+    {% endif %}
+  </div>
+</nav>
+{% endif %}
+
+{% else %}
+<div class="text-center py-20">
+  <div class="w-12 h-12 rounded-full border border-dashed border-zinc-700 grid place-items-center text-zinc-600 mx-auto mb-3">
+    <i data-lucide="search-x" class="w-5 h-5"></i>
+  </div>
+  <h2 class="text-lg font-medium text-zinc-300">{% trans "No tasks match these filters" %}</h2>
+  <p class="text-sm text-zinc-500 mt-1">{% trans "Try clearing some filters." %}</p>
+</div>
+{% endif %}

@@ -1,8 +1,30 @@
 {% load i18n %}
 {% load web_extras %}
-{# Tabular task list — alternative to the kanban view. #}
-<div class="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden">
-  <table class="w-full text-sm">
+{% comment %}
+Tabular task list — used both inside a single project (kanban / table
+toggle) and on the workspace-wide All Tasks page. ``show_project``
+and ``show_labels`` flags toggle the corresponding columns.
+
+``table-fixed`` + ``<colgroup>`` percentages keep each column at a
+stable width regardless of cell content, so filter / pagination
+swaps don't make the layout jump. Title is the elastic column —
+takes whatever space the others leave. Cells use ``truncate`` to
+clip overflowing text with an ellipsis instead of widening.
+{% endcomment %}
+<div class="bg-zinc-900 border border-zinc-800 rounded-lg overflow-x-auto">
+  <table class="w-full text-sm table-fixed min-w-[900px]">
+    <colgroup>
+      <col style="width: 6%">                                   {# ID #}
+      <col>                                                      {# Title — elastic, fills remaining #}
+      <col style="width: 8%">                                   {# Status — fits the "IN-PROGRESS" badge #}
+      <col style="width: 6%">                                   {# Priority — header word width, icon-only cell #}
+      <col style="width: 4%">                                   {# Size — single number #}
+      {% if show_labels %}<col style="width: 11%">{% endif %}   {# Labels #}
+      <col style="width: 12%">                                  {# Assignee #}
+      {% if show_project %}<col style="width: 12%">{% endif %}  {# Project #}
+      <col style="width: 5%">                                   {# Due #}
+      <col style="width: 6%">                                   {# Updated — header word needs the room #}
+    </colgroup>
     <thead class="bg-zinc-900/60 text-zinc-400 text-xs uppercase tracking-wider">
       <tr>
         <th class="text-left px-3 py-2 font-medium">{% trans "ID" %}</th>
@@ -10,7 +32,13 @@
         <th class="text-left px-3 py-2 font-medium">{% trans "Status" %}</th>
         <th class="text-left px-3 py-2 font-medium">{% trans "Priority" %}</th>
         <th class="text-left px-3 py-2 font-medium">{% trans "Size" %}</th>
+        {% if show_labels %}
+        <th class="text-left px-3 py-2 font-medium">{% trans "Labels" %}</th>
+        {% endif %}
         <th class="text-left px-3 py-2 font-medium">{% trans "Assignee" %}</th>
+        {% if show_project %}
+        <th class="text-left px-3 py-2 font-medium">{% trans "Project" %}</th>
+        {% endif %}
         <th class="text-left px-3 py-2 font-medium">{% trans "Due" %}</th>
         <th class="text-left px-3 py-2 font-medium">{% trans "Updated" %}</th>
       </tr>
@@ -18,15 +46,21 @@
     <tbody class="divide-y divide-zinc-800">
       {% for task in tasks %}
       <tr class="hover:bg-zinc-800/30">
-        <td class="px-3 py-2 font-mono text-xs text-zinc-500">
+        <td class="px-3 py-2 font-mono text-xs whitespace-nowrap
+          {% if task.priority == 1 %}text-rose-400
+          {% elif task.priority == 2 %}text-orange-400
+          {% elif task.priority == 3 %}text-amber-400
+          {% elif task.priority == 4 %}text-sky-400
+          {% else %}text-zinc-500{% endif %}">
           <a href="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
-             class="hover:text-zinc-300">{{ task.slug }}</a>
+             class="hover:brightness-125">{{ task.slug }}</a>
         </td>
-        <td class="px-3 py-2">
+        <td class="px-3 py-2 max-w-md">
           <a href="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
-             class="text-zinc-100 hover:text-brand-500">{{ task.title }}</a>
+             class="block text-zinc-100 hover:text-brand-400 truncate"
+             title="{{ task.title }}">{{ task.title }}</a>
         </td>
-        <td class="px-3 py-2">
+        <td class="px-3 py-2 whitespace-nowrap">
           <span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded
             {% if task.status == 'planned' %}bg-zinc-800 text-zinc-400
             {% elif task.status == 'to-do' %}bg-blue-900 text-blue-300
@@ -36,50 +70,95 @@
             {{ status_labels|get_item:task.status|default:task.status }}
           </span>
         </td>
-        <td class="px-3 py-2 text-xs">
+        <td class="px-3 py-2 text-xs whitespace-nowrap">
           {% if task.priority %}
-          <span class="
+          <span class="inline-flex items-center
             {% if task.priority == 1 %}text-rose-400
             {% elif task.priority == 2 %}text-orange-400
             {% elif task.priority == 3 %}text-amber-400
             {% elif task.priority == 4 %}text-sky-400
-            {% else %}text-zinc-500{% endif %}">
-            {{ priority_labels|get_item:task.priority }}
+            {% else %}text-zinc-500{% endif %}"
+                title="{{ priority_labels|get_item:task.priority }}">
+            {% if task.priority == 1 %}<i data-lucide="chevrons-up" class="w-4 h-4"></i>
+            {% elif task.priority == 2 %}<i data-lucide="chevron-up" class="w-4 h-4"></i>
+            {% elif task.priority == 3 %}<i data-lucide="minus" class="w-4 h-4"></i>
+            {% elif task.priority == 4 %}<i data-lucide="chevron-down" class="w-4 h-4"></i>
+            {% else %}<i data-lucide="circle-dashed" class="w-4 h-4"></i>{% endif %}
           </span>
           {% else %}
           <span class="text-zinc-600">—</span>
           {% endif %}
         </td>
-        <td class="px-3 py-2 text-xs text-zinc-400">
+        <td class="px-3 py-2 text-xs text-zinc-400 whitespace-nowrap">
           {% if task.size %}
           <span class="inline-flex items-center gap-1" title="{% trans 'Size estimate' %}">
             <i data-lucide="gauge" class="w-3 h-3"></i>{{ task.size }}
           </span>
           {% else %}—{% endif %}
         </td>
-        <td class="px-3 py-2 text-xs">
+        {% if show_labels %}
+        {% comment %}
+        Labels cell: shows the first two chips with a normal gap; if
+        the task has more labels, the rest fold into a trailing ``+N``
+        chip. No overlap, no popup — the cell stays within its column
+        width and ``+N`` is never clipped by neighbours. Full label
+        list is available via the native ``title`` tooltip.
+        {% endcomment %}
+        <td class="px-3 py-2 overflow-hidden">
+          {% if task.labels.all %}
+          <div class="flex items-center gap-1 min-w-0"
+               title="{% for label in task.labels.all %}{{ label.name }}{% if not forloop.last %}, {% endif %}{% endfor %}">
+            {% for label in task.labels.all %}
+            {% if forloop.counter <= 2 %}
+            <span class="text-[11px] px-1.5 py-0.5 rounded inline-flex items-center gap-1 shrink min-w-0"
+                  style="background: linear-gradient({{ label.color }}22, {{ label.color }}22), rgb(24 24 27); border: 1px solid {{ label.color }}55;">
+              <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background-color: {{ label.color }};"></span>
+              <span class="text-zinc-300 truncate">{{ label.name }}</span>
+            </span>
+            {% endif %}
+            {% endfor %}
+            {% if task.labels.all|length > 2 %}
+            <span class="text-[11px] text-zinc-500 shrink-0">+{{ task.labels.all|length|add:"-2" }}</span>
+            {% endif %}
+          </div>
+          {% else %}<span class="text-zinc-600">—</span>{% endif %}
+        </td>
+        {% endif %}
+        <td class="px-3 py-2 text-xs overflow-hidden">
           {% if task.assignee %}
-          <div class="flex items-center gap-1.5">
-            <span class="w-5 h-5 rounded-full bg-brand-600 text-white grid place-items-center font-medium text-[10px]">
+          <span class="flex items-center gap-1.5 min-w-0" title="{{ task.assignee.username }}">
+            <span class="w-5 h-5 rounded-full bg-brand-600 text-white grid place-items-center font-medium text-[10px] shrink-0">
               {{ task.assignee.username|slice:":1"|upper }}
             </span>
-            <span class="text-zinc-300">{{ task.assignee.username }}</span>
-          </div>
+            <span class="text-zinc-300 truncate">{{ task.assignee.username }}</span>
+          </span>
           {% else %}
-          <span class="text-zinc-600">{% trans "Unassigned" %}</span>
+          <span class="text-zinc-600">{% trans "—" %}</span>
           {% endif %}
         </td>
-        <td class="px-3 py-2 text-xs text-zinc-400">
+        {% if show_project %}
+        <td class="px-3 py-2 text-xs text-zinc-400 overflow-hidden"
+            title="{{ task.project.workspace.name }} / {{ task.project.name }}">
+          <div class="truncate">
+            <span class="text-zinc-600">{{ task.project.workspace.name }} /</span> {{ task.project.name }}
+          </div>
+        </td>
+        {% endif %}
+        <td class="px-3 py-2 text-xs tabular-nums whitespace-nowrap
+          {% if today and task.due_date and task.due_date < today and task.status != 'done' %}text-rose-400
+          {% elif today and task.due_date == today and task.status != 'done' %}text-amber-400
+          {% else %}text-zinc-500{% endif %}">
           {{ task.due_date|date:"M j"|default:"—" }}
         </td>
-        <td class="px-3 py-2 text-xs text-zinc-500">
+        <td class="px-3 py-2 text-xs text-zinc-500 whitespace-nowrap">
           {{ task.updated_at|date:"M j" }}
         </td>
       </tr>
       {% empty %}
       <tr>
-        <td colspan="8" class="px-3 py-8 text-center text-sm text-zinc-500 italic">
-          {% trans "No tasks in this project yet." %}
+        <td colspan="{% if show_labels and show_project %}10{% elif show_labels or show_project %}9{% else %}8{% endif %}"
+            class="px-3 py-8 text-center text-sm text-zinc-500 italic">
+          {% trans "No tasks." %}
         </td>
       </tr>
       {% endfor %}

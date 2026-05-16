@@ -25,6 +25,7 @@ from apps.labels.models import Label
 from apps.projects.models import Project, ProjectUpdate
 from apps.tasks.events import emit_task_diff_events, snapshot_task
 from apps.tasks.models import Task
+from apps.web.filters import apply_task_filters, filter_sidebar_context
 from apps.workspaces.models import WorkspaceMember
 
 User = get_user_model()
@@ -80,32 +81,14 @@ def _get_user_task_or_404(user, slug_prefix, number):
     )
 
 
-def _my_work_sections(user):
+def _my_work_sections(user, params):
     """Group tasks assigned to ``user`` into deadline-aware buckets.
 
-    Runs a single ``Task`` query (so the page stays N+1-free across
-    every section) and slots rows in Python into:
-
-    1. ``overdue`` — open tasks past their due date
-    2. ``today`` — open tasks due today
-    3. ``week`` — open tasks due in the next six days
-    4. ``later`` — open tasks due more than a week out
-    5. ``no_deadline`` — open tasks with no due date
-    6. ``recently_done`` — tasks closed in the last seven days
-
-    "Open" means anything not in the ``done`` status. Sorting inside
-    each bucket is "soonest due first, then highest priority, then
-    most recently updated", which matches a user picking what to do
-    next.
-
-    Args:
-        user: The acting :class:`User`.
-
-    Returns:
-        A list of section dicts in display order. Each entry is
-        ``{"key": str, "label": lazy str, "tone": str, "tasks": list}``.
-        Sections with no tasks stay in the list so the template can
-        decide whether to render them or skip.
+    Querystring filters (``params``) narrow the base queryset before
+    bucketing — except the assignee filter, which is implicit (``me``).
+    The recently-done section is always included so that ``show_done``
+    behaves naturally: off → only recent done in its bucket; on →
+    done tasks also show up wherever ``status`` says.
     """
     today = timezone.localdate()
     week_end = today + datetime.timedelta(days=6)
@@ -116,14 +99,23 @@ def _my_work_sections(user):
         Task.STATUS_IN_PROGRESS,
         Task.STATUS_IN_REVIEW,
     ]
-    tasks = list(
+    base = (
         Task.objects.filter(assignee=user)
         .filter(
             Q(status__in=open_statuses) | Q(status=Task.STATUS_DONE, updated_at__gte=done_cutoff),
         )
         .select_related("project__workspace", "assignee", "reporter")
         .prefetch_related("labels")
-        .order_by(
+    )
+    # ``apply_task_filters`` strips done tasks by default; My Work
+    # always wants the recently-done section, so force-allow done
+    # unless the user's explicit status filter excludes it.
+    forced_params = params.copy()
+    if not forced_params.get("show_done"):
+        forced_params["show_done"] = "1"
+    base = apply_task_filters(base, forced_params, request_user=user)
+    tasks = list(
+        base.order_by(
             F("due_date").asc(nulls_last=True),
             "-priority",
             "-updated_at",
@@ -166,24 +158,64 @@ def _my_work_sections(user):
     ]
 
 
+class AllTasksView(LoginRequiredMixin, ListView):
+    """Workspace-wide task index at ``/tasks/``.
+
+    Lists every task across every workspace the user belongs to,
+    with querystring-driven filters (status, priority, project,
+    workspace, label, assignee, search). Pagination is server-rendered
+    so URLs are shareable / bookmarkable. HTMX requests get the inner
+    partial only — page chrome stays cached.
+    """
+
+    context_object_name = "tasks"
+    paginate_by = 50
+
+    def get_template_names(self):
+        """Full page on cold load, inner fragment for HTMX filter swaps."""
+        if self.request.headers.get("HX-Request"):
+            return ["web/_all_tasks_inner.html"]
+        return ["web/all_tasks.html"]
+
+    def get_queryset(self):
+        """Filter the user's accessible tasks by querystring params."""
+        qs = _user_task_qs(self.request.user).order_by("-updated_at")
+        return apply_task_filters(qs, self.request.GET, request_user=self.request.user)
+
+    def get_context_data(self, **kwargs):
+        """Attach filter sidebar context."""
+        ctx = super().get_context_data(**kwargs)
+        ctx.update(filter_sidebar_context(self.request))
+        return ctx
+
+
 class MyWorkView(LoginRequiredMixin, TemplateView):
     """The user's personal task inbox at ``/my-work/``.
 
-    Lists every task assigned to ``request.user`` across all
-    workspaces they belong to, grouped by a deadline-aware bucket so
-    the page reads top-to-bottom in order of urgency. Companion to
-    the future global task index (every task, not just mine).
+    Lists every task assigned to the user across workspaces, grouped
+    by a deadline-aware bucket. Filterable via the shared filter
+    sidebar (assignee filter hidden — always implicitly the user).
     """
 
-    template_name = "web/my_work.html"
+    def get_template_names(self):
+        """Full page on cold load, inner fragment for HTMX filter swaps."""
+        if self.request.headers.get("HX-Request"):
+            return ["web/_my_work_inner.html"]
+        return ["web/my_work.html"]
 
     def get_context_data(self, **kwargs):
-        """Build the bucketed sections + label dicts for rendering."""
+        """Build the bucketed sections + filter sidebar context."""
         ctx = super().get_context_data(**kwargs)
-        ctx["sections"] = _my_work_sections(self.request.user)
-        ctx["status_labels"] = Task.STATUS_LABELS
-        ctx["priority_labels"] = dict(Task.PRIORITY_CHOICES)
+        ctx["sections"] = _my_work_sections(self.request.user, self.request.GET)
         ctx["has_any_tasks"] = any(section["tasks"] for section in ctx["sections"])
+        ctx.update(
+            filter_sidebar_context(
+                self.request,
+                hide_assignee=True,
+                hide_show_done=True,
+                htmx_target="#my-work-content",
+            )
+        )
         return ctx
 
 
@@ -256,22 +288,28 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         )
 
     def get_context_data(self, **kwargs):
-        """Attach the prefetched task list and pick the active view mode."""
+        """Attach the filtered task list, columns, and filter sidebar context."""
         ctx = super().get_context_data(**kwargs)
         view_mode = self.request.GET.get("view", "kanban")
         if view_mode not in {"kanban", "table"}:
             view_mode = "kanban"
         ctx["view_mode"] = view_mode
 
-        tasks = list(
+        base = (
             Task.objects.filter(project=self.object)
             .select_related("assignee", "reporter", "parent", "project")
             .prefetch_related("labels")
-            .order_by("status", "-priority", "-updated_at"),
+            .order_by("status", "-priority", "-updated_at")
+        )
+        tasks = list(
+            apply_task_filters(
+                base,
+                self.request.GET,
+                request_user=self.request.user,
+                default_show_done=True,
+            )
         )
         ctx["tasks"] = tasks
-        ctx["status_labels"] = Task.STATUS_LABELS
-        ctx["priority_labels"] = dict(Task.PRIORITY_CHOICES)
 
         columns = []
         for status in Task.STATUS_VALUES:
@@ -283,6 +321,26 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
                 },
             )
         ctx["columns"] = columns
+
+        # Per-project page: scope project + workspace filters away.
+        # Show labels in the table view (matches All Tasks layout).
+        ctx.update(
+            filter_sidebar_context(
+                self.request,
+                hide_workspace=True,
+                hide_project=True,
+                hide_show_done=True,
+                htmx_target="#project-view-panel",
+                preserved_params=["view"],
+                available_labels=list(
+                    Label.objects.filter(workspace=self.object.workspace).order_by("name"),
+                ),
+                available_assignees=list(
+                    self.object.workspace.members.exclude(pk=self.request.user.pk).order_by("username"),
+                ),
+            )
+        )
+        ctx["show_labels"] = True
         return ctx
 
 

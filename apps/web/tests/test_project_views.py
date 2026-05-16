@@ -123,6 +123,34 @@ class TestProjectDetailView:
         assert cols[Task.STATUS_DONE] == 2
         assert cols[Task.STATUS_IN_PROGRESS] == 0
 
+    def test_filter_preserves_view_param(self, client, member_user):
+        """Submitting a filter from the Table tab must keep ``view=table``.
+
+        Regression for the bug where any filter click on the table view
+        would silently bounce the user back to the Kanban default.
+        """
+        user, _, project = member_user
+        client.force_login(user)
+        resp = client.get(
+            reverse("web:project_detail", kwargs={"slug_prefix": project.slug_prefix}) + "?view=table&priority=1",
+        )
+        assert resp.status_code == 200
+        assert resp.context["view_mode"] == "table"
+        assert ("view", "table") in resp.context["filter_preserved_pairs"]
+
+    def test_status_filter_applies(self, client, member_user):
+        """``?status=to-do`` should narrow the in-context tasks list."""
+        user, _, project = member_user
+        TaskFactory(project=project, reporter=user, title="t-todo", status=Task.STATUS_TODO)
+        TaskFactory(project=project, reporter=user, title="t-prog", status=Task.STATUS_IN_PROGRESS)
+        client.force_login(user)
+        resp = client.get(
+            reverse("web:project_detail", kwargs={"slug_prefix": project.slug_prefix}) + "?status=to-do",
+        )
+        titles = [t.title for t in resp.context["tasks"]]
+        assert "t-todo" in titles
+        assert "t-prog" not in titles
+
 
 @pytest.mark.django_db
 class TestProjectViewQueryCounts:

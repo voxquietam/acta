@@ -1,0 +1,38 @@
+{% load i18n %}
+{% load web_extras %}
+{% comment %}
+Inner fragment of My Work — bucketed sections, rendered both inside
+the full page on cold load and standalone for HTMX filter swaps.
+{% endcomment %}
+{% if not has_any_tasks %}
+<div class="text-center py-20">
+  <div class="w-12 h-12 rounded-full border border-dashed border-zinc-700 grid place-items-center text-zinc-600 mx-auto mb-3">
+    <i data-lucide="check" class="w-5 h-5"></i>
+  </div>
+  <h2 class="text-lg font-medium text-zinc-300">{% trans "Nothing assigned to you" %}</h2>
+  <p class="text-sm text-zinc-500 mt-1">{% trans "When someone assigns you a task it shows up here." %}</p>
+</div>
+{% else %}
+<div class="space-y-8">
+  {% for section in sections %}
+    {% if section.tasks %}
+    <section>
+      <div class="flex items-baseline gap-2 mb-3">
+        <h2 class="text-xs uppercase tracking-wider font-medium
+          {% if section.tone == 'rose' %}text-rose-400
+          {% elif section.tone == 'amber' %}text-amber-400
+          {% elif section.tone == 'violet' %}text-violet-400
+          {% elif section.tone == 'emerald' %}text-emerald-400
+          {% else %}text-zinc-500{% endif %}">{{ section.label }}</h2>
+        <span class="text-xs text-zinc-600">{{ section.tasks|length }}</span>
+      </div>
+      <ul class="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden divide-y divide-zinc-800">
+        {% for task in section.tasks %}
+        <li>{% include "web/_task_row.html" with task=task %}</li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+  {% endfor %}
+</div>
+{% endif %}

@@ -6,8 +6,8 @@ the HTMX-swap target when the user toggles between views.
 <nav class="flex items-center gap-1 border-b border-zinc-800 mb-5">
   <a href="?view=kanban"
      hx-get="?view=kanban"
-     hx-target="#project-panel"
-     hx-swap="outerHTML"
+     hx-target="#project-view-panel"
+     hx-swap="innerHTML"
      hx-push-url="true"
      class="px-3 py-2 text-sm border-b-2 -mb-px
        {% if view_mode == 'kanban' %}border-brand-500 text-zinc-100{% else %}border-transparent text-zinc-400 hover:text-zinc-200{% endif %}">
@@ -15,8 +15,8 @@ the HTMX-swap target when the user toggles between views.
   </a>
   <a href="?view=table"
      hx-get="?view=table"
-     hx-target="#project-panel"
-     hx-swap="outerHTML"
+     hx-target="#project-view-panel"
+     hx-swap="innerHTML"
      hx-push-url="true"
      class="px-3 py-2 text-sm border-b-2 -mb-px
        {% if view_mode == 'table' %}border-brand-500 text-zinc-100{% else %}border-transparent text-zinc-400 hover:text-zinc-200{% endif %}">
@@ -31,5 +31,5 @@ the HTMX-swap target when the user toggles between views.
 {% if view_mode == 'kanban' %}
   {% include "web/projects/_kanban.html" %}
 {% else %}
-  {% include "web/projects/_table.html" %}
+  {% include "web/projects/_table.html" with show_labels=True %}
 {% endif %}

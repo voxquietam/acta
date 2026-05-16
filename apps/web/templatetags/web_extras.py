@@ -9,6 +9,26 @@ from apps.common.markdown import render_markdown
 register = template.Library()
 
 
+@register.simple_tag
+def url_replace(request, key, value):
+    """Return the current querystring with one key replaced.
+
+    Used for pagination links that need to keep every other filter
+    param intact while bumping ``page``.
+
+    Args:
+        request: The active ``HttpRequest``.
+        key: Querystring key to overwrite.
+        value: New value for that key.
+
+    Returns:
+        URL-encoded querystring (no leading ``?``).
+    """
+    params = request.GET.copy()
+    params[key] = value
+    return params.urlencode()
+
+
 _EVENT_LABELS = {
     "task.created": _("created the task"),
     "task.status_changed": _("changed status"),

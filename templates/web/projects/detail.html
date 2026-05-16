@@ -14,7 +14,13 @@
 {% endblock %}
 
 {% block app_main %}
-<div id="project-panel">
-  {% include "web/projects/_view_panel.html" %}
+<div class="flex flex-col lg:flex-row gap-6 items-start">
+  <div class="flex-1 min-w-0">
+    <div id="project-view-panel">
+      {% include "web/projects/_view_panel.html" %}
+    </div>
+  </div>
+
+  {% include "web/_filters_sidebar.html" %}
 </div>
 {% endblock %}

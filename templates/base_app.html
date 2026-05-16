@@ -16,18 +16,28 @@ Pages extend this and override the `app_main` block.
     </a>
 
     <div class="px-3 pt-4 pb-3 space-y-0.5 text-sm border-b border-zinc-800/60">
+      {% with current=request.resolver_match.url_name %}
       <a href="{% url 'web:my_work' %}"
-         class="block px-2 py-1.5 rounded-md text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100">
+         class="block px-2 py-1.5 rounded-md hover:bg-zinc-800 hover:text-zinc-100
+         {% if current == 'my_work' %}bg-zinc-800 text-zinc-100{% else %}text-zinc-300{% endif %}">
         {% trans "My Work" %}
       </a>
+      <a href="{% url 'web:all_tasks' %}"
+         class="block px-2 py-1.5 rounded-md hover:bg-zinc-800 hover:text-zinc-100
+         {% if current == 'all_tasks' %}bg-zinc-800 text-zinc-100{% else %}text-zinc-300{% endif %}">
+        {% trans "All Tasks" %}
+      </a>
       <a href="{% url 'web:dashboard' %}"
-         class="block px-2 py-1.5 rounded-md text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100">
+         class="block px-2 py-1.5 rounded-md hover:bg-zinc-800 hover:text-zinc-100
+         {% if current == 'dashboard' %}bg-zinc-800 text-zinc-100{% else %}text-zinc-300{% endif %}">
         {% trans "Dashboard" %}
       </a>
       <a href="{% url 'web:project_list' %}"
-         class="block px-2 py-1.5 rounded-md text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100">
+         class="block px-2 py-1.5 rounded-md hover:bg-zinc-800 hover:text-zinc-100
+         {% if current == 'project_list' %}bg-zinc-800 text-zinc-100{% else %}text-zinc-300{% endif %}">
         {% trans "Projects" %}
       </a>
+      {% endwith %}
     </div>
 
     <nav class="flex-1 overflow-y-auto px-3 py-3 space-y-6 text-sm">
@@ -41,7 +51,8 @@ Pages extend this and override the `app_main` block.
           {% if not project.archived %}
           <li>
             <a href="{% url 'web:project_detail' slug_prefix=project.slug_prefix %}"
-               class="block px-2 py-1.5 rounded-md text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100">
+               class="block px-2 py-1.5 rounded-md hover:bg-zinc-800 hover:text-zinc-100
+               {% if request.resolver_match.kwargs.slug_prefix == project.slug_prefix %}bg-zinc-800 text-zinc-100{% else %}text-zinc-300{% endif %}">
               <span class="font-mono text-xs text-zinc-500 mr-1.5">{{ project.slug_prefix }}</span>{{ project.name }}
             </a>
           </li>

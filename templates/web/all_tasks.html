@@ -2,17 +2,17 @@
 {% load i18n %}
 {% load web_extras %}
 
-{% block title %}{% trans "My Work" %} · Acta{% endblock %}
+{% block title %}{% trans "All Tasks" %} · Acta{% endblock %}
 
 {% block topbar_left %}
-<h1 class="text-base font-medium text-zinc-300">{% trans "My Work" %}</h1>
+<h1 class="text-base font-medium text-zinc-300">{% trans "All Tasks" %}</h1>
 {% endblock %}
 
 {% block app_main %}
 <div class="flex flex-col lg:flex-row gap-6 items-start">
   <div class="flex-1 min-w-0">
-    <div id="my-work-content">
-      {% include "web/_my_work_inner.html" %}
+    <div id="task-list-wrapper">
+      {% include "web/_all_tasks_inner.html" %}
     </div>
   </div>
 

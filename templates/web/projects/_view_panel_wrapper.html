@@ -1,4 +1,9 @@
-{# HTMX swap target: re-renders the panel with new view_mode in place. #}
-<div id="project-panel">
+{% comment %}
+HTMX swap target for the project view panel — used both by the
+view-mode toggle (kanban / table) and by filter changes from the
+shared filter sidebar. The wrapper id has to match the htmx target
+both sources point at.
+{% endcomment %}
+<div id="project-view-panel">
   {% include "web/projects/_view_panel.html" %}
 </div>
