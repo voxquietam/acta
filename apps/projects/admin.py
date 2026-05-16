@@ -11,6 +11,7 @@ class ProjectAdmin(ModelAdmin):
         "slug_prefix",
         "name",
         "workspace",
+        "lead",
         "next_task_number",
         "archived",
         "created_at",
@@ -25,6 +26,10 @@ class ProjectAdmin(ModelAdmin):
     ]
     autocomplete_fields = [
         "workspace",
+        "lead",
+    ]
+    filter_horizontal = [
+        "members",
     ]
     readonly_fields = [
         "next_task_number",

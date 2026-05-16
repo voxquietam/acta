@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
 from django.db.models import F
@@ -29,6 +30,11 @@ class Project(models.Model):
         max_length=120,
         help_text="Display name of the project",
     )
+    icon = models.CharField(
+        max_length=40,
+        blank=True,
+        help_text="Lucide icon name shown next to the project in the sidebar and lists. Optional",
+    )
     description = models.TextField(
         blank=True,
         help_text="Project description in Markdown. Optional",
@@ -39,6 +45,24 @@ class Project(models.Model):
             SLUG_PREFIX_VALIDATOR,
         ],
         help_text=("Short uppercase identifier used in task references, e.g. HRW in HRW-49. " "Immutable in practice"),
+    )
+    lead = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="led_projects",
+        help_text="Single user responsible for the project's direction. Implicit member",
+    )
+    members = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        related_name="project_memberships",
+        help_text=(
+            "Contributors who work on the project. Opt-in list used for 'My Projects' filters "
+            "and the subscriber set for project updates. Not enforced on Task.assignee — any "
+            "workspace member can still be assigned a task"
+        ),
     )
     next_task_number = models.PositiveIntegerField(
         default=1,
@@ -69,6 +93,19 @@ class Project(models.Model):
     def __str__(self) -> str:
         """Return the project slug prefix and name, e.g. ``HRW · Home Work``."""
         return f"{self.slug_prefix} · {self.name}"
+
+    def clean(self):
+        """Validate that ``lead`` (if set) is a member of the workspace.
+
+        The ``members`` M2M set is validated at the serializer / admin
+        layer instead — Django can't introspect M2M before the project
+        row exists.
+        """
+        super().clean()
+        if self.lead_id and self.workspace_id:
+            is_workspace_member = self.workspace.members.filter(pk=self.lead_id).exists()
+            if not is_workspace_member:
+                raise ValidationError({"lead": _("Lead must be a member of the project's workspace.")})
 
     def allocate_task_number(self) -> int:
         """Reserve and return the next task number for this project.
