@@ -64,12 +64,26 @@ class TestAllTasksFilters:
         assert "t-todo" in body
         assert "t-prog" not in body
 
-    def test_done_hidden_by_default(self, client, setup):
+    def test_done_visible_by_default(self, client, setup):
+        """Done tasks are shown by default — the ``default_show_done``
+        seam stays True until a per-user setting overrides it."""
         user, _, _, p1, _ = setup
         TaskFactory(project=p1, reporter=user, title="t-done", status=Task.STATUS_DONE)
         TaskFactory(project=p1, reporter=user, title="t-todo", status=Task.STATUS_TODO)
         client.force_login(user)
         resp = client.get(reverse("web:all_tasks"))
+        body = resp.content.decode()
+        assert "t-todo" in body
+        assert "t-done" in body
+
+    def test_status_filter_excludes_done(self, client, setup):
+        """An explicit status filter scopes the list to those statuses
+        and drops everything else, done included."""
+        user, _, _, p1, _ = setup
+        TaskFactory(project=p1, reporter=user, title="t-done", status=Task.STATUS_DONE)
+        TaskFactory(project=p1, reporter=user, title="t-todo", status=Task.STATUS_TODO)
+        client.force_login(user)
+        resp = client.get(reverse("web:all_tasks") + "?status=to-do")
         body = resp.content.decode()
         assert "t-todo" in body
         assert "t-done" not in body
@@ -164,6 +178,80 @@ class TestAllTasksFilters:
         body = resp.content.decode()
         assert "in-ws1" in body
         assert "in-ws2" not in body
+
+
+@pytest.mark.django_db
+class TestAllTasksOrdering:
+    """``?order=`` applies the smart per-column sort."""
+
+    def test_priority_asc_urgent_before_low_then_no_priority(self, client, setup):
+        user, _, _, p1, _ = setup
+        TaskFactory(project=p1, reporter=user, title="t-low", priority=Task.LOW, status=Task.STATUS_TODO)
+        TaskFactory(project=p1, reporter=user, title="t-urgent", priority=Task.URGENT, status=Task.STATUS_TODO)
+        TaskFactory(project=p1, reporter=user, title="t-noprio", priority=Task.NO_PRIORITY, status=Task.STATUS_TODO)
+        client.force_login(user)
+        resp = client.get(reverse("web:all_tasks") + "?order=priority")
+        body = resp.content.decode()
+        assert body.index("t-urgent") < body.index("t-low") < body.index("t-noprio")
+
+    def test_priority_desc_keeps_no_priority_last(self, client, setup):
+        user, _, _, p1, _ = setup
+        TaskFactory(project=p1, reporter=user, title="t-low", priority=Task.LOW, status=Task.STATUS_TODO)
+        TaskFactory(project=p1, reporter=user, title="t-urgent", priority=Task.URGENT, status=Task.STATUS_TODO)
+        TaskFactory(project=p1, reporter=user, title="t-noprio", priority=Task.NO_PRIORITY, status=Task.STATUS_TODO)
+        client.force_login(user)
+        resp = client.get(reverse("web:all_tasks") + "?order=-priority")
+        body = resp.content.decode()
+        assert body.index("t-low") < body.index("t-urgent") < body.index("t-noprio")
+
+    def test_status_uses_logical_order(self, client, setup):
+        user, _, _, p1, _ = setup
+        TaskFactory(project=p1, reporter=user, title="t-review", status=Task.STATUS_IN_REVIEW)
+        TaskFactory(project=p1, reporter=user, title="t-planned", status=Task.STATUS_PLANNED)
+        TaskFactory(project=p1, reporter=user, title="t-todo", status=Task.STATUS_TODO)
+        client.force_login(user)
+        # Status filter keeps done out by default, all three picked statuses are open.
+        resp = client.get(
+            reverse("web:all_tasks") + "?status=planned&status=to-do&status=in-review&order=status",
+        )
+        body = resp.content.decode()
+        assert body.index("t-planned") < body.index("t-todo") < body.index("t-review")
+
+    def test_assignee_unassigned_sinks_in_both_directions(self, client, setup):
+        user, _, _, p1, _ = setup
+        alice = UserFactory(username="alice", first_name="Alice")
+        WorkspaceMemberFactory(workspace=p1.workspace, user=alice)
+        TaskFactory(project=p1, reporter=user, title="t-alice", assignee=alice, status=Task.STATUS_TODO)
+        TaskFactory(project=p1, reporter=user, title="t-unassigned", assignee=None, status=Task.STATUS_TODO)
+        client.force_login(user)
+        body_asc = client.get(reverse("web:all_tasks") + "?order=assignee").content.decode()
+        body_desc = client.get(reverse("web:all_tasks") + "?order=-assignee").content.decode()
+        assert body_asc.index("t-alice") < body_asc.index("t-unassigned")
+        assert body_desc.index("t-alice") < body_desc.index("t-unassigned")
+
+    def test_id_sort_groups_by_project_then_number(self, client, setup):
+        """``?order=id`` groups cross-project rows by project slug and
+        sorts numerically within each group."""
+        user, ws1, ws2, _, _ = setup
+        # Explicit slug_prefixes so the order is deterministic regardless
+        # of factory sequence numbers.
+        p_a = ProjectFactory(workspace=ws1, slug_prefix="AAA")
+        p_b = ProjectFactory(workspace=ws2, slug_prefix="BBB")
+        TaskFactory(project=p_a, reporter=user, title="t-AAA-2", number=2, status=Task.STATUS_TODO)
+        TaskFactory(project=p_a, reporter=user, title="t-AAA-1", number=1, status=Task.STATUS_TODO)
+        TaskFactory(project=p_b, reporter=user, title="t-BBB-1", number=1, status=Task.STATUS_TODO)
+        client.force_login(user)
+        body = client.get(reverse("web:all_tasks") + "?order=id").content.decode()
+        # AAA's slug_prefix sorts before BBB; within AAA numbers go asc.
+        assert body.index("t-AAA-1") < body.index("t-AAA-2") < body.index("t-BBB-1")
+
+    def test_unknown_order_falls_back_to_default(self, client, setup):
+        user, _, _, p1, _ = setup
+        TaskFactory(project=p1, reporter=user, title="t-a", status=Task.STATUS_TODO)
+        client.force_login(user)
+        resp = client.get(reverse("web:all_tasks") + "?order=mystery")
+        assert resp.status_code == 200
+        assert "t-a" in resp.content.decode()
 
 
 @pytest.mark.django_db

@@ -7,7 +7,8 @@ the three views share one canonical implementation.
 """
 
 from django.contrib.auth import get_user_model
-from django.db.models import Q
+from django.db.models import Case, F, IntegerField, Q, Value, When
+from django.db.models.functions import Lower
 from django.utils import timezone
 
 from apps.labels.models import Label
@@ -15,19 +16,19 @@ from apps.projects.models import Project
 from apps.tasks.models import Task
 
 
-def apply_task_filters(qs, params, *, request_user, default_show_done=False):
+def apply_task_filters(qs, params, *, request_user, default_show_done=True):
     """Apply querystring filters to a Task queryset.
 
     Args:
         qs: Base Task queryset (already scoped).
         params: ``request.GET``-like mapping with ``getlist``.
         request_user: For the ``assignee=me`` filter shortcut.
-        default_show_done: When True, done tasks are NOT excluded by
-            default — caller has to opt out via explicit ``status``.
-            All Tasks defaults False (hide done unless an explicit
-            ``?status=done`` is chosen); per-project Kanban and My Work
-            default True (the page's structure already shows done by
-            design).
+        default_show_done: When False, done tasks are excluded unless
+            the caller opts in via explicit ``status``. All pages
+            currently default True (done stays visible) — the flag is
+            kept as a seam for a future per-user preference where the
+            user can toggle "always hide done" once and for all in
+            their settings.
     """
     statuses = params.getlist("status")
     if statuses:
@@ -86,6 +87,107 @@ def apply_task_filters(qs, params, *, request_user, default_show_done=False):
         qs = qs.filter(Q(title__icontains=q) | Q(description__icontains=q))
 
     return qs
+
+
+# Smart ordering rank for status: logical workflow order rather than
+# alphabetical. ``default=99`` keeps any future / unknown status code
+# from accidentally surfacing above meaningful ones.
+_STATUS_ORDER = Case(
+    When(status=Task.STATUS_PLANNED, then=Value(0)),
+    When(status=Task.STATUS_TODO, then=Value(1)),
+    When(status=Task.STATUS_IN_PROGRESS, then=Value(2)),
+    When(status=Task.STATUS_IN_REVIEW, then=Value(3)),
+    When(status=Task.STATUS_DONE, then=Value(4)),
+    default=Value(99),
+    output_field=IntegerField(),
+)
+# Priority needs a two-stage rank: the int values 1-4 already form the
+# correct urgent → low sequence, but the special ``NO_PRIORITY=0`` value
+# must sink to the bottom regardless of direction (it's "absence" of
+# priority, not a low priority). Sort by the "is no-priority" flag
+# first (ascending — real values first, no-prio last), then by the
+# raw ``priority`` field in the user-chosen direction.
+_PRIORITY_NOPRIO_LAST = Case(
+    When(priority=Task.NO_PRIORITY, then=Value(1)),
+    default=Value(0),
+    output_field=IntegerField(),
+)
+
+# Columns the table header may sort by. ``"id"`` uses ``number`` so the
+# sequential per-project counter sorts numerically (slug prefixes never
+# differ within a single project, and across-project numeric ordering
+# is still meaningful — newer tasks have higher numbers).
+SORTABLE_COLUMNS = ("id", "title", "status", "priority", "size", "assignee", "project", "due", "updated")
+
+
+def apply_task_ordering(qs, params, *, default_ordering=("-updated_at",)):
+    """Apply a smart ``?order=`` clause to a Task queryset.
+
+    For enum columns (``status``, ``priority``) the order is logical
+    (planned → done; urgent → low) rather than alphabetical. For
+    ``title`` we lowercase to ignore case. ``assignee`` sorts by name
+    with unassigned rows sinking to the bottom in both directions
+    (same for nullable ``size`` and ``due_date``).
+
+    Args:
+        qs: Base Task queryset.
+        params: ``request.GET``-like mapping.
+        default_ordering: Tuple of order_by terms used when ``order``
+            is absent or invalid.
+
+    Returns:
+        The queryset with ``.order_by(...)`` applied.
+    """
+    raw = (params.get("order") or "").strip()
+    direction = "desc" if raw.startswith("-") else "asc"
+    key = raw.lstrip("-")
+    if key not in SORTABLE_COLUMNS:
+        return qs.order_by(*default_ordering)
+
+    def directed(expr):
+        return expr.desc() if direction == "desc" else expr.asc()
+
+    def directed_nulls_last(field_name):
+        f = F(field_name)
+        return f.desc(nulls_last=True) if direction == "desc" else f.asc(nulls_last=True)
+
+    if key == "id":
+        # Group by project first so cross-project lists (All Tasks)
+        # keep ``AUD-1, AUD-2 … AUD-205, MYP-1, MYP-2 …`` instead of
+        # interleaving identical numbers from different projects.
+        # Within a single project the secondary key is the only thing
+        # that matters.
+        clauses = [directed(F("project__slug_prefix")), directed(F("number"))]
+    elif key == "title":
+        clauses = [directed(Lower("title"))]
+    elif key == "status":
+        clauses = [directed(_STATUS_ORDER), "-priority", "-updated_at"]
+    elif key == "priority":
+        clauses = [_PRIORITY_NOPRIO_LAST.asc(), directed(F("priority")), "-updated_at"]
+    elif key == "size":
+        clauses = [directed_nulls_last("size"), "-updated_at"]
+    elif key == "assignee":
+        # Compound name sort: surname-style alphabetical, unassigned last.
+        if direction == "desc":
+            clauses = [
+                F("assignee__first_name").desc(nulls_last=True),
+                F("assignee__last_name").desc(nulls_last=True),
+                F("assignee__username").desc(nulls_last=True),
+            ]
+        else:
+            clauses = [
+                F("assignee__first_name").asc(nulls_last=True),
+                F("assignee__last_name").asc(nulls_last=True),
+                F("assignee__username").asc(nulls_last=True),
+            ]
+    elif key == "project":
+        clauses = [directed(Lower("project__name"))]
+    elif key == "due":
+        clauses = [directed_nulls_last("due_date"), "-priority"]
+    else:  # "updated"
+        clauses = [directed(F("updated_at"))]
+
+    return qs.order_by(*clauses)
 
 
 def filter_sidebar_context(

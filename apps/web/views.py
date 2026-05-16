@@ -27,7 +27,7 @@ from apps.labels.models import Label
 from apps.projects.models import Project, ProjectUpdate
 from apps.tasks.events import emit_task_diff_events, snapshot_task
 from apps.tasks.models import Task
-from apps.web.filters import apply_task_filters, filter_sidebar_context
+from apps.web.filters import apply_task_filters, apply_task_ordering, filter_sidebar_context
 from apps.workspaces.models import WorkspaceMember
 
 User = get_user_model()
@@ -104,11 +104,7 @@ def _my_work_sections(user, params):
         .select_related("project__workspace", "assignee", "reporter")
         .prefetch_related("labels")
     )
-    # ``apply_task_filters`` strips done tasks by default; My Work
-    # treats the recently-done section as part of the inbox layout, so
-    # pass ``default_show_done=True`` to keep them in unless the user
-    # has narrowed the ``status`` checkbox set explicitly.
-    base = apply_task_filters(base, params, request_user=user, default_show_done=True)
+    base = apply_task_filters(base, params, request_user=user)
     tasks = list(
         base.order_by(
             F("due_date").asc(nulls_last=True),
@@ -176,8 +172,9 @@ class AllTasksView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         """Filter the user's accessible tasks by querystring params."""
-        qs = _user_task_qs(self.request.user).order_by("-updated_at")
-        return apply_task_filters(qs, self.request.GET, request_user=self.request.user)
+        qs = _user_task_qs(self.request.user)
+        qs = apply_task_filters(qs, self.request.GET, request_user=self.request.user)
+        return apply_task_ordering(qs, self.request.GET)
 
     def get_context_data(self, **kwargs):
         """Attach filter sidebar context. Assignee lives in the top strip,
@@ -297,16 +294,20 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             Task.objects.filter(project=self.object)
             .select_related("assignee", "reporter", "parent", "project")
             .prefetch_related("labels")
-            .order_by("status", "-priority", "-updated_at")
         )
-        tasks = list(
-            apply_task_filters(
+        base = apply_task_filters(base, self.request.GET, request_user=self.request.user)
+        # Table view honors the ``?order=`` column click; kanban keeps a
+        # fixed status grouping so cards inside each column stay sorted
+        # by priority + recency regardless of the URL param.
+        if view_mode == "table":
+            base = apply_task_ordering(
                 base,
                 self.request.GET,
-                request_user=self.request.user,
-                default_show_done=True,
+                default_ordering=("status", "-priority", "-updated_at"),
             )
-        )
+        else:
+            base = base.order_by("status", "-priority", "-updated_at")
+        tasks = list(base)
         ctx["tasks"] = tasks
 
         columns = []

@@ -29,6 +29,62 @@ def url_replace(request, key, value):
     return params.urlencode()
 
 
+@register.simple_tag
+def sort_url(request, key):
+    """Build the ``?order=`` URL for clicking a sortable column header.
+
+    Cycles the column's state on each click: not-active → asc → desc →
+    not-active. All other querystring params (filters, view mode) are
+    preserved.
+
+    Args:
+        request: The active ``HttpRequest``.
+        key: Column key from ``apps.web.filters.SORTABLE_COLUMNS``.
+
+    Returns:
+        Relative URL with the new ``order`` querystring applied.
+    """
+    current = request.GET.get("order", "")
+    current_key = current.lstrip("-")
+    current_dir = "desc" if current.startswith("-") else "asc"
+
+    if current_key != key:
+        next_order = key
+    elif current_dir == "asc":
+        next_order = f"-{key}"
+    else:
+        next_order = ""
+
+    params = request.GET.copy()
+    if next_order:
+        params["order"] = next_order
+    else:
+        params.pop("order", None)
+    qs = params.urlencode()
+    return f"?{qs}" if qs else request.path
+
+
+@register.simple_tag
+def sort_indicator(request, key):
+    """Return ``↑``/``↓`` for the active sort column, empty otherwise.
+
+    Used inside sortable ``<th>`` blocks alongside the column label so
+    users can spot the current sort direction at a glance.
+
+    Args:
+        request: The active ``HttpRequest``.
+        key: Column key being rendered.
+
+    Returns:
+        ``"↑"`` if the column is sorted ascending, ``"↓"`` if descending,
+        ``""`` if this column is not the active sort.
+    """
+    current = request.GET.get("order", "")
+    if current.lstrip("-") != key:
+        return ""
+    return "↓" if current.startswith("-") else "↑"
+
+
 _EVENT_LABELS = {
     "task.created": _("created the task"),
     "task.status_changed": _("changed status"),

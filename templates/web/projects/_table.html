@@ -27,20 +27,56 @@ clip overflowing text with an ellipsis instead of widening.
     </colgroup>
     <thead class="bg-zinc-900/60 text-zinc-400 text-xs uppercase tracking-wider">
       <tr>
-        <th class="text-left px-3 py-2 font-medium">{% trans "ID" %}</th>
-        <th class="text-left px-3 py-2 font-medium">{% trans "Title" %}</th>
-        <th class="text-left px-3 py-2 font-medium">{% trans "Status" %}</th>
-        <th class="text-left px-3 py-2 font-medium">{% trans "Priority" %}</th>
-        <th class="text-left px-3 py-2 font-medium">{% trans "Size" %}</th>
+        <th class="text-left px-3 py-2 font-medium">
+          <a href="{% sort_url request 'id' %}" class="hover:text-zinc-200 inline-flex items-center gap-1">
+            {% trans "ID" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'id' %}</span>
+          </a>
+        </th>
+        <th class="text-left px-3 py-2 font-medium">
+          <a href="{% sort_url request 'title' %}" class="hover:text-zinc-200 inline-flex items-center gap-1">
+            {% trans "Title" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'title' %}</span>
+          </a>
+        </th>
+        <th class="text-left px-3 py-2 font-medium">
+          <a href="{% sort_url request 'status' %}" class="hover:text-zinc-200 inline-flex items-center gap-1">
+            {% trans "Status" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'status' %}</span>
+          </a>
+        </th>
+        <th class="text-left px-3 py-2 font-medium">
+          <a href="{% sort_url request 'priority' %}" class="hover:text-zinc-200 inline-flex items-center gap-1">
+            {% trans "Priority" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'priority' %}</span>
+          </a>
+        </th>
+        <th class="text-left px-3 py-2 font-medium">
+          <a href="{% sort_url request 'size' %}" class="hover:text-zinc-200 inline-flex items-center gap-1">
+            {% trans "Size" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'size' %}</span>
+          </a>
+        </th>
         {% if show_labels %}
         <th class="text-left px-3 py-2 font-medium">{% trans "Labels" %}</th>
         {% endif %}
-        <th class="text-left px-3 py-2 font-medium">{% trans "Assignee" %}</th>
+        <th class="text-left px-3 py-2 font-medium">
+          <a href="{% sort_url request 'assignee' %}" class="hover:text-zinc-200 inline-flex items-center gap-1">
+            {% trans "Assignee" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'assignee' %}</span>
+          </a>
+        </th>
         {% if show_project %}
-        <th class="text-left px-3 py-2 font-medium">{% trans "Project" %}</th>
+        <th class="text-left px-3 py-2 font-medium">
+          <a href="{% sort_url request 'project' %}" class="hover:text-zinc-200 inline-flex items-center gap-1">
+            {% trans "Project" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'project' %}</span>
+          </a>
+        </th>
         {% endif %}
-        <th class="text-left px-3 py-2 font-medium">{% trans "Due" %}</th>
-        <th class="text-left px-3 py-2 font-medium">{% trans "Updated" %}</th>
+        <th class="text-left px-3 py-2 font-medium">
+          <a href="{% sort_url request 'due' %}" class="hover:text-zinc-200 inline-flex items-center gap-1">
+            {% trans "Due" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'due' %}</span>
+          </a>
+        </th>
+        <th class="text-left px-3 py-2 font-medium">
+          <a href="{% sort_url request 'updated' %}" class="hover:text-zinc-200 inline-flex items-center gap-1">
+            {% trans "Updated" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'updated' %}</span>
+          </a>
+        </th>
       </tr>
     </thead>
     <tbody class="divide-y divide-zinc-800">
