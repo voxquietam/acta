@@ -161,6 +161,32 @@ class TestMyWorkBucketing:
         assert "recent_done" in recent_titles
         assert "old_done" not in recent_titles
 
+    def test_status_filter_excludes_recently_done(self, client, setup):
+        """Picking specific statuses in the sidebar narrows the page —
+        ``?status=to-do`` keeps only to-do tasks, dropping the
+        recently-done section.
+        """
+        user, project = setup
+        TaskFactory(
+            project=project,
+            reporter=user,
+            assignee=user,
+            title="recent_done",
+            status=Task.STATUS_DONE,
+        )
+        TaskFactory(
+            project=project,
+            reporter=user,
+            assignee=user,
+            title="open_todo",
+            status=Task.STATUS_TODO,
+        )
+        client.force_login(user)
+        resp = client.get(reverse("web:my_work"), {"status": "to-do"})
+        ctx = resp.context["sections"]
+        recently = {t.title for t in _section(ctx, "recently_done")["tasks"]}
+        assert "recent_done" not in recently
+
     def test_overdue_excludes_done_tasks(self, client, setup):
         """A task past its due date but already closed shouldn't sit in
         Overdue — done goes to ``recently_done`` or out of view entirely."""

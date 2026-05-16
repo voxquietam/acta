@@ -10,14 +10,15 @@ the active-count badge in the header (and via the page-top
 strip for assignee / project). Single column with sections.
 
 Section order: search → status → priority → project → labels →
-workspace → show done. Project sits above labels so the long
-scrollable list doesn't push the small sections off the fold.
+workspace. Project sits above labels so the long scrollable list
+doesn't push the small sections off the fold. Done is a regular
+status checkbox; the page decides whether done is hidden by default
+via ``default_show_done`` passed to ``apply_task_filters``.
 
 Section visibility flags:
 * ``filter_hide_assignee`` — drop Assignee (handled by the top strip).
 * ``filter_hide_workspace`` — drop Workspace (only one workspace).
 * ``filter_hide_project`` — drop Project (page is scoped or hoisted).
-* ``filter_hide_show_done`` — drop Show-done toggle.
 {% endcomment %}
 <aside x-data="{ ready: false }"
        x-init="$nextTick(() => ready = true)"
@@ -227,21 +228,6 @@ Section visibility flags:
       </div>
       {% endif %}
 
-      {% if not filter_hide_show_done %}
-      <div class="pt-3 border-t border-zinc-800">
-        <label class="cursor-pointer flex items-center gap-2 text-zinc-300 text-[11px]">
-          <input type="checkbox" name="show_done" value="1"
-                 {% if show_done %}checked{% endif %}
-                 class="peer sr-only"
-                 onchange="this.form.requestSubmit()">
-          <span class="relative w-8 h-[18px] rounded-full bg-zinc-700 transition peer-checked:bg-brand-500
-                       after:content-[''] after:absolute after:top-[2px] after:left-[2px]
-                       after:w-[14px] after:h-[14px] after:bg-white after:rounded-full
-                       after:transition-transform peer-checked:after:translate-x-[14px]"></span>
-          {% trans "Show done" %}
-        </label>
-      </div>
-      {% endif %}
     </div>
   </form>
 </aside>

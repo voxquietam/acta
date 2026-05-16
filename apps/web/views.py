@@ -88,9 +88,10 @@ def _my_work_sections(user, params):
 
     Querystring filters (``params``) narrow the base queryset before
     bucketing — except the assignee filter, which is implicit (``me``).
-    The recently-done section is always included so that ``show_done``
-    behaves naturally: off → only recent done in its bucket; on →
-    done tasks also show up wherever ``status`` says.
+    Done tasks reach the queryset via the page's own
+    ``Q(status=DONE, updated_at>=cutoff)`` clause and are not stripped
+    by :func:`apply_task_filters` (``default_show_done=True``). If the
+    user picks specific statuses in the sidebar, those override.
     """
     today = timezone.localdate()
     week_end = today + datetime.timedelta(days=6)
@@ -104,12 +105,10 @@ def _my_work_sections(user, params):
         .prefetch_related("labels")
     )
     # ``apply_task_filters`` strips done tasks by default; My Work
-    # always wants the recently-done section, so force-allow done
-    # unless the user's explicit status filter excludes it.
-    forced_params = params.copy()
-    if not forced_params.get("show_done"):
-        forced_params["show_done"] = "1"
-    base = apply_task_filters(base, forced_params, request_user=user)
+    # treats the recently-done section as part of the inbox layout, so
+    # pass ``default_show_done=True`` to keep them in unless the user
+    # has narrowed the ``status`` checkbox set explicitly.
+    base = apply_task_filters(base, params, request_user=user, default_show_done=True)
     tasks = list(
         base.order_by(
             F("due_date").asc(nulls_last=True),
@@ -212,7 +211,6 @@ class MyWorkView(LoginRequiredMixin, TemplateView):
                 self.request,
                 hide_assignee=True,
                 hide_project=True,
-                hide_show_done=True,
                 htmx_target="#my-work-content",
             )
         )
@@ -330,7 +328,6 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
                 hide_assignee=True,
                 hide_workspace=True,
                 hide_project=True,
-                hide_show_done=True,
                 htmx_target="#project-view-panel",
                 preserved_params=["view"],
                 available_labels=list(

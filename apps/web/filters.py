@@ -24,14 +24,15 @@ def apply_task_filters(qs, params, *, request_user, default_show_done=False):
         request_user: For the ``assignee=me`` filter shortcut.
         default_show_done: When True, done tasks are NOT excluded by
             default — caller has to opt out via explicit ``status``.
-            All Tasks defaults False (hide done unless asked); per-
-            project Kanban and My Work default True (the page's
-            structure already shows done by design).
+            All Tasks defaults False (hide done unless an explicit
+            ``?status=done`` is chosen); per-project Kanban and My Work
+            default True (the page's structure already shows done by
+            design).
     """
     statuses = params.getlist("status")
     if statuses:
         qs = qs.filter(status__in=statuses)
-    elif not (params.get("show_done") or default_show_done):
+    elif not default_show_done:
         qs = qs.exclude(status=Task.STATUS_DONE)
 
     priorities = params.getlist("priority")
@@ -97,7 +98,6 @@ def filter_sidebar_context(
     hide_assignee=False,
     hide_workspace=False,
     hide_project=False,
-    hide_show_done=False,
     preserved_params=None,
     form_url=None,
     htmx_target=None,
@@ -151,7 +151,6 @@ def filter_sidebar_context(
     selected_workspaces = {int(w) for w in params.getlist("workspace") if w.isdigit()}
     selected_labels = {int(i) for i in params.getlist("label") if i.isdigit()}
     selected_assignees = set(params.getlist("assignee"))
-    show_done = params.get("show_done") == "1"
     q = params.get("q", "")
 
     active_filter_count = (
@@ -162,7 +161,6 @@ def filter_sidebar_context(
         + len(selected_workspaces)
         + len(selected_projects)
         + len(selected_labels)
-        + (1 if show_done else 0)
     )
 
     preserved_pairs = []
@@ -177,14 +175,12 @@ def filter_sidebar_context(
         "filter_hide_assignee": hide_assignee,
         "filter_hide_workspace": hide_workspace,
         "filter_hide_project": hide_project,
-        "filter_hide_show_done": hide_show_done,
         "selected_statuses": selected_statuses,
         "selected_priorities": selected_priorities,
         "selected_projects": selected_projects,
         "selected_workspaces": selected_workspaces,
         "selected_labels": selected_labels,
         "selected_assignees": selected_assignees,
-        "show_done": show_done,
         "q": q,
         "available_projects": available_projects,
         "available_workspaces": available_workspaces,

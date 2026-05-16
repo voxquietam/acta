@@ -74,11 +74,11 @@ class TestAllTasksFilters:
         assert "t-todo" in body
         assert "t-done" not in body
 
-    def test_show_done_param_includes_done(self, client, setup):
+    def test_status_done_param_includes_done(self, client, setup):
         user, _, _, p1, _ = setup
         TaskFactory(project=p1, reporter=user, title="t-done", status=Task.STATUS_DONE)
         client.force_login(user)
-        resp = client.get(reverse("web:all_tasks") + "?show_done=1")
+        resp = client.get(reverse("web:all_tasks") + "?status=done")
         assert "t-done" in resp.content.decode()
 
     def test_assignee_me(self, client, setup):
