@@ -50,21 +50,19 @@ Both icons are hydrated by Lucide on page load and toggled via Alpine
 
 {% block app_main %}
 {% comment %}
-Two-column grid on xl+: description (1fr) and right rail (22rem). The
-description block uses ``max-w-3xl mx-auto`` so it sits centered inside
-its column — and with ``gap-0`` the empty space on each side of the
-description ends up symmetric: same distance from the app sidebar's
-right edge to the description as from the description to the rail's
-left edge. The rail's own panel padding provides the visual breathing
-room between the two. Single column on smaller screens (rail stacks
-below).
+Two-column grid on xl+: description (1fr) and right rail (22rem).
+``max-w-2xl`` on the description block keeps it readable on wide
+screens while leaving enough room for the 22rem rail at the narrow
+end of the xl breakpoint (around 1280px). Previously ``max-w-3xl``
+(768px) overflowed into the rail when the left column was ≈672px
+wide. Single column on smaller screens (rail stacks below).
 {% endcomment %}
 <div class="xl:grid xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start"
      data-workspace-sse="/events/workspace/{{ task.project.workspace.id }}"
      data-current-user-id="{{ request.user.id }}">
 
   <div class="min-w-0">
-   <div class="max-w-3xl mx-auto w-full space-y-6">
+   <div class="max-w-2xl mx-auto w-full space-y-6">
 
     {% comment %}
     Title + description wrappers carry their own ``hx-trigger="refresh"``
@@ -98,7 +96,7 @@ below).
         {% blocktrans count counter=subtasks|length %}Subtask{% plural %}Subtasks{% endblocktrans %}
         ({{ subtasks|length }})
       </div>
-      <ul class="space-y-1 bg-zinc-900 border border-zinc-800 rounded-lg p-2 max-w-3xl">
+      <ul class="space-y-1 bg-zinc-900 border border-zinc-800 rounded-lg p-2 max-w-2xl">
         {% for sub in subtasks %}
         <li>
           <a href="{% url 'web:task_detail' slug_prefix=sub.project.slug_prefix number=sub.number %}"
@@ -133,7 +131,7 @@ below).
       its inner HTML.
       {% endcomment %}
       <ul id="comment-list"
-          class="space-y-3 max-w-3xl"
+          class="space-y-3 max-w-2xl"
           data-comments-for-task="{{ task.id }}"
           hx-get="{% url 'web:task_comments_fragment' slug_prefix=task.project.slug_prefix number=task.number %}"
           hx-trigger="refresh"
