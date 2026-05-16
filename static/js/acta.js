@@ -354,6 +354,17 @@
       },
     });
 
+    // Main app sidebar (left nav). Stored as a single boolean —
+    // ``acta:sidebar_open=false`` collapses the sidebar into a thin
+    // re-open button in the topbar; default true.
+    window.Alpine.store("sidebar", {
+      open: localStorage.getItem("acta:sidebar_open") !== "false",
+      toggle() {
+        this.open = !this.open;
+        localStorage.setItem("acta:sidebar_open", this.open);
+      },
+    });
+
     // Kanban-column collapsed/expanded state. Each entry is a status
     // key (``planned`` / ``to-do`` / …) the user has chosen to fold
     // into a narrow vertical strip. Persisted as a JSON array so the
