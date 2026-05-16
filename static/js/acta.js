@@ -353,5 +353,42 @@
         localStorage.setItem("filtersOpen", this.open);
       },
     });
+
+    // Kanban-column collapsed/expanded state. Each entry is a status
+    // key (``planned`` / ``to-do`` / …) the user has chosen to fold
+    // into a narrow vertical strip. Persisted as a JSON array so the
+    // preference survives navigations and project switches. First-
+    // time visitors get ``planned`` folded by default — it's typically
+    // a long tail of speculative tasks that distracts from active work.
+    const rawCollapsed = localStorage.getItem("acta:kanban_collapsed");
+    let collapsed;
+    if (rawCollapsed === null) {
+      collapsed = ["planned"];
+    } else {
+      try {
+        const parsed = JSON.parse(rawCollapsed);
+        collapsed = Array.isArray(parsed) ? parsed : [];
+      } catch (_) {
+        collapsed = [];
+      }
+    }
+    window.Alpine.store("kanban", {
+      collapsed: new Set(collapsed),
+      isCollapsed(key) {
+        return this.collapsed.has(key);
+      },
+      toggle(key) {
+        if (this.collapsed.has(key)) {
+          this.collapsed.delete(key);
+        } else {
+          this.collapsed.add(key);
+        }
+        try {
+          localStorage.setItem("acta:kanban_collapsed", JSON.stringify([...this.collapsed]));
+        } catch (_) {
+          /* localStorage full / disabled — preference is session-only */
+        }
+      },
+    });
   });
 })();

@@ -6,12 +6,75 @@ issues a PATCH to /api/v1/tasks/<id>/ with the new status.
 {% endcomment %}
 <div id="kanban" class="flex gap-3 overflow-x-auto pb-3">
   {% for col in columns %}
-  <div class="w-72 shrink-0 bg-zinc-900/50 border border-zinc-800 rounded-lg flex flex-col max-h-[calc(100vh-12rem)]">
-    <div class="px-3 py-2 border-b border-zinc-800 flex items-center justify-between text-xs uppercase tracking-wider">
-      <span class="text-zinc-300">{{ col.label }}</span>
-      <span class="text-zinc-500" data-column-count>{{ col.tasks|length }}</span>
-    </div>
-    <div class="flex-1 overflow-y-auto p-2 space-y-2 kanban-column" data-status="{{ col.key }}">
+  {% comment %}
+  Each column is collapsible: click the header toggles between full
+  width (``w-72``) and a narrow strip (``w-10``) where the label is
+  rotated vertically. Preference is per-status, persisted in
+  ``localStorage`` via the ``kanban`` Alpine store so the choice
+  survives navigation. Cards inside a collapsed column are hidden
+  but drag-and-drop still works (sortable.js keeps the column as a
+  drop target so users can drop a card into a folded Done).
+  {% endcomment %}
+  {% comment %}
+  Column accent colours match the status palette used in
+  ``_status_cell.html`` (top border + small dot in the header). The
+  background stays neutral so cards remain the visual focus.
+  {% endcomment %}
+  <div x-data
+       :class="$store.kanban.isCollapsed('{{ col.key }}') ? 'w-10 self-start h-72' : 'w-72 max-h-[calc(100vh-12rem)]'"
+       class="shrink-0 bg-zinc-900/50 border border-zinc-800 border-t-2 rounded-lg flex flex-col overflow-hidden
+         {% if col.key == 'planned' %}border-t-zinc-500
+         {% elif col.key == 'to-do' %}border-t-blue-500
+         {% elif col.key == 'in-progress' %}border-t-violet-500
+         {% elif col.key == 'in-review' %}border-t-amber-500
+         {% elif col.key == 'done' %}border-t-emerald-500{% endif %}">
+
+    <button type="button"
+            @click="$store.kanban.toggle('{{ col.key }}')"
+            :title="$store.kanban.isCollapsed('{{ col.key }}') ? '{% trans 'Expand column' %}' : '{% trans 'Collapse column' %}'"
+            :class="$store.kanban.isCollapsed('{{ col.key }}') ? 'flex-1' : 'shrink-0 border-b border-zinc-800'"
+            class="px-3 py-2 text-xs uppercase tracking-wider hover:bg-zinc-800/50 transition">
+      <div x-show="!$store.kanban.isCollapsed('{{ col.key }}')"
+           x-cloak
+           class="flex items-center justify-between">
+        <span class="flex items-center gap-1.5 text-zinc-300">
+          <span class="w-1.5 h-1.5 rounded-full
+            {% if col.key == 'planned' %}bg-zinc-500
+            {% elif col.key == 'to-do' %}bg-blue-500
+            {% elif col.key == 'in-progress' %}bg-violet-500
+            {% elif col.key == 'in-review' %}bg-amber-500
+            {% elif col.key == 'done' %}bg-emerald-500{% endif %}"></span>
+          {{ col.label }}
+        </span>
+        <span class="text-zinc-500" data-column-count>{{ col.tasks|length }}</span>
+      </div>
+      <div x-show="$store.kanban.isCollapsed('{{ col.key }}')"
+           x-cloak
+           class="flex flex-col items-center gap-1.5 py-1">
+        <span class="text-zinc-500 text-[10px]" data-column-count>{{ col.tasks|length }}</span>
+        <span class="w-1.5 h-1.5 rounded-full
+          {% if col.key == 'planned' %}bg-zinc-500
+          {% elif col.key == 'to-do' %}bg-blue-500
+          {% elif col.key == 'in-progress' %}bg-violet-500
+          {% elif col.key == 'in-review' %}bg-amber-500
+          {% elif col.key == 'done' %}bg-emerald-500{% endif %}"></span>
+        <span class="text-zinc-300 whitespace-nowrap" style="writing-mode: vertical-rl; transform: rotate(180deg);">
+          {{ col.label }}
+        </span>
+      </div>
+    </button>
+
+    {% comment %}
+    Body shrinks to zero when folded (``x-show`` removes it from
+    flow), so the column collapses to just the header height instead
+    of stretching the full kanban max-height. ``x-cloak`` keeps the
+    cards hidden on first paint until Alpine decides whether the
+    column is folded.
+    {% endcomment %}
+    <div class="flex-1 min-h-0 overflow-y-auto p-2 space-y-2 kanban-column"
+         data-status="{{ col.key }}"
+         x-show="!$store.kanban.isCollapsed('{{ col.key }}')"
+         x-cloak>
       <div class="empty-placeholder text-xs text-zinc-600 italic px-2 py-3 text-center">
         {% trans "empty" %}
       </div>
