@@ -12,19 +12,30 @@ scrollbar, edge fades, ``+N`` counters absolutely positioned.
   <div class="relative flex-1 min-w-0" data-strip-wrap>
     <div class="flex gap-1 overflow-x-auto py-0.5 -my-0.5 scrollbar-none" data-strip>
       {% for p in available_projects %}
-      <label x-data="{ selected: {% if p.id in selected_projects %}true{% else %}false{% endif %} }"
-             :class="selected ? 'bg-brand-500/15' : ''"
+      <label x-data="{ state: '{% if p.id in excluded_projects %}excluded{% elif p.id in selected_projects %}included{% else %}none{% endif %}' }"
+             :class="{
+               'bg-brand-500/15': state === 'included',
+               'bg-rose-500/15': state === 'excluded',
+             }"
              class="strip-chip group inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded-full cursor-pointer shrink-0 hover:bg-zinc-800/50 transition"
              data-strip-chip
-             title="{{ p.workspace.name }} / {{ p.name }}">
-        <input type="checkbox" name="project" value="{{ p.id }}"
+             title="{{ p.workspace.name }} / {{ p.name }} — {% trans 'click to include, right-click to exclude.' %}"
+             @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $nextTick(() => document.getElementById('filter-form').requestSubmit())">
+        <input type="checkbox"
+               :name="state === 'excluded' ? 'xproject' : 'project'"
+               value="{{ p.id }}"
                form="filter-form"
-               {% if p.id in selected_projects %}checked{% endif %}
+               :checked="state !== 'none'"
                class="sr-only"
-               @change="selected = $event.target.checked; $event.target.form.requestSubmit()">
+               @change.stop="state = $event.target.checked ? 'included' : 'none'; $event.target.form.requestSubmit()">
         <span class="font-mono text-[10px] shrink-0 transition"
-              :class="selected ? 'text-brand-300' : 'text-zinc-500'">{{ p.slug_prefix }}</span>
-        <span class="text-xs text-zinc-300 whitespace-nowrap pr-1">{{ p.name }}</span>
+              :class="{
+                'text-brand-300': state === 'included',
+                'text-rose-300': state === 'excluded',
+                'text-zinc-500': state === 'none',
+              }">{{ p.slug_prefix }}</span>
+        <span class="text-xs whitespace-nowrap pr-1"
+              :class="state === 'excluded' ? 'text-rose-300 line-through' : 'text-zinc-300'">{{ p.name }}</span>
       </label>
       {% endfor %}
     </div>

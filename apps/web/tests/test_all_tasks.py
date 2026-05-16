@@ -181,6 +181,61 @@ class TestAllTasksFilters:
 
 
 @pytest.mark.django_db
+class TestAllTasksExcludeFilters:
+    """Right-click exclude flow — querystring uses ``x<field>=<value>``."""
+
+    def test_xstatus_drops_matching_status(self, client, setup):
+        user, _, _, p1, _ = setup
+        TaskFactory(project=p1, reporter=user, title="t-todo", status=Task.STATUS_TODO)
+        TaskFactory(project=p1, reporter=user, title="t-done", status=Task.STATUS_DONE)
+        client.force_login(user)
+        body = client.get(reverse("web:all_tasks") + "?xstatus=done").content.decode()
+        assert "t-todo" in body
+        assert "t-done" not in body
+
+    def test_xpriority_drops_matching_priority(self, client, setup):
+        user, _, _, p1, _ = setup
+        TaskFactory(project=p1, reporter=user, title="t-urgent", priority=Task.URGENT, status=Task.STATUS_TODO)
+        TaskFactory(project=p1, reporter=user, title="t-low", priority=Task.LOW, status=Task.STATUS_TODO)
+        client.force_login(user)
+        body = client.get(reverse("web:all_tasks") + "?xpriority=1").content.decode()
+        assert "t-low" in body
+        assert "t-urgent" not in body
+
+    def test_xlabel_drops_tasks_carrying_label(self, client, setup):
+        user, _, _, p1, _ = setup
+        kill_label = LabelFactory(workspace=p1.workspace, name="kill")
+        t_kill = TaskFactory(project=p1, reporter=user, title="has-kill", status=Task.STATUS_TODO)
+        t_kill.labels.add(kill_label)
+        TaskFactory(project=p1, reporter=user, title="clean", status=Task.STATUS_TODO)
+        client.force_login(user)
+        body = client.get(reverse("web:all_tasks") + f"?xlabel={kill_label.id}").content.decode()
+        assert "clean" in body
+        assert "has-kill" not in body
+
+    def test_xassignee_drops_own_tasks(self, client, setup):
+        user, _, _, p1, _ = setup
+        TaskFactory(project=p1, reporter=user, assignee=user, title="mine", status=Task.STATUS_TODO)
+        TaskFactory(project=p1, reporter=user, assignee=None, title="nobody", status=Task.STATUS_TODO)
+        client.force_login(user)
+        body = client.get(reverse("web:all_tasks") + "?xassignee=me").content.decode()
+        assert "nobody" in body
+        assert "mine" not in body
+
+    def test_include_and_exclude_combine(self, client, setup):
+        """``?status=todo&xpriority=1`` keeps todo but drops urgent ones."""
+        user, _, _, p1, _ = setup
+        TaskFactory(project=p1, reporter=user, title="t-todo-urgent", priority=Task.URGENT, status=Task.STATUS_TODO)
+        TaskFactory(project=p1, reporter=user, title="t-todo-low", priority=Task.LOW, status=Task.STATUS_TODO)
+        TaskFactory(project=p1, reporter=user, title="t-prog-low", priority=Task.LOW, status=Task.STATUS_IN_PROGRESS)
+        client.force_login(user)
+        body = client.get(reverse("web:all_tasks") + "?status=to-do&xpriority=1").content.decode()
+        assert "t-todo-low" in body
+        assert "t-todo-urgent" not in body
+        assert "t-prog-low" not in body
+
+
+@pytest.mark.django_db
 class TestAllTasksOrdering:
     """``?order=`` applies the smart per-column sort."""
 

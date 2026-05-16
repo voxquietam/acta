@@ -16,38 +16,59 @@ via ``form=`` and submits through the existing HTMX pipeline.
   <div class="relative flex-1 min-w-0" data-strip-wrap>
     <div class="flex gap-1 overflow-x-auto py-0.5 -my-0.5 scrollbar-none" data-strip>
 
-      <label x-data="{ selected: {% if 'unassigned' in selected_assignees %}true{% else %}false{% endif %} }"
-             :class="selected ? 'bg-brand-500/15' : ''"
+      <label x-data="{ state: '{% if 'unassigned' in excluded_assignees %}excluded{% elif 'unassigned' in selected_assignees %}included{% else %}none{% endif %}' }"
+             :class="{
+               'bg-brand-500/15': state === 'included',
+               'bg-rose-500/15': state === 'excluded',
+             }"
              class="strip-chip group inline-flex items-center gap-1.5 px-1 py-0.5 rounded-full cursor-pointer shrink-0 hover:bg-zinc-800/50 transition"
-             data-strip-chip>
-        <input type="checkbox" name="assignee" value="unassigned"
+             title="{% trans 'Click to include, right-click to exclude.' %}"
+             data-strip-chip
+             @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $nextTick(() => document.getElementById('filter-form').requestSubmit())">
+        <input type="checkbox"
+               :name="state === 'excluded' ? 'xassignee' : 'assignee'"
+               value="unassigned"
                form="filter-form"
-               {% if "unassigned" in selected_assignees %}checked{% endif %}
+               :checked="state !== 'none'"
                class="sr-only"
-               @change="selected = $event.target.checked; $event.target.form.requestSubmit()">
+               @change.stop="state = $event.target.checked ? 'included' : 'none'; $event.target.form.requestSubmit()">
         <span class="w-6 h-6 rounded-full border border-dashed border-zinc-600 grid place-items-center text-[10px] text-zinc-500 shrink-0 transition"
-              :class="selected ? 'ring-2 ring-brand-400' : ''">?</span>
-        <span class="text-xs text-zinc-300 whitespace-nowrap pr-1">{% trans "Unassigned" %}</span>
+              :class="{
+                'ring-2 ring-brand-400': state === 'included',
+                'ring-2 ring-rose-400': state === 'excluded',
+              }">?</span>
+        <span class="text-xs whitespace-nowrap pr-1"
+              :class="state === 'excluded' ? 'text-rose-300 line-through' : 'text-zinc-300'">{% trans "Unassigned" %}</span>
       </label>
 
       {% for u in available_assignees %}
       {% with sel=u.id|stringformat:"s" %}
-      <label x-data="{ selected: {% if sel in selected_assignees %}true{% else %}false{% endif %} }"
-             :class="selected ? 'bg-brand-500/15' : ''"
+      <label x-data="{ state: '{% if sel in excluded_assignees %}excluded{% elif sel in selected_assignees %}included{% else %}none{% endif %}' }"
+             :class="{
+               'bg-brand-500/15': state === 'included',
+               'bg-rose-500/15': state === 'excluded',
+             }"
              class="strip-chip group inline-flex items-center gap-1.5 px-1 py-0.5 rounded-full cursor-pointer shrink-0 hover:bg-zinc-800/50 transition"
              data-strip-chip
-             title="{{ u.display_name }}">
-        <input type="checkbox" name="assignee" value="{{ u.id }}"
+             title="{{ u.display_name }} — {% trans 'click to include, right-click to exclude.' %}"
+             @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $nextTick(() => document.getElementById('filter-form').requestSubmit())">
+        <input type="checkbox"
+               :name="state === 'excluded' ? 'xassignee' : 'assignee'"
+               value="{{ u.id }}"
                form="filter-form"
-               {% if sel in selected_assignees %}checked{% endif %}
+               :checked="state !== 'none'"
                class="sr-only"
-               @change="selected = $event.target.checked; $event.target.form.requestSubmit()">
+               @change.stop="state = $event.target.checked ? 'included' : 'none'; $event.target.form.requestSubmit()">
         <span class="w-6 h-6 rounded-full text-white grid place-items-center font-medium text-[10px] shrink-0 transition"
               style="background-color: {{ u.avatar_color }};"
-              :class="selected ? 'ring-2 ring-brand-400' : ''">
+              :class="{
+                'ring-2 ring-brand-400': state === 'included',
+                'ring-2 ring-rose-400': state === 'excluded',
+              }">
           {{ u.display_name|slice:":1"|upper }}
         </span>
-        <span class="text-xs text-zinc-300 whitespace-nowrap pr-1">
+        <span class="text-xs whitespace-nowrap pr-1"
+              :class="state === 'excluded' ? 'text-rose-300 line-through' : 'text-zinc-300'">
           {{ u.display_name }}{% if u == request.user %} <span class="text-zinc-500">({% trans "you" %})</span>{% endif %}
         </span>
       </label>

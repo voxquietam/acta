@@ -107,15 +107,121 @@ filter in a single query.
 of the sidebar's template variables. Three views call it with
 different ``hide_*`` flags:
 
-| Page          | hide_assignee | hide_workspace | hide_project | hide_show_done |
-|---------------|---------------|----------------|--------------|----------------|
-| All Tasks     | yes (in strip)| no             | no           | no             |
-| My Work       | yes (implicit me) | no         | yes (in strip)| yes (semantics)|
-| Per-project   | yes (in strip)| yes (scoped)   | yes (scoped) | yes (semantics)|
+| Page          | hide_assignee | hide_workspace | hide_project |
+|---------------|---------------|----------------|--------------|
+| All Tasks     | yes (in strip)| no             | no           |
+| My Work       | yes (implicit me) | no         | yes (in strip)|
+| Per-project   | yes (in strip)| yes (scoped)   | yes (scoped) |
 
-The helper also returns ``selected_*`` sets, ``available_*`` lists,
-and ``active_filter_count`` — used for the bright pill next to the
-"FILTERS" header so it's obvious how many filters are live.
+The helper also returns ``selected_*`` / ``excluded_*`` sets,
+``available_*`` lists, and ``active_filter_count`` — used for the
+bright pill next to the "FILTERS" header so it's obvious how many
+filters are live.
+
+### Tri-state filters: include + exclude via right-click
+
+Every multi-select chip in the sidebar and every chip in the
+page-top strips supports three states:
+
+- **none** (default) — chip not active.
+- **included** — left-click; corresponding ``?<field>=<value>`` adds
+  matching rows. Visually brand-tint background + brand-ring.
+- **excluded** — right-click (``@contextmenu.prevent``); corresponding
+  ``?x<field>=<value>`` drops matching rows. Visually rose-tint
+  background + rose-ring + line-through text.
+
+Per-chip Alpine state machine is the single source of truth:
+
+```html
+<label x-data="{ state: '{% if ... %}excluded{% elif ... %}included{% else %}none{% endif %}' }"
+       @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded';
+                              $nextTick(() => document.getElementById('filter-form').requestSubmit())">
+  <input type="checkbox"
+         :name="state === 'excluded' ? 'xstatus' : 'status'"
+         :checked="state !== 'none'"
+         @change.stop="state = $event.target.checked ? 'included' : 'none'; …">
+  …
+</label>
+```
+
+The input's ``name`` attribute is dynamic — Alpine swaps it between
+``status``/``xstatus`` so the form submits the right param without
+needing two inputs per chip.
+
+``apply_task_filters`` reads both shapes:
+
+```python
+statuses = params.getlist("status")
+if statuses:
+    qs = qs.filter(status__in=statuses)
+excluded_statuses = params.getlist("xstatus")
+if excluded_statuses:
+    qs = qs.exclude(status__in=excluded_statuses)
+```
+
+A one-line hint banner at the top of the sidebar plus the same text
+in each chip's ``title=`` tooltip telegraphs the right-click
+affordance — without it users miss the feature.
+
+For ``xlabel`` the implementation is a subquery: ``exclude(labels__id__in=…)``
+would drop a task if *any* of its labels matched; the intent is "drop
+tasks that carry this label at all", so we resolve the matching task
+ids in a subquery and ``.exclude(id__in=…)``.
+
+``xassignee`` reuses the same ``me`` / ``unassigned`` / ``<int>``
+parsing as the include path.
+
+### Smart per-column sort
+
+Clicking a column header in the table view sets ``?order=<key>`` (or
+``?order=-<key>`` for descending) and cycles asc → desc → none on each
+subsequent click. ``apps.web.filters.apply_task_ordering`` maps the
+key to a logical clause set:
+
+- **status** → ``Case(planned → 0, todo → 1, in-progress → 2, in-review → 3, done → 4)``
+  — workflow order rather than alphabetical.
+- **priority** → two-stage: a ``no-priority-last`` flag (always asc)
+  followed by ``priority`` field in the user's chosen direction.
+  ``NO_PRIORITY (0)`` always sinks to the bottom in both asc and desc;
+  meaningful priorities 1–4 sort urgent → low (asc) or low → urgent
+  (desc).
+- **title** / **project** → ``Lower(F("..."))`` for case-insensitive
+  alphabetical sort.
+- **assignee** → ``first_name``, ``last_name``, ``username`` with
+  ``nulls_last`` so unassigned tasks sink to the bottom both ways.
+- **id** → ``(project__slug_prefix, number)`` so cross-project lists
+  stay grouped by project (``AUD-1, AUD-2, … AUD-205, MYP-1, …``)
+  rather than interleaving identical per-project counters.
+- **size**, **due** → direct field with ``nulls_last``; ``-priority``
+  as secondary key on ``due`` so equal-deadline rows fall back to
+  urgency.
+- **updated** → ``F("updated_at")`` direct.
+
+Sort columns are whitelisted (``SORTABLE_COLUMNS``) so unknown keys
+fall back to the page default. Kanban view skips ``apply_task_ordering``
+and keeps the fixed ``(status, -priority, -updated_at)`` so column
+groupings stay coherent.
+
+Header template uses two simple template tags — ``{% sort_url request "key" %}``
+builds the next-state URL preserving every other querystring param,
+``{% sort_indicator request "key" %}`` returns ``↑`` / ``↓`` / ``""``
+for the active state.
+
+### Done shown by default — per-user setting later
+
+``apply_task_filters`` accepts ``default_show_done`` (default ``True``).
+Every page passes the default today, so done tasks are visible
+everywhere unless the user narrows the ``status`` filter. The flag is
+kept as a seam: future work will add a per-user ``hide_done_by_default``
+boolean on ``User`` plumbed through this argument, so a user who
+prefers an "only active work" list can flip it once in their settings
+and have it apply to All Tasks, per-project list, and My Work.
+
+The earlier "Show done" toggle in the sidebar was removed — it
+duplicated the existing status checkbox set (selecting only ``to-do``,
+``in-progress``, ``in-review`` is equivalent to "hide done"). The
+toggle pattern is reserved for the future Archive feature where it
+will gate an orthogonal axis.
 
 ### Sticky-stack for the in-sidebar project list
 
@@ -204,9 +310,17 @@ positioning math.
 ## Consequences
 
 - **Same form contract everywhere.** Adding a new filter dimension
-  is "render an input with ``name=foo`` somewhere inside or
-  associated with ``#filter-form``, add a handler to
-  ``apply_task_filters()``" — no new endpoints, no new HTMX paths.
+  is "render an input with ``name=foo`` (or ``x<foo>`` for exclude)
+  somewhere inside or associated with ``#filter-form``, add a handler
+  to ``apply_task_filters()``" — no new endpoints, no new HTMX paths.
+- **Exclude is symmetric to include.** Anywhere the UI exposes
+  ``name=foo`` via a chip it can also expose ``xfoo`` by swapping the
+  attribute on right-click; the backend handles both shapes the same
+  way.
+- **Sort is whitelist-driven.** New sortable columns require both a
+  case in ``apply_task_ordering`` and an entry in ``SORTABLE_COLUMNS``;
+  unknown keys silently fall back to the page default rather than
+  crashing.
 - **URL is the source of truth.** Browser back/forward, bookmarks,
   and link-sharing all work for free.
 - **Sidebar reactivity is local.** Each row's Alpine state is the

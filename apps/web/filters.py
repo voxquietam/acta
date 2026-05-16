@@ -19,6 +19,11 @@ from apps.tasks.models import Task
 def apply_task_filters(qs, params, *, request_user, default_show_done=True):
     """Apply querystring filters to a Task queryset.
 
+    Each field is handled by a focused helper so this function stays
+    flat and the per-field logic (include + exclude pair) is local.
+    Add a new filter dimension by adding a helper and one extra call
+    here.
+
     Args:
         qs: Base Task queryset (already scoped).
         params: ``request.GET``-like mapping with ``getlist``.
@@ -30,63 +35,116 @@ def apply_task_filters(qs, params, *, request_user, default_show_done=True):
             user can toggle "always hide done" once and for all in
             their settings.
     """
+    qs = _filter_status(qs, params, default_show_done=default_show_done)
+    qs = _filter_int_field(qs, params, field="priority", include="priority", exclude="xpriority")
+    qs = _filter_int_field(qs, params, field="project_id", include="project", exclude="xproject")
+    qs = _filter_int_field(
+        qs,
+        params,
+        field="project__workspace_id",
+        include="workspace",
+        exclude="xworkspace",
+    )
+    qs = _filter_assignee(qs, params, request_user)
+    qs = _filter_labels(qs, params)
+    qs = _filter_search(qs, params)
+    return qs
+
+
+def _filter_status(qs, params, *, default_show_done):
+    """Apply ``status`` / ``xstatus`` (logical workflow column)."""
     statuses = params.getlist("status")
     if statuses:
         qs = qs.filter(status__in=statuses)
     elif not default_show_done:
         qs = qs.exclude(status=Task.STATUS_DONE)
+    excluded = params.getlist("xstatus")
+    if excluded:
+        qs = qs.exclude(status__in=excluded)
+    return qs
 
-    priorities = params.getlist("priority")
-    if priorities:
-        try:
-            qs = qs.filter(priority__in=[int(p) for p in priorities])
-        except (TypeError, ValueError):
-            pass
 
-    project_ids = params.getlist("project")
-    if project_ids:
-        try:
-            qs = qs.filter(project_id__in=[int(p) for p in project_ids])
-        except (TypeError, ValueError):
-            pass
+def _filter_int_field(qs, params, *, field, include, exclude):
+    """Generic include/exclude pair for an integer-FK or enum column.
 
-    workspace_ids = params.getlist("workspace")
-    if workspace_ids:
-        try:
-            qs = qs.filter(project__workspace_id__in=[int(w) for w in workspace_ids])
-        except (TypeError, ValueError):
-            pass
+    Args:
+        qs: Queryset to narrow.
+        params: ``request.GET``-like mapping.
+        field: ORM field path (e.g. ``"priority"``, ``"project_id"``).
+        include: Querystring key for inclusion.
+        exclude: Querystring key for exclusion (``x<include>``).
+    """
+    ins = _safe_int_list(params.getlist(include))
+    if ins:
+        qs = qs.filter(**{f"{field}__in": ins})
+    outs = _safe_int_list(params.getlist(exclude))
+    if outs:
+        qs = qs.exclude(**{f"{field}__in": outs})
+    return qs
 
+
+def _assignee_q(values, request_user):
+    """Build a ``Q`` clause from a list of ``assignee`` querystring values."""
+    q = Q()
+    user_ids = []
+    for a in values:
+        if a == "me":
+            q |= Q(assignee=request_user)
+        elif a == "unassigned":
+            q |= Q(assignee__isnull=True)
+        else:
+            try:
+                user_ids.append(int(a))
+            except (TypeError, ValueError):
+                pass
+    if user_ids:
+        q |= Q(assignee_id__in=user_ids)
+    return q
+
+
+def _filter_assignee(qs, params, request_user):
+    """Apply ``assignee`` / ``xassignee`` with ``me`` / ``unassigned`` tokens."""
     assignees = params.getlist("assignee")
     if assignees:
-        q_assignee = Q()
-        user_ids = []
-        for a in assignees:
-            if a == "me":
-                q_assignee |= Q(assignee=request_user)
-            elif a == "unassigned":
-                q_assignee |= Q(assignee__isnull=True)
-            else:
-                try:
-                    user_ids.append(int(a))
-                except (TypeError, ValueError):
-                    pass
-        if user_ids:
-            q_assignee |= Q(assignee_id__in=user_ids)
-        qs = qs.filter(q_assignee)
+        qs = qs.filter(_assignee_q(assignees, request_user))
+    excluded = params.getlist("xassignee")
+    if excluded:
+        qs = qs.exclude(_assignee_q(excluded, request_user))
+    return qs
 
-    label_ids = params.getlist("label")
-    if label_ids:
-        try:
-            qs = qs.filter(labels__id__in=[int(i) for i in label_ids]).distinct()
-        except (TypeError, ValueError):
-            pass
 
+def _filter_labels(qs, params):
+    """Apply ``label`` / ``xlabel`` — exclude uses a subquery."""
+    ins = _safe_int_list(params.getlist("label"))
+    if ins:
+        qs = qs.filter(labels__id__in=ins).distinct()
+    outs = _safe_int_list(params.getlist("xlabel"))
+    if outs:
+        # Plain ``exclude(labels__id__in=...)`` drops a task if ANY of
+        # its labels matches; we want "drop tasks that carry this label
+        # at all". Resolve matching ids in a subquery first.
+        matching = Task.objects.filter(labels__id__in=outs).values_list("id", flat=True)
+        qs = qs.exclude(id__in=matching)
+    return qs
+
+
+def _filter_search(qs, params):
+    """Apply ``?q=`` full-text search over title + description."""
     q = (params.get("q") or "").strip()
     if q:
         qs = qs.filter(Q(title__icontains=q) | Q(description__icontains=q))
-
     return qs
+
+
+def _safe_int_list(raw_values):
+    """Parse a list of querystring values into ints, dropping non-numeric entries."""
+    out = []
+    for v in raw_values:
+        try:
+            out.append(int(v))
+        except (TypeError, ValueError):
+            pass
+    return out
 
 
 # Smart ordering rank for status: logical workflow order rather than
@@ -253,6 +311,17 @@ def filter_sidebar_context(
     selected_workspaces = {int(w) for w in params.getlist("workspace") if w.isdigit()}
     selected_labels = {int(i) for i in params.getlist("label") if i.isdigit()}
     selected_assignees = set(params.getlist("assignee"))
+
+    # Excluded sets: right-click on a chip toggles a value into one of
+    # these. Renders with a red strikethrough state; backend
+    # ``apply_task_filters`` translates them into ``.exclude(...)``.
+    excluded_statuses = set(params.getlist("xstatus"))
+    excluded_priorities = {int(p) for p in params.getlist("xpriority") if p.isdigit()}
+    excluded_projects = {int(p) for p in params.getlist("xproject") if p.isdigit()}
+    excluded_workspaces = {int(w) for w in params.getlist("xworkspace") if w.isdigit()}
+    excluded_labels = {int(i) for i in params.getlist("xlabel") if i.isdigit()}
+    excluded_assignees = set(params.getlist("xassignee"))
+
     q = params.get("q", "")
 
     active_filter_count = (
@@ -263,6 +332,12 @@ def filter_sidebar_context(
         + len(selected_workspaces)
         + len(selected_projects)
         + len(selected_labels)
+        + len(excluded_assignees)
+        + len(excluded_statuses)
+        + len(excluded_priorities)
+        + len(excluded_workspaces)
+        + len(excluded_projects)
+        + len(excluded_labels)
     )
 
     preserved_pairs = []
@@ -283,6 +358,12 @@ def filter_sidebar_context(
         "selected_workspaces": selected_workspaces,
         "selected_labels": selected_labels,
         "selected_assignees": selected_assignees,
+        "excluded_statuses": excluded_statuses,
+        "excluded_priorities": excluded_priorities,
+        "excluded_projects": excluded_projects,
+        "excluded_workspaces": excluded_workspaces,
+        "excluded_labels": excluded_labels,
+        "excluded_assignees": excluded_assignees,
         "q": q,
         "available_projects": available_projects,
         "available_workspaces": available_workspaces,
