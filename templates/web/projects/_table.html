@@ -186,10 +186,10 @@ clip overflowing text with an ellipsis instead of widening.
           {# Hover popover with full chips. #}
           <div class="hidden group-hover:flex absolute z-30 top-full left-2 mt-1 max-w-xs flex-wrap gap-1 p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg">
             {% for label in task.labels.all %}
-            <span class="text-[11px] px-1.5 py-0.5 rounded inline-flex items-center gap-1 whitespace-nowrap"
-                  style="background: linear-gradient({{ label.color }}22, {{ label.color }}22), rgb(24 24 27); border: 1px solid {{ label.color }}55;">
+            <span class="acta-label-pill text-[11px] px-1.5 py-0.5 rounded inline-flex items-center gap-1 whitespace-nowrap"
+                  style="--label-color: {{ label.color }};">
               <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background-color: {{ label.color }};"></span>
-              <span class="text-zinc-700 dark:text-zinc-300">{{ label.name }}</span>
+              <span>{{ label.name }}</span>
             </span>
             {% endfor %}
           </div>

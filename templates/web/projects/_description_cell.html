@@ -29,10 +29,18 @@ safety net for navigation-without-blur scenarios.
      data-description-editor
      data-baseline="{{ task.description|default:'' }}"
      data-placeholder="{% trans 'Write a description…' %}">
+  {% comment %}
+  ``hx-swap="none"`` — the editor already holds the canonical text in
+  the browser, so we don't ask the server for a fresh cell. The view
+  returns only the OOB activity list which slots in via
+  ``hx-swap-oob``. Re-rendering the cell would unmount TipTap,
+  collapse the wrapper height for a frame, and visibly scroll the
+  page. After a successful save the editor JS updates its baseline
+  so a follow-up blur with the same content doesn't re-submit.
+  {% endcomment %}
   <form action="{% url 'web:set_task_description' slug_prefix=task.project.slug_prefix number=task.number %}"
         hx-post="{% url 'web:set_task_description' slug_prefix=task.project.slug_prefix number=task.number %}"
-        hx-target="#description-cell"
-        hx-swap="outerHTML">
+        hx-swap="none">
     {% csrf_token %}
     <input type="hidden" name="description" value="{{ task.description|default:'' }}" data-editor-output>
     <textarea class="description-editor-source hidden" readonly>{{ task.description|default:'' }}</textarea>

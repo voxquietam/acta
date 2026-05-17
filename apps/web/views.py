@@ -936,7 +936,7 @@ def set_task_priority(request, slug_prefix, number):
 @require_POST
 @login_required
 def set_task_description(request, slug_prefix, number):
-    """Inline description change; returns the description-cell fragment.
+    """Inline description change; returns only the OOB activity list.
 
     Description is optional — an empty string is allowed (clears the
     description). No length cap beyond the model's ``TextField``. The
@@ -945,13 +945,24 @@ def set_task_description(request, slug_prefix, number):
     :func:`build_diff_events`, which only stores the old/new lengths
     — not the full text — to keep activity payloads bounded).
 
+    Unlike other inline edits this endpoint **does not** re-render the
+    description cell. The editor (TipTap) holds the canonical text in
+    the browser already — re-swapping the cell would unmount the
+    editor, briefly collapse the wrapper height, and visibly scroll
+    the page. The template pairs this with ``hx-swap="none"`` so the
+    only swap that actually happens is the OOB-mounted activity list.
+    The client-side editor JS updates its baseline after a successful
+    save so a second blur with the same value doesn't re-submit.
+
     Args:
         request: Django request carrying a ``description`` form field.
         slug_prefix: Project slug prefix from the URL.
         number: Task number within the project.
 
     Returns:
-        Rendered ``_description_cell.html`` with the updated task.
+        A response containing **only** the OOB-swapped activity list.
+        The form's ``hx-swap="none"`` means the activity is merged in
+        and the description cell DOM stays intact.
     """
     task = _get_user_task_or_404(request.user, slug_prefix, number)
     # Empty string is valid (clears the description). No strip — the
@@ -959,12 +970,17 @@ def set_task_description(request, slug_prefix, number):
     # be meaningful inside code blocks.
     new_description = request.POST.get("description", "")
     _apply_task_field_change(task, "description", new_description, request.user)
-    return _inline_edit_response(
-        request,
-        task,
-        "web/projects/_description_cell.html",
-        {"task": task},
+    activity_html = render_to_string(
+        "web/projects/_activity_oob.html",
+        {
+            "task": task,
+            "activity": _task_activity(task),
+            "status_labels": Task.STATUS_LABELS,
+            "priority_labels": dict(Task.PRIORITY_CHOICES),
+        },
+        request=request,
     )
+    return HttpResponse(activity_html)
 
 
 @require_POST
@@ -1173,13 +1189,11 @@ def set_project_description(request, slug_prefix):
     new_description = request.POST.get("description", "")
     project.description = new_description
     project.save(update_fields=["description"])
-    return HttpResponse(
-        render_to_string(
-            "web/projects/_overview_description.html",
-            {"project": project},
-            request=request,
-        ),
-    )
+    # Same trick as the task description endpoint — return 204 + no
+    # body and let the editor JS update its baseline. Re-rendering the
+    # cell would re-mount TipTap and cause the page-scroll hop Vox
+    # reported.
+    return HttpResponse(status=204)
 
 
 def _get_user_project_or_404(user, slug_prefix):

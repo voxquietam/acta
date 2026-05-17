@@ -90,7 +90,11 @@ function initEditor(root) {
     content: initialMarkdown,
     editorProps: {
       attributes: {
-        class: "prose prose-invert prose-sm max-w-none focus:outline-none min-h-[6rem]",
+        // ``prose-invert`` is gated on the dark mode class so the
+        // editor renders with dark text on the white surface in
+        // light mode (without this it inherits the invert palette
+        // both ways and shows pale-grey text on white).
+        class: "prose dark:prose-invert prose-sm max-w-none focus:outline-none min-h-[6rem]",
       },
     },
     onUpdate({ editor }) {
@@ -128,6 +132,10 @@ function initEditor(root) {
       if (current === baseline) {
         return;
       }
+      // Bump the baseline up-front so a quick second blur with the
+      // same text doesn't fire a duplicate save (the response itself
+      // doesn't re-render the cell — see the endpoint comment).
+      root.dataset.baseline = current;
       form.requestSubmit();
     },
   });

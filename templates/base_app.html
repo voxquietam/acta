@@ -114,7 +114,7 @@ Pages extend this and override the `app_main` block.
     <div class="px-3 py-3 border-t border-zinc-200 dark:border-zinc-800 text-xs text-zinc-500">
       <a href="/admin/"
          :class="!$store.sidebar.open && 'justify-center'"
-         class="acta-rail-link group relative flex items-center gap-2 hover:text-zinc-300">
+         class="acta-rail-link group relative flex items-center gap-2 hover:text-zinc-900 dark:hover:text-zinc-300">
         <i data-lucide="settings" class="w-3.5 h-3.5 shrink-0"></i>
         <span x-show="$store.sidebar.open" x-cloak>{% trans "Admin" %}</span>
         <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "Admin" %}</span>

@@ -441,13 +441,23 @@ class TestSetTaskDescription:
         task.refresh_from_db()
         assert task.description == ""
 
-    def test_response_fragment_with_oob_activity(self, client, setup):
+    def test_response_oob_activity_only(self, client, setup):
+        """Description save returns *only* the OOB activity fragment.
+
+        Re-rendering the description cell would force TipTap to
+        unmount and re-mount, causing a visible scroll hop on a long
+        task page (see the endpoint docstring for the rationale).
+        The editor JS bumps ``data-baseline`` client-side so the cell
+        stays in sync without a swap.
+        """
         user, project, task = setup
         client.force_login(user)
         resp = client.post(self._url(project, task), {"description": "New body"})
         body = resp.content.decode()
         assert "<html" not in body
-        assert 'id="description-cell"' in body
+        # Description cell HTML must NOT be in the response — only
+        # the OOB activity list is returned now.
+        assert 'id="description-cell"' not in body
         assert "hx-swap-oob" in body
 
     def test_cross_workspace_user_gets_404(self, client, setup):

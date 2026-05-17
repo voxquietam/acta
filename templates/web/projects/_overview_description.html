@@ -14,8 +14,7 @@ all work here without changes.
      data-placeholder="{% trans 'Write a description…' %}">
   <form action="{% url 'web:set_project_description' slug_prefix=project.slug_prefix %}"
         hx-post="{% url 'web:set_project_description' slug_prefix=project.slug_prefix %}"
-        hx-target="#project-description-cell"
-        hx-swap="outerHTML">
+        hx-swap="none">
     {% csrf_token %}
     <input type="hidden" name="description" value="{{ project.description|default:'' }}" data-editor-output>
     <textarea class="description-editor-source hidden" readonly>{{ project.description|default:'' }}</textarea>

@@ -331,9 +331,10 @@ html.dark .prose {
   color: rgb(24 24 27);               /* zinc-900 */
 }
 .acta-label-pill[data-state="on"] {
-  background-color: color-mix(in srgb, var(--label-color) 30%, white);
-  color: rgb(24 24 27);               /* zinc-900 */
+  background-color: var(--label-color);
+  color: white;
   border-color: var(--label-color);
+  box-shadow: 0 0 0 1px var(--label-color);
 }
 .dark .acta-label-pill {
   background-color: color-mix(in srgb, var(--label-color) 13%, rgb(24 24 27));
@@ -345,10 +346,11 @@ html.dark .prose {
   color: rgb(244 244 245);            /* zinc-100 */
 }
 .dark .acta-label-pill[data-state="on"] {
-  background-color: color-mix(in srgb, var(--label-color) 13%, rgb(24 24 27));
-  filter: brightness(1.5);
+  background-color: var(--label-color);
+  filter: none;
   color: white;
-  border-color: color-mix(in srgb, var(--label-color) 33%, transparent);
+  border-color: var(--label-color);
+  box-shadow: 0 0 0 1px var(--label-color);
 }
 .acta-label-pill-check {
   /* Reserved for a future explicit-on variant — currently brightness

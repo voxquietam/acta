@@ -30,11 +30,11 @@ zinc-500.
     {% if task.labels.all %}
     <div class="group/labels flex items-center pl-1.5">
       {% for label in task.labels.all|slice:":3" %}
-      <span class="text-[11px] px-1.5 py-0.5 rounded flex items-center gap-1 -ml-2 first:ml-0
+      <span class="acta-label-pill text-[11px] px-1.5 py-0.5 rounded flex items-center gap-1 -ml-2 first:ml-0
                    group-hover/labels:ml-1 group-hover/labels:first:ml-0 transition-[margin] duration-200"
-            style="background: linear-gradient({{ label.color }}22, {{ label.color }}22), rgb(24 24 27); border: 1px solid {{ label.color }}55;">
+            style="--label-color: {{ label.color }};">
         <span class="w-1.5 h-1.5 rounded-full" style="background-color: {{ label.color }};"></span>
-        <span class="text-zinc-700 dark:text-zinc-300">{{ label.name }}</span>
+        <span>{{ label.name }}</span>
       </span>
       {% endfor %}
       {% if task.labels.all|length > 3 %}

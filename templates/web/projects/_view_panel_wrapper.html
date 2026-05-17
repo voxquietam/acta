@@ -8,5 +8,12 @@ both sources point at.
 {% include "web/_filter_count_badges.html" with variant="collapsed" oob=True %}
 {% include "web/_filter_count_badges.html" with variant="expanded" oob=True %}
 <div id="project-view-panel">
-  {% include "web/projects/_view_panel.html" %}
+  {% comment %}
+  Pass ``allow_overview=True`` so HTMX swaps re-render the Overview
+  pane along with kanban/table/list. Without the flag the Overview
+  ``<div>`` is omitted from the partial, the page falls back to an
+  empty viewport when the user clicks the Overview tab afterwards,
+  and only a full reload restores it.
+  {% endcomment %}
+  {% include "web/projects/_view_panel.html" with allow_overview=True %}
 </div>

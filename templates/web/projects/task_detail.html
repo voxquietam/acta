@@ -5,11 +5,11 @@
 {% block title %}{{ task.slug }} · {{ task.title }} · Acta{% endblock %}
 
 {% block topbar_left %}
-<a href="{% url 'web:project_list' %}" class="text-zinc-500 hover:text-zinc-300 text-sm shrink-0">{% trans "Projects" %}</a>
-<span class="text-zinc-700 shrink-0">/</span>
+<a href="{% url 'web:project_list' %}" class="text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 text-sm shrink-0">{% trans "Projects" %}</a>
+<span class="text-zinc-300 dark:text-zinc-700 shrink-0">/</span>
 <a href="{% url 'web:project_detail' slug_prefix=task.project.slug_prefix %}"
-   class="text-zinc-500 hover:text-zinc-300 text-sm shrink-0">{{ task.project.slug_prefix }}</a>
-<span class="text-zinc-700 shrink-0">/</span>
+   class="text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 text-sm shrink-0">{{ task.project.slug_prefix }}</a>
+<span class="text-zinc-300 dark:text-zinc-700 shrink-0">/</span>
 <h1 class="text-base font-medium font-mono shrink-0
   {% if task.priority == 1 %}text-rose-400
   {% elif task.priority == 2 %}text-orange-400
@@ -32,7 +32,7 @@ Both icons are hydrated by Lucide on page load and toggled via Alpine
           @click="navigator.clipboard.writeText(window.location.href).then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
           :title="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy task link' %}'"
           :aria-label="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy task link' %}'"
-          class="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 transition">
+          class="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 transition">
     <i x-show="!copied" data-lucide="link-2" class="w-3.5 h-3.5"></i>
     <i x-show="copied" x-cloak data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i>
   </button>
@@ -41,7 +41,7 @@ Both icons are hydrated by Lucide on page load and toggled via Alpine
           @click="navigator.clipboard.writeText('{{ task.slug }}').then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
           :title="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy task ID' %}'"
           :aria-label="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy task ID' %}'"
-          class="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 transition">
+          class="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 transition">
     <i x-show="!copied" data-lucide="hash" class="w-3.5 h-3.5"></i>
     <i x-show="copied" x-cloak data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i>
   </button>
@@ -161,13 +161,13 @@ wide. Single column on smaller screens (rail stacks below).
 
     {# Jump links — visible only on lg+ where the rail is sticky #}
     <div class="hidden lg:flex flex-wrap gap-3 text-[11px] text-zinc-500">
-      <a href="#description" class="hover:text-zinc-300">{% trans "Description" %}</a>
+      <a href="#description" class="hover:text-zinc-900 dark:hover:text-zinc-300">{% trans "Description" %}</a>
       {% if subtasks %}
-      <a href="#subtasks" class="hover:text-zinc-300">
+      <a href="#subtasks" class="hover:text-zinc-900 dark:hover:text-zinc-300">
         {% trans "Subtasks" %} <span class="text-zinc-500 dark:text-zinc-600">{{ subtasks|length }}</span>
       </a>
       {% endif %}
-      <a href="#comments" class="hover:text-zinc-300">
+      <a href="#comments" class="hover:text-zinc-900 dark:hover:text-zinc-300">
         {% trans "Comments" %} <span class="text-zinc-500 dark:text-zinc-600">{{ comments|length }}</span>
       </a>
     </div>

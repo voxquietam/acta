@@ -58,7 +58,7 @@ required at the model level, so a silent restore beats a 400.
   <div class="text-xs text-zinc-500 mt-1">
     {% trans "Subtask of" %}
     <a href="{% url 'web:task_detail' slug_prefix=task.parent.project.slug_prefix number=task.parent.number %}"
-       class="hover:text-zinc-300">{{ task.parent.slug }} — {{ task.parent.title }}</a>
+       class="hover:text-zinc-900 dark:hover:text-zinc-300">{{ task.parent.slug }} — {{ task.parent.title }}</a>
   </div>
   {% endif %}
 </div>
