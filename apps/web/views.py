@@ -142,20 +142,27 @@ def _user_task_qs(user):
     All web endpoints scoped to a single task funnel through this so the
     membership check and select/prefetch are consistent.
 
+    Only fields needed by the *common* surfaces (table rows, kanban
+    cards, list view, inline edits, activity log) are eager-loaded:
+    ``project__workspace``, ``assignee``, labels. ``reporter`` and
+    ``parent`` are deliberately NOT joined here — they only appear on
+    the task-detail page (the rail's "reporter" line and the
+    "subtask of …" breadcrumb), which adds its own ``select_related``
+    after this base queryset. Skipping them shaves a join on the
+    high-traffic table render path.
+
     Args:
         user: The acting :class:`User`.
 
     Returns:
         A queryset filtered to the user's workspaces, eager-loading
-        project/workspace, assignee, reporter, parent and labels.
+        project/workspace, assignee, and labels (via prefetch).
     """
     return (
         Task.objects.filter(project__workspace__memberships__user=user)
         .select_related(
             "project__workspace",
             "assignee",
-            "reporter",
-            "parent",
         )
         .prefetch_related("labels")
     )
@@ -617,11 +624,19 @@ class TaskDetailView(LoginRequiredMixin, DetailView):
     template_name = "web/projects/task_detail.html"
 
     def get_object(self, queryset=None):
-        """Resolve the task by slug_prefix + number, 404 if foreign."""
-        return _get_user_task_or_404(
-            self.request.user,
-            self.kwargs["slug_prefix"],
-            self.kwargs["number"],
+        """Resolve the task by slug_prefix + number, 404 if foreign.
+
+        Adds ``reporter`` and ``parent`` to the base queryset's
+        ``select_related`` — both appear on this page (rail's
+        "reporter" line and the "subtask of …" breadcrumb in the
+        title cell). The base ``_user_task_qs`` omits them so the
+        common table / kanban / list views don't pay for joins they
+        never use.
+        """
+        return get_object_or_404(
+            _user_task_qs(self.request.user).select_related("reporter", "parent"),
+            project__slug_prefix=self.kwargs["slug_prefix"],
+            number=self.kwargs["number"],
         )
 
     def get_context_data(self, **kwargs):
@@ -645,8 +660,17 @@ class TaskDetailView(LoginRequiredMixin, DetailView):
 
 @login_required
 def task_title_fragment(request, slug_prefix, number):
-    """Render the title cell HTML for one task — SSE-triggered refresh."""
-    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    """Render the title cell HTML for one task — SSE-triggered refresh.
+
+    Adds ``parent`` to the queryset because ``_title_cell.html`` shows
+    the "subtask of <parent>" link and would otherwise lazy-load it on
+    render.
+    """
+    task = get_object_or_404(
+        _user_task_qs(request.user).select_related("parent"),
+        project__slug_prefix=slug_prefix,
+        number=number,
+    )
     return HttpResponse(
         render_to_string(
             "web/projects/_title_cell.html",
@@ -704,8 +728,16 @@ def task_meta_fragment(request, slug_prefix, number):
     when a peer changes ``status / priority / assignee / due_date /
     labels / size``, the rail refreshes itself without a full page
     reload. See ADR 0015.
+
+    ``reporter`` is added to the queryset because the rail prints the
+    reporter's display name; without the join it lazy-loads at render
+    time.
     """
-    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    task = get_object_or_404(
+        _user_task_qs(request.user).select_related("reporter"),
+        project__slug_prefix=slug_prefix,
+        number=number,
+    )
     return HttpResponse(
         render_to_string(
             "web/projects/_task_meta.html",
