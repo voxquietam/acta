@@ -4,6 +4,8 @@
 {# Single task card used inside a kanban column. #}
 <a href="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
    data-task-id="{{ task.id }}"
+   data-task-slug="{{ task.slug }}"
+   data-task-title="{{ task.title }}"
    {% task_filter_attrs task %}
    class="block bg-card border border-border rounded-md p-2.5 hover:border-border-strong transition group cursor-grab active:cursor-grabbing">
   <div class="flex items-center gap-1.5 text-[11px]">

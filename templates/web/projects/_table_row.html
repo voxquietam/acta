@@ -11,6 +11,8 @@ in context.
 {% endcomment %}
 <tr class="acta-row hover:bg-muted/40"
     data-task-id="{{ task.id }}"
+    data-task-slug="{{ task.slug }}"
+    data-task-title="{{ task.title }}"
     {% task_filter_attrs task %}
     data-sort-id="{{ task.project.slug_prefix }}-{{ task.number|stringformat:"010d" }}"
     data-sort-title="{{ task.title|lower }}"

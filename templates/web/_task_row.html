@@ -10,6 +10,8 @@ zinc-500.
 {% endcomment %}
 <a href="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
    data-task-id="{{ task.id }}"
+   data-task-slug="{{ task.slug }}"
+   data-task-title="{{ task.title }}"
    {% task_filter_attrs task %}
    class="flex items-center gap-3 px-3 py-2 hover:bg-muted/60 text-sm">
 
