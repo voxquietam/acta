@@ -179,7 +179,12 @@ def get_item(mapping, key):
         return ""
     try:
         return mapping[key]
-    except (KeyError, TypeError):
+    except (KeyError, TypeError, IndexError):
+        # ``IndexError`` covers the edge case where ``mapping`` falls
+        # back to Django's default ``string_if_invalid`` empty string
+        # and ``key`` is an integer — ``"" [1]`` raises IndexError, not
+        # the usual KeyError. Treat any "no such entry" outcome the
+        # same way: render nothing.
         return ""
 
 

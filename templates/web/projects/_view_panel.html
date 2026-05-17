@@ -23,8 +23,16 @@ no extra HTTP requests fire on tab change. Tabs themselves live in
     {% include "web/projects/_table.html" with tasks=table_tasks|default:tasks show_labels=True %}
   </div>
 
-  <div x-show="$store.viewMode.current === 'list'" x-cloak class="flex-1 min-h-0 flex flex-col">
-    {% include "web/projects/_list_panel.html" %}
+  {% comment %}
+  List view body is the most expensive surface on All Tasks — five
+  group axes × N rows. Render only when the user is actually on the
+  list tab; otherwise leave an empty ``data-panel-slot="list"`` div
+  that ``acta.js`` lazy-fetches via ``?panel=list`` after first paint.
+  Switching to list from another view stays instant once the slot
+  is populated.
+  {% endcomment %}
+  <div x-show="$store.viewMode.current === 'list'" x-cloak data-panel-slot="list" class="flex-1 min-h-0 flex flex-col">
+    {% if view_mode == "list" %}{% include "web/projects/_list_panel.html" %}{% endif %}
   </div>
 
 </div>

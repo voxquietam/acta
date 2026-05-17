@@ -46,6 +46,45 @@
     },
   };
 
+  // Lazy-load alternate view bodies. Server renders only the active
+  // view (table / kanban / list) on initial response and leaves
+  // empty ``[data-panel-slot]`` placeholders for the rest. After the
+  // page settles we fire one ``htmx.ajax`` per empty slot with
+  // ``?panel=<key>``, which the server short-circuits to a single
+  // partial (much cheaper than rebuilding the whole page).
+  //
+  // The biggest win is on All Tasks where the list panel alone
+  // produces 5 axes × N rows of HTML; without this it doubles the
+  // first-paint time. Once loaded, switching tabs stays instant
+  // because all three panels live in the DOM.
+  function lazyLoadPanels() {
+    const slots = document.querySelectorAll("[data-panel-slot]");
+    slots.forEach((slot) => {
+      if (slot.children.length > 0) return; // already filled
+      if (slot.dataset.panelLoading === "true") return; // request in flight
+      const key = slot.dataset.panelSlot;
+      if (!key || !window.htmx) return;
+      const url = new URL(window.location.href);
+      url.searchParams.set("panel", key);
+      slot.dataset.panelLoading = "true";
+      window.htmx.ajax("GET", url.pathname + url.search, {
+        target: slot,
+        swap: "innerHTML",
+      });
+    });
+  }
+  // Run after initial paint settles, and after any HTMX swap that
+  // might bring back empty slots (filter form refresh swaps the
+  // whole panel wrapper).
+  document.body.addEventListener("htmx:afterSettle", () => {
+    setTimeout(lazyLoadPanels, 50);
+  });
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => setTimeout(lazyLoadPanels, 50));
+  } else {
+    setTimeout(lazyLoadPanels, 50);
+  }
+
   // Sidebar active-nav highlight. The sidebar element survives HTMX
   // boost navigation (only ``#app-content`` swaps), so Django's
   // template-time ``{% if current == "..." %}`` branch can't repaint
