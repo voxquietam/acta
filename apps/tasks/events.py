@@ -62,6 +62,7 @@ def snapshot_task(task: Task) -> dict[str, Any]:
         "parent_id": task.parent_id,
         "project_id": task.project_id,
         "number": task.number,
+        "archived_at": task.archived_at,
         "labels_ids": [label.id for label in task.labels.all()],
     }
 
@@ -169,6 +170,17 @@ def build_diff_events(
                     "from_task_id": old_state["parent_id"],
                     "to_task_id": task.parent_id,
                 },
+                **common,
+            ),
+        )
+
+    old_archived = old_state.get("archived_at")
+    new_archived = task.archived_at
+    if (old_archived is None) != (new_archived is None):
+        events.append(
+            ActivityLog(
+                event_type="task.archived" if new_archived is not None else "task.unarchived",
+                payload={},
                 **common,
             ),
         )

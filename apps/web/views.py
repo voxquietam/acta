@@ -1304,32 +1304,22 @@ def archive_task(request, slug_prefix, number):
 
     Sets ``Task.archived_at`` to ``now()`` to archive, or ``None`` to
     unarchive. The task's status is untouched so unarchive restores
-    the prior state. Emits a ``task.archived`` / ``task.unarchived``
-    activity event so the timeline tracks the action.
+    the prior state. The activity event (``task.archived`` /
+    ``task.unarchived``) and SSE broadcast both ride the standard diff
+    path so the kanban card refresh is consistent with every other
+    inline edit — see :func:`apps.tasks.events.emit_task_diff_events`.
     """
     task = _get_user_task_or_404(request.user, slug_prefix, number)
     unarchive = request.POST.get("unarchive") == "1"
     with transaction.atomic():
-        if unarchive:
-            if task.archived_at is None:
-                return HttpResponseBadRequest("task is not archived")
-            task.archived_at = None
-            event_type = "task.unarchived"
-        else:
-            if task.archived_at is not None:
-                return HttpResponseBadRequest("task is already archived")
-            task.archived_at = timezone.now()
-            event_type = "task.archived"
+        if unarchive and task.archived_at is None:
+            return HttpResponseBadRequest("task is not archived")
+        if not unarchive and task.archived_at is not None:
+            return HttpResponseBadRequest("task is already archived")
+        old_state = snapshot_task(task)
+        task.archived_at = None if unarchive else timezone.now()
         task.save(update_fields=["archived_at", "updated_at"])
-        log_event(
-            workspace=task.project.workspace,
-            project=task.project,
-            actor=request.user,
-            event_type=event_type,
-            target_type=ActivityLog.TARGET_TASK,
-            target_id=task.id,
-            payload={},
-        )
+        emit_task_diff_events(old_state=old_state, task=task, actor=request.user)
     return _inline_edit_response(
         request,
         task,

@@ -78,6 +78,43 @@ class TestBuildDiffEventsWatchedFields:
         e = next(e for e in events if e.event_type == "task.parent_changed")
         assert e.payload == {"from_task_id": None, "to_task_id": parent.id}
 
+    def test_archive_emits_task_archived(self):
+        from django.utils import timezone as tz
+
+        task = TaskFactory()
+        old = snapshot_task(task)
+        task.archived_at = tz.now()
+        task.save()
+        events = build_diff_events(old_state=old, task=task, actor=task.reporter)
+        assert "task.archived" in _event_types(events)
+
+    def test_unarchive_emits_task_unarchived(self):
+        from django.utils import timezone as tz
+
+        task = TaskFactory()
+        task.archived_at = tz.now()
+        task.save()
+        old = snapshot_task(task)
+        task.archived_at = None
+        task.save()
+        events = build_diff_events(old_state=old, task=task, actor=task.reporter)
+        assert "task.unarchived" in _event_types(events)
+
+    def test_archive_timestamp_bump_alone_emits_nothing(self):
+        """Two non-null archived_at values produce no diff event — the
+        archive *transition* is what matters, not the timestamp itself."""
+        from django.utils import timezone as tz
+
+        task = TaskFactory()
+        task.archived_at = tz.now() - dt.timedelta(days=1)
+        task.save()
+        old = snapshot_task(task)
+        task.archived_at = tz.now()
+        task.save()
+        events = build_diff_events(old_state=old, task=task, actor=task.reporter)
+        assert "task.archived" not in _event_types(events)
+        assert "task.unarchived" not in _event_types(events)
+
 
 @pytest.mark.django_db
 class TestBuildDiffEventsCatchAll:
