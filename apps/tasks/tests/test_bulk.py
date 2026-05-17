@@ -235,6 +235,60 @@ class TestBulkProjectMove:
 
 
 @pytest.mark.django_db
+class TestBulkArchive:
+    """Bulk archive / unarchive via the universal PATCH endpoint."""
+
+    def test_archive_batch_sets_archived_at_and_emits_events(self):
+        _, _, user, tasks = _seed_workspace_with_tasks(3)
+        ids = [t.id for t in tasks]
+        bulk_id, count = _run_bulk_update(user=user, ids=ids, updates={"archived": True})
+        assert count == 3
+        for t in tasks:
+            t.refresh_from_db()
+            assert t.archived_at is not None
+        events = ActivityLog.objects.filter(bulk_id=bulk_id, event_type="task.archived")
+        assert events.count() == 3
+
+    def test_unarchive_batch_clears_archived_at(self):
+        from django.utils import timezone as tz
+
+        _, _, user, tasks = _seed_workspace_with_tasks(2)
+        Task.objects.filter(id__in=[t.id for t in tasks]).update(archived_at=tz.now())
+        bulk_id, _ = _run_bulk_update(
+            user=user,
+            ids=[t.id for t in tasks],
+            updates={"archived": False},
+        )
+        for t in tasks:
+            t.refresh_from_db()
+            assert t.archived_at is None
+        events = ActivityLog.objects.filter(bulk_id=bulk_id, event_type="task.unarchived")
+        assert events.count() == 2
+
+    def test_archive_is_idempotent_no_duplicate_event(self):
+        """Re-archiving an already-archived task should be a no-op event-wise."""
+        from django.utils import timezone as tz
+
+        _, _, user, tasks = _seed_workspace_with_tasks(1)
+        Task.objects.filter(id=tasks[0].id).update(archived_at=tz.now())
+        bulk_id, _ = _run_bulk_update(user=user, ids=[tasks[0].id], updates={"archived": True})
+        events = ActivityLog.objects.filter(bulk_id=bulk_id, event_type="task.archived")
+        # Already archived → archived_at was non-null both before and
+        # after, so no diff event should fire. (archived_at is bumped
+        # to "now" again, but the boolean-ness — null vs not null —
+        # didn't change.)
+        assert events.count() == 0
+
+    def test_archived_rejects_non_bool(self):
+        _, _, user, tasks = _seed_workspace_with_tasks(1)
+        from apps.tasks.bulk import BulkUpdateSerializer
+
+        s = BulkUpdateSerializer(data={"ids": [tasks[0].id], "updates": {"archived": "yes"}})
+        assert not s.is_valid()
+        assert "archived" in s.errors["updates"]
+
+
+@pytest.mark.django_db
 class TestBulkDelete:
     """Bulk delete keeps the activity trail."""
 

@@ -47,6 +47,7 @@ ALLOWED_UPDATE_FIELDS = {
     "labels_add",
     "labels_remove",
     "project",
+    "archived",
 }
 
 SCALAR_UPDATE_KEYS = {
@@ -55,6 +56,7 @@ SCALAR_UPDATE_KEYS = {
     "priority",
     "size",
     "assignee",
+    "archived",
 }
 
 # Sentinel for "do not touch this field"; distinct from None which means
@@ -111,6 +113,10 @@ class BulkUpdateSerializer(serializers.Serializer):
                 raise serializers.ValidationError({key: _("Must be a list of label IDs")})
         if "project" in updates and not isinstance(updates["project"], int):
             raise serializers.ValidationError({"project": _("Must be a project ID (int)")})
+        if "archived" in updates and not isinstance(updates["archived"], bool):
+            raise serializers.ValidationError(
+                {"archived": _("Must be a boolean (true to archive, false to unarchive)")}
+            )
         return updates
 
 
@@ -211,9 +217,16 @@ def _bulk_apply_scalars(ids: list[int], updates: dict[str, Any]) -> None:
         payload["size"] = updates["size"]
     if "assignee" in updates:
         payload["assignee_id"] = updates["assignee"]
+    now = timezone.now()
+    if "archived" in updates:
+        # ``archived`` is a request-side bool; the column is a timestamp
+        # so unarchive clears it and archive stamps "now". The diff
+        # builder ([[apps.tasks.events]]) reads ``archived_at`` from the
+        # snapshot and emits task.archived / task.unarchived accordingly.
+        payload["archived_at"] = now if updates["archived"] else None
     if not payload:
         return
-    payload["updated_at"] = timezone.now()
+    payload["updated_at"] = now
     Task.objects.filter(id__in=ids).update(**payload)
 
 
