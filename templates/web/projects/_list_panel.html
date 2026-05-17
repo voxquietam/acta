@@ -1,0 +1,83 @@
+{% load i18n %}
+{% load web_extras %}
+{% comment %}
+List view body — grouped sections of task rows. All axes pre-computed
+in ``list_sections_by_axis`` so axis switching is purely client-side
+(Alpine ``x-show``), no round-trip. Initial axis comes from the
+``list_axis`` cookie / ``?axis=`` querystring; clicking an axis tab
+updates ``activeAxis`` + ``history.pushState`` so URLs stay shareable.
+{% endcomment %}
+<div data-scroll-wrap class="relative flex-1 min-h-0"
+     x-data="{ activeAxis: '{{ list_axis }}' }">
+<div data-scroll-target class="h-full overflow-y-auto scrollbar-none pb-4">
+
+  <div class="flex items-center gap-3 mb-3 text-xs">
+    <span class="text-[10px] uppercase tracking-wider text-zinc-500 font-medium">{% trans "Group by" %}</span>
+    <nav class="flex items-center gap-1">
+      {% for ax in list_axis_options %}
+      <a href="?axis={{ ax.key }}"
+         @click.prevent="
+           activeAxis = '{{ ax.key }}';
+           const u = new URL(window.location);
+           u.searchParams.set('axis', '{{ ax.key }}');
+           history.pushState({}, '', u);
+           document.cookie = `acta_list_axis={{ ax.key }}; path=/; max-age=${60*60*24*365}; samesite=Lax`;
+         "
+         :class="activeAxis === '{{ ax.key }}'
+           ? 'bg-zinc-800 text-zinc-100'
+           : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'"
+         class="px-2 py-0.5 rounded-md transition">
+        {{ ax.label }}
+      </a>
+      {% endfor %}
+    </nav>
+  </div>
+
+  {% for axis_key, sections in list_sections_by_axis.items %}
+  <div x-show="activeAxis === '{{ axis_key }}'" x-cloak>
+    {% if sections %}
+    <div class="space-y-6">
+      {% for section in sections %}
+      {% if section.tasks %}
+      <section>
+        <div class="flex items-baseline gap-2 mb-2 px-1">
+          <h2 class="text-xs uppercase tracking-wider font-medium
+            {% if section.tone == 'rose' %}text-rose-400
+            {% elif section.tone == 'amber' %}text-amber-400
+            {% elif section.tone == 'violet' %}text-violet-400
+            {% elif section.tone == 'emerald' %}text-emerald-400
+            {% elif section.tone == 'blue' %}text-blue-400
+            {% elif section.tone == 'orange' %}text-orange-400
+            {% elif section.tone == 'sky' %}text-sky-400
+            {% else %}text-zinc-500{% endif %}">{{ section.label }}</h2>
+          <span class="text-xs text-zinc-600">{{ section.tasks|length }}</span>
+        </div>
+        <ul class="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden divide-y divide-zinc-800">
+          {% for task in section.tasks %}
+          <li>{% include "web/_task_row.html" with task=task %}</li>
+          {% endfor %}
+        </ul>
+      </section>
+      {% endif %}
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="grid place-items-center text-center py-20">
+      <div>
+        <div class="w-12 h-12 rounded-full border border-dashed border-zinc-700 grid place-items-center text-zinc-600 mx-auto mb-3">
+          <i data-lucide="list" class="w-5 h-5"></i>
+        </div>
+        <h2 class="text-lg font-medium text-zinc-300">{% trans "No tasks match these filters" %}</h2>
+        <p class="text-sm text-zinc-500 mt-1">{% trans "Try a different group axis or clear filters." %}</p>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+</div>
+<div data-fade-top aria-hidden="true"
+     class="pointer-events-none absolute inset-x-0 top-0 h-6 bg-gradient-to-b from-zinc-950 to-transparent"></div>
+<div data-fade-bottom aria-hidden="true"
+     class="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-zinc-950 to-transparent"></div>
+</div>

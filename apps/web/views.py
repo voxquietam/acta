@@ -28,6 +28,7 @@ from apps.projects.models import Project, ProjectUpdate
 from apps.tasks.events import emit_task_diff_events, snapshot_task
 from apps.tasks.models import Task
 from apps.web.filters import apply_task_filters, apply_task_ordering, filter_sidebar_context, resolve_show_archived
+from apps.web.grouping import group_tasks
 from apps.workspaces.models import WorkspaceMember
 
 User = get_user_model()
@@ -40,7 +41,40 @@ _OPEN_STATUSES = [
 ]
 
 
-_VIEW_MODES = {"overview", "kanban", "table"}
+_VIEW_MODES = {"overview", "kanban", "table", "list"}
+
+
+def _resolve_list_axis(request, *, default, options):
+    """Resolve the List view group axis: querystring → cookie → default.
+
+    ``options`` is the set of axis keys valid for the current page
+    (e.g. My Work disallows ``assignee``, project pages disallow
+    ``project``). The cookie name is ``acta_list_axis_<page>`` so
+    each page remembers its own choice.
+    """
+    raw = request.GET.get("axis")
+    if raw in options:
+        return raw
+    cookie_pref = request.COOKIES.get("acta_list_axis")
+    return cookie_pref if cookie_pref in options else default
+
+
+_LIST_AXIS_LABELS = {
+    "deadline": "Deadline",
+    "status": "Status",
+    "priority": "Priority",
+    "assignee": "Assignee",
+    "project": "Project",
+}
+
+
+def _list_axis_options(option_keys, active_key):
+    """Render-ready axis tabs for the List view picker.
+
+    Returns a list of ``{"key", "label", "active"}`` dicts in the
+    requested order so the template can render them as a tab group.
+    """
+    return [{"key": key, "label": _LIST_AXIS_LABELS[key], "active": key == active_key} for key in option_keys]
 
 
 def _resolve_view_mode(request, *, default, allow_overview=False):
@@ -246,7 +280,7 @@ class AllTasksView(LoginRequiredMixin, ListView):
         return apply_task_ordering(qs, params)
 
     def render_to_response(self, context, **response_kwargs):
-        """Persist ``view_mode`` + ``show_archived`` cookies."""
+        """Persist ``view_mode`` + ``show_archived`` + ``list_axis`` cookies."""
         response = super().render_to_response(context, **response_kwargs)
         response.set_cookie(
             "acta_view_mode",
@@ -254,6 +288,13 @@ class AllTasksView(LoginRequiredMixin, ListView):
             max_age=60 * 60 * 24 * 365,
             samesite="Lax",
         )
+        if context.get("list_axis"):
+            response.set_cookie(
+                "acta_list_axis",
+                context["list_axis"],
+                max_age=60 * 60 * 24 * 365,
+                samesite="Lax",
+            )
         _persist_archive_cookie(response, _params_with_archive_cookie(self.request))
         return response
 
@@ -291,6 +332,17 @@ class AllTasksView(LoginRequiredMixin, ListView):
             }
             for status in Task.STATUS_VALUES
         ]
+        # List view: cross-project axis. Project is the natural default
+        # since the page spans every project the user can see. We
+        # pre-compute sections for every axis so client-side switching
+        # via Alpine is instant — no round-trip per axis change.
+        list_axis_keys = ("deadline", "status", "priority", "assignee", "project")
+        list_axis = _resolve_list_axis(self.request, default="project", options=list_axis_keys)
+        ctx["list_axis"] = list_axis
+        ctx["list_axis_options"] = _list_axis_options(list_axis_keys, list_axis)
+        ctx["list_sections_by_axis"] = {
+            key: group_tasks(table_tasks, key, request_user=self.request.user) for key in list_axis_keys
+        }
         ctx.update(
             filter_sidebar_context(
                 self.request,
@@ -416,7 +468,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         )
 
     def render_to_response(self, context, **response_kwargs):
-        """Persist ``view_mode`` + ``show_archived`` cookies."""
+        """Persist ``view_mode`` + ``show_archived`` + ``list_axis`` cookies."""
         response = super().render_to_response(context, **response_kwargs)
         response.set_cookie(
             "acta_view_mode",
@@ -424,6 +476,13 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             max_age=60 * 60 * 24 * 365,
             samesite="Lax",
         )
+        if context.get("list_axis"):
+            response.set_cookie(
+                "acta_list_axis",
+                context["list_axis"],
+                max_age=60 * 60 * 24 * 365,
+                samesite="Lax",
+            )
         _persist_archive_cookie(response, _params_with_archive_cookie(self.request))
         return response
 
@@ -461,7 +520,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
 
         base = (
             Task.objects.filter(project=project)
-            .select_related("assignee", "reporter", "parent", "project")
+            .select_related("assignee", "reporter", "parent", "project__workspace")
             .prefetch_related("labels")
         )
         params = _params_with_archive_cookie(self.request)
@@ -492,6 +551,14 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             )
         ctx["columns"] = columns
         ctx["table_tasks"] = table_tasks
+        # List view body — single-project scope, no "project" axis.
+        list_axis_keys = ("deadline", "status", "priority", "assignee")
+        list_axis = _resolve_list_axis(self.request, default="status", options=list_axis_keys)
+        ctx["list_axis"] = list_axis
+        ctx["list_axis_options"] = _list_axis_options(list_axis_keys, list_axis)
+        ctx["list_sections_by_axis"] = {
+            key: group_tasks(table_tasks, key, request_user=self.request.user) for key in list_axis_keys
+        }
 
         # Per-project page: scope project + workspace filters away.
         # Show labels in the table view (matches All Tasks layout).

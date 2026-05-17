@@ -424,7 +424,7 @@
     // view toggle in ``_view_panel.html`` calls ``set(...)`` so the
     // sidebar (Status section in particular) re-evaluates without
     // waiting for a full page reload.
-    const VIEW_MODES = new Set(["overview", "kanban", "table"]);
+    const VIEW_MODES = new Set(["overview", "kanban", "table", "list"]);
     function readViewModeCookie() {
       const m = document.cookie.match(/(?:^|;\s*)acta_view_mode=([^;]+)/);
       const value = m ? m[1] : "";

@@ -23,4 +23,8 @@ no extra HTTP requests fire on tab change. Tabs themselves live in
     {% include "web/projects/_table.html" with tasks=table_tasks|default:tasks show_labels=True %}
   </div>
 
+  <div x-show="$store.viewMode.current === 'list'" x-cloak class="flex-1 min-h-0 flex flex-col">
+    {% include "web/projects/_list_panel.html" %}
+  </div>
+
 </div>
