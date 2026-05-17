@@ -7,6 +7,62 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Semantic colour tokens.
+
+   Each variable holds a bare ``R G B`` triple (space-separated, no
+   ``rgb()`` wrapper). Tailwind's config in ``tailwind.config.js`` plugs
+   it into ``rgb(var(--token) / <alpha-value>)`` so utilities like
+   ``bg-card`` and ``bg-muted/50`` both work.
+
+   ``:root`` carries the light-mode palette as the default; ``html.dark``
+   overrides each variable when the user toggles to dark. The pre-paint
+   inline script in ``base.html`` writes the class on ``<html>`` before
+   the first frame so there is no FOUC.
+
+   Adding a third theme later means: pick another selector
+   (``html.high-contrast``, ``html[data-theme=sepia]``, etc.) and
+   re-declare just the variables — no template changes required. Same
+   path enables per-workspace accent palettes from admin (planned). */
+@layer base {
+  :root {
+    /* Surfaces */
+    --background: 255 255 255;      /* white — body */
+    --card: 255 255 255;            /* white — panels and cards */
+    --muted: 244 244 245;           /* zinc-100 — chips, inline blocks, hover */
+    --subtle: 250 250 250;          /* zinc-50 — section backgrounds */
+
+    /* Text */
+    --foreground: 24 24 27;         /* zinc-900 — primary text and headings */
+    --muted-foreground: 63 63 70;   /* zinc-700 — body copy on panels */
+    --subtle-foreground: 82 82 91;  /* zinc-600 — secondary, metadata */
+    --placeholder-foreground: 113 113 122; /* zinc-500 — placeholder, empty slots */
+
+    /* Borders */
+    --border: 228 228 231;          /* zinc-200 — default panel border */
+    --border-strong: 212 212 216;   /* zinc-300 — input border, raised */
+
+    /* Interactive accents */
+    --ring: 168 85 247;             /* brand-500 — focus ring */
+  }
+
+  html.dark {
+    --background: 9 9 11;           /* zinc-950 */
+    --card: 24 24 27;               /* zinc-900 */
+    --muted: 39 39 42;              /* zinc-800 */
+    --subtle: 24 24 27;             /* zinc-900 (same as card; subtle is mostly a light-mode distinction) */
+
+    --foreground: 244 244 245;      /* zinc-100 */
+    --muted-foreground: 212 212 216; /* zinc-300 */
+    --subtle-foreground: 161 161 170; /* zinc-400 */
+    --placeholder-foreground: 82 82 91; /* zinc-600 */
+
+    --border: 39 39 42;             /* zinc-800 */
+    --border-strong: 63 63 70;      /* zinc-700 */
+
+    --ring: 168 85 247;             /* brand-500 — same accent in both themes */
+  }
+}
+
 /* Acta-specific tweaks that Tailwind utilities don't cover. */
 
 /* Global thin dark scrollbar — applies to every scrollable element

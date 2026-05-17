@@ -38,6 +38,30 @@ module.exports = {
           900: "#581c87",
           950: "#3b0764",
         },
+
+        // Semantic colour tokens — backed by CSS variables defined in
+        // ``static_src/css/main.css`` under ``:root`` (light) and
+        // ``html.dark`` (dark). Use these for any surface / text /
+        // border that should track the active theme. Hardcoded
+        // ``bg-zinc-*`` / ``text-zinc-*`` should be reserved for cases
+        // where a specific shade is intentional regardless of theme
+        // (status / priority badges keep their own palette).
+        //
+        // ``<alpha-value>`` is Tailwind's placeholder so utilities like
+        // ``bg-muted/50`` or ``border-border/30`` work correctly — the
+        // generator injects the alpha channel without us re-declaring
+        // each colour for every opacity step.
+        background: "rgb(var(--background) / <alpha-value>)",
+        foreground: "rgb(var(--foreground) / <alpha-value>)",
+        card: "rgb(var(--card) / <alpha-value>)",
+        muted: "rgb(var(--muted) / <alpha-value>)",
+        subtle: "rgb(var(--subtle) / <alpha-value>)",
+        "muted-foreground": "rgb(var(--muted-foreground) / <alpha-value>)",
+        "subtle-foreground": "rgb(var(--subtle-foreground) / <alpha-value>)",
+        "placeholder-foreground": "rgb(var(--placeholder-foreground) / <alpha-value>)",
+        border: "rgb(var(--border) / <alpha-value>)",
+        "border-strong": "rgb(var(--border-strong) / <alpha-value>)",
+        ring: "rgb(var(--ring) / <alpha-value>)",
       },
     },
   },
