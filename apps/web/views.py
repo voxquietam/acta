@@ -227,7 +227,15 @@ class AllTasksView(LoginRequiredMixin, ListView):
     context_object_name = "tasks"
 
     def get_template_names(self):
-        """Full page on cold load, inner fragment for HTMX filter swaps."""
+        """Full page on cold load, inner fragment for HTMX filter swaps.
+
+        ``HX-Target=task-table-root`` short-circuits to just the
+        ``_table.html`` partial — used by the column-sort handler so
+        re-sorting doesn't pay the cost of rebuilding kanban + the
+        five list-axis grouping passes.
+        """
+        if self.request.headers.get("HX-Target") == "task-table-root":
+            return ["web/projects/_table.html"]
         if self.request.headers.get("HX-Request"):
             return ["web/_all_tasks_inner.html"]
         return ["web/all_tasks.html"]
@@ -280,34 +288,37 @@ class AllTasksView(LoginRequiredMixin, ListView):
         # group a kanban-ordered copy by status.
         table_tasks = list(ctx["tasks"])
         ctx["table_tasks"] = table_tasks
-        kanban_tasks = sorted(
-            table_tasks,
-            key=lambda t: (
-                Task.STATUS_VALUES.index(t.status) if t.status in Task.STATUS_VALUES else 99,
-                -(t.priority or 0),
-                -t.updated_at.timestamp(),
-            ),
-        )
         ctx["tasks"] = table_tasks
-        ctx["columns"] = [
-            {
-                "key": status,
-                "label": Task.STATUS_LABELS[status],
-                "tasks": [t for t in kanban_tasks if t.status == status],
+
+        # Table-only HTMX swap (column sort header): we only render
+        # ``_table.html`` so the kanban sort + five list-axis groupings
+        # below would be wasted work. Skip them — sort latency drops
+        # from "rebuild every view" to "ORDER BY + table partial".
+        table_only = self.request.headers.get("HX-Target") == "task-table-root"
+        if not table_only:
+            kanban_tasks = sorted(
+                table_tasks,
+                key=lambda t: (
+                    Task.STATUS_VALUES.index(t.status) if t.status in Task.STATUS_VALUES else 99,
+                    -(t.priority or 0),
+                    -t.updated_at.timestamp(),
+                ),
+            )
+            ctx["columns"] = [
+                {
+                    "key": status,
+                    "label": Task.STATUS_LABELS[status],
+                    "tasks": [t for t in kanban_tasks if t.status == status],
+                }
+                for status in Task.STATUS_VALUES
+            ]
+            list_axis_keys = ("deadline", "status", "priority", "assignee", "project")
+            list_axis = _resolve_list_axis(self.request, default="project", options=list_axis_keys)
+            ctx["list_axis"] = list_axis
+            ctx["list_axis_options"] = _list_axis_options(list_axis_keys, list_axis)
+            ctx["list_sections_by_axis"] = {
+                key: group_tasks(table_tasks, key, request_user=self.request.user) for key in list_axis_keys
             }
-            for status in Task.STATUS_VALUES
-        ]
-        # List view: cross-project axis. Project is the natural default
-        # since the page spans every project the user can see. We
-        # pre-compute sections for every axis so client-side switching
-        # via Alpine is instant — no round-trip per axis change.
-        list_axis_keys = ("deadline", "status", "priority", "assignee", "project")
-        list_axis = _resolve_list_axis(self.request, default="project", options=list_axis_keys)
-        ctx["list_axis"] = list_axis
-        ctx["list_axis_options"] = _list_axis_options(list_axis_keys, list_axis)
-        ctx["list_sections_by_axis"] = {
-            key: group_tasks(table_tasks, key, request_user=self.request.user) for key in list_axis_keys
-        }
         ctx.update(
             filter_sidebar_context(
                 self.request,
@@ -442,7 +453,15 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
     context_object_name = "project"
 
     def get_template_names(self):
-        """Full page on cold load; only the panel fragment for HTMX swaps."""
+        """Full page on cold load; only the panel fragment for HTMX swaps.
+
+        ``HX-Target=task-table-root`` short-circuits to the table-only
+        partial so a column sort doesn't repaint kanban + the five
+        list-view group axes (which the panel partial rebuilds even
+        when the user only wants the rows re-sorted).
+        """
+        if self.request.headers.get("HX-Target") == "task-table-root":
+            return ["web/projects/_table.html"]
         if self.request.headers.get("HX-Request"):
             return ["web/projects/_view_panel_wrapper.html"]
         return ["web/projects/detail.html"]
@@ -527,28 +546,37 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
                 default_ordering=("status", "-priority", "-updated_at"),
             )
         )
-        kanban_tasks = list(base.order_by("status", "-priority", "-updated_at"))
-        ctx["tasks"] = table_tasks if view_mode == "table" else kanban_tasks
-
-        columns = []
-        for status in Task.STATUS_VALUES:
-            columns.append(
-                {
-                    "key": status,
-                    "label": Task.STATUS_LABELS[status],
-                    "tasks": [t for t in kanban_tasks if t.status == status],
-                },
-            )
-        ctx["columns"] = columns
         ctx["table_tasks"] = table_tasks
-        # List view body — single-project scope, no "project" axis.
-        list_axis_keys = ("deadline", "status", "priority", "assignee")
-        list_axis = _resolve_list_axis(self.request, default="status", options=list_axis_keys)
-        ctx["list_axis"] = list_axis
-        ctx["list_axis_options"] = _list_axis_options(list_axis_keys, list_axis)
-        ctx["list_sections_by_axis"] = {
-            key: group_tasks(table_tasks, key, request_user=self.request.user) for key in list_axis_keys
-        }
+
+        # Table-only HTMX swap (column sort header): skip the kanban
+        # column build and the five list-axis grouping passes — only
+        # ``_table.html`` will render, so those would be wasted work.
+        # Cuts sort latency from "rebuild everything" to "ORDER BY +
+        # the table partial".
+        table_only = self.request.headers.get("HX-Target") == "task-table-root"
+        if not table_only:
+            kanban_tasks = list(base.order_by("status", "-priority", "-updated_at"))
+            ctx["tasks"] = table_tasks if view_mode == "table" else kanban_tasks
+            columns = []
+            for status in Task.STATUS_VALUES:
+                columns.append(
+                    {
+                        "key": status,
+                        "label": Task.STATUS_LABELS[status],
+                        "tasks": [t for t in kanban_tasks if t.status == status],
+                    },
+                )
+            ctx["columns"] = columns
+            list_axis_keys = ("deadline", "status", "priority", "assignee")
+            list_axis = _resolve_list_axis(self.request, default="status", options=list_axis_keys)
+            ctx["list_axis"] = list_axis
+            ctx["list_axis_options"] = _list_axis_options(list_axis_keys, list_axis)
+            ctx["list_sections_by_axis"] = {
+                key: group_tasks(table_tasks, key, request_user=self.request.user) for key in list_axis_keys
+            }
+        else:
+            ctx["tasks"] = table_tasks
+            ctx["show_labels"] = True
 
         # Per-project page: scope project + workspace filters away.
         # Show labels in the table view (matches All Tasks layout).

@@ -11,7 +11,7 @@ swaps don't make the layout jump. Title is the elastic column —
 takes whatever space the others leave. Cells use ``truncate`` to
 clip overflowing text with an ellipsis instead of widening.
 {% endcomment %}
-<div data-scroll-wrap class="relative flex-1 min-h-0">
+<div id="task-table-root" data-scroll-wrap class="relative flex-1 min-h-0">
 <div data-scroll-target class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-y-auto overflow-x-hidden h-full scrollbar-none">
   <table x-data
          x-ref="taskTable"
@@ -43,27 +43,27 @@ clip overflowing text with an ellipsis instead of widening.
                  class="acta-checkbox">
         </th>
         <th class="text-left px-3 py-2 font-medium">
-          <a href="{% sort_url request 'id' %}" class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
+          <a href="{% sort_url request 'id' %}" data-sort class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
             {% trans "ID" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'id' %}</span>
           </a>
         </th>
         <th class="text-left px-3 py-2 font-medium">
-          <a href="{% sort_url request 'title' %}" class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
+          <a href="{% sort_url request 'title' %}" data-sort class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
             {% trans "Title" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'title' %}</span>
           </a>
         </th>
         <th class="text-left px-3 py-2 font-medium">
-          <a href="{% sort_url request 'status' %}" class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
+          <a href="{% sort_url request 'status' %}" data-sort class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
             {% trans "Status" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'status' %}</span>
           </a>
         </th>
         <th class="text-left px-3 py-2 font-medium">
-          <a href="{% sort_url request 'priority' %}" class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
+          <a href="{% sort_url request 'priority' %}" data-sort class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
             {% trans "Priority" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'priority' %}</span>
           </a>
         </th>
         <th class="text-left px-3 py-2 font-medium">
-          <a href="{% sort_url request 'size' %}" class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
+          <a href="{% sort_url request 'size' %}" data-sort class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
             {% trans "Size" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'size' %}</span>
           </a>
         </th>
@@ -71,24 +71,24 @@ clip overflowing text with an ellipsis instead of widening.
         <th class="text-left px-3 py-2 font-medium">{% trans "Labels" %}</th>
         {% endif %}
         <th class="text-left px-3 py-2 font-medium">
-          <a href="{% sort_url request 'assignee' %}" class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
+          <a href="{% sort_url request 'assignee' %}" data-sort class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
             {% trans "Assignee" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'assignee' %}</span>
           </a>
         </th>
         {% if show_project %}
         <th class="text-left px-3 py-2 font-medium">
-          <a href="{% sort_url request 'project' %}" class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
+          <a href="{% sort_url request 'project' %}" data-sort class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
             {% trans "Project" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'project' %}</span>
           </a>
         </th>
         {% endif %}
         <th class="text-left px-3 py-2 font-medium">
-          <a href="{% sort_url request 'due' %}" class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
+          <a href="{% sort_url request 'due' %}" data-sort class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
             {% trans "Due" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'due' %}</span>
           </a>
         </th>
         <th class="text-left px-3 py-2 font-medium">
-          <a href="{% sort_url request 'updated' %}"
+          <a href="{% sort_url request 'updated' %}" data-sort
              title="{% trans 'Updated' %}"
              class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
             <i data-lucide="clock" class="w-3.5 h-3.5"></i>

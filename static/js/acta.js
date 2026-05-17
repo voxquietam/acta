@@ -71,6 +71,40 @@
     if (tip) tip.classList.remove("is-visible");
   });
 
+  // Delegated handler for table column-sort links: turn the plain
+  // ``<a href>`` navigation into an HTMX swap of the surrounding
+  // ``[data-task-list-root]`` panel so the page doesn't flash through
+  // a full reload between sorts. ``transition:true`` enables the
+  // View Transitions API for a smooth crossfade on the column
+  // re-order; ``pushUrl`` keeps the new ``?order=`` shareable.
+  document.addEventListener("click", function onSortLinkClick(evt) {
+    // Honour modified clicks — Cmd / Ctrl / middle-click should open
+    // the sort in a new tab as usual.
+    if (evt.metaKey || evt.ctrlKey || evt.shiftKey || evt.altKey) return;
+    if (evt.button !== 0) return;
+    const a = evt.target.closest("a[data-sort]");
+    if (!a) return;
+    const root = a.closest("[data-task-list-root]");
+    if (!root || !root.id || !window.htmx) return;
+    // Only swap the table itself — not the surrounding panel. The
+    // server short-circuits on ``HX-Target == 'task-table-root'`` and
+    // returns just ``_table.html``, which avoids rebuilding kanban
+    // columns + 5 list-view group axes on every sort click. Falls
+    // back to the panel-level swap if the table root isn't present
+    // on this page yet (e.g. mid-load).
+    const tableRoot = root.querySelector("#task-table-root");
+    const target = tableRoot ? "#task-table-root" : "#" + root.id;
+    // No ``transition:true`` here — View Transitions adds ~100-200ms
+    // of crossfade animation, which dominates the perceived sort
+    // latency. Plain outerHTML is the fastest path.
+    const swap = tableRoot ? "outerHTML" : "innerHTML";
+    evt.preventDefault();
+    window.htmx.ajax("GET", a.getAttribute("href"), { target, swap });
+    if (window.history && window.history.pushState) {
+      window.history.pushState({}, "", a.getAttribute("href"));
+    }
+  });
+
   // Global ``c`` hotkey — opens the Create Task modal. Lives in JS so
   // it survives HTMX swaps without re-binding, and reliably ignores
   // keys typed into inputs / textareas / contenteditable surfaces.
