@@ -1,0 +1,426 @@
+/* Acta stylesheet entry point — fed through Tailwind CLI into
+   ``static/css/main.bundle.css``. Tailwind utilities first, then
+   project-specific custom rules (scrollbars, sticky-stack, label
+   pills, checkbox, dark-mode overrides for third-party widgets). */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Acta-specific tweaks that Tailwind utilities don't cover. */
+
+/* Global thin dark scrollbar — applies to every scrollable element
+   in the app (kanban columns, task list panel, filter sidebar lists,
+   sidebar nav, ``main``, modals…). Browser default scrollbars look
+   off-palette on a dark theme, and the macOS default hides on
+   non-hover then pops in as an ugly white bar mid-interaction.
+   ``.scrollbar-none`` opts an element out (top strips use that).
+
+   Firefox uses the ``scrollbar-*`` properties; WebKit / Blink use
+   the pseudo-element rules. Set both so every browser matches. */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(212 212 216) transparent; /* zinc-300 — light default */
+}
+html.dark {
+  scrollbar-color: rgb(63 63 70) transparent;    /* zinc-700 — dark override */
+}
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(212 212 216);   /* zinc-300 */
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(161 161 170);   /* zinc-400 */
+}
+html.dark ::-webkit-scrollbar-thumb {
+  background: rgb(63 63 70);      /* zinc-700 */
+}
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgb(82 82 91);      /* zinc-600 */
+}
+
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* Edge overlays are hidden by default. JS sets ``data-overflow-left``
+   / ``data-overflow-right`` on the wrapper when the corresponding
+   side has off-screen content, and the fade + counter pop in. The
+   transition smooths the appear/disappear so the page doesn't flicker
+   as chips scroll past either edge. */
+[data-strip-wrap] > [data-strip-left-fade],
+[data-strip-wrap] > [data-strip-right-fade],
+[data-strip-wrap] > [data-strip-left-counter],
+[data-strip-wrap] > [data-strip-right-counter] {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+[data-strip-wrap][data-overflow-left] > [data-strip-left-fade],
+[data-strip-wrap][data-overflow-left] > [data-strip-left-counter] {
+  opacity: 1;
+}
+[data-strip-wrap][data-overflow-right] > [data-strip-right-fade],
+[data-strip-wrap][data-overflow-right] > [data-strip-right-counter] {
+  opacity: 1;
+}
+
+/* Generic scroll-fade overlays — hidden by default, JS sets
+   ``data-overflow-*`` on the wrapper when there's more content past
+   that edge. Used by kanban (horizontal) and table (vertical). */
+[data-scroll-wrap] > [data-fade-left],
+[data-scroll-wrap] > [data-fade-right],
+[data-scroll-wrap] > [data-fade-top],
+[data-scroll-wrap] > [data-fade-bottom] {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+[data-scroll-wrap][data-overflow-left] > [data-fade-left],
+[data-scroll-wrap][data-overflow-right] > [data-fade-right],
+[data-scroll-wrap][data-overflow-top] > [data-fade-top],
+[data-scroll-wrap][data-overflow-bottom] > [data-fade-bottom] {
+  opacity: 1;
+}
+
+/* Kanban empty placeholder: hide when the column has any task card.
+   :has() is widely supported in 2025+ browsers (Safari 15.4+, Chrome 105+,
+   Firefox 121+). Falls back to "always visible" on ancient browsers,
+   which is harmless. */
+.kanban-column:has([data-task-id]) .empty-placeholder {
+  display: none;
+}
+
+/* Smooth anchor scrolling for in-page TOCs (task detail sections). */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Keep some breathing room when the browser auto-scrolls a focused
+   input (e.g. a growing comment textarea) into view, so the form never
+   gets pinned flush against the viewport bottom edge. */
+main {
+  scroll-padding-bottom: 6rem;
+}
+
+/* GitHub-style task lists rendered by pymdownx.tasklist inside the
+   markdown body. Typography plugin doesn't style these natively; tighten
+   the layout so checkboxes sit on the same baseline as their text. */
+.prose ul.task-list,
+.prose .task-list {
+  list-style: none;
+  padding-left: 0;
+}
+.prose .task-list-item {
+  list-style: none;
+  padding-left: 0;
+}
+.prose .task-list-item input[type="checkbox"] {
+  margin-right: 0.5em;
+  vertical-align: middle;
+}
+
+/* Tailwind typography wraps inline <code> with literal backticks via
+   ::before / ::after — wanted on a documentation site, undesirable in
+   our task descriptions where we want a styled inline-code chip. Strip
+   the decorators and add a subtle background + monospace styling. */
+.prose code::before,
+.prose code::after {
+  content: none;
+}
+.prose code {
+  background-color: rgb(39 39 42);
+  color: rgb(229 231 235);
+  padding: 0.125rem 0.35rem;
+  border-radius: 0.25rem;
+  font-weight: 400;
+  font-size: 0.875em;
+}
+.prose pre code {
+  background-color: transparent;
+  padding: 0;
+  font-size: inherit;
+}
+
+/* TipTap TaskList / TaskItem rendering: nested <ul data-type="taskList">
+   with <li data-type="taskItem">. The native checkbox stays usable, the
+   row layout aligns checkbox + text on one baseline. */
+.prose ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+.prose ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.prose ul[data-type="taskList"] li > label {
+  margin-top: 0.2rem;
+}
+.prose ul[data-type="taskList"] li > div {
+  flex: 1;
+}
+.prose ul[data-type="taskList"] li > div > p {
+  margin: 0;
+}
+
+/* TipTap placeholder for the empty editor: shown via a CSS pseudo-element
+   when the first paragraph has no content. */
+.ProseMirror p.is-editor-empty:first-child::before {
+  color: rgb(82 82 91);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+/* Tighten paragraph + list spacing inside the editor AND the
+   server-rendered markdown view (.prose). Tailwind typography's
+   ``prose-sm`` defaults are sized for articles, not for a task
+   tracker: ``<p>`` gets ~1.14em top/bottom margin AND line-height
+   1.71, so pressing Enter once leaves a visible gap of nearly two
+   blank lines, and rendered comments / descriptions look airy. Same
+   rule on both surfaces so the editor and the rendered view share
+   the same rhythm — what you typed is what you see. */
+.ProseMirror p,
+.prose p {
+  margin-top: 0.25em;
+  margin-bottom: 0.25em;
+  line-height: 1.5;
+}
+.ProseMirror > p:first-child,
+.prose > p:first-child {
+  margin-top: 0;
+}
+.ProseMirror > p:last-child,
+.prose > p:last-child {
+  margin-bottom: 0;
+}
+.ProseMirror ul > li > p,
+.ProseMirror ol > li > p,
+.ProseMirror ul[data-type="taskList"] li > div > p {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+.ProseMirror ul > li,
+.ProseMirror ol > li,
+.ProseMirror ul[data-type="taskList"] > li {
+  margin-top: 0.125em;
+  margin-bottom: 0.125em;
+}
+
+/* TipTap editor toolbar fades in only when the editor (or any of its
+   own controls like the link-input or a toolbar button) holds focus.
+   Reserves vertical space at all times so the page doesn't jump when
+   the toolbar appears / disappears — only the opacity + visibility
+   change, not the height.
+
+   The ``transition: visibility 0s linear 150ms`` trick lets us animate
+   opacity smoothly while keeping ``visibility`` discrete: on hide we
+   wait 150 ms for the fade-out before snapping visibility to hidden;
+   on show we flip visibility immediately and then fade opacity in. */
+.description-editor-toolbar {
+  visibility: hidden;
+  opacity: 0;
+  transition:
+    opacity 150ms ease,
+    visibility 0s linear 150ms;
+}
+[data-description-editor]:focus-within .description-editor-toolbar {
+  visibility: visible;
+  opacity: 1;
+  transition:
+    opacity 150ms ease,
+    visibility 0s linear 0s;
+}
+
+/* Links inside the editor inherit the contenteditable text cursor by
+   default. Force ``pointer`` so the hover affordance matches normal
+   anchor behaviour — without it, the user has no visual cue that the
+   click navigates (especially relevant now that ``openOnClick`` is
+   true on the TipTap Link extension). */
+.ProseMirror a {
+  cursor: pointer;
+}
+
+/* TipTap mounts a contenteditable whose default colour is the
+   browser's text-fill (a faded gray on light surfaces, almost
+   invisible). Force explicit colours per theme so user input is
+   readable while typing — server-rendered ``.prose`` view inherits
+   from this same rule for the read-only state. */
+.ProseMirror,
+.prose:not(.dark\:prose-invert) {
+  color: rgb(24 24 27);                /* zinc-900 */
+}
+html.dark .ProseMirror,
+html.dark .prose {
+  color: rgb(228 228 231);             /* zinc-200 */
+}
+
+/* Highlight mark — yellow marker pen. Applies inside the TipTap
+   editor (.ProseMirror) AND in the server-rendered .prose view, so
+   the highlight looks identical before / after the markdown
+   round-trip (==text== <-> <mark>). */
+.ProseMirror mark,
+.prose mark {
+  background-color: rgba(250, 204, 21, 0.35);
+  color: inherit;
+  padding: 0.05em 0.15em;
+  border-radius: 0.2em;
+}
+
+
+/* Sidebar icon-rail hover tooltip.
+
+   ``position: fixed`` (not absolute) — the tip needs to escape any
+   ``overflow`` clipping coming from the surrounding scroll container
+   (``<nav overflow-y-auto>`` in particular forces overflow-x: auto
+   too, which would otherwise hide a positioned tip past the sidebar
+   right edge). ``top``/``left`` are written by JS in ``acta.js`` on
+   mouseenter so the tip lines up with the hovered link's current
+   bounding rect. The CSS class controls visual chrome + the show /
+   hide transition only. */
+.acta-rail-tip {
+  position: fixed;
+  z-index: 50;
+  white-space: nowrap;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  border-radius: 0.375rem;
+  background-color: white;
+  color: rgb(24 24 27);               /* zinc-900 */
+  border: 1px solid rgb(228 228 231); /* zinc-200 */
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.15), 0 4px 6px -4px rgb(0 0 0 / 0.15);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 120ms ease, visibility 0s linear 120ms;
+  transform: translateY(-50%);
+}
+.dark .acta-rail-tip {
+  background-color: rgb(24 24 27);   /* zinc-900 */
+  color: rgb(228 228 231);            /* zinc-200 */
+  border-color: rgb(39 39 42);       /* zinc-800 */
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.5), 0 4px 6px -4px rgb(0 0 0 / 0.5);
+}
+.acta-rail-tip.is-visible {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 120ms ease, visibility 0s linear 0s;
+}
+
+/* Label pill — matches the filter-sidebar chip pattern.
+
+   Background is always a faint tint of the label colour (``--label-color``
+   at ~13% opacity over zinc-950); border is the same colour at 33%.
+   On-state bumps brightness and turns the text white — same trick
+   the filter sidebar uses — instead of a full-fill swap, so the
+   pill keeps its dimensions and neighbouring chips don't shift.
+
+   Notably no ``font-weight`` change on toggle: that's what was
+   pushing the row around when Vox toggled a pill. */
+.acta-label-pill {
+  /* Light mode: tint over white. */
+  background-color: color-mix(in srgb, var(--label-color) 12%, white);
+  border: 1px solid color-mix(in srgb, var(--label-color) 40%, transparent);
+  color: rgb(63 63 70);               /* zinc-700 */
+  transition: filter 80ms ease, color 80ms ease, background-color 80ms ease;
+  position: relative;
+}
+.acta-label-pill:hover {
+  filter: brightness(0.95);
+  color: rgb(24 24 27);               /* zinc-900 */
+}
+.acta-label-pill[data-state="on"] {
+  background-color: var(--label-color);
+  color: white;
+  border-color: var(--label-color);
+  box-shadow: 0 0 0 1px var(--label-color);
+}
+.dark .acta-label-pill {
+  background-color: color-mix(in srgb, var(--label-color) 13%, rgb(24 24 27));
+  border-color: color-mix(in srgb, var(--label-color) 33%, transparent);
+  color: rgb(212 212 216);            /* zinc-300 */
+}
+.dark .acta-label-pill:hover {
+  filter: brightness(1.25);
+  color: rgb(244 244 245);            /* zinc-100 */
+}
+.dark .acta-label-pill[data-state="on"] {
+  background-color: var(--label-color);
+  filter: none;
+  color: white;
+  border-color: var(--label-color);
+  box-shadow: 0 0 0 1px var(--label-color);
+}
+.acta-label-pill-check {
+  /* Reserved for a future explicit-on variant — currently brightness
+     change carries the signal so we hide it. Keeps the chip dimensions
+     untouched on toggle. */
+  display: none;
+}
+
+/* Dark themed checkbox used in modals and table rows. Replaces the
+   browser default white square with a zinc-800 box that turns brand
+   when checked. ``appearance: none`` strips the OS rendering; the
+   ``:checked::after`` pseudo-element draws the tick mark. */
+.acta-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 0.25rem;
+  background-color: white;
+  border: 1px solid rgb(212 212 216); /* zinc-300 */
+  cursor: pointer;
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  transition: background-color 80ms ease, border-color 80ms ease;
+  vertical-align: middle;
+}
+.acta-checkbox:hover {
+  border-color: rgb(161 161 170);    /* zinc-400 */
+}
+.dark .acta-checkbox {
+  background-color: rgb(39 39 42);   /* zinc-800 */
+  border-color: rgb(82 82 91);       /* zinc-600 */
+}
+.dark .acta-checkbox:hover {
+  border-color: rgb(113 113 122);    /* zinc-500 */
+}
+.acta-checkbox:checked {
+  background-color: #9333ea;       /* brand-600 */
+  border-color: #a855f7;            /* brand-500 */
+}
+.acta-checkbox:checked::after {
+  content: "";
+  width: 0.55rem;
+  height: 0.55rem;
+  background-color: white;
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+}
+
+/* Per-row checkbox visibility in the task table. Hidden by default;
+   appears on row hover (``.acta-row:hover``) OR when any selection
+   exists (``.acta-table.has-selection``) OR when this specific row
+   is selected (``.acta-row[data-selected="true"]``). The header
+   master checkbox uses ``.acta-checkbox`` directly without the
+   ``.acta-row-check`` gate — it's always visible. */
+.acta-row-check {
+  opacity: 0;
+  transition: opacity 100ms ease;
+}
+.acta-row:hover .acta-row-check,
+.acta-table.has-selection .acta-row-check,
+.acta-row[data-selected="true"] .acta-row-check {
+  opacity: 1;
+}

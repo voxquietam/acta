@@ -99,3 +99,17 @@ build-js: ## bundle static_src/js/description_editor.js -> static/js/*.bundle.js
 
 watch-js: ## rebuild the bundle on every save (Ctrl-C to stop)
 	$(NODE_RUN) -it npm run watch:js
+
+# ---- Frontend bundle (Tailwind CSS) --------------------------------
+# Compiles ``static_src/css/main.css`` (with @tailwind directives) into
+# a static stylesheet. Replaces the Tailwind Play CDN — pre-compiled
+# CSS loads instantly with no in-browser JIT pass, so the dashboard
+# no longer flashes unstyled HTML for ~200-500ms on cold load.
+
+build-css: ## compile static_src/css/main.css -> static/css/main.bundle.css
+	$(NODE_RUN) npm run build:css
+
+watch-css: ## rebuild the stylesheet on every template/CSS save
+	$(NODE_RUN) -it npm run watch:css
+
+build-front: build-js build-css ## compile both bundles in one go

@@ -99,14 +99,19 @@ listed here so the runbook covers the full picture:
 For each deploy:
 
 1. `git pull` / image rebuild on the host.
-2. `docker compose exec web python manage.py migrate` (no-op if no
+2. `make build-front` (or `make build-js && make build-css`) — rebuild
+   the description-editor bundle and the Tailwind stylesheet from
+   their sources. The committed artefacts (`static/js/*.bundle.js` and
+   `static/css/main.bundle.css`) are required by the templates; skip
+   this and the page renders unstyled.
+3. `docker compose exec web python manage.py migrate` (no-op if no
    new migrations).
-3. `docker compose exec web python manage.py compilemessages` (if any
+4. `docker compose exec web python manage.py compilemessages` (if any
    `.po` changed).
-4. `docker compose exec web python manage.py collectstatic --noinput`
+5. `docker compose exec web python manage.py collectstatic --noinput`
    (if static files changed).
-5. Restart the `web` container so uvicorn picks up the new code.
-6. Tail logs for the first minute to confirm SSE streams reconnect
+6. Restart the `web` container so uvicorn picks up the new code.
+7. Tail logs for the first minute to confirm SSE streams reconnect
    cleanly and no migration deadlock occurred.
 
 ## Health checks
