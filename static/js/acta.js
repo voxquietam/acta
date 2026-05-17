@@ -71,6 +71,235 @@
     if (tip) tip.classList.remove("is-visible");
   });
 
+  // ---- Client-side filter ------------------------------------------------
+  //
+  // Filter form (``#filter-form``) writes its state into per-row
+  // ``data-*`` attributes via the ``task_filter_attrs`` template tag.
+  // On any change we walk every ``[data-task-id]`` element on the page
+  // (kanban cards, table rows, list rows all share the marker) and
+  // toggle a ``hidden`` attribute. No HTTP round-trip; the server side
+  // still handles cold loads + reset + future SSE refreshes.
+  //
+  // The mirror of ``apply_task_filters`` in apps/web/filters.py — keep
+  // the two in sync when adding a new filter dimension.
+  function readFilterState(form) {
+    if (!form) return null;
+    const fd = new FormData(form);
+    const multi = (name) => fd.getAll(name).map((v) => String(v));
+    // ``show_archived`` carries both a hidden ``0`` and the checkbox
+    // ``1`` when checked. Match the server's "trailing 1 wins" parse.
+    const archivedRaw = fd.getAll("show_archived");
+    const showArchived = archivedRaw.includes("1");
+    return {
+      status: new Set(multi("status")),
+      xstatus: new Set(multi("xstatus")),
+      priority: new Set(multi("priority")),
+      xpriority: new Set(multi("xpriority")),
+      assignee: new Set(multi("assignee")),
+      xassignee: new Set(multi("xassignee")),
+      project: new Set(multi("project")),
+      xproject: new Set(multi("xproject")),
+      workspace: new Set(multi("workspace")),
+      xworkspace: new Set(multi("xworkspace")),
+      label: new Set(multi("label")),
+      xlabel: new Set(multi("xlabel")),
+      q: (fd.get("q") || "").toString().trim().toLowerCase(),
+      showArchived,
+    };
+  }
+
+  function rowMatches(row, state) {
+    // ``data-archived`` — hide archived rows unless show_archived is on.
+    if (!state.showArchived && row.dataset.archived === "1") return false;
+    // Status
+    const s = row.dataset.status || "";
+    if (state.status.size && !state.status.has(s)) return false;
+    if (state.xstatus.size && state.xstatus.has(s)) return false;
+    // Priority — DOM carries integer string.
+    const p = row.dataset.priority || "0";
+    if (state.priority.size && !state.priority.has(p)) return false;
+    if (state.xpriority.size && state.xpriority.has(p)) return false;
+    // Assignee — server-side tokens ``me`` / ``unassigned`` join numeric
+    // user ids. We match by intersecting the requested set with the row's
+    // possible tokens (numeric id, ``me``, ``unassigned``).
+    const aid = row.dataset.assigneeId || "";
+    const isMe = row.dataset.assigneeMe === "1";
+    const aTokens = new Set();
+    if (aid) {
+      aTokens.add(aid);
+      if (isMe) aTokens.add("me");
+    } else {
+      aTokens.add("unassigned");
+    }
+    if (state.assignee.size) {
+      let ok = false;
+      for (const t of state.assignee) if (aTokens.has(t)) { ok = true; break; }
+      if (!ok) return false;
+    }
+    if (state.xassignee.size) {
+      for (const t of state.xassignee) if (aTokens.has(t)) return false;
+    }
+    // Project
+    const proj = row.dataset.projectId || "";
+    if (state.project.size && !state.project.has(proj)) return false;
+    if (state.xproject.size && state.xproject.has(proj)) return false;
+    // Workspace
+    const ws = row.dataset.workspaceId || "";
+    if (state.workspace.size && !state.workspace.has(ws)) return false;
+    if (state.xworkspace.size && state.xworkspace.has(ws)) return false;
+    // Labels — ``data-label-ids`` is space-separated.
+    if (state.label.size || state.xlabel.size) {
+      const rowLabels = new Set((row.dataset.labelIds || "").split(/\s+/).filter(Boolean));
+      if (state.label.size) {
+        let any = false;
+        for (const id of state.label) if (rowLabels.has(id)) { any = true; break; }
+        if (!any) return false;
+      }
+      if (state.xlabel.size) {
+        for (const id of state.xlabel) if (rowLabels.has(id)) return false;
+      }
+    }
+    // Search — substring against title + first 160 chars of description.
+    if (state.q) {
+      const hay = row.dataset.searchHaystack || "";
+      if (!hay.includes(state.q)) return false;
+    }
+    return true;
+  }
+
+  function activeFilterCount(state) {
+    return (
+      state.status.size +
+      state.xstatus.size +
+      state.priority.size +
+      state.xpriority.size +
+      state.assignee.size +
+      state.xassignee.size +
+      state.project.size +
+      state.xproject.size +
+      state.workspace.size +
+      state.xworkspace.size +
+      state.label.size +
+      state.xlabel.size +
+      (state.q ? 1 : 0) +
+      (state.showArchived ? 1 : 0)
+    );
+  }
+
+  function refreshFilterCountBadges(count) {
+    // Server sets the count via OOB swap on full HTMX response; for the
+    // local-only path we recompute and toggle the visibility classes
+    // directly to keep the badge in sync without a round-trip.
+    const visibleHide = (el) => {
+      if (!el) return;
+      if (count > 0) {
+        el.classList.remove("hidden");
+        el.textContent = String(count);
+      } else {
+        el.classList.add("hidden");
+        el.textContent = "";
+      }
+    };
+    visibleHide(document.getElementById("filter-count-collapsed"));
+    visibleHide(document.getElementById("filter-count-expanded"));
+  }
+
+  function applyClientFilters() {
+    const form = document.getElementById("filter-form");
+    if (!form) return;
+    const state = readFilterState(form);
+    if (!state) return;
+    const rows = document.querySelectorAll("[data-task-id]");
+    let visible = 0;
+    rows.forEach((row) => {
+      // Skip elements that don't carry filter attrs (some
+      // ``data-task-id`` markers live on activity rows etc.).
+      if (!row.hasAttribute("data-status")) return;
+      const match = rowMatches(row, state);
+      if (match) {
+        row.removeAttribute("hidden");
+        visible += 1;
+      } else {
+        row.setAttribute("hidden", "");
+      }
+    });
+    refreshFilterCountBadges(activeFilterCount(state));
+    // Update ``acta_show_archived`` cookie so a hard refresh remembers
+    // the toggle — server-side fallback path reads this on cold load.
+    const oneYear = 60 * 60 * 24 * 365;
+    document.cookie = `acta_show_archived=${state.showArchived ? "1" : "0"}; path=/; max-age=${oneYear}; samesite=Lax`;
+    // Mirror URL params so refresh / share carry the same filter
+    // state — Django filter view re-renders identically on cold load.
+    if (window.history && window.history.replaceState) {
+      const params = new URLSearchParams(window.location.search);
+      // Replace filter-related keys; preserve everything else (sort,
+      // view, axis).
+      const keys = ["status", "xstatus", "priority", "xpriority", "assignee",
+        "xassignee", "project", "xproject", "workspace", "xworkspace",
+        "label", "xlabel", "q", "show_archived"];
+      keys.forEach((k) => params.delete(k));
+      const fd = new FormData(form);
+      for (const [k, v] of fd.entries()) {
+        if (!keys.includes(k)) continue;
+        if (k === "show_archived") {
+          // hidden ``0`` + checkbox ``1`` — keep only the trailing
+          // value (same logic as resolve_show_archived).
+          if (v === "1") params.set("show_archived", "1");
+          continue;
+        }
+        if (v) params.append(k, v.toString());
+      }
+      const qs = params.toString();
+      window.history.replaceState({}, "", window.location.pathname + (qs ? "?" + qs : ""));
+    }
+    return visible;
+  }
+  window.actaApplyFilters = applyClientFilters;
+
+  function bindFilterForm() {
+    const form = document.getElementById("filter-form");
+    if (!form || form.dataset.clientFiltersBound === "true") return;
+    form.dataset.clientFiltersBound = "true";
+    // The filter chips in ``_filters_sidebar.html`` use Alpine
+    // ``@change.stop`` — that stops the change event from bubbling to
+    // the form, so we can't hang ``change`` listeners on the form
+    // itself. They DO call ``form.requestSubmit()`` though, which
+    // routes through HTMX → ``htmx:beforeRequest`` fires on the
+    // form. We hijack that hook: cancel the request and run our
+    // client-side filter instead. ``htmx:beforeRequest`` survives
+    // ``.stop`` because it's dispatched by HTMX itself on the form
+    // node, not bubbled up from the chip.
+    form.addEventListener("htmx:beforeRequest", (evt) => {
+      evt.preventDefault();
+      applyClientFilters();
+    });
+    // Search input doesn't go through ``requestSubmit`` (no
+    // ``hx-trigger`` on it), so we drive it directly with a debounced
+    // input listener.
+    const q = form.querySelector('input[name="q"]');
+    if (q) {
+      let qTimer = null;
+      q.addEventListener("input", () => {
+        if (qTimer) clearTimeout(qTimer);
+        qTimer = setTimeout(applyClientFilters, 150);
+      });
+    }
+  }
+  bindFilterForm();
+  document.body.addEventListener("htmx:afterSettle", () => {
+    // Re-bind in case the form was swapped (panel re-render) and
+    // re-apply filters so freshly server-rendered rows pick up the
+    // current client state.
+    bindFilterForm();
+    applyClientFilters();
+  });
+  // Reset button broadcasts ``acta:filter-reset`` — chips reset
+  // themselves via @acta:filter-reset.window listeners. After they've
+  // settled, re-apply (empty state → everything visible).
+  window.addEventListener("acta:filter-reset", () => {
+    setTimeout(applyClientFilters, 0);
+  });
+
   // Client-side table sort. Each ``<tr>`` carries ``data-sort-*``
   // attributes pre-rendered by the server (see _table.html). On a
   // sort-header click we reshuffle rows in-place — no HTTP round-trip,

@@ -1,5 +1,7 @@
 """Small template filters used by the ``web`` app templates."""
 
+import html
+
 from django import template
 from django.utils.safestring import mark_safe
 from django.utils.translation import gettext_lazy as _
@@ -7,6 +9,58 @@ from django.utils.translation import gettext_lazy as _
 from apps.common.markdown import render_markdown
 
 register = template.Library()
+
+
+@register.simple_tag(takes_context=True)
+def task_filter_attrs(context, task):
+    """Emit ``data-*`` attributes that drive client-side filtering.
+
+    The client-side filter handler (acta.js) reads these attributes
+    off each task row / card / list-item to decide visibility without
+    a server round-trip. The same attribute set is rendered on every
+    surface a task appears on — kanban card, table row, list row —
+    so the filter logic stays single-pass.
+
+    Attribute set, mirroring ``apply_task_filters`` in
+    ``apps/web/filters.py``:
+
+    * ``data-status`` — internal status key (``planned`` / ``to-do``…)
+    * ``data-priority`` — integer 0..4
+    * ``data-assignee-id`` — ``Task.assignee_id`` or empty
+    * ``data-assignee-me`` — ``"1"`` when assigned to ``request.user``
+    * ``data-project-id`` — ``Task.project_id``
+    * ``data-workspace-id`` — ``Task.project.workspace_id``
+    * ``data-label-ids`` — space-separated label PKs
+    * ``data-archived`` — ``"1"`` if ``archived_at`` is set
+    * ``data-search-haystack`` — lowercased title + first 160 chars
+      of description, used for substring search
+
+    Args:
+        context: Template context (carries ``request``).
+        task: A :class:`Task` instance (with ``labels`` prefetched).
+
+    Returns:
+        A safe HTML string with all attributes; drop into any task
+        wrapper as ``{% task_filter_attrs task %}``.
+    """
+    request = context.get("request")
+    me_id = request.user.id if request and request.user.is_authenticated else None
+    is_me = "1" if me_id and task.assignee_id == me_id else "0"
+    label_ids = " ".join(str(label.id) for label in task.labels.all())
+    description = (task.description or "")[:160]
+    haystack = ((task.title or "") + " " + description).lower()
+    attrs = (
+        f'data-status="{html.escape(task.status or "")}" '
+        f'data-priority="{task.priority or 0}" '
+        f'data-assignee-id="{task.assignee_id or ""}" '
+        f'data-assignee-me="{is_me}" '
+        f'data-project-id="{task.project_id}" '
+        f'data-workspace-id="{task.project.workspace_id}" '
+        f'data-label-ids="{html.escape(label_ids)}" '
+        f'data-archived="{"1" if task.archived_at else "0"}" '
+        f'data-search-haystack="{html.escape(haystack, quote=True)}"'
+    )
+    return mark_safe(attrs)
 
 
 @register.simple_tag

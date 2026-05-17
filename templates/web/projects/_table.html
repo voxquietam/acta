@@ -114,6 +114,7 @@ clip overflowing text with an ellipsis instead of widening.
       {% for task in tasks %}
       <tr class="acta-row hover:bg-zinc-50 dark:hover:bg-zinc-100 dark:bg-zinc-800/30"
           data-task-id="{{ task.id }}"
+          {% task_filter_attrs task %}
           data-sort-id="{{ task.project.slug_prefix }}-{{ task.number|stringformat:"010d" }}"
           data-sort-title="{{ task.title|lower }}"
           data-sort-status="{% if task.status == 'planned' %}0{% elif task.status == 'to-do' %}1{% elif task.status == 'in-progress' %}2{% elif task.status == 'in-review' %}3{% elif task.status == 'done' %}4{% else %}99{% endif %}"

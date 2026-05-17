@@ -8,6 +8,8 @@ date is coloured by overdue / today / future; otherwise rendered in
 zinc-500.
 {% endcomment %}
 <a href="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
+   data-task-id="{{ task.id }}"
+   {% task_filter_attrs task %}
    class="flex items-center gap-3 px-3 py-2 hover:bg-zinc-200/60 dark:bg-zinc-800/40 text-sm">
 
   <span class="font-mono text-xs shrink-0
