@@ -4,7 +4,7 @@ Page-top project strip — My Work variant. Same overlay-based
 overflow indicators as ``_assignee_strip.html``: hidden native
 scrollbar, edge fades, ``+N`` counters absolutely positioned.
 {% endcomment %}
-<div class="flex items-center gap-2 border-b border-zinc-800 bg-zinc-950/70 backdrop-blur-md px-4 md:px-6 py-2 -mx-4 md:-mx-8 -mt-6 mb-4">
+<div class="flex items-center gap-2 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-950/70 backdrop-blur-md px-4 md:px-6 py-2 -mx-4 md:-mx-8 -mt-6 mb-4">
   <span class="text-[10px] uppercase tracking-wider text-zinc-500 font-medium shrink-0">
     {% trans "Project" %}
   </span>
@@ -33,11 +33,11 @@ scrollbar, edge fades, ``+N`` counters absolutely positioned.
            class="w-3.5 h-3.5 shrink-0 transition"
            :class="{
              'text-brand-300': state === 'included',
-             'text-rose-300': state === 'excluded',
+             'text-rose-700 dark:text-rose-300': state === 'excluded',
              'text-zinc-500': state === 'none',
            }"></i>
         <span class="text-xs whitespace-nowrap pr-1"
-              :class="state === 'excluded' ? 'text-rose-300 line-through' : 'text-zinc-300'">{{ p.name }}</span>
+              :class="state === 'excluded' ? 'text-rose-700 dark:text-rose-300 line-through' : 'text-zinc-700 dark:text-zinc-300'">{{ p.name }}</span>
       </label>
       {% endfor %}
     </div>
@@ -47,11 +47,11 @@ scrollbar, edge fades, ``+N`` counters absolutely positioned.
     <div data-strip-right-fade aria-hidden="true"
          class="pointer-events-none absolute right-0 inset-y-0 w-12 bg-gradient-to-l from-zinc-950 to-transparent"></div>
     <span data-strip-left-counter
-          class="pointer-events-none absolute left-1 top-1/2 -translate-y-1/2 text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-800 text-zinc-300 font-medium">
+          class="pointer-events-none absolute left-1 top-1/2 -translate-y-1/2 text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-medium">
       +<span data-count>0</span>
     </span>
     <span data-strip-right-counter
-          class="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-800 text-zinc-300 font-medium">
+          class="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-medium">
       +<span data-count>0</span>
     </span>
   </div>

@@ -11,7 +11,10 @@
    the pseudo-element rules. Set both so every browser matches. */
 html {
   scrollbar-width: thin;
-  scrollbar-color: rgb(63 63 70) transparent;
+  scrollbar-color: rgb(212 212 216) transparent; /* zinc-300 — light default */
+}
+html.dark {
+  scrollbar-color: rgb(63 63 70) transparent;    /* zinc-700 — dark override */
 }
 ::-webkit-scrollbar {
   width: 6px;
@@ -21,11 +24,17 @@ html {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgb(63 63 70);
+  background: rgb(212 212 216);   /* zinc-300 */
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgb(82 82 91);
+  background: rgb(161 161 170);   /* zinc-400 */
+}
+html.dark ::-webkit-scrollbar-thumb {
+  background: rgb(63 63 70);      /* zinc-700 */
+}
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgb(82 82 91);      /* zinc-600 */
 }
 
 .scrollbar-none {
@@ -263,15 +272,21 @@ main {
   padding: 0.25rem 0.5rem;
   font-size: 0.75rem;
   border-radius: 0.375rem;
-  background-color: rgb(24 24 27);   /* zinc-900 */
-  color: rgb(228 228 231);            /* zinc-200 */
-  border: 1px solid rgb(39 39 42);   /* zinc-800 */
-  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.5), 0 4px 6px -4px rgb(0 0 0 / 0.5);
+  background-color: white;
+  color: rgb(24 24 27);               /* zinc-900 */
+  border: 1px solid rgb(228 228 231); /* zinc-200 */
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.15), 0 4px 6px -4px rgb(0 0 0 / 0.15);
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
   transition: opacity 120ms ease, visibility 0s linear 120ms;
   transform: translateY(-50%);
+}
+.dark .acta-rail-tip {
+  background-color: rgb(24 24 27);   /* zinc-900 */
+  color: rgb(228 228 231);            /* zinc-200 */
+  border-color: rgb(39 39 42);       /* zinc-800 */
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.5), 0 4px 6px -4px rgb(0 0 0 / 0.5);
 }
 .acta-rail-tip.is-visible {
   opacity: 1;
@@ -290,20 +305,36 @@ main {
    Notably no ``font-weight`` change on toggle: that's what was
    pushing the row around when Vox toggled a pill. */
 .acta-label-pill {
-  background: linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0)),
-              color-mix(in srgb, var(--label-color) 13%, rgb(24 24 27));
-  border: 1px solid color-mix(in srgb, var(--label-color) 33%, transparent);
-  color: rgb(212 212 216);            /* zinc-300 */
-  transition: filter 80ms ease, color 80ms ease;
+  /* Light mode: tint over white. */
+  background-color: color-mix(in srgb, var(--label-color) 12%, white);
+  border: 1px solid color-mix(in srgb, var(--label-color) 40%, transparent);
+  color: rgb(63 63 70);               /* zinc-700 */
+  transition: filter 80ms ease, color 80ms ease, background-color 80ms ease;
   position: relative;
 }
 .acta-label-pill:hover {
+  filter: brightness(0.95);
+  color: rgb(24 24 27);               /* zinc-900 */
+}
+.acta-label-pill[data-state="on"] {
+  background-color: color-mix(in srgb, var(--label-color) 30%, white);
+  color: rgb(24 24 27);               /* zinc-900 */
+  border-color: var(--label-color);
+}
+.dark .acta-label-pill {
+  background-color: color-mix(in srgb, var(--label-color) 13%, rgb(24 24 27));
+  border-color: color-mix(in srgb, var(--label-color) 33%, transparent);
+  color: rgb(212 212 216);            /* zinc-300 */
+}
+.dark .acta-label-pill:hover {
   filter: brightness(1.25);
   color: rgb(244 244 245);            /* zinc-100 */
 }
-.acta-label-pill[data-state="on"] {
+.dark .acta-label-pill[data-state="on"] {
+  background-color: color-mix(in srgb, var(--label-color) 13%, rgb(24 24 27));
   filter: brightness(1.5);
   color: white;
+  border-color: color-mix(in srgb, var(--label-color) 33%, transparent);
 }
 .acta-label-pill-check {
   /* Reserved for a future explicit-on variant — currently brightness
@@ -322,8 +353,8 @@ main {
   width: 0.9rem;
   height: 0.9rem;
   border-radius: 0.25rem;
-  background-color: rgb(39 39 42);   /* zinc-800 */
-  border: 1px solid rgb(82 82 91);   /* zinc-600 */
+  background-color: white;
+  border: 1px solid rgb(212 212 216); /* zinc-300 */
   cursor: pointer;
   display: inline-grid;
   place-items: center;
@@ -332,6 +363,13 @@ main {
   vertical-align: middle;
 }
 .acta-checkbox:hover {
+  border-color: rgb(161 161 170);    /* zinc-400 */
+}
+.dark .acta-checkbox {
+  background-color: rgb(39 39 42);   /* zinc-800 */
+  border-color: rgb(82 82 91);       /* zinc-600 */
+}
+.dark .acta-checkbox:hover {
   border-color: rgb(113 113 122);    /* zinc-500 */
 }
 .acta-checkbox:checked {

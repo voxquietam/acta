@@ -18,8 +18,8 @@ browser back/forward keeps the active tab in sync.
        history.pushState({}, '', u);
      "
      :class="$store.viewMode.current === 'overview'
-       ? 'bg-zinc-800 text-zinc-100'
-       : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'"
+       ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100'
+       : 'text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-800/50'"
      class="px-2.5 py-1 rounded-md transition">
     {% trans "Overview" %}
   </a>
@@ -43,8 +43,8 @@ browser back/forward keeps the active tab in sync.
        history.pushState({}, '', u);
      "
      :class="$store.viewMode.current === 'kanban'
-       ? 'bg-zinc-800 text-zinc-100'
-       : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'"
+       ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100'
+       : 'text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-800/50'"
      class="px-2.5 py-1 rounded-md transition">
     {% trans "Kanban" %}
   </a>
@@ -56,8 +56,8 @@ browser back/forward keeps the active tab in sync.
        history.pushState({}, '', u);
      "
      :class="$store.viewMode.current === 'table'
-       ? 'bg-zinc-800 text-zinc-100'
-       : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'"
+       ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100'
+       : 'text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-800/50'"
      class="px-2.5 py-1 rounded-md transition">
     {% trans "Table" %}
   </a>
@@ -69,8 +69,8 @@ browser back/forward keeps the active tab in sync.
        history.pushState({}, '', u);
      "
      :class="$store.viewMode.current === 'list'
-       ? 'bg-zinc-800 text-zinc-100'
-       : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'"
+       ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100'
+       : 'text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-800/50'"
      class="px-2.5 py-1 rounded-md transition">
     {% trans "List" %}
   </a>

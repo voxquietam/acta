@@ -25,7 +25,7 @@ Pages extend this and override the `app_main` block.
   The inner ``nav`` keeps its own ``overflow-y-auto`` scroll.
   {% endcomment %}
   <aside :class="$store.sidebar.open ? 'md:w-64' : 'md:w-14'"
-         class="hidden md:flex md:flex-col shrink-0 bg-zinc-900 border-r border-zinc-800 transition-[width] duration-200">
+         class="hidden md:flex md:flex-col shrink-0 bg-zinc-50 border-r border-zinc-200 dark:bg-zinc-900 dark:border-zinc-800 transition-[width] duration-200">
     {% comment %}
     Acta brand header. Collapses to just the "A" pill when the
     sidebar is in icon-rail mode so the row aligns vertically with
@@ -42,36 +42,36 @@ Pages extend this and override the `app_main` block.
             class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "task tracker" %}</span>
     </a>
 
-    <div class="px-3 pt-4 pb-3 space-y-0.5 text-sm border-b border-zinc-800/60">
+    <div class="px-3 pt-4 pb-3 space-y-0.5 text-sm border-b border-zinc-200 dark:border-zinc-800/60">
       {% with current=request.resolver_match.url_name %}
       <a href="{% url 'web:my_work' %}"
          :class="!$store.sidebar.open && 'justify-center'"
-         class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-800 hover:text-zinc-100
-         {% if current == 'my_work' %}bg-brand-500/15 text-brand-300{% else %}text-zinc-300{% endif %}">
+         class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-200/60 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100
+         {% if current == 'my_work' %}bg-brand-500/15 text-brand-700 dark:text-brand-300{% else %}text-zinc-700 dark:text-zinc-300{% endif %}">
         <i data-lucide="briefcase" class="w-4 h-4 shrink-0"></i>
         <span x-show="$store.sidebar.open" x-cloak>{% trans "My Work" %}</span>
         <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "My Work" %}</span>
       </a>
       <a href="{% url 'web:all_tasks' %}"
          :class="!$store.sidebar.open && 'justify-center'"
-         class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-800 hover:text-zinc-100
-         {% if current == 'all_tasks' %}bg-brand-500/15 text-brand-300{% else %}text-zinc-300{% endif %}">
+         class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-200/60 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100
+         {% if current == 'all_tasks' %}bg-brand-500/15 text-brand-700 dark:text-brand-300{% else %}text-zinc-700 dark:text-zinc-300{% endif %}">
         <i data-lucide="list-checks" class="w-4 h-4 shrink-0"></i>
         <span x-show="$store.sidebar.open" x-cloak>{% trans "All Tasks" %}</span>
         <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "All Tasks" %}</span>
       </a>
       <a href="{% url 'web:dashboard' %}"
          :class="!$store.sidebar.open && 'justify-center'"
-         class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-800 hover:text-zinc-100
-         {% if current == 'dashboard' %}bg-brand-500/15 text-brand-300{% else %}text-zinc-300{% endif %}">
+         class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-200/60 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100
+         {% if current == 'dashboard' %}bg-brand-500/15 text-brand-700 dark:text-brand-300{% else %}text-zinc-700 dark:text-zinc-300{% endif %}">
         <i data-lucide="layout-dashboard" class="w-4 h-4 shrink-0"></i>
         <span x-show="$store.sidebar.open" x-cloak>{% trans "Dashboard" %}</span>
         <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "Dashboard" %}</span>
       </a>
       <a href="{% url 'web:project_list' %}"
          :class="!$store.sidebar.open && 'justify-center'"
-         class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-800 hover:text-zinc-100
-         {% if current == 'project_list' %}bg-brand-500/15 text-brand-300{% else %}text-zinc-300{% endif %}">
+         class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-200/60 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100
+         {% if current == 'project_list' %}bg-brand-500/15 text-brand-700 dark:text-brand-300{% else %}text-zinc-700 dark:text-zinc-300{% endif %}">
         <i data-lucide="folders" class="w-4 h-4 shrink-0"></i>
         <span x-show="$store.sidebar.open" x-cloak>{% trans "Projects" %}</span>
         <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "Projects" %}</span>
@@ -92,10 +92,10 @@ Pages extend this and override the `app_main` block.
           <li>
             <a href="{% url 'web:project_detail' slug_prefix=project.slug_prefix %}"
                :class="!$store.sidebar.open && 'justify-center'"
-               class="acta-rail-link group relative flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-zinc-800 hover:text-zinc-100
-               {% if request.resolver_match.kwargs.slug_prefix == project.slug_prefix %}bg-brand-500/15 text-brand-300{% else %}text-zinc-300{% endif %}">
-              <i data-lucide="{{ project.icon|default:'folder' }}" class="w-3.5 h-3.5 text-zinc-500 shrink-0"></i>
-              <span x-show="$store.sidebar.open" x-cloak class="font-mono text-xs text-zinc-500">{{ project.slug_prefix }}</span>
+               class="acta-rail-link group relative flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-zinc-200/60 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100
+               {% if request.resolver_match.kwargs.slug_prefix == project.slug_prefix %}bg-brand-500/15 text-brand-700 dark:text-brand-300{% else %}text-zinc-700 dark:text-zinc-300{% endif %}">
+              <i data-lucide="{{ project.icon|default:'folder' }}" class="w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500 shrink-0"></i>
+              <span x-show="$store.sidebar.open" x-cloak class="font-mono text-xs text-zinc-400 dark:text-zinc-500">{{ project.slug_prefix }}</span>
               <span x-show="$store.sidebar.open" x-cloak class="truncate">{{ project.name }}</span>
               <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{{ project.slug_prefix }} · {{ project.name }}</span>
             </a>
@@ -111,7 +111,7 @@ Pages extend this and override the `app_main` block.
       {% endfor %}
     </nav>
 
-    <div class="px-3 py-3 border-t border-zinc-800 text-xs text-zinc-500">
+    <div class="px-3 py-3 border-t border-zinc-200 dark:border-zinc-800 text-xs text-zinc-500">
       <a href="/admin/"
          :class="!$store.sidebar.open && 'justify-center'"
          class="acta-rail-link group relative flex items-center gap-2 hover:text-zinc-300">
@@ -126,7 +126,7 @@ Pages extend this and override the `app_main` block.
   <div class="flex-1 flex flex-col min-w-0">
 
     {# ---------- Top bar ---------- #}
-    <header class="relative h-14 shrink-0 flex items-center px-4 md:px-6 bg-zinc-950/70 backdrop-blur z-20 gap-3">
+    <header class="relative h-14 shrink-0 flex items-center px-4 md:px-6 bg-white/70 dark:bg-zinc-950/70 backdrop-blur z-20 gap-3">
       {% comment %}
       Hamburger toggle for the left sidebar. Stays in the topbar
       regardless of sidebar state so the user can re-open it from a
@@ -137,7 +137,7 @@ Pages extend this and override the `app_main` block.
       <button type="button"
               @click="$store.sidebar.toggle()"
               :title="$store.sidebar.open ? '{% trans 'Hide sidebar' %}' : '{% trans 'Show sidebar' %}'"
-              class="hidden md:grid place-items-center p-1.5 rounded-md text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition shrink-0">
+              class="hidden md:grid place-items-center p-1.5 rounded-md text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-200 transition shrink-0">
         <i x-show="$store.sidebar.open" data-lucide="panel-left-close" class="w-4 h-4"></i>
         <i x-show="!$store.sidebar.open" x-cloak data-lucide="panel-left-open" class="w-4 h-4"></i>
       </button>
@@ -156,18 +156,27 @@ Pages extend this and override the `app_main` block.
                 hx-target="#modal-root"
                 hx-swap="innerHTML"
                 title="{% trans 'New task' %} (c)"
-                class="grid place-items-center p-1.5 rounded-md text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100">
+                class="grid place-items-center p-1.5 rounded-md text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">
           <i data-lucide="plus" class="w-4 h-4"></i>
+        </button>
+
+        {# Theme toggle — light / dark. Icon flips via Alpine store. #}
+        <button type="button"
+                @click="$store.theme.toggle()"
+                :title="$store.theme.current === 'dark' ? '{% trans 'Switch to light mode' %}' : '{% trans 'Switch to dark mode' %}'"
+                class="grid place-items-center p-1.5 rounded-md text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">
+          <i x-show="$store.theme.current === 'dark'" data-lucide="sun" class="w-4 h-4"></i>
+          <i x-show="$store.theme.current === 'light'" x-cloak data-lucide="moon" class="w-4 h-4"></i>
         </button>
 
         {# Language switcher #}
         <div x-data="{ open: false }" class="relative">
           <button @click="open = !open"
-                  class="px-2 py-1.5 rounded-md text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 uppercase tracking-wider">
+                  class="px-2 py-1.5 rounded-md text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 uppercase tracking-wider">
             {{ LANGUAGE_CODE|default:"en" }}
           </button>
           <div x-show="open" @click.outside="open = false" x-cloak
-               class="absolute right-0 mt-2 w-32 bg-zinc-900 border border-zinc-800 rounded-md shadow-lg overflow-hidden">
+               class="absolute right-0 mt-2 w-32 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-md shadow-lg overflow-hidden">
             {% get_available_languages as LANGUAGES %}
             {% get_language_info_list for LANGUAGES as languages %}
             {% for lang in languages %}
@@ -175,7 +184,7 @@ Pages extend this and override the `app_main` block.
               {% csrf_token %}
               <input type="hidden" name="language" value="{{ lang.code }}">
               <button type="submit"
-                      class="w-full text-left px-3 py-2 text-sm hover:bg-zinc-800 {% if lang.code == LANGUAGE_CODE %}text-brand-500{% endif %}">
+                      class="w-full text-left px-3 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 {% if lang.code == LANGUAGE_CODE %}text-brand-600 dark:text-brand-500{% endif %}">
                 {{ lang.name_local }}
               </button>
             </form>
@@ -186,7 +195,7 @@ Pages extend this and override the `app_main` block.
         {% if user.is_authenticated %}
         <div x-data="{ open: false }" class="relative">
           <button @click="open = !open"
-                  class="flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-zinc-800">
+                  class="flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800">
             <span class="w-7 h-7 rounded-full text-white text-xs grid place-items-center font-medium"
                   style="background-color: {{ user.avatar_color }};">
               {{ user.display_name|slice:":1"|upper }}
@@ -194,11 +203,11 @@ Pages extend this and override the `app_main` block.
             <span class="text-sm">{{ user.display_name }}</span>
           </button>
           <div x-show="open" @click.outside="open = false" x-cloak
-               class="absolute right-0 mt-2 w-44 bg-zinc-900 border border-zinc-800 rounded-md shadow-lg overflow-hidden">
-            <a href="/admin/" class="block px-3 py-2 text-sm hover:bg-zinc-800">{% trans "Admin" %}</a>
+               class="absolute right-0 mt-2 w-44 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-md shadow-lg overflow-hidden">
+            <a href="/admin/" class="block px-3 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800">{% trans "Admin" %}</a>
             <form method="post" action="{% url 'account_logout' %}">
               {% csrf_token %}
-              <button class="w-full text-left px-3 py-2 text-sm hover:bg-zinc-800" type="submit">{% trans "Log out" %}</button>
+              <button class="w-full text-left px-3 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800" type="submit">{% trans "Log out" %}</button>
             </form>
           </div>
         </div>
@@ -224,21 +233,21 @@ Pages extend this and override the `app_main` block.
   <div x-data
        x-show="$store.selection.size > 0"
        x-cloak
-       class="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg shadow-lg text-sm">
-    <span class="text-zinc-300">
-      <span class="text-brand-400 font-medium" x-text="$store.selection.size"></span>
+       class="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg text-sm">
+    <span class="text-zinc-700 dark:text-zinc-300">
+      <span class="text-brand-600 dark:text-brand-400 font-medium" x-text="$store.selection.size"></span>
       <span class="text-zinc-500">{% trans "selected" %}</span>
     </span>
-    <span class="w-px h-4 bg-zinc-800"></span>
+    <span class="w-px h-4 bg-zinc-200 dark:bg-zinc-800"></span>
     <button type="button"
             @click="window.actaBulkArchive()"
-            class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100">
+            class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100">
       <i data-lucide="archive" class="w-3.5 h-3.5"></i>
       {% trans "Archive" %}
     </button>
     <button type="button"
             @click="$store.selection.clear()"
-            class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-zinc-500 hover:text-rose-400">
+            class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-zinc-500 hover:text-rose-500 dark:hover:text-rose-400">
       <i data-lucide="x" class="w-3.5 h-3.5"></i>
       {% trans "Clear" %}
     </button>

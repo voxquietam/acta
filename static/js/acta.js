@@ -444,6 +444,22 @@
       },
     });
 
+    // Theme — dark / light. Initial value comes from the pre-paint
+    // script in ``base.html`` which already set ``<html class>``;
+    // we mirror it here so Alpine bindings (icon swap on the toggle
+    // button) stay in sync with reality. Persisted in ``localStorage``
+    // under ``acta:theme`` — read in the same pre-paint script on
+    // every page load so there's no light/dark flash.
+    window.Alpine.store("theme", {
+      current: document.documentElement.classList.contains("light") ? "light" : "dark",
+      toggle() {
+        this.current = this.current === "dark" ? "light" : "dark";
+        document.documentElement.classList.toggle("dark", this.current === "dark");
+        document.documentElement.classList.toggle("light", this.current === "light");
+        localStorage.setItem("acta:theme", this.current);
+      },
+    });
+
     // Main app sidebar (left nav). Stored as a single boolean —
     // ``acta:sidebar_open=false`` collapses the sidebar into a thin
     // re-open button in the topbar; default true.

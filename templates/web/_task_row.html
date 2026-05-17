@@ -17,7 +17,7 @@ zinc-500.
     {% elif task.priority == 4 %}text-sky-400
     {% else %}text-zinc-500{% endif %}"
     {% if task.priority %}title="{{ priority_labels|get_item:task.priority }}"{% endif %}>{{ task.slug }}</span>
-  <span class="flex-1 min-w-0 text-zinc-100 truncate">{{ task.title }}</span>
+  <span class="flex-1 min-w-0 text-zinc-900 dark:text-zinc-100 truncate">{{ task.title }}</span>
 
   <div class="flex items-center gap-2 shrink-0 text-xs">
     {% if task.size %}
@@ -34,7 +34,7 @@ zinc-500.
                    group-hover/labels:ml-1 group-hover/labels:first:ml-0 transition-[margin] duration-200"
             style="background: linear-gradient({{ label.color }}22, {{ label.color }}22), rgb(24 24 27); border: 1px solid {{ label.color }}55;">
         <span class="w-1.5 h-1.5 rounded-full" style="background-color: {{ label.color }};"></span>
-        <span class="text-zinc-300">{{ label.name }}</span>
+        <span class="text-zinc-700 dark:text-zinc-300">{{ label.name }}</span>
       </span>
       {% endfor %}
       {% if task.labels.all|length > 3 %}
@@ -44,11 +44,11 @@ zinc-500.
     {% endif %}
 
     <span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded
-      {% if task.status == 'planned' %}bg-zinc-800 text-zinc-400
-      {% elif task.status == 'to-do' %}bg-blue-900 text-blue-300
-      {% elif task.status == 'in-progress' %}bg-violet-900 text-violet-300
-      {% elif task.status == 'in-review' %}bg-amber-900 text-amber-300
-      {% elif task.status == 'done' %}bg-emerald-900 text-emerald-300{% endif %}">
+      {% if task.status == 'planned' %}bg-zinc-100 dark:bg-zinc-800 text-zinc-400
+      {% elif task.status == 'to-do' %}bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300
+      {% elif task.status == 'in-progress' %}bg-violet-100 dark:bg-violet-900 text-violet-700 dark:text-violet-300
+      {% elif task.status == 'in-review' %}bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300
+      {% elif task.status == 'done' %}bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300{% endif %}">
       {{ status_labels|get_item:task.status|default:task.status }}
     </span>
 
@@ -71,7 +71,7 @@ zinc-500.
       {{ task.assignee.display_name|slice:":1"|upper }}
     </span>
     {% else %}
-    <span class="w-5 h-5 rounded-full border border-dashed border-zinc-700 grid place-items-center text-zinc-600 text-[10px] shrink-0"
+    <span class="w-5 h-5 rounded-full border border-dashed border-zinc-300 dark:border-zinc-700 grid place-items-center text-zinc-600 text-[10px] shrink-0"
           title="{% trans 'Unassigned' %}">?</span>
     {% endif %}
   </div>

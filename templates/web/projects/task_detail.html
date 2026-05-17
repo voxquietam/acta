@@ -15,7 +15,7 @@
   {% elif task.priority == 2 %}text-orange-400
   {% elif task.priority == 3 %}text-amber-400
   {% elif task.priority == 4 %}text-sky-400
-  {% else %}text-zinc-300{% endif %}"
+  {% else %}text-zinc-700 dark:text-zinc-300{% endif %}"
   {% if task.priority %}title="{{ priority_labels|get_item:task.priority }}"{% endif %}>{{ task.slug }}</h1>
 
 {% include "web/projects/_topbar_task_title.html" %}
@@ -32,7 +32,7 @@ Both icons are hydrated by Lucide on page load and toggled via Alpine
           @click="navigator.clipboard.writeText(window.location.href).then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
           :title="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy task link' %}'"
           :aria-label="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy task link' %}'"
-          class="p-1 rounded hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 transition">
+          class="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 transition">
     <i x-show="!copied" data-lucide="link-2" class="w-3.5 h-3.5"></i>
     <i x-show="copied" x-cloak data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i>
   </button>
@@ -41,7 +41,7 @@ Both icons are hydrated by Lucide on page load and toggled via Alpine
           @click="navigator.clipboard.writeText('{{ task.slug }}').then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
           :title="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy task ID' %}'"
           :aria-label="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy task ID' %}'"
-          class="p-1 rounded hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 transition">
+          class="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 transition">
     <i x-show="!copied" data-lucide="hash" class="w-3.5 h-3.5"></i>
     <i x-show="copied" x-cloak data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i>
   </button>
@@ -96,19 +96,19 @@ wide. Single column on smaller screens (rail stacks below).
         {% blocktrans count counter=subtasks|length %}Subtask{% plural %}Subtasks{% endblocktrans %}
         ({{ subtasks|length }})
       </div>
-      <ul class="space-y-1 bg-zinc-900 border border-zinc-800 rounded-lg p-2 max-w-2xl">
+      <ul class="space-y-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-2 max-w-2xl">
         {% for sub in subtasks %}
         <li>
           <a href="{% url 'web:task_detail' slug_prefix=sub.project.slug_prefix number=sub.number %}"
-             class="flex items-center gap-2 px-2 py-1 rounded hover:bg-zinc-800 text-sm">
+             class="flex items-center gap-2 px-2 py-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-sm">
             <span class="font-mono text-xs text-zinc-500">{{ sub.slug }}</span>
             <span class="flex-1 truncate {% if sub.status == 'done' %}line-through text-zinc-500{% endif %}">{{ sub.title }}</span>
             <span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded
-              {% if sub.status == 'planned' %}bg-zinc-800 text-zinc-400
-              {% elif sub.status == 'to-do' %}bg-blue-900 text-blue-300
-              {% elif sub.status == 'in-progress' %}bg-violet-900 text-violet-300
-              {% elif sub.status == 'in-review' %}bg-amber-900 text-amber-300
-              {% elif sub.status == 'done' %}bg-emerald-900 text-emerald-300{% endif %}">
+              {% if sub.status == 'planned' %}bg-zinc-100 dark:bg-zinc-800 text-zinc-400
+              {% elif sub.status == 'to-do' %}bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300
+              {% elif sub.status == 'in-progress' %}bg-violet-100 dark:bg-violet-900 text-violet-700 dark:text-violet-300
+              {% elif sub.status == 'in-review' %}bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300
+              {% elif sub.status == 'done' %}bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300{% endif %}">
               {{ status_labels|get_item:sub.status|default:sub.status }}
             </span>
           </a>

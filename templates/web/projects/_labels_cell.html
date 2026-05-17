@@ -49,15 +49,15 @@ assignee treatment.
        x-effect="if (open) $nextTick(() => $refs.search.focus())"
        x-cloak
        :class="dropUp ? 'bottom-full mb-1' : 'top-full mt-1'"
-       class="absolute left-0 w-60 bg-zinc-900 border border-zinc-800 rounded-lg shadow-lg overflow-hidden z-20">
+       class="absolute left-0 w-60 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg overflow-hidden z-20">
 
-    <div class="p-2 border-b border-zinc-800">
+    <div class="p-2 border-b border-zinc-200 dark:border-zinc-800">
       <input x-ref="search"
              x-model="q"
              @keydown.escape.prevent="open = false"
              type="text"
              placeholder="{% trans 'Search labels…' %}"
-             class="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-brand-500">
+             class="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded px-2 py-1 text-xs text-zinc-800 dark:text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-brand-500">
     </div>
 
     {% include "web/projects/_labels_dropdown_inner.html" %}

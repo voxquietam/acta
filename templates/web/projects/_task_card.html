@@ -3,7 +3,7 @@
 {# Single task card used inside a kanban column. #}
 <a href="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
    data-task-id="{{ task.id }}"
-   class="block bg-zinc-900 border border-zinc-800 rounded-md p-2.5 hover:border-zinc-700 transition group cursor-grab active:cursor-grabbing">
+   class="block bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-md p-2.5 hover:border-zinc-700 transition group cursor-grab active:cursor-grabbing">
   <div class="flex items-center gap-1.5 text-[11px]">
     <span class="font-mono text-zinc-500">{{ task.slug }}</span>
     {% if task.priority %}
@@ -22,14 +22,14 @@
     </span>
     {% endif %}
     {% if task.size %}
-    <span class="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 font-mono inline-flex items-center gap-1"
+    <span class="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-400 font-mono inline-flex items-center gap-1"
           title="{% trans 'Size estimate' %}">
       <i data-lucide="gauge" class="w-3 h-3"></i>{{ task.size }}
     </span>
     {% endif %}
   </div>
 
-  <div class="text-sm text-zinc-100 mt-1.5 leading-snug">{{ task.title }}</div>
+  <div class="text-sm text-zinc-900 dark:text-zinc-100 mt-1.5 leading-snug">{{ task.title }}</div>
 
   <div class="flex items-center justify-between mt-2 text-[11px] text-zinc-500">
     <div class="flex items-center gap-1.5">

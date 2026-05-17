@@ -1,6 +1,6 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -37,6 +37,22 @@
     };
   </script>
 
+  {% comment %}
+  Pre-paint theme set: read ``acta:theme`` from localStorage and put
+  the matching class on ``<html>`` BEFORE the first paint so a
+  light-mode user doesn't see a dark flash on every navigation
+  (FOUC). Runs inline in <head>, before any stylesheet / JS module
+  starts loading, so the styles cascade correctly from frame zero.
+  {% endcomment %}
+  <script>
+    (function () {
+      var saved = localStorage.getItem("acta:theme");
+      var theme = saved === "light" ? "light" : "dark";
+      document.documentElement.classList.toggle("dark", theme === "dark");
+      document.documentElement.classList.toggle("light", theme === "light");
+    })();
+  </script>
+
   <script src="https://unpkg.com/htmx.org@2"></script>
   <script src="https://unpkg.com/htmx-ext-sse@2"></script>
   <script defer src="https://unpkg.com/alpinejs@3"></script>
@@ -44,7 +60,7 @@
 
   <link rel="stylesheet" href="{% static 'css/acta.css' %}">
 </head>
-<body class="bg-zinc-950 text-zinc-100 min-h-screen">
+<body class="bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100 min-h-screen">
   {% block body %}{% endblock %}
 
   <script src="{% static 'js/acta.js' %}"></script>

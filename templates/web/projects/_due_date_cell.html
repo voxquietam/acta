@@ -15,7 +15,7 @@ explicit.
   <button type="button"
           @click="$refs.input.showPicker()"
           class="text-sm hover:text-white cursor-pointer
-            {% if task.due_date %}text-zinc-300{% else %}text-zinc-600 italic{% endif %}">
+            {% if task.due_date %}text-zinc-700 dark:text-zinc-300{% else %}text-zinc-600 italic{% endif %}">
     {% if task.due_date %}{{ task.due_date|date:"M j, Y" }}{% else %}{% trans "Set deadline" %}{% endif %}
   </button>
 

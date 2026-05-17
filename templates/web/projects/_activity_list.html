@@ -18,7 +18,7 @@ chopped at the edge.
     {% for event in activity|slice:":5" %}
     <li class="text-xs text-zinc-400 break-words">
       <div>
-        <span class="text-zinc-300">{% if event.actor %}{{ event.actor.display_name }}{% else %}system{% endif %}</span>
+        <span class="text-zinc-700 dark:text-zinc-300">{% if event.actor %}{{ event.actor.display_name }}{% else %}system{% endif %}</span>
         {% if event.event_type == "task.status_changed" %}
           <span class="text-zinc-500">{% trans "changed status" %}</span>
           <span class="text-zinc-500">

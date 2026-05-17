@@ -45,7 +45,7 @@ safety net for navigation-without-blur scenarios.
     entirely the fallback stays visible so the description is at
     least readable.
     {% endcomment %}
-    <div class="description-editor-fallback prose prose-invert prose-sm max-w-none min-h-[6rem] text-zinc-200">
+    <div class="description-editor-fallback prose dark:prose-invert prose-sm max-w-none min-h-[6rem] text-zinc-800 dark:text-zinc-200">
       {% if task.description %}
         {{ task.description|markdown }}
       {% else %}

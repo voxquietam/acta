@@ -12,7 +12,7 @@ takes whatever space the others leave. Cells use ``truncate`` to
 clip overflowing text with an ellipsis instead of widening.
 {% endcomment %}
 <div data-scroll-wrap class="relative flex-1 min-h-0">
-<div data-scroll-target class="bg-zinc-900 border border-zinc-800 rounded-lg overflow-y-auto overflow-x-hidden h-full scrollbar-none">
+<div data-scroll-target class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-y-auto overflow-x-hidden h-full scrollbar-none">
   <table x-data
          x-ref="taskTable"
          :class="$store.selection.size > 0 ? 'has-selection' : ''"
@@ -43,27 +43,27 @@ clip overflowing text with an ellipsis instead of widening.
                  class="acta-checkbox">
         </th>
         <th class="text-left px-3 py-2 font-medium">
-          <a href="{% sort_url request 'id' %}" class="hover:text-zinc-200 inline-flex items-center gap-1">
+          <a href="{% sort_url request 'id' %}" class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
             {% trans "ID" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'id' %}</span>
           </a>
         </th>
         <th class="text-left px-3 py-2 font-medium">
-          <a href="{% sort_url request 'title' %}" class="hover:text-zinc-200 inline-flex items-center gap-1">
+          <a href="{% sort_url request 'title' %}" class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
             {% trans "Title" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'title' %}</span>
           </a>
         </th>
         <th class="text-left px-3 py-2 font-medium">
-          <a href="{% sort_url request 'status' %}" class="hover:text-zinc-200 inline-flex items-center gap-1">
+          <a href="{% sort_url request 'status' %}" class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
             {% trans "Status" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'status' %}</span>
           </a>
         </th>
         <th class="text-left px-3 py-2 font-medium">
-          <a href="{% sort_url request 'priority' %}" class="hover:text-zinc-200 inline-flex items-center gap-1">
+          <a href="{% sort_url request 'priority' %}" class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
             {% trans "Priority" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'priority' %}</span>
           </a>
         </th>
         <th class="text-left px-3 py-2 font-medium">
-          <a href="{% sort_url request 'size' %}" class="hover:text-zinc-200 inline-flex items-center gap-1">
+          <a href="{% sort_url request 'size' %}" class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
             {% trans "Size" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'size' %}</span>
           </a>
         </th>
@@ -71,26 +71,26 @@ clip overflowing text with an ellipsis instead of widening.
         <th class="text-left px-3 py-2 font-medium">{% trans "Labels" %}</th>
         {% endif %}
         <th class="text-left px-3 py-2 font-medium">
-          <a href="{% sort_url request 'assignee' %}" class="hover:text-zinc-200 inline-flex items-center gap-1">
+          <a href="{% sort_url request 'assignee' %}" class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
             {% trans "Assignee" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'assignee' %}</span>
           </a>
         </th>
         {% if show_project %}
         <th class="text-left px-3 py-2 font-medium">
-          <a href="{% sort_url request 'project' %}" class="hover:text-zinc-200 inline-flex items-center gap-1">
+          <a href="{% sort_url request 'project' %}" class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
             {% trans "Project" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'project' %}</span>
           </a>
         </th>
         {% endif %}
         <th class="text-left px-3 py-2 font-medium">
-          <a href="{% sort_url request 'due' %}" class="hover:text-zinc-200 inline-flex items-center gap-1">
+          <a href="{% sort_url request 'due' %}" class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
             {% trans "Due" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'due' %}</span>
           </a>
         </th>
         <th class="text-left px-3 py-2 font-medium">
           <a href="{% sort_url request 'updated' %}"
              title="{% trans 'Updated' %}"
-             class="hover:text-zinc-200 inline-flex items-center gap-1">
+             class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
             <i data-lucide="clock" class="w-3.5 h-3.5"></i>
             <span class="text-brand-400 text-[10px]">{% sort_indicator request 'updated' %}</span>
           </a>
@@ -120,16 +120,16 @@ clip overflowing text with an ellipsis instead of widening.
         </td>
         <td class="px-3 py-2 max-w-md">
           <a href="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
-             class="block text-zinc-100 hover:text-brand-400 truncate"
+             class="block text-zinc-900 dark:text-zinc-100 hover:text-brand-400 truncate"
              title="{{ task.title }}">{{ task.title }}</a>
         </td>
         <td class="px-3 py-2 whitespace-nowrap">
           <span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded
-            {% if task.status == 'planned' %}bg-zinc-800 text-zinc-400
-            {% elif task.status == 'to-do' %}bg-blue-900 text-blue-300
-            {% elif task.status == 'in-progress' %}bg-violet-900 text-violet-300
-            {% elif task.status == 'in-review' %}bg-amber-900 text-amber-300
-            {% elif task.status == 'done' %}bg-emerald-900 text-emerald-300{% endif %}">
+            {% if task.status == 'planned' %}bg-zinc-100 dark:bg-zinc-800 text-zinc-400
+            {% elif task.status == 'to-do' %}bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300
+            {% elif task.status == 'in-progress' %}bg-violet-100 dark:bg-violet-900 text-violet-700 dark:text-violet-300
+            {% elif task.status == 'in-review' %}bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300
+            {% elif task.status == 'done' %}bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300{% endif %}">
             {{ status_labels|get_item:task.status|default:task.status }}
           </span>
         </td>
@@ -184,12 +184,12 @@ clip overflowing text with an ellipsis instead of widening.
             {% endif %}
           </div>
           {# Hover popover with full chips. #}
-          <div class="hidden group-hover:flex absolute z-30 top-full left-2 mt-1 max-w-xs flex-wrap gap-1 p-2 bg-zinc-900 border border-zinc-800 rounded-lg shadow-lg">
+          <div class="hidden group-hover:flex absolute z-30 top-full left-2 mt-1 max-w-xs flex-wrap gap-1 p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg">
             {% for label in task.labels.all %}
             <span class="text-[11px] px-1.5 py-0.5 rounded inline-flex items-center gap-1 whitespace-nowrap"
                   style="background: linear-gradient({{ label.color }}22, {{ label.color }}22), rgb(24 24 27); border: 1px solid {{ label.color }}55;">
               <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background-color: {{ label.color }};"></span>
-              <span class="text-zinc-300">{{ label.name }}</span>
+              <span class="text-zinc-700 dark:text-zinc-300">{{ label.name }}</span>
             </span>
             {% endfor %}
           </div>
@@ -203,14 +203,14 @@ clip overflowing text with an ellipsis instead of widening.
                   style="background-color: {{ task.assignee.avatar_color }};">
               {{ task.assignee.display_name|slice:":1"|upper }}
             </span>
-            <span class="text-zinc-300 truncate">{{ task.assignee.display_name }}</span>
+            <span class="text-zinc-700 dark:text-zinc-300 truncate">{{ task.assignee.display_name }}</span>
           </span>
           {% else %}
           <span class="text-zinc-600">{% trans "—" %}</span>
           {% endif %}
         </td>
         {% if show_project %}
-        <td class="px-3 py-2 text-xs text-zinc-300 overflow-hidden"
+        <td class="px-3 py-2 text-xs text-zinc-700 dark:text-zinc-300 overflow-hidden"
             title="{{ task.project.workspace.name }} / {{ task.project.name }}">
           <div class="flex items-center gap-1.5 min-w-0">
             <i data-lucide="{{ task.project.icon|default:'folder' }}" class="w-3.5 h-3.5 text-zinc-500 shrink-0"></i>
