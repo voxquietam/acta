@@ -71,37 +71,149 @@
     if (tip) tip.classList.remove("is-visible");
   });
 
-  // Delegated handler for table column-sort links: turn the plain
-  // ``<a href>`` navigation into an HTMX swap of the surrounding
-  // ``[data-task-list-root]`` panel so the page doesn't flash through
-  // a full reload between sorts. ``transition:true`` enables the
-  // View Transitions API for a smooth crossfade on the column
-  // re-order; ``pushUrl`` keeps the new ``?order=`` shareable.
+  // Client-side table sort. Each ``<tr>`` carries ``data-sort-*``
+  // attributes pre-rendered by the server (see _table.html). On a
+  // sort-header click we reshuffle rows in-place — no HTTP round-trip,
+  // no DOM replacement — so sort is instant up to a few thousand
+  // rows. URL still updates via ``history.pushState`` so a refresh
+  // or shared link picks the same order back up on the server.
+  //
+  // Comparators mirror ``apply_task_ordering`` in apps/web/filters.py:
+  // status uses workflow order (encoded as 0-4 in data-sort-status),
+  // priority sinks "no priority" via the rank 99, assignee / due /
+  // size are NULLS LAST regardless of direction.
+  const SORT_BLANK_LAST_KEYS = new Set(["size", "due", "assignee"]);
+  const SORT_NUMERIC_KEYS = new Set(["status", "priority", "size"]);
+  function compareRows(a, b, key, dir) {
+    const prop = "sort" + key.charAt(0).toUpperCase() + key.slice(1);
+    const av = a.dataset[prop] || "";
+    const bv = b.dataset[prop] || "";
+    if (SORT_BLANK_LAST_KEYS.has(key)) {
+      if (av === "" && bv === "") return 0;
+      if (av === "") return 1;
+      if (bv === "") return -1;
+    }
+    let cmp;
+    if (SORT_NUMERIC_KEYS.has(key)) {
+      cmp = parseFloat(av) - parseFloat(bv);
+    } else {
+      cmp = av < bv ? -1 : av > bv ? 1 : 0;
+    }
+    return dir === "desc" ? -cmp : cmp;
+  }
+
+  function applyClientSort(tbody, clauses) {
+    // ``clauses`` is an array of ``{key, dir}`` evaluated in order
+    // (lexicographic on the first column, ties broken by the next,
+    // and so on) — matches Django's multi-key ``order_by``.
+    const rows = Array.from(tbody.querySelectorAll("tr[data-task-id]"));
+    rows.sort((a, b) => {
+      for (const { key, dir } of clauses) {
+        const c = compareRows(a, b, key, dir);
+        if (c !== 0) return c;
+      }
+      return 0;
+    });
+    const frag = document.createDocumentFragment();
+    rows.forEach((r) => frag.appendChild(r));
+    tbody.appendChild(frag);
+  }
+
+  function parseClauses(str) {
+    // ``"status,-priority,-updated"`` → list of ``{key, dir}``.
+    return (str || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((token) => {
+        const dir = token.startsWith("-") ? "desc" : "asc";
+        return { key: token.replace(/^-/, ""), dir };
+      });
+  }
+
+  function parseOrder(orderParam) {
+    const raw = (orderParam || "").trim();
+    if (!raw) return { key: "", dir: "asc" };
+    const dir = raw.startsWith("-") ? "desc" : "asc";
+    const key = raw.replace(/^-/, "");
+    return { key, dir };
+  }
+
+  function nextSortState(currentKey, currentDir, clickedKey) {
+    // Three-state cycle on the same column: none → asc → desc → none.
+    // Clicking a different column resets to asc on the new column.
+    // ``key === ""`` represents the "none" / default state.
+    if (clickedKey !== currentKey) return { key: clickedKey, dir: "asc" };
+    if (currentDir === "asc") return { key: clickedKey, dir: "desc" };
+    return { key: "", dir: "asc" }; // cleared
+  }
+
+  function buildUrl(currentSearch, nextKey, nextDir) {
+    const params = new URLSearchParams(currentSearch);
+    if (nextKey) {
+      params.set("order", nextDir === "desc" ? "-" + nextKey : nextKey);
+    } else {
+      params.delete("order");
+    }
+    const qs = params.toString();
+    return window.location.pathname + (qs ? "?" + qs : "");
+  }
+
+  function refreshSortIndicators(table, activeKey, activeDir) {
+    // Update the trailing arrow span in each header link. Server-side
+    // ``sort_indicator`` filter rendered it on cold load; from there
+    // we own it.
+    table.querySelectorAll("a[data-sort-key]").forEach((a) => {
+      const span = a.querySelector("span.text-brand-400");
+      if (!span) return;
+      const linkKey = a.getAttribute("data-sort-key");
+      if (linkKey === activeKey) {
+        span.textContent = activeDir === "desc" ? "↓" : "↑";
+      } else {
+        span.textContent = "";
+      }
+    });
+  }
+
   document.addEventListener("click", function onSortLinkClick(evt) {
-    // Honour modified clicks — Cmd / Ctrl / middle-click should open
-    // the sort in a new tab as usual.
+    // Modified clicks should still open in a new tab as usual.
     if (evt.metaKey || evt.ctrlKey || evt.shiftKey || evt.altKey) return;
     if (evt.button !== 0) return;
-    const a = evt.target.closest("a[data-sort]");
+    const a = evt.target.closest("a[data-sort-key]");
     if (!a) return;
     const root = a.closest("[data-task-list-root]");
-    if (!root || !root.id || !window.htmx) return;
-    // Only swap the table itself — not the surrounding panel. The
-    // server short-circuits on ``HX-Target == 'task-table-root'`` and
-    // returns just ``_table.html``, which avoids rebuilding kanban
-    // columns + 5 list-view group axes on every sort click. Falls
-    // back to the panel-level swap if the table root isn't present
-    // on this page yet (e.g. mid-load).
-    const tableRoot = root.querySelector("#task-table-root");
-    const target = tableRoot ? "#task-table-root" : "#" + root.id;
-    // No ``transition:true`` here — View Transitions adds ~100-200ms
-    // of crossfade animation, which dominates the perceived sort
-    // latency. Plain outerHTML is the fastest path.
-    const swap = tableRoot ? "outerHTML" : "innerHTML";
+    if (!root) return;
+    const table = root.querySelector("table");
+    const tbody = table && table.querySelector("tbody");
+    if (!tbody) return;
+    const clickedKey = a.getAttribute("data-sort-key");
+    if (!clickedKey) return;
     evt.preventDefault();
-    window.htmx.ajax("GET", a.getAttribute("href"), { target, swap });
+    // The next state is derived from the **current URL**, not from the
+    // server-rendered ``href`` — the href is set once at render time
+    // and goes stale after the first click. Reading the live URL each
+    // time keeps the three-state cycle (none → asc → desc → none)
+    // working across repeated clicks on the same column.
+    const current = parseOrder(new URL(window.location.href).searchParams.get("order"));
+    const next = nextSortState(current.key, current.dir, clickedKey);
+    const nextUrl = buildUrl(window.location.search, next.key, next.dir);
+    if (next.key) {
+      applyClientSort(tbody, [{ key: next.key, dir: next.dir }]);
+      refreshSortIndicators(table, next.key, next.dir);
+    } else {
+      // Cleared sort — re-apply the page's default ordering entirely
+      // client-side. The server exposes it via
+      // ``data-default-order`` on ``#task-table-root`` so we don't
+      // have to round-trip just to undo a sort.
+      const tableRoot = root.querySelector("#task-table-root");
+      const defaultClauses = parseClauses(tableRoot && tableRoot.getAttribute("data-default-order"));
+      if (defaultClauses.length) {
+        applyClientSort(tbody, defaultClauses);
+      }
+      refreshSortIndicators(table, "", "asc");
+    }
     if (window.history && window.history.pushState) {
-      window.history.pushState({}, "", a.getAttribute("href"));
+      window.history.pushState({}, "", nextUrl);
     }
   });
 

@@ -11,7 +11,10 @@ swaps don't make the layout jump. Title is the elastic column —
 takes whatever space the others leave. Cells use ``truncate`` to
 clip overflowing text with an ellipsis instead of widening.
 {% endcomment %}
-<div id="task-table-root" data-scroll-wrap class="relative flex-1 min-h-0">
+<div id="task-table-root"
+     data-scroll-wrap
+     {% if default_order %}data-default-order="{{ default_order }}"{% endif %}
+     class="relative flex-1 min-h-0">
 <div data-scroll-target class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-y-auto overflow-x-hidden h-full scrollbar-none">
   <table x-data
          x-ref="taskTable"
@@ -43,27 +46,27 @@ clip overflowing text with an ellipsis instead of widening.
                  class="acta-checkbox">
         </th>
         <th class="text-left px-3 py-2 font-medium">
-          <a href="{% sort_url request 'id' %}" data-sort class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
+          <a href="{% sort_url request 'id' %}" data-sort data-sort-key="id" class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
             {% trans "ID" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'id' %}</span>
           </a>
         </th>
         <th class="text-left px-3 py-2 font-medium">
-          <a href="{% sort_url request 'title' %}" data-sort class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
+          <a href="{% sort_url request 'title' %}" data-sort data-sort-key="title" class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
             {% trans "Title" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'title' %}</span>
           </a>
         </th>
         <th class="text-left px-3 py-2 font-medium">
-          <a href="{% sort_url request 'status' %}" data-sort class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
+          <a href="{% sort_url request 'status' %}" data-sort data-sort-key="status" class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
             {% trans "Status" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'status' %}</span>
           </a>
         </th>
         <th class="text-left px-3 py-2 font-medium">
-          <a href="{% sort_url request 'priority' %}" data-sort class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
+          <a href="{% sort_url request 'priority' %}" data-sort data-sort-key="priority" class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
             {% trans "Priority" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'priority' %}</span>
           </a>
         </th>
         <th class="text-left px-3 py-2 font-medium">
-          <a href="{% sort_url request 'size' %}" data-sort class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
+          <a href="{% sort_url request 'size' %}" data-sort data-sort-key="size" class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
             {% trans "Size" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'size' %}</span>
           </a>
         </th>
@@ -71,24 +74,24 @@ clip overflowing text with an ellipsis instead of widening.
         <th class="text-left px-3 py-2 font-medium">{% trans "Labels" %}</th>
         {% endif %}
         <th class="text-left px-3 py-2 font-medium">
-          <a href="{% sort_url request 'assignee' %}" data-sort class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
+          <a href="{% sort_url request 'assignee' %}" data-sort data-sort-key="assignee" class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
             {% trans "Assignee" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'assignee' %}</span>
           </a>
         </th>
         {% if show_project %}
         <th class="text-left px-3 py-2 font-medium">
-          <a href="{% sort_url request 'project' %}" data-sort class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
+          <a href="{% sort_url request 'project' %}" data-sort data-sort-key="project" class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
             {% trans "Project" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'project' %}</span>
           </a>
         </th>
         {% endif %}
         <th class="text-left px-3 py-2 font-medium">
-          <a href="{% sort_url request 'due' %}" data-sort class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
+          <a href="{% sort_url request 'due' %}" data-sort data-sort-key="due" class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
             {% trans "Due" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'due' %}</span>
           </a>
         </th>
         <th class="text-left px-3 py-2 font-medium">
-          <a href="{% sort_url request 'updated' %}" data-sort
+          <a href="{% sort_url request 'updated' %}" data-sort data-sort-key="updated"
              title="{% trans 'Updated' %}"
              class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
             <i data-lucide="clock" class="w-3.5 h-3.5"></i>
@@ -97,10 +100,29 @@ clip overflowing text with an ellipsis instead of widening.
         </th>
       </tr>
     </thead>
+    {% comment %}
+    Each ``<tr>`` carries sortable values as ``data-sort-*`` attributes
+    so the client-side sort handler can compare without parsing cell
+    text. Strings are pre-lowercased for case-insensitive ordering;
+    empty / null values stay empty so the comparator can sink them
+    to the bottom with NULLS LAST semantics. ``data-priority-rank``
+    encodes the priority enum with ``0`` (no priority) mapped to a
+    very large number so it always lands last regardless of direction
+    — same trick the server uses (_PRIORITY_NOPRIO_LAST in filters.py).
+    {% endcomment %}
     <tbody class="divide-y divide-zinc-200 dark:divide-zinc-800">
       {% for task in tasks %}
       <tr class="acta-row hover:bg-zinc-50 dark:hover:bg-zinc-100 dark:bg-zinc-800/30"
           data-task-id="{{ task.id }}"
+          data-sort-id="{{ task.project.slug_prefix }}-{{ task.number|stringformat:"010d" }}"
+          data-sort-title="{{ task.title|lower }}"
+          data-sort-status="{% if task.status == 'planned' %}0{% elif task.status == 'to-do' %}1{% elif task.status == 'in-progress' %}2{% elif task.status == 'in-review' %}3{% elif task.status == 'done' %}4{% else %}99{% endif %}"
+          data-sort-priority="{% if task.priority %}{{ task.priority }}{% else %}99{% endif %}"
+          data-sort-size="{% if task.size %}{{ task.size }}{% else %}{% endif %}"
+          data-sort-assignee="{% if task.assignee %}{{ task.assignee.display_name|lower }}{% else %}{% endif %}"
+          data-sort-project="{{ task.project.name|lower }}"
+          data-sort-due="{% if task.due_date %}{{ task.due_date|date:"Y-m-d" }}{% else %}{% endif %}"
+          data-sort-updated="{{ task.updated_at|date:"c" }}"
           :data-selected="$store.selection.has({{ task.id }}) ? 'true' : 'false'"
           :class="$store.selection.has({{ task.id }}) && 'bg-brand-500/10 dark:bg-brand-500/5'">
         <td class="px-3 py-2 text-center">

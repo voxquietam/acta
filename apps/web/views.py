@@ -289,6 +289,13 @@ class AllTasksView(LoginRequiredMixin, ListView):
         ctx["view_panel_target"] = "#task-list-wrapper"
         ctx["show_project"] = True
         ctx["show_labels"] = True
+        # Default sort order, exposed to the client so a "clear sort"
+        # click can re-apply it without a server round-trip. Mirrors
+        # the ``default_ordering`` argument passed to
+        # ``apply_task_ordering`` (or the Task.Meta.ordering fallback
+        # when none is set). Format: comma-separated keys with ``-``
+        # prefix meaning descending — same shape as ``?order=`` itself.
+        ctx["default_order"] = "-updated"
         # Both bodies render in the DOM so the Alpine ``viewMode`` store
         # can toggle visibility with no round-trip. ``tasks`` (from
         # ``get_queryset``, ``?order=``-aware) feeds the table; columns
@@ -554,6 +561,12 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             )
         )
         ctx["table_tasks"] = table_tasks
+        # See AllTasksView for the rationale — keeps "clear sort"
+        # entirely client-side. Ordering uses the comma-separated
+        # querystring shape, not the ORM field tuple, because the
+        # client comparators key off the sort-key (``updated``), not
+        # the model field (``updated_at``).
+        ctx["default_order"] = "status,-priority,-updated"
 
         # Table-only HTMX swap (column sort header): skip the kanban
         # column build and the five list-axis grouping passes — only
