@@ -26,6 +26,11 @@ ADR format: **Context → Options → Decision → Why → Consequences**.
 | 0017 | accepted | Notifications: in-app toasts over SSE, no inbox in MVP             | [0017-notifications.md](decisions/0017-notifications.md) |
 | 0018 | accepted | i18n: en + uk, User.language preference, LocaleMiddleware          | [0018-i18n.md](decisions/0018-i18n.md) |
 
+## Operations
+
+- [operations.md](operations.md) — deployment runbook: migrations, i18n
+  build, cron jobs (auto-archive), per-release checklist.
+
 ## Spec (filled in as decisions land)
 
 - `spec/project-layout.md` — directory tree, Django apps, settings/requirements split ✅
