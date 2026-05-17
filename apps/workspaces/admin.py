@@ -19,7 +19,11 @@ class WorkspaceAdmin(ModelAdmin):
         "name",
         "slug",
         "owner",
+        "auto_archive_done_after_days",
         "created_at",
+    ]
+    list_filter = [
+        "auto_archive_done_after_days",
     ]
     search_fields = [
         "name",

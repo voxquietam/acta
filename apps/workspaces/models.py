@@ -36,6 +36,17 @@ class Workspace(models.Model):
         help_text="Users with access to the workspace, with their role",
     )
 
+    auto_archive_done_after_days = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        default=30,
+        help_text=(
+            "Auto-archive policy: done tasks whose updated_at is older than this many days "
+            "are archived by the daily archive_stale_done_tasks command. Set to NULL to disable "
+            "auto-archive for this workspace. Manual archive/unarchive still works regardless"
+        ),
+    )
+
     class Meta:
         verbose_name = _("Workspace")
         verbose_name_plural = _("Workspaces")
