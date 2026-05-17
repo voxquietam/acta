@@ -549,21 +549,16 @@
     });
   });
 
-  // Lucide icons: replace every ``<i data-lucide="...">`` placeholder
-  // with the inline SVG. Idempotent — already-replaced placeholders
-  // are skipped, so we can safely re-scan after HTMX swaps without
-  // double-rendering.
-  function renderIcons() {
-    if (window.lucide && typeof window.lucide.createIcons === "function") {
-      window.lucide.createIcons();
-    }
-  }
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", renderIcons);
-  } else {
-    renderIcons();
-  }
-  document.body.addEventListener("htmx:afterSwap", renderIcons);
+  // Lucide icons used to be ``<i data-lucide="...">`` placeholders
+  // hydrated client-side by ``lucide.min.js`` on load + every HTMX
+  // swap. Server now renders inline SVG via the ``{% lucide %}``
+  // template tag (apps/web/templatetags/lucide.py), so no JS pass is
+  // needed — icons land with the first paint and survive DOM swaps
+  // without the empty-frame flicker the JS replacement caused.
+  // Kept ``renderIcons`` as a no-op shim so external call sites
+  // (existing ``applyCardReplace``, etc.) don't have to be edited;
+  // remove once those call sites are gone.
+  function renderIcons() {}
 
   // Sticky-row stacking for filter lists (project / assignee). When
   // multiple selected rows pin to the same edge of a scroll container,

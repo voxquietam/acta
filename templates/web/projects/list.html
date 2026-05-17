@@ -1,6 +1,7 @@
 {% extends "base_app.html" %}
 {% load i18n %}
 
+{% load lucide %}
 {% block title %}{% trans "Projects" %} · Acta{% endblock %}
 
 {% block topbar_left %}
@@ -17,7 +18,7 @@
       <div class="flex items-start justify-between gap-2">
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-1.5">
-            <i data-lucide="{{ project.icon|default:'folder' }}" class="w-3.5 h-3.5 text-zinc-500 shrink-0"></i>
+            {% lucide project.icon|default:"folder" "w-3.5 h-3.5 text-zinc-500 shrink-0" %}
             <span class="font-mono text-xs text-zinc-500">{{ project.slug_prefix }}</span>
             {% if project.archived %}
             <span class="text-[10px] uppercase tracking-wider text-zinc-500 px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">
@@ -58,7 +59,7 @@
         {% endif %}
         {% if project.member_count %}
         <span class="shrink-0 flex items-center gap-1" title="{% trans 'Members' %}">
-          <i data-lucide="users" class="w-3 h-3"></i>{{ project.member_count }}
+          {% lucide "users" "w-3 h-3" %}{{ project.member_count }}
         </span>
         {% endif %}
         <span class="shrink-0 ml-auto">

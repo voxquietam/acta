@@ -1,5 +1,6 @@
 {% extends "base_app.html" %}
 {% load i18n %}
+{% load lucide %}
 {% load web_extras %}
 
 {% block title %}{{ task.slug }} · {{ task.title }} · Acta{% endblock %}
@@ -33,8 +34,8 @@ Both icons are hydrated by Lucide on page load and toggled via Alpine
           :title="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy task link' %}'"
           :aria-label="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy task link' %}'"
           class="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 transition">
-    <i x-show="!copied" data-lucide="link-2" class="w-3.5 h-3.5"></i>
-    <i x-show="copied" x-cloak data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i>
+    <span x-show="!copied">{% lucide "link-2" "w-3.5 h-3.5" %}</span>
+    <span x-show="copied" x-cloak class="text-emerald-400">{% lucide "check" "w-3.5 h-3.5" %}</span>
   </button>
   <button type="button"
           x-data="{ copied: false }"
@@ -42,8 +43,8 @@ Both icons are hydrated by Lucide on page load and toggled via Alpine
           :title="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy task ID' %}'"
           :aria-label="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy task ID' %}'"
           class="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 transition">
-    <i x-show="!copied" data-lucide="hash" class="w-3.5 h-3.5"></i>
-    <i x-show="copied" x-cloak data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i>
+    <span x-show="!copied">{% lucide "hash" "w-3.5 h-3.5" %}</span>
+    <span x-show="copied" x-cloak class="text-emerald-400">{% lucide "check" "w-3.5 h-3.5" %}</span>
   </button>
 </div>
 {% endblock %}

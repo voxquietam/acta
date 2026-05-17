@@ -1,4 +1,5 @@
 {% load i18n %}
+{% load lucide %}
 {% load web_extras %}
 {% comment %}
 Priority cell with the same click-to-edit pattern as the status cell.
@@ -15,11 +16,11 @@ to the equally-colored status badge).
             {% elif task.priority == 3 %}text-amber-400
             {% elif task.priority == 4 %}text-sky-400
             {% else %}text-zinc-500{% endif %}">
-    {% if task.priority == 1 %}<i data-lucide="chevrons-up" class="w-3.5 h-3.5"></i>
-    {% elif task.priority == 2 %}<i data-lucide="chevron-up" class="w-3.5 h-3.5"></i>
-    {% elif task.priority == 3 %}<i data-lucide="minus" class="w-3.5 h-3.5"></i>
-    {% elif task.priority == 4 %}<i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
-    {% else %}<i data-lucide="circle-dashed" class="w-3.5 h-3.5"></i>{% endif %}
+    {% if task.priority == 1 %}{% lucide "chevrons-up" "w-3.5 h-3.5" %}
+    {% elif task.priority == 2 %}{% lucide "chevron-up" "w-3.5 h-3.5" %}
+    {% elif task.priority == 3 %}{% lucide "minus" "w-3.5 h-3.5" %}
+    {% elif task.priority == 4 %}{% lucide "chevron-down" "w-3.5 h-3.5" %}
+    {% else %}{% lucide "circle-dashed" "w-3.5 h-3.5" %}{% endif %}
     <span>{{ priority_labels|get_item:task.priority }}</span>
   </button>
   <div x-show="open"
@@ -43,11 +44,11 @@ to the equally-colored status badge).
           {% elif priority_key == 3 %}text-amber-400
           {% elif priority_key == 4 %}text-sky-400
           {% else %}text-zinc-500{% endif %}">
-          {% if priority_key == 1 %}<i data-lucide="chevrons-up" class="w-3.5 h-3.5"></i>
-          {% elif priority_key == 2 %}<i data-lucide="chevron-up" class="w-3.5 h-3.5"></i>
-          {% elif priority_key == 3 %}<i data-lucide="minus" class="w-3.5 h-3.5"></i>
-          {% elif priority_key == 4 %}<i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
-          {% else %}<i data-lucide="circle-dashed" class="w-3.5 h-3.5"></i>{% endif %}
+          {% if priority_key == 1 %}{% lucide "chevrons-up" "w-3.5 h-3.5" %}
+          {% elif priority_key == 2 %}{% lucide "chevron-up" "w-3.5 h-3.5" %}
+          {% elif priority_key == 3 %}{% lucide "minus" "w-3.5 h-3.5" %}
+          {% elif priority_key == 4 %}{% lucide "chevron-down" "w-3.5 h-3.5" %}
+          {% else %}{% lucide "circle-dashed" "w-3.5 h-3.5" %}{% endif %}
         </span>
         {{ priority_label }}
       </button>

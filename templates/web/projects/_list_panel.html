@@ -1,4 +1,5 @@
 {% load i18n %}
+{% load lucide %}
 {% load web_extras %}
 {% comment %}
 List view body — grouped sections of task rows. All axes pre-computed
@@ -65,7 +66,7 @@ updates ``activeAxis`` + ``history.pushState`` so URLs stay shareable.
     <div class="grid place-items-center text-center py-20">
       <div>
         <div class="w-12 h-12 rounded-full border border-dashed border-zinc-300 dark:border-zinc-700 grid place-items-center text-zinc-500 dark:text-zinc-600 mx-auto mb-3">
-          <i data-lucide="list" class="w-5 h-5"></i>
+          {% lucide "list" "w-5 h-5" %}
         </div>
         <h2 class="text-lg font-medium text-zinc-700 dark:text-zinc-300">{% trans "No tasks match these filters" %}</h2>
         <p class="text-sm text-zinc-500 mt-1">{% trans "Try a different group axis or clear filters." %}</p>

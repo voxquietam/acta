@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load i18n %}
+{% load lucide %}
 {% comment %}
 Shared shell for all authenticated pages: top bar + sidebar + main content.
 Pages extend this and override the `app_main` block.
@@ -10,6 +11,7 @@ Pages extend this and override the `app_main` block.
 <div x-data
      data-create-task-url="{% url 'web:create_task' %}"
      hx-indicator="#acta-progress-bar"
+     hx-ext="morph"
      class="h-screen flex overflow-hidden">
 
   {# ---------- Sidebar ---------- #}
@@ -65,7 +67,7 @@ Pages extend this and override the `app_main` block.
          :class="!$store.sidebar.open && 'justify-center'"
          class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-200/60 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100
          text-zinc-700 dark:text-zinc-300">
-        <i data-lucide="briefcase" class="w-4 h-4 shrink-0"></i>
+        {% lucide "briefcase" "w-4 h-4 shrink-0" %}
         <span x-show="$store.sidebar.open" x-cloak>{% trans "My Work" %}</span>
         <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "My Work" %}</span>
       </a>
@@ -73,7 +75,7 @@ Pages extend this and override the `app_main` block.
          :class="!$store.sidebar.open && 'justify-center'"
          class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-200/60 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100
          text-zinc-700 dark:text-zinc-300">
-        <i data-lucide="list-checks" class="w-4 h-4 shrink-0"></i>
+        {% lucide "list-checks" "w-4 h-4 shrink-0" %}
         <span x-show="$store.sidebar.open" x-cloak>{% trans "All Tasks" %}</span>
         <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "All Tasks" %}</span>
       </a>
@@ -81,7 +83,7 @@ Pages extend this and override the `app_main` block.
          :class="!$store.sidebar.open && 'justify-center'"
          class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-200/60 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100
          text-zinc-700 dark:text-zinc-300">
-        <i data-lucide="layout-dashboard" class="w-4 h-4 shrink-0"></i>
+        {% lucide "layout-dashboard" "w-4 h-4 shrink-0" %}
         <span x-show="$store.sidebar.open" x-cloak>{% trans "Dashboard" %}</span>
         <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "Dashboard" %}</span>
       </a>
@@ -89,7 +91,7 @@ Pages extend this and override the `app_main` block.
          :class="!$store.sidebar.open && 'justify-center'"
          class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-200/60 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100
          text-zinc-700 dark:text-zinc-300">
-        <i data-lucide="folders" class="w-4 h-4 shrink-0"></i>
+        {% lucide "folders" "w-4 h-4 shrink-0" %}
         <span x-show="$store.sidebar.open" x-cloak>{% trans "Projects" %}</span>
         <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "Projects" %}</span>
       </a>
@@ -111,7 +113,7 @@ Pages extend this and override the `app_main` block.
                data-nav-prefix
                :class="!$store.sidebar.open && 'justify-center'"
                class="acta-rail-link group relative flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-zinc-200/60 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 text-zinc-700 dark:text-zinc-300">
-              <i data-lucide="{{ project.icon|default:'folder' }}" class="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-600 dark:text-zinc-400 dark:text-zinc-500 shrink-0"></i>
+              {% lucide project.icon|default:"folder" "w-3.5 h-3.5 text-zinc-500 dark:text-zinc-600 dark:text-zinc-400 dark:text-zinc-500 shrink-0" %}
               <span x-show="$store.sidebar.open" x-cloak class="font-mono text-xs text-zinc-500 dark:text-zinc-600 dark:text-zinc-400 dark:text-zinc-500">{{ project.slug_prefix }}</span>
               <span x-show="$store.sidebar.open" x-cloak class="truncate">{{ project.name }}</span>
               <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{{ project.slug_prefix }} · {{ project.name }}</span>
@@ -133,7 +135,7 @@ Pages extend this and override the `app_main` block.
          hx-boost="false"
          :class="!$store.sidebar.open && 'justify-center'"
          class="acta-rail-link group relative flex items-center gap-2 hover:text-zinc-900 dark:hover:text-zinc-300">
-        <i data-lucide="settings" class="w-3.5 h-3.5 shrink-0"></i>
+        {% lucide "settings" "w-3.5 h-3.5 shrink-0" %}
         <span x-show="$store.sidebar.open" x-cloak>{% trans "Admin" %}</span>
         <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "Admin" %}</span>
       </a>
@@ -163,8 +165,8 @@ Pages extend this and override the `app_main` block.
               @click="$store.sidebar.toggle()"
               :title="$store.sidebar.open ? '{% trans 'Hide sidebar' %}' : '{% trans 'Show sidebar' %}'"
               class="hidden md:grid place-items-center p-1.5 rounded-md text-zinc-500 dark:text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-200 transition shrink-0">
-        <i x-show="$store.sidebar.open" data-lucide="panel-left-close" class="w-4 h-4"></i>
-        <i x-show="!$store.sidebar.open" x-cloak data-lucide="panel-left-open" class="w-4 h-4"></i>
+        <span x-show="$store.sidebar.open">{% lucide "panel-left-close" "w-4 h-4" %}</span>
+        <span x-show="!$store.sidebar.open" x-cloak>{% lucide "panel-left-open" "w-4 h-4" %}</span>
       </button>
       <div class="flex items-center gap-3 min-w-0 flex-1">
         {% block topbar_left %}{% endblock %}
@@ -182,7 +184,7 @@ Pages extend this and override the `app_main` block.
                 hx-swap="innerHTML"
                 title="{% trans 'New task' %} (c)"
                 class="grid place-items-center p-1.5 rounded-md text-zinc-500 dark:text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">
-          <i data-lucide="plus" class="w-4 h-4"></i>
+          {% lucide "plus" "w-4 h-4" %}
         </button>
 
         {# Theme toggle — light / dark. Icon flips via Alpine store. #}
@@ -190,8 +192,8 @@ Pages extend this and override the `app_main` block.
                 @click="$store.theme.toggle()"
                 :title="$store.theme.current === 'dark' ? '{% trans 'Switch to light mode' %}' : '{% trans 'Switch to dark mode' %}'"
                 class="grid place-items-center p-1.5 rounded-md text-zinc-500 dark:text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">
-          <i x-show="$store.theme.current === 'dark'" data-lucide="sun" class="w-4 h-4"></i>
-          <i x-show="$store.theme.current === 'light'" x-cloak data-lucide="moon" class="w-4 h-4"></i>
+          <span x-show="$store.theme.current === 'dark'">{% lucide "sun" "w-4 h-4" %}</span>
+          <span x-show="$store.theme.current === 'light'" x-cloak>{% lucide "moon" "w-4 h-4" %}</span>
         </button>
 
         {# Language switcher #}
@@ -250,6 +252,24 @@ Pages extend this and override the `app_main` block.
   <div id="modal-root"></div>
 
   {% comment %}
+  SSE subscription markers — one per workspace the user belongs to.
+  Project / task detail pages put their own ``data-workspace-sse``
+  near the content (so the channel is obviously tied to that page);
+  cross-workspace surfaces like My Work / All Tasks / Dashboard have
+  no single workspace, so we emit one hidden marker per workspace
+  here. ``acta.js`` dedupes by channel URL, so a project page that
+  already carries the same workspace marker only opens one
+  EventSource.
+  {% endcomment %}
+  {% if user.is_authenticated %}
+  {% for ws in nav_workspaces %}
+  <span class="hidden"
+        data-workspace-sse="/events/workspace/{{ ws.id }}"
+        data-current-user-id="{{ user.id }}"></span>
+  {% endfor %}
+  {% endif %}
+
+  {% comment %}
   Sticky action bar for bulk operations on selected tasks. Floats
   above the bottom of the viewport when ``$store.selection.size``
   is non-zero. Today only Archive is wired up; Move / Delete /
@@ -267,13 +287,13 @@ Pages extend this and override the `app_main` block.
     <button type="button"
             @click="window.actaBulkArchive()"
             class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100">
-      <i data-lucide="archive" class="w-3.5 h-3.5"></i>
+      {% lucide "archive" "w-3.5 h-3.5" %}
       {% trans "Archive" %}
     </button>
     <button type="button"
             @click="$store.selection.clear()"
             class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-zinc-500 hover:text-rose-500 dark:hover:text-rose-400">
-      <i data-lucide="x" class="w-3.5 h-3.5"></i>
+      {% lucide "x" "w-3.5 h-3.5" %}
       {% trans "Clear" %}
     </button>
   </div>

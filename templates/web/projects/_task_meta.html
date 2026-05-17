@@ -1,4 +1,5 @@
 {% load i18n %}
+{% load lucide %}
 {% comment %}
 Right-rail metadata + labels panels for the task detail page. Bundled
 into one partial so the SSE-driven live refresh can swap them as a
@@ -24,7 +25,7 @@ Re-included by ``task_detail.html`` and rendered standalone by
   <div class="flex items-center justify-between gap-3">
     <div class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Size" %}</div>
     <div class="text-zinc-700 dark:text-zinc-300 font-mono text-sm inline-flex items-center gap-1">
-      <i data-lucide="gauge" class="w-3.5 h-3.5"></i>{{ task.size }}
+      {% lucide "gauge" "w-3.5 h-3.5" %}{{ task.size }}
     </div>
   </div>
   {% endif %}
@@ -69,12 +70,12 @@ Re-included by ``task_detail.html`` and rendered standalone by
     <input type="hidden" name="unarchive" value="1">
     <button type="submit"
             class="w-full flex items-center justify-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-600 dark:text-zinc-400 hover:text-amber-300 py-1 rounded transition">
-      <i data-lucide="archive-restore" class="w-3.5 h-3.5"></i>{% trans "Unarchive" %}
+      {% lucide "archive-restore" "w-3.5 h-3.5" %}{% trans "Unarchive" %}
     </button>
     {% else %}
     <button type="submit"
             class="w-full flex items-center justify-center gap-1.5 text-xs text-zinc-500 hover:text-amber-400 py-1 rounded transition">
-      <i data-lucide="archive" class="w-3.5 h-3.5"></i>{% trans "Archive task" %}
+      {% lucide "archive" "w-3.5 h-3.5" %}{% trans "Archive task" %}
     </button>
     {% endif %}
   </form>

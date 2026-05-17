@@ -1,4 +1,5 @@
 {% load i18n %}
+{% load lucide %}
 {% comment %}
 Lead avatar + click-to-open dropdown picker. Posts to
 ``set_project_lead`` and swaps itself with the freshly rendered
@@ -23,7 +24,7 @@ fragment. Empty value clears the lead.
   <button type="button"
           @click="open = !open"
           class="cursor-pointer flex items-center gap-1.5 rounded-full pl-1 pr-2 py-0.5 text-xs bg-brand-500/15 hover:bg-brand-500/25 transition">
-    <i data-lucide="crown" class="w-3 h-3 text-amber-400 shrink-0 ml-0.5"></i>
+    {% lucide "crown" "w-3 h-3 text-amber-400 shrink-0 ml-0.5" %}
     {% if project.lead %}
     <span class="w-5 h-5 rounded-full text-white grid place-items-center font-medium text-[10px]"
           style="background-color: {{ project.lead.avatar_color }};">

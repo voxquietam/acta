@@ -1,4 +1,5 @@
 {% load i18n %}
+{% load lucide %}
 {% comment %}
 Page-top project strip — My Work variant. Same overlay-based
 overflow indicators as ``_assignee_strip.html``: hidden native
@@ -29,13 +30,12 @@ scrollbar, edge fades, ``+N`` counters absolutely positioned.
                :checked="state !== 'none'"
                class="sr-only"
                @change.stop="state = $event.target.checked ? 'included' : 'none'; $event.target.form.requestSubmit()">
-        <i data-lucide="{{ p.icon|default:'folder' }}"
-           class="w-3.5 h-3.5 shrink-0 transition"
-           :class="{
-             'text-brand-300': state === 'included',
-             'text-rose-700 dark:text-rose-300': state === 'excluded',
-             'text-zinc-500': state === 'none',
-           }"></i>
+        <span class="inline-flex shrink-0 transition"
+              :class="{
+                'text-brand-300': state === 'included',
+                'text-rose-700 dark:text-rose-300': state === 'excluded',
+                'text-zinc-500': state === 'none',
+              }">{% lucide p.icon|default:"folder" "w-3.5 h-3.5" %}</span>
         <span class="text-xs whitespace-nowrap pr-1"
               :class="state === 'excluded' ? 'text-rose-700 dark:text-rose-300 line-through' : 'text-zinc-700 dark:text-zinc-300'">{{ p.name }}</span>
       </label>

@@ -1,4 +1,5 @@
 {% load i18n %}
+{% load lucide %}
 {% comment %}
 Kanban board: 5 fixed-status columns of task cards.
 Drag-and-drop is wired via sortable.js — drop into a different column
@@ -58,7 +59,7 @@ hides the native scrollbar without losing the "you can scroll" cue.
               hx-swap="innerHTML"
               title="{% trans 'New task' %}"
               class="grid place-items-center p-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100/60 dark:hover:bg-zinc-100/60 dark:bg-zinc-800/50 transition">
-        <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+        {% lucide "plus" "w-3.5 h-3.5" %}
       </button>
     </div>
 

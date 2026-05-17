@@ -1,4 +1,5 @@
 {% load i18n %}
+{% load lucide %}
 {% load web_extras %}
 {% comment %}
 Generic task row used by My Work, All Tasks, and any future list-of-
@@ -25,7 +26,7 @@ zinc-500.
     {% if task.size %}
     <span class="text-zinc-500 dark:text-zinc-600 dark:text-zinc-400 font-mono inline-flex items-center gap-1"
           title="{% trans 'Size estimate' %}">
-      <i data-lucide="gauge" class="w-3 h-3"></i>{{ task.size }}
+      {% lucide "gauge" "w-3 h-3" %}{{ task.size }}
     </span>
     {% endif %}
 

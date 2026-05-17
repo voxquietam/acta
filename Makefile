@@ -67,6 +67,12 @@ test: ## run full pytest suite
 test-fast: ## skip slow markers (when we have them)
 	$(EXEC) pytest -m "not slow"
 
+test-js: ## run vitest unit suite (static_src/js/lib/**/*.test.js)
+	$(NODE_RUN) npm test
+
+test-js-watch: ## vitest in watch mode for active TDD on frontend libs
+	$(NODE_RUN) -it npm run test:watch
+
 format: ## run black + isort over the repo
 	$(EXEC) black .
 	$(EXEC) isort .
@@ -113,3 +119,13 @@ watch-css: ## rebuild the stylesheet on every template/CSS save
 	$(NODE_RUN) -it npm run watch:css
 
 build-front: build-js build-css ## compile both bundles in one go
+
+# ---- Lucide icon library -------------------------------------------
+# Snapshots ``lucide-static``'s SVG files into a JSON manifest that
+# ``apps/web/templatetags/lucide.py`` reads at import. The manifest is
+# committed so deploy doesn't need ``node_modules``. Re-run when
+# bumping the lucide-static version.
+
+extract-icons: ## rebuild apps/web/lucide_icons.json from node_modules/lucide-static
+	$(NODE_RUN) node -e "process.exit(0)" >/dev/null  # ensure docker is warm
+	python3 scripts/extract_lucide.py

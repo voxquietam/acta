@@ -1,4 +1,5 @@
 {% load i18n %}
+{% load lucide %}
 {% load web_extras %}
 {# Single task card used inside a kanban column. #}
 <a href="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
@@ -15,17 +16,17 @@
       {% elif task.priority == 4 %}text-sky-400
       {% else %}text-zinc-500{% endif %}"
           title="{{ priority_labels|get_item:task.priority }}">
-      {% if task.priority == 1 %}<i data-lucide="chevrons-up" class="w-3.5 h-3.5"></i>
-      {% elif task.priority == 2 %}<i data-lucide="chevron-up" class="w-3.5 h-3.5"></i>
-      {% elif task.priority == 3 %}<i data-lucide="minus" class="w-3.5 h-3.5"></i>
-      {% elif task.priority == 4 %}<i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
-      {% else %}<i data-lucide="circle-dashed" class="w-3.5 h-3.5"></i>{% endif %}
+      {% if task.priority == 1 %}{% lucide "chevrons-up" "w-3.5 h-3.5" %}
+      {% elif task.priority == 2 %}{% lucide "chevron-up" "w-3.5 h-3.5" %}
+      {% elif task.priority == 3 %}{% lucide "minus" "w-3.5 h-3.5" %}
+      {% elif task.priority == 4 %}{% lucide "chevron-down" "w-3.5 h-3.5" %}
+      {% else %}{% lucide "circle-dashed" "w-3.5 h-3.5" %}{% endif %}
     </span>
     {% endif %}
     {% if task.size %}
     <span class="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-600 dark:text-zinc-400 font-mono inline-flex items-center gap-1"
           title="{% trans 'Size estimate' %}">
-      <i data-lucide="gauge" class="w-3 h-3"></i>{{ task.size }}
+      {% lucide "gauge" "w-3 h-3" %}{{ task.size }}
     </span>
     {% endif %}
   </div>
