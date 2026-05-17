@@ -43,7 +43,7 @@ dropdown focused on member selection rather than mixing in a no-op
       </div>
       {% else %}
       <div class="flex items-center gap-1.5">
-        <span class="w-5 h-5 rounded-full border border-dashed border-zinc-600 grid place-items-center text-zinc-500 text-[10px]">?</span>
+        <span class="w-5 h-5 rounded-full border border-dashed border-zinc-400 dark:border-zinc-600 grid place-items-center text-zinc-500 text-[10px]">?</span>
         <span class="text-zinc-500">{% trans "Unassigned" %}</span>
       </div>
       {% endif %}
@@ -57,7 +57,7 @@ dropdown focused on member selection rather than mixing in a no-op
       {% csrf_token %}
       <input type="hidden" name="assignee_id" value="">
       <button type="submit"
-              class="text-zinc-600 hover:text-rose-400 text-xs opacity-0 group-hover:opacity-100 transition"
+              class="text-zinc-500 dark:text-zinc-600 hover:text-rose-400 text-xs opacity-0 group-hover:opacity-100 transition"
               title="{% trans 'Unassign' %}">✕</button>
     </form>
     {% endif %}
@@ -89,7 +89,7 @@ dropdown focused on member selection rather than mixing in a no-op
         <input type="hidden" name="assignee_id" value="{{ member.user.id }}">
         <button type="submit"
                 class="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-2
-                  {% if task.assignee_id == member.user.id %}font-medium text-white bg-zinc-800/40{% else %}text-zinc-700 dark:text-zinc-300{% endif %}">
+                  {% if task.assignee_id == member.user.id %}font-medium text-white bg-zinc-200/60 dark:bg-zinc-800/40{% else %}text-zinc-700 dark:text-zinc-300{% endif %}">
           <span class="w-5 h-5 rounded-full text-white grid place-items-center font-medium text-[10px]"
                 style="background-color: {{ member.user.avatar_color }};">
             {{ member.user.display_name|slice:":1"|upper }}

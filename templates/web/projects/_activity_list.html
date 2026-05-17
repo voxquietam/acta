@@ -16,7 +16,7 @@ chopped at the edge.
 <div>
   <ul class="space-y-2">
     {% for event in activity|slice:":5" %}
-    <li class="text-xs text-zinc-400 break-words">
+    <li class="text-xs text-zinc-500 dark:text-zinc-600 dark:text-zinc-400 break-words">
       <div>
         <span class="text-zinc-700 dark:text-zinc-300">{% if event.actor %}{{ event.actor.display_name }}{% else %}system{% endif %}</span>
         {% if event.event_type == "task.status_changed" %}
@@ -75,7 +75,7 @@ chopped at the edge.
           <span class="text-zinc-500">{{ event.event_type|event_label }}</span>
         {% endif %}
       </div>
-      <div class="text-[10px] text-zinc-600">{{ event.created_at|date:"M j, H:i" }}</div>
+      <div class="text-[10px] text-zinc-500 dark:text-zinc-600">{{ event.created_at|date:"M j, H:i" }}</div>
     </li>
     {% endfor %}
   </ul>
@@ -89,5 +89,5 @@ chopped at the edge.
   {% endif %}
 </div>
 {% else %}
-<div class="text-xs text-zinc-600 italic">{% trans "No activity yet." %}</div>
+<div class="text-xs text-zinc-500 dark:text-zinc-600 italic">{% trans "No activity yet." %}</div>
 {% endif %}

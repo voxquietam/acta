@@ -13,7 +13,7 @@ Two modes via Alpine state — "menu" (default toolbar) and "link"
 (an inline URL input replacing the buttons, so we don't fall back to
 the native ``window.prompt`` dialog on link insertion).
 {% endcomment %}
-<div class="description-editor-toolbar flex flex-wrap items-center justify-center gap-0.5 border-b border-zinc-200 dark:border-zinc-800 pb-1.5 mb-2 sticky -top-6 z-10 bg-zinc-950/95 backdrop-blur-sm"
+<div class="description-editor-toolbar flex flex-wrap items-center justify-center gap-0.5 border-b border-zinc-200 dark:border-zinc-800 pb-1.5 mb-2 sticky -top-6 z-10 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-sm"
      x-data="{
        mode: 'menu',
        url: '',
@@ -71,7 +71,7 @@ the native ``window.prompt`` dialog on link insertion).
             title="{% trans 'Inline code' %}">&lt;/&gt;</button>
     <button type="button"
             onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleHighlight().run()"
-            class="w-7 h-7 grid place-items-center rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-amber-300 text-sm"
+            class="w-7 h-7 grid place-items-center rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-amber-700 dark:text-amber-300 text-sm"
             title="{% trans 'Highlight' %}">H</button>
     <button type="button"
             @click="openLink()"
@@ -111,7 +111,7 @@ the native ``window.prompt`` dialog on link insertion).
     <button type="button"
             x-show="originalUrl !== ''"
             @click="removeLink()"
-            class="w-7 h-7 grid place-items-center rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-rose-400 text-xs"
+            class="w-7 h-7 grid place-items-center rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-rose-600 dark:text-rose-400 text-xs"
             title="{% trans 'Remove link' %}">🗑</button>
     <button type="button"
             @click="cancelLink()"

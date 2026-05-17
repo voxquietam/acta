@@ -242,6 +242,20 @@ main {
   cursor: pointer;
 }
 
+/* TipTap mounts a contenteditable whose default colour is the
+   browser's text-fill (a faded gray on light surfaces, almost
+   invisible). Force explicit colours per theme so user input is
+   readable while typing — server-rendered ``.prose`` view inherits
+   from this same rule for the read-only state. */
+.ProseMirror,
+.prose:not(.dark\:prose-invert) {
+  color: rgb(24 24 27);                /* zinc-900 */
+}
+html.dark .ProseMirror,
+html.dark .prose {
+  color: rgb(228 228 231);             /* zinc-200 */
+}
+
 /* Highlight mark — yellow marker pen. Applies inside the TipTap
    editor (.ProseMirror) AND in the server-rendered .prose view, so
    the highlight looks identical before / after the markdown

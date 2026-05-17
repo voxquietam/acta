@@ -94,15 +94,15 @@ Pages extend this and override the `app_main` block.
                :class="!$store.sidebar.open && 'justify-center'"
                class="acta-rail-link group relative flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-zinc-200/60 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100
                {% if request.resolver_match.kwargs.slug_prefix == project.slug_prefix %}bg-brand-500/15 text-brand-700 dark:text-brand-300{% else %}text-zinc-700 dark:text-zinc-300{% endif %}">
-              <i data-lucide="{{ project.icon|default:'folder' }}" class="w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500 shrink-0"></i>
-              <span x-show="$store.sidebar.open" x-cloak class="font-mono text-xs text-zinc-400 dark:text-zinc-500">{{ project.slug_prefix }}</span>
+              <i data-lucide="{{ project.icon|default:'folder' }}" class="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-600 dark:text-zinc-400 dark:text-zinc-500 shrink-0"></i>
+              <span x-show="$store.sidebar.open" x-cloak class="font-mono text-xs text-zinc-500 dark:text-zinc-600 dark:text-zinc-400 dark:text-zinc-500">{{ project.slug_prefix }}</span>
               <span x-show="$store.sidebar.open" x-cloak class="truncate">{{ project.name }}</span>
               <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{{ project.slug_prefix }} · {{ project.name }}</span>
             </a>
           </li>
           {% endif %}
           {% empty %}
-          <li x-show="$store.sidebar.open" x-cloak class="px-2 py-1 text-xs text-zinc-600 italic">{% trans "no projects yet" %}</li>
+          <li x-show="$store.sidebar.open" x-cloak class="px-2 py-1 text-xs text-zinc-500 dark:text-zinc-600 italic">{% trans "no projects yet" %}</li>
           {% endfor %}
         </ul>
       </div>
@@ -137,7 +137,7 @@ Pages extend this and override the `app_main` block.
       <button type="button"
               @click="$store.sidebar.toggle()"
               :title="$store.sidebar.open ? '{% trans 'Hide sidebar' %}' : '{% trans 'Show sidebar' %}'"
-              class="hidden md:grid place-items-center p-1.5 rounded-md text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-200 transition shrink-0">
+              class="hidden md:grid place-items-center p-1.5 rounded-md text-zinc-500 dark:text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-200 transition shrink-0">
         <i x-show="$store.sidebar.open" data-lucide="panel-left-close" class="w-4 h-4"></i>
         <i x-show="!$store.sidebar.open" x-cloak data-lucide="panel-left-open" class="w-4 h-4"></i>
       </button>
@@ -156,7 +156,7 @@ Pages extend this and override the `app_main` block.
                 hx-target="#modal-root"
                 hx-swap="innerHTML"
                 title="{% trans 'New task' %} (c)"
-                class="grid place-items-center p-1.5 rounded-md text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">
+                class="grid place-items-center p-1.5 rounded-md text-zinc-500 dark:text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">
           <i data-lucide="plus" class="w-4 h-4"></i>
         </button>
 
@@ -164,7 +164,7 @@ Pages extend this and override the `app_main` block.
         <button type="button"
                 @click="$store.theme.toggle()"
                 :title="$store.theme.current === 'dark' ? '{% trans 'Switch to light mode' %}' : '{% trans 'Switch to dark mode' %}'"
-                class="grid place-items-center p-1.5 rounded-md text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">
+                class="grid place-items-center p-1.5 rounded-md text-zinc-500 dark:text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">
           <i x-show="$store.theme.current === 'dark'" data-lucide="sun" class="w-4 h-4"></i>
           <i x-show="$store.theme.current === 'light'" x-cloak data-lucide="moon" class="w-4 h-4"></i>
         </button>
@@ -172,7 +172,7 @@ Pages extend this and override the `app_main` block.
         {# Language switcher #}
         <div x-data="{ open: false }" class="relative">
           <button @click="open = !open"
-                  class="px-2 py-1.5 rounded-md text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 uppercase tracking-wider">
+                  class="px-2 py-1.5 rounded-md text-sm text-zinc-500 dark:text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 uppercase tracking-wider">
             {{ LANGUAGE_CODE|default:"en" }}
           </button>
           <div x-show="open" @click.outside="open = false" x-cloak

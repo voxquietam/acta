@@ -31,8 +31,8 @@ fragment. Empty value clears the lead.
     </span>
     <span class="text-zinc-800 dark:text-zinc-200">{{ project.lead.display_name }}</span>
     {% else %}
-    <span class="w-5 h-5 rounded-full border border-dashed border-zinc-600 grid place-items-center text-zinc-500 text-[10px]">?</span>
-    <span class="text-zinc-400 italic">{% trans "No lead set" %}</span>
+    <span class="w-5 h-5 rounded-full border border-dashed border-zinc-400 dark:border-zinc-600 grid place-items-center text-zinc-500 text-[10px]">?</span>
+    <span class="text-zinc-500 dark:text-zinc-600 dark:text-zinc-400 italic">{% trans "No lead set" %}</span>
     {% endif %}
   </button>
 
@@ -64,7 +64,7 @@ fragment. Empty value clears the lead.
         <input type="hidden" name="lead_id" value="{{ member.id }}">
         <button type="submit"
                 class="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-2
-                  {% if project.lead_id == member.id %}font-medium text-white bg-zinc-800/40{% else %}text-zinc-700 dark:text-zinc-300{% endif %}">
+                  {% if project.lead_id == member.id %}font-medium text-white bg-zinc-200/60 dark:bg-zinc-800/40{% else %}text-zinc-700 dark:text-zinc-300{% endif %}">
           <span class="w-5 h-5 rounded-full text-white grid place-items-center font-medium text-[10px]"
                 style="background-color: {{ member.avatar_color }};">
             {{ member.display_name|slice:":1"|upper }}

@@ -172,15 +172,15 @@ planned editor upgrade. Plain ``<textarea>`` keeps the modal snappy.
         {% endif %}
       </div>
 
-      <footer class="flex items-center justify-between gap-2 px-4 py-3 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-900/60">
-        <label class="inline-flex items-center gap-2 text-xs text-zinc-400 cursor-pointer select-none">
+      <footer class="flex items-center justify-between gap-2 px-4 py-3 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/60">
+        <label class="inline-flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-600 dark:text-zinc-400 cursor-pointer select-none">
           <input type="checkbox" :checked="openAfter" @change="toggleOpenAfter()"
                  class="acta-checkbox">
           {% trans "Open after create" %}
         </label>
         <div class="flex items-center gap-2">
           <button type="button" @click="close()"
-                  class="px-3 py-1.5 text-sm rounded-md text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+                  class="px-3 py-1.5 text-sm rounded-md text-zinc-500 dark:text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800">
             {% trans "Cancel" %}
           </button>
           <button type="submit"

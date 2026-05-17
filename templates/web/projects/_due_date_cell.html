@@ -15,7 +15,7 @@ explicit.
   <button type="button"
           @click="$refs.input.showPicker()"
           class="text-sm hover:text-white cursor-pointer
-            {% if task.due_date %}text-zinc-700 dark:text-zinc-300{% else %}text-zinc-600 italic{% endif %}">
+            {% if task.due_date %}text-zinc-700 dark:text-zinc-300{% else %}text-zinc-500 dark:text-zinc-600 italic{% endif %}">
     {% if task.due_date %}{{ task.due_date|date:"M j, Y" }}{% else %}{% trans "Set deadline" %}{% endif %}
   </button>
 
@@ -40,7 +40,7 @@ explicit.
     {% csrf_token %}
     <input type="hidden" name="due_date" value="">
     <button type="submit"
-            class="text-zinc-600 hover:text-rose-400 text-xs opacity-0 group-hover:opacity-100 transition"
+            class="text-zinc-500 dark:text-zinc-600 hover:text-rose-400 text-xs opacity-0 group-hover:opacity-100 transition"
             title="{% trans 'Clear deadline' %}">✕</button>
   </form>
   {% endif %}

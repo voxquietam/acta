@@ -8,7 +8,7 @@ positioned over the scroll container, so toggling visibility never
 shifts the layout. Each chip's checkbox is wired to ``#filter-form``
 via ``form=`` and submits through the existing HTMX pipeline.
 {% endcomment %}
-<div class="flex items-center gap-2 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-950/70 backdrop-blur-md px-4 md:px-6 py-2 -mx-4 md:-mx-8 -mt-6 mb-4">
+<div class="flex items-center gap-2 border-b border-zinc-200 dark:border-zinc-800 bg-white/70 dark:bg-zinc-950/70 backdrop-blur-md px-4 md:px-6 py-2 -mx-4 md:-mx-8 -mt-6 mb-4">
   <span class="text-[10px] uppercase tracking-wider text-zinc-500 font-medium shrink-0">
     {% trans "Assignee" %}
   </span>
@@ -26,9 +26,9 @@ via ``form=`` and submits through the existing HTMX pipeline.
       <label x-data="{ state: '{% if 'me' in excluded_assignees %}excluded{% elif 'me' in selected_assignees %}included{% else %}none{% endif %}' }"
              :class="{
                'bg-brand-500/15': state === 'included',
-               'bg-rose-500/15': state === 'excluded',
+               'bg-rose-500/15 dark:bg-rose-500/15': state === 'excluded',
              }"
-             class="strip-chip group inline-flex items-center gap-1.5 px-1 py-0.5 rounded-full cursor-pointer shrink-0 bg-zinc-800/40 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
+             class="strip-chip group inline-flex items-center gap-1.5 px-1 py-0.5 rounded-full cursor-pointer shrink-0 bg-zinc-200/60 dark:bg-zinc-800/40 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
              title="{{ request.user.display_name }} ({% trans 'you' %}) — {% trans 'click to include, right-click to exclude.' %}"
              data-strip-chip
              @acta:filter-reset.window="state = 'none'"
@@ -58,9 +58,9 @@ via ``form=`` and submits through the existing HTMX pipeline.
       <label x-data="{ state: '{% if 'unassigned' in excluded_assignees %}excluded{% elif 'unassigned' in selected_assignees %}included{% else %}none{% endif %}' }"
              :class="{
                'bg-brand-500/15': state === 'included',
-               'bg-rose-500/15': state === 'excluded',
+               'bg-rose-500/15 dark:bg-rose-500/15': state === 'excluded',
              }"
-             class="strip-chip group inline-flex items-center gap-1.5 px-1 py-0.5 rounded-full cursor-pointer shrink-0 hover:bg-zinc-800/50 transition"
+             class="strip-chip group inline-flex items-center gap-1.5 px-1 py-0.5 rounded-full cursor-pointer shrink-0 hover:bg-zinc-100/60 dark:hover:bg-zinc-100/60 dark:bg-zinc-800/50 transition"
              title="{% trans 'Click to include, right-click to exclude.' %}"
              data-strip-chip
              @acta:filter-reset.window="state = 'none'"
@@ -72,7 +72,7 @@ via ``form=`` and submits through the existing HTMX pipeline.
                :checked="state !== 'none'"
                class="sr-only"
                @change.stop="state = $event.target.checked ? 'included' : 'none'; $event.target.form.requestSubmit()">
-        <span class="w-6 h-6 rounded-full border border-dashed border-zinc-600 grid place-items-center text-[10px] text-zinc-500 shrink-0 transition"
+        <span class="w-6 h-6 rounded-full border border-dashed border-zinc-400 dark:border-zinc-600 grid place-items-center text-[10px] text-zinc-500 shrink-0 transition"
               :class="{
                 'ring-2 ring-brand-400': state === 'included',
                 'ring-2 ring-rose-400': state === 'excluded',
@@ -86,9 +86,9 @@ via ``form=`` and submits through the existing HTMX pipeline.
       <label x-data="{ state: '{% if sel in excluded_assignees %}excluded{% elif sel in selected_assignees %}included{% else %}none{% endif %}' }"
              :class="{
                'bg-brand-500/15': state === 'included',
-               'bg-rose-500/15': state === 'excluded',
+               'bg-rose-500/15 dark:bg-rose-500/15': state === 'excluded',
              }"
-             class="strip-chip group inline-flex items-center gap-1.5 px-1 py-0.5 rounded-full cursor-pointer shrink-0 hover:bg-zinc-800/50 transition"
+             class="strip-chip group inline-flex items-center gap-1.5 px-1 py-0.5 rounded-full cursor-pointer shrink-0 hover:bg-zinc-100/60 dark:hover:bg-zinc-100/60 dark:bg-zinc-800/50 transition"
              data-strip-chip
              title="{{ u.display_name }} — {% trans 'click to include, right-click to exclude.' %}"
              @acta:filter-reset.window="state = 'none'"
@@ -119,9 +119,9 @@ via ``form=`` and submits through the existing HTMX pipeline.
 
     {# Fade gradient + counter overlays — absolute, no layout impact. #}
     <div data-strip-left-fade aria-hidden="true"
-         class="pointer-events-none absolute left-0 inset-y-0 w-12 bg-gradient-to-r from-zinc-950 to-transparent"></div>
+         class="pointer-events-none absolute left-0 inset-y-0 w-12 bg-gradient-to-r from-white dark:from-zinc-950 to-transparent"></div>
     <div data-strip-right-fade aria-hidden="true"
-         class="pointer-events-none absolute right-0 inset-y-0 w-12 bg-gradient-to-l from-zinc-950 to-transparent"></div>
+         class="pointer-events-none absolute right-0 inset-y-0 w-12 bg-gradient-to-l from-white dark:from-zinc-950 to-transparent"></div>
     <span data-strip-left-counter
           class="pointer-events-none absolute left-1 top-1/2 -translate-y-1/2 text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-medium">
       +<span data-count>0</span>

@@ -28,7 +28,7 @@ placeholders pending their dedicated TODOs.
       <div class="min-w-0 flex-1">
         <div class="text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">
           {% trans "Members" %}
-          <span class="text-zinc-600">{{ members|length }}</span>
+          <span class="text-zinc-500 dark:text-zinc-600">{{ members|length }}</span>
         </div>
         {% include "web/projects/_overview_members.html" %}
       </div>
@@ -45,12 +45,12 @@ placeholders pending their dedicated TODOs.
     {% endcomment %}
     <section>
       <div class="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">{% trans "Recent updates" %}</div>
-      <p class="text-sm text-zinc-600 italic">{% trans "Project updates coming soon." %}</p>
+      <p class="text-sm text-zinc-500 dark:text-zinc-600 italic">{% trans "Project updates coming soon." %}</p>
     </section>
 
     <section>
       <div class="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">{% trans "Activity" %}</div>
-      <p class="text-sm text-zinc-600 italic">{% trans "Project-level activity feed coming soon." %}</p>
+      <p class="text-sm text-zinc-500 dark:text-zinc-600 italic">{% trans "Project-level activity feed coming soon." %}</p>
     </section>
 
   </div>

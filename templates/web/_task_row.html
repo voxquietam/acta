@@ -8,7 +8,7 @@ date is coloured by overdue / today / future; otherwise rendered in
 zinc-500.
 {% endcomment %}
 <a href="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
-   class="flex items-center gap-3 px-3 py-2 hover:bg-zinc-800/40 text-sm">
+   class="flex items-center gap-3 px-3 py-2 hover:bg-zinc-200/60 dark:bg-zinc-800/40 text-sm">
 
   <span class="font-mono text-xs shrink-0
     {% if task.priority == 1 %}text-rose-400
@@ -21,7 +21,7 @@ zinc-500.
 
   <div class="flex items-center gap-2 shrink-0 text-xs">
     {% if task.size %}
-    <span class="text-zinc-400 font-mono inline-flex items-center gap-1"
+    <span class="text-zinc-500 dark:text-zinc-600 dark:text-zinc-400 font-mono inline-flex items-center gap-1"
           title="{% trans 'Size estimate' %}">
       <i data-lucide="gauge" class="w-3 h-3"></i>{{ task.size }}
     </span>
@@ -44,7 +44,7 @@ zinc-500.
     {% endif %}
 
     <span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded
-      {% if task.status == 'planned' %}bg-zinc-100 dark:bg-zinc-800 text-zinc-400
+      {% if task.status == 'planned' %}bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-600 dark:text-zinc-400
       {% elif task.status == 'to-do' %}bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300
       {% elif task.status == 'in-progress' %}bg-violet-100 dark:bg-violet-900 text-violet-700 dark:text-violet-300
       {% elif task.status == 'in-review' %}bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300
@@ -71,7 +71,7 @@ zinc-500.
       {{ task.assignee.display_name|slice:":1"|upper }}
     </span>
     {% else %}
-    <span class="w-5 h-5 rounded-full border border-dashed border-zinc-300 dark:border-zinc-700 grid place-items-center text-zinc-600 text-[10px] shrink-0"
+    <span class="w-5 h-5 rounded-full border border-dashed border-zinc-300 dark:border-zinc-700 grid place-items-center text-zinc-500 dark:text-zinc-600 text-[10px] shrink-0"
           title="{% trans 'Unassigned' %}">?</span>
     {% endif %}
   </div>
