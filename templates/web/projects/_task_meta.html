@@ -9,7 +9,7 @@ due_date / labels / size`` change.
 Re-included by ``task_detail.html`` and rendered standalone by
 ``task_meta_fragment`` view.
 {% endcomment %}
-<div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-4 space-y-2.5">
+<div class="bg-card border border-border rounded-lg p-4 space-y-2.5">
 
   <div class="flex items-center justify-between gap-3">
     <div class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Status" %}</div>
@@ -24,7 +24,7 @@ Re-included by ``task_detail.html`` and rendered standalone by
   {% if task.size %}
   <div class="flex items-center justify-between gap-3">
     <div class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Size" %}</div>
-    <div class="text-zinc-700 dark:text-zinc-300 font-mono text-sm inline-flex items-center gap-1">
+    <div class="text-muted-foreground font-mono text-sm inline-flex items-center gap-1">
       {% lucide "gauge" "w-3.5 h-3.5" %}{{ task.size }}
     </div>
   </div>
@@ -40,7 +40,7 @@ Re-included by ``task_detail.html`` and rendered standalone by
     <div class="min-w-0">{% include "web/projects/_due_date_cell.html" %}</div>
   </div>
 
-  <div class="pt-2 border-t border-zinc-200 dark:border-zinc-800 text-[11px] text-zinc-500 space-y-0.5">
+  <div class="pt-2 border-t border-border text-[11px] text-zinc-500 space-y-0.5">
     <div class="flex justify-between">
       <span>{% trans "Reporter" %}</span>
       <span>{% if task.reporter %}{{ task.reporter.display_name }}{% else %}—{% endif %}</span>
@@ -64,12 +64,12 @@ Re-included by ``task_detail.html`` and rendered standalone by
   <form hx-post="{% url 'web:archive_task' slug_prefix=task.project.slug_prefix number=task.number %}"
         hx-target="#task-meta"
         hx-swap="innerHTML"
-        class="pt-2 border-t border-zinc-200 dark:border-zinc-800">
+        class="pt-2 border-t border-border">
     {% csrf_token %}
     {% if task.archived_at %}
     <input type="hidden" name="unarchive" value="1">
     <button type="submit"
-            class="w-full flex items-center justify-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-600 dark:text-zinc-400 hover:text-amber-300 py-1 rounded transition">
+            class="w-full flex items-center justify-center gap-1.5 text-xs text-zinc-500 dark:text-subtle-foreground hover:text-amber-300 py-1 rounded transition">
       {% lucide "archive-restore" "w-3.5 h-3.5" %}{% trans "Unarchive" %}
     </button>
     {% else %}
@@ -81,7 +81,7 @@ Re-included by ``task_detail.html`` and rendered standalone by
   </form>
 </div>
 
-<div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-4 mt-4">
+<div class="bg-card border border-border rounded-lg p-4 mt-4">
   <div class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Labels" %}</div>
   <div class="mt-1">
     {% include "web/projects/_labels_cell.html" %}

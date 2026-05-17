@@ -18,8 +18,8 @@ browser back/forward keeps the active tab in sync.
        history.pushState({}, '', u);
      "
      :class="$store.viewMode.current === 'overview'
-       ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100'
-       : 'text-zinc-500 dark:text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100/60 dark:hover:bg-zinc-100/60 dark:bg-zinc-800/50'"
+       ? 'bg-muted text-foreground'
+       : 'text-zinc-500 dark:text-subtle-foreground hover:text-foreground hover:bg-zinc-100/60 dark:hover:bg-muted/60'"
      class="px-2.5 py-1 rounded-md transition">
     {% trans "Overview" %}
   </a>
@@ -30,7 +30,7 @@ browser back/forward keeps the active tab in sync.
   correlation dashboards (workload, deadline pressure, priority
   churn). Kept in the nav so the future is visible.
   {% endcomment %}
-  <span class="px-2.5 py-1 rounded-md text-zinc-500 dark:text-zinc-600 cursor-not-allowed select-none"
+  <span class="px-2.5 py-1 rounded-md text-placeholder-foreground cursor-not-allowed select-none"
         title="{% trans 'Coming soon' %}">
     {% trans "Overview" %}
   </span>
@@ -43,8 +43,8 @@ browser back/forward keeps the active tab in sync.
        history.pushState({}, '', u);
      "
      :class="$store.viewMode.current === 'kanban'
-       ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100'
-       : 'text-zinc-500 dark:text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100/60 dark:hover:bg-zinc-100/60 dark:bg-zinc-800/50'"
+       ? 'bg-muted text-foreground'
+       : 'text-zinc-500 dark:text-subtle-foreground hover:text-foreground hover:bg-zinc-100/60 dark:hover:bg-muted/60'"
      class="px-2.5 py-1 rounded-md transition">
     {% trans "Kanban" %}
   </a>
@@ -56,8 +56,8 @@ browser back/forward keeps the active tab in sync.
        history.pushState({}, '', u);
      "
      :class="$store.viewMode.current === 'table'
-       ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100'
-       : 'text-zinc-500 dark:text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100/60 dark:hover:bg-zinc-100/60 dark:bg-zinc-800/50'"
+       ? 'bg-muted text-foreground'
+       : 'text-zinc-500 dark:text-subtle-foreground hover:text-foreground hover:bg-zinc-100/60 dark:hover:bg-muted/60'"
      class="px-2.5 py-1 rounded-md transition">
     {% trans "Table" %}
   </a>
@@ -69,8 +69,8 @@ browser back/forward keeps the active tab in sync.
        history.pushState({}, '', u);
      "
      :class="$store.viewMode.current === 'list'
-       ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100'
-       : 'text-zinc-500 dark:text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100/60 dark:hover:bg-zinc-100/60 dark:bg-zinc-800/50'"
+       ? 'bg-muted text-foreground'
+       : 'text-zinc-500 dark:text-subtle-foreground hover:text-foreground hover:bg-zinc-100/60 dark:hover:bg-muted/60'"
      class="px-2.5 py-1 rounded-md transition">
     {% trans "List" %}
   </a>
@@ -82,7 +82,7 @@ browser back/forward keeps the active tab in sync.
   + ``cursor-not-allowed`` blocks interaction; muted colour makes the
   disabled state read at a glance.
   {% endcomment %}
-  <span class="px-2.5 py-1 rounded-md text-zinc-500 dark:text-zinc-600 cursor-not-allowed select-none"
+  <span class="px-2.5 py-1 rounded-md text-placeholder-foreground cursor-not-allowed select-none"
         title="{% trans 'Coming soon' %}">
     {% trans "Timeline" %}
   </span>

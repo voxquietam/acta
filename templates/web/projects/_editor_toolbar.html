@@ -13,7 +13,7 @@ Two modes via Alpine state — "menu" (default toolbar) and "link"
 (an inline URL input replacing the buttons, so we don't fall back to
 the native ``window.prompt`` dialog on link insertion).
 {% endcomment %}
-<div class="description-editor-toolbar flex flex-wrap items-center justify-center gap-0.5 border-b border-zinc-200 dark:border-zinc-800 pb-1.5 mb-2 sticky -top-6 z-10 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-sm"
+<div class="description-editor-toolbar flex flex-wrap items-center justify-center gap-0.5 border-b border-border pb-1.5 mb-2 sticky -top-6 z-10 bg-background/95 backdrop-blur-sm"
      x-data="{
        mode: 'menu',
        url: '',
@@ -51,48 +51,48 @@ the native ``window.prompt`` dialog on link insertion).
   <div x-show="mode === 'menu'" class="flex flex-wrap items-center gap-0.5">
     <button type="button"
             onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleBold().run()"
-            class="w-7 h-7 grid place-items-center rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-sm font-bold"
+            class="w-7 h-7 grid place-items-center rounded hover:bg-muted text-muted-foreground text-sm font-bold"
             title="{% trans 'Bold' %}">B</button>
     <button type="button"
             onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleItalic().run()"
-            class="w-7 h-7 grid place-items-center rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-sm italic"
+            class="w-7 h-7 grid place-items-center rounded hover:bg-muted text-muted-foreground text-sm italic"
             title="{% trans 'Italic' %}">I</button>
     <button type="button"
             onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleStrike().run()"
-            class="w-7 h-7 grid place-items-center rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-sm line-through"
+            class="w-7 h-7 grid place-items-center rounded hover:bg-muted text-muted-foreground text-sm line-through"
             title="{% trans 'Strike' %}">S</button>
     <button type="button"
             onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleUnderline().run()"
-            class="w-7 h-7 grid place-items-center rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-sm underline"
+            class="w-7 h-7 grid place-items-center rounded hover:bg-muted text-muted-foreground text-sm underline"
             title="{% trans 'Underline' %}">U</button>
     <button type="button"
             onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleCode().run()"
-            class="w-7 h-7 grid place-items-center rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-mono"
+            class="w-7 h-7 grid place-items-center rounded hover:bg-muted text-muted-foreground text-xs font-mono"
             title="{% trans 'Inline code' %}">&lt;/&gt;</button>
     <button type="button"
             onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleHighlight().run()"
-            class="w-7 h-7 grid place-items-center rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-amber-700 dark:text-amber-300 text-sm"
+            class="w-7 h-7 grid place-items-center rounded hover:bg-muted text-amber-700 dark:text-amber-300 text-sm"
             title="{% trans 'Highlight' %}">H</button>
     <button type="button"
             @click="openLink()"
-            class="w-7 h-7 grid place-items-center rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-sm"
+            class="w-7 h-7 grid place-items-center rounded hover:bg-muted text-muted-foreground text-sm"
             title="{% trans 'Link' %}">🔗</button>
-    <span class="w-px h-4 bg-zinc-100 dark:bg-zinc-800 mx-1"></span>
+    <span class="w-px h-4 bg-muted mx-1"></span>
     <button type="button"
             onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleHeading({ level: 2 }).run()"
-            class="px-2 h-7 grid place-items-center rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs"
+            class="px-2 h-7 grid place-items-center rounded hover:bg-muted text-muted-foreground text-xs"
             title="{% trans 'Heading' %}">H</button>
     <button type="button"
             onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleBulletList().run()"
-            class="px-2 h-7 grid place-items-center rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs"
+            class="px-2 h-7 grid place-items-center rounded hover:bg-muted text-muted-foreground text-xs"
             title="{% trans 'Bullet list' %}">•</button>
     <button type="button"
             onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleOrderedList().run()"
-            class="px-2 h-7 grid place-items-center rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs"
+            class="px-2 h-7 grid place-items-center rounded hover:bg-muted text-muted-foreground text-xs"
             title="{% trans 'Numbered list' %}">1.</button>
     <button type="button"
             onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleTaskList && this.closest('[data-description-editor]')._editor?.chain().focus().toggleTaskList().run()"
-            class="w-7 h-7 grid place-items-center rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs"
+            class="w-7 h-7 grid place-items-center rounded hover:bg-muted text-muted-foreground text-xs"
             title="{% trans 'Task list' %}">☐</button>
   </div>
 
@@ -103,19 +103,19 @@ the native ``window.prompt`` dialog on link insertion).
            placeholder="{% trans 'Paste link…' %}"
            @keydown.enter.prevent="applyLink()"
            @keydown.escape.prevent="cancelLink()"
-           class="bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded px-2 py-1 text-xs text-zinc-800 dark:text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-brand-500 w-56">
+           class="bg-muted border border-border-strong rounded px-2 py-1 text-xs text-foreground placeholder-zinc-500 focus:outline-none focus:border-brand-500 w-56">
     <button type="button"
             @click="applyLink()"
-            class="px-2 h-7 grid place-items-center rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs"
+            class="px-2 h-7 grid place-items-center rounded hover:bg-muted text-muted-foreground text-xs"
             title="{% trans 'Apply' %}">↵</button>
     <button type="button"
             x-show="originalUrl !== ''"
             @click="removeLink()"
-            class="w-7 h-7 grid place-items-center rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-rose-600 dark:text-rose-400 text-xs"
+            class="w-7 h-7 grid place-items-center rounded hover:bg-muted text-rose-600 dark:text-rose-400 text-xs"
             title="{% trans 'Remove link' %}">🗑</button>
     <button type="button"
             @click="cancelLink()"
-            class="w-7 h-7 grid place-items-center rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 text-xs"
+            class="w-7 h-7 grid place-items-center rounded hover:bg-muted text-zinc-500 text-xs"
             title="{% trans 'Cancel' %}">✕</button>
   </div>
 </div>

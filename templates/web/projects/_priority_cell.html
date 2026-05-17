@@ -10,7 +10,7 @@ to the equally-colored status badge).
 <div id="priority-cell" x-data="{ open: false }" class="relative inline-block">
   <button type="button"
           @click="open = !open"
-          class="text-xs cursor-pointer hover:text-zinc-900 dark:hover:text-zinc-100 inline-flex items-center gap-1.5
+          class="text-xs cursor-pointer hover:text-foreground inline-flex items-center gap-1.5
             {% if task.priority == 1 %}text-rose-400
             {% elif task.priority == 2 %}text-orange-400
             {% elif task.priority == 3 %}text-amber-400
@@ -26,7 +26,7 @@ to the equally-colored status badge).
   <div x-show="open"
        @click.outside="open = false"
        x-cloak
-       class="absolute right-0 mt-1 w-44 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg overflow-hidden z-20">
+       class="absolute right-0 mt-1 w-44 bg-card border border-border rounded-lg shadow-lg overflow-hidden z-20">
     {% for priority_key, priority_label in priority_labels.items %}
     <form method="post"
           hx-post="{% url 'web:set_task_priority' slug_prefix=task.project.slug_prefix number=task.number %}"
@@ -36,8 +36,8 @@ to the equally-colored status badge).
       {% csrf_token %}
       <input type="hidden" name="priority" value="{{ priority_key }}">
       <button type="submit"
-              class="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-1.5
-                {% if priority_key == task.priority %}text-brand-500{% else %}text-zinc-700 dark:text-zinc-300{% endif %}">
+              class="w-full text-left px-3 py-1.5 text-xs hover:bg-muted flex items-center gap-1.5
+                {% if priority_key == task.priority %}text-brand-500{% else %}text-muted-foreground{% endif %}">
         <span class="
           {% if priority_key == 1 %}text-rose-400
           {% elif priority_key == 2 %}text-orange-400

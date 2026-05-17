@@ -39,7 +39,7 @@ dropdown focused on member selection rather than mixing in a no-op
               style="background-color: {{ task.assignee.avatar_color }};">
           {{ task.assignee.display_name|slice:":1"|upper }}
         </span>
-        <span class="text-zinc-700 dark:text-zinc-300">{{ task.assignee.display_name }}</span>
+        <span class="text-muted-foreground">{{ task.assignee.display_name }}</span>
       </div>
       {% else %}
       <div class="flex items-center gap-1.5">
@@ -57,7 +57,7 @@ dropdown focused on member selection rather than mixing in a no-op
       {% csrf_token %}
       <input type="hidden" name="assignee_id" value="">
       <button type="submit"
-              class="text-zinc-500 dark:text-zinc-600 hover:text-rose-400 text-xs opacity-0 group-hover:opacity-100 transition"
+              class="text-placeholder-foreground hover:text-rose-400 text-xs opacity-0 group-hover:opacity-100 transition"
               title="{% trans 'Unassign' %}">✕</button>
     </form>
     {% endif %}
@@ -67,15 +67,15 @@ dropdown focused on member selection rather than mixing in a no-op
        @click.outside="open = false"
        x-effect="if (open) $nextTick(() => $refs.search.focus())"
        x-cloak
-       class="absolute right-0 mt-1 w-60 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg overflow-hidden z-20">
+       class="absolute right-0 mt-1 w-60 bg-card border border-border rounded-lg shadow-lg overflow-hidden z-20">
 
-    <div class="p-2 border-b border-zinc-200 dark:border-zinc-800">
+    <div class="p-2 border-b border-border">
       <input x-ref="search"
              x-model="q"
              @keydown.escape.prevent="open = false"
              type="text"
              placeholder="{% trans 'Search members…' %}"
-             class="w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded px-2 py-1 text-xs text-zinc-800 dark:text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-brand-500">
+             class="w-full bg-muted border border-border-strong rounded px-2 py-1 text-xs text-foreground placeholder-zinc-500 focus:outline-none focus:border-brand-500">
     </div>
 
     <div class="max-h-64 overflow-y-auto">
@@ -88,8 +88,8 @@ dropdown focused on member selection rather than mixing in a no-op
         {% csrf_token %}
         <input type="hidden" name="assignee_id" value="{{ member.user.id }}">
         <button type="submit"
-                class="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-2
-                  {% if task.assignee_id == member.user.id %}font-medium text-white bg-zinc-200/60 dark:bg-zinc-800/40{% else %}text-zinc-700 dark:text-zinc-300{% endif %}">
+                class="w-full text-left px-3 py-1.5 text-xs hover:bg-muted flex items-center gap-2
+                  {% if task.assignee_id == member.user.id %}font-medium text-white bg-muted/60{% else %}text-muted-foreground{% endif %}">
           <span class="w-5 h-5 rounded-full text-white grid place-items-center font-medium text-[10px]"
                 style="background-color: {{ member.user.avatar_color }};">
             {{ member.user.display_name|slice:":1"|upper }}

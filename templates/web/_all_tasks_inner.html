@@ -25,10 +25,10 @@ column and the kanban cards still identify their project via the slug.
 {% else %}
 <div class="flex-1 min-h-0 grid place-items-center text-center">
   <div>
-    <div class="w-12 h-12 rounded-full border border-dashed border-zinc-300 dark:border-zinc-700 grid place-items-center text-zinc-500 dark:text-zinc-600 mx-auto mb-3">
+    <div class="w-12 h-12 rounded-full border border-dashed border-border-strong grid place-items-center text-placeholder-foreground mx-auto mb-3">
       {% lucide "search-x" "w-5 h-5" %}
     </div>
-    <h2 class="text-lg font-medium text-zinc-700 dark:text-zinc-300">{% trans "No tasks match these filters" %}</h2>
+    <h2 class="text-lg font-medium text-muted-foreground">{% trans "No tasks match these filters" %}</h2>
     <p class="text-sm text-zinc-500 mt-1">{% trans "Try clearing some filters." %}</p>
   </div>
 </div>

@@ -9,14 +9,14 @@
 
 {% block app_main %}
 <div class="max-w-xl mx-auto mt-12 text-center space-y-4">
-  <div class="w-16 h-16 rounded-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 grid place-items-center mx-auto">
+  <div class="w-16 h-16 rounded-full bg-card border border-border grid place-items-center mx-auto">
     <span class="text-2xl">📭</span>
   </div>
   <h2 class="text-xl font-semibold">{% trans "You're not in a workspace yet" %}</h2>
-  <p class="text-zinc-500 dark:text-zinc-600 dark:text-zinc-400">
+  <p class="text-zinc-500 dark:text-subtle-foreground">
     {% trans "Ask an admin to add you. Share this email so they can find you:" %}
   </p>
-  <code class="inline-block px-3 py-1.5 rounded bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-sm">
+  <code class="inline-block px-3 py-1.5 rounded bg-card border border-border text-sm">
     {{ user.email|default:user.username }}
   </code>
   <p class="text-zinc-500 text-sm mt-6">

@@ -9,7 +9,7 @@ jump, neighbouring rows stay put. Expects ``task`` + ``status_labels``
 + ``priority_labels`` + ``today`` + ``show_labels`` + ``show_project``
 in context.
 {% endcomment %}
-<tr class="acta-row hover:bg-zinc-50 dark:hover:bg-zinc-100 dark:bg-zinc-800/30"
+<tr class="acta-row hover:bg-zinc-50 dark:hover:bg-muted/30"
     data-task-id="{{ task.id }}"
     {% task_filter_attrs task %}
     data-sort-id="{{ task.project.slug_prefix }}-{{ task.number|stringformat:"010d" }}"
@@ -40,12 +40,12 @@ in context.
   </td>
   <td class="px-3 py-2 max-w-md">
     <a href="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
-       class="block text-zinc-900 dark:text-zinc-100 hover:text-brand-400 truncate"
+       class="block text-foreground hover:text-brand-400 truncate"
        title="{{ task.title }}">{{ task.title }}</a>
   </td>
   <td class="px-3 py-2 whitespace-nowrap">
     <span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded
-      {% if task.status == 'planned' %}bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-600 dark:text-zinc-400
+      {% if task.status == 'planned' %}bg-muted text-zinc-500 dark:text-subtle-foreground
       {% elif task.status == 'to-do' %}bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300
       {% elif task.status == 'in-progress' %}bg-violet-100 dark:bg-violet-900 text-violet-700 dark:text-violet-300
       {% elif task.status == 'in-review' %}bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300
@@ -69,10 +69,10 @@ in context.
       {% else %}{% lucide "circle-dashed" "w-4 h-4" %}{% endif %}
     </span>
     {% else %}
-    <span class="text-zinc-500 dark:text-zinc-600">—</span>
+    <span class="text-placeholder-foreground">—</span>
     {% endif %}
   </td>
-  <td class="px-3 py-2 text-xs text-zinc-500 dark:text-zinc-600 dark:text-zinc-400 whitespace-nowrap">
+  <td class="px-3 py-2 text-xs text-zinc-500 dark:text-subtle-foreground whitespace-nowrap">
     {% if task.size %}
     <span class="inline-flex items-center gap-1" title="{% trans 'Size estimate' %}">
       {% lucide "gauge" "w-3 h-3" %}{{ task.size }}
@@ -92,7 +92,7 @@ in context.
       <span class="text-zinc-500 text-[10px] leading-none shrink-0" title="{% trans 'More — hover to see all' %}">…</span>
       {% endif %}
     </div>
-    <div class="hidden group-hover:flex absolute z-30 top-full left-2 mt-1 max-w-xs flex-wrap gap-1 p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg">
+    <div class="hidden group-hover:flex absolute z-30 top-full left-2 mt-1 max-w-xs flex-wrap gap-1 p-2 bg-card border border-border rounded-lg shadow-lg">
       {% for label in task.labels.all %}
       <span class="acta-label-pill text-[11px] px-1.5 py-0.5 rounded inline-flex items-center gap-1 whitespace-nowrap"
             style="--label-color: {{ label.color }};">
@@ -101,7 +101,7 @@ in context.
       </span>
       {% endfor %}
     </div>
-    {% else %}<span class="text-zinc-500 dark:text-zinc-600">—</span>{% endif %}
+    {% else %}<span class="text-placeholder-foreground">—</span>{% endif %}
   </td>
   {% endif %}
   <td class="px-3 py-2 text-xs overflow-hidden">
@@ -111,14 +111,14 @@ in context.
             style="background-color: {{ task.assignee.avatar_color }};">
         {{ task.assignee.display_name|slice:":1"|upper }}
       </span>
-      <span class="text-zinc-700 dark:text-zinc-300 truncate">{{ task.assignee.display_name }}</span>
+      <span class="text-muted-foreground truncate">{{ task.assignee.display_name }}</span>
     </span>
     {% else %}
-    <span class="text-zinc-500 dark:text-zinc-600">{% trans "—" %}</span>
+    <span class="text-placeholder-foreground">{% trans "—" %}</span>
     {% endif %}
   </td>
   {% if show_project %}
-  <td class="px-3 py-2 text-xs text-zinc-700 dark:text-zinc-300 overflow-hidden"
+  <td class="px-3 py-2 text-xs text-muted-foreground overflow-hidden"
       title="{{ task.project.workspace.name }} / {{ task.project.name }}">
     <div class="flex items-center gap-1.5 min-w-0">
       {% lucide task.project.icon|default:"folder" "w-3.5 h-3.5 text-zinc-500 shrink-0" %}

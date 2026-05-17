@@ -25,8 +25,8 @@ updates ``activeAxis`` + ``history.pushState`` so URLs stay shareable.
            document.cookie = `acta_list_axis={{ ax.key }}; path=/; max-age=${60*60*24*365}; samesite=Lax`;
          "
          :class="activeAxis === '{{ ax.key }}'
-           ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100'
-           : 'text-zinc-500 dark:text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100/60 dark:hover:bg-zinc-100/60 dark:bg-zinc-800/50'"
+           ? 'bg-muted text-foreground'
+           : 'text-zinc-500 dark:text-subtle-foreground hover:text-foreground hover:bg-zinc-100/60 dark:hover:bg-muted/60'"
          class="px-2 py-0.5 rounded-md transition">
         {{ ax.label }}
       </a>
@@ -51,9 +51,9 @@ updates ``activeAxis`` + ``history.pushState`` so URLs stay shareable.
             {% elif section.tone == 'orange' %}text-orange-400
             {% elif section.tone == 'sky' %}text-sky-400
             {% else %}text-zinc-500{% endif %}">{{ section.label }}</h2>
-          <span class="text-xs text-zinc-500 dark:text-zinc-600">{{ section.tasks|length }}</span>
+          <span class="text-xs text-placeholder-foreground">{{ section.tasks|length }}</span>
         </div>
-        <ul class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden divide-y divide-zinc-200 dark:divide-zinc-800">
+        <ul class="bg-card border border-border rounded-lg overflow-hidden divide-y divide-zinc-200 dark:divide-zinc-800">
           {% for task in section.tasks %}
           <li>{% include "web/_task_row.html" with task=task %}</li>
           {% endfor %}
@@ -65,10 +65,10 @@ updates ``activeAxis`` + ``history.pushState`` so URLs stay shareable.
     {% else %}
     <div class="grid place-items-center text-center py-20">
       <div>
-        <div class="w-12 h-12 rounded-full border border-dashed border-zinc-300 dark:border-zinc-700 grid place-items-center text-zinc-500 dark:text-zinc-600 mx-auto mb-3">
+        <div class="w-12 h-12 rounded-full border border-dashed border-border-strong grid place-items-center text-placeholder-foreground mx-auto mb-3">
           {% lucide "list" "w-5 h-5" %}
         </div>
-        <h2 class="text-lg font-medium text-zinc-700 dark:text-zinc-300">{% trans "No tasks match these filters" %}</h2>
+        <h2 class="text-lg font-medium text-muted-foreground">{% trans "No tasks match these filters" %}</h2>
         <p class="text-sm text-zinc-500 mt-1">{% trans "Try a different group axis or clear filters." %}</p>
       </div>
     </div>

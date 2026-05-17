@@ -37,17 +37,17 @@ planned editor upgrade. Plain ``<textarea>`` keeps the modal snappy.
      @acta:task-created.window="close()"
      class="fixed inset-0 z-50 flex items-start justify-center pt-16 px-4 bg-black/60 backdrop-blur-sm"
      @click.self="close()">
-  <div class="w-full max-w-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg overflow-hidden"
+  <div class="w-full max-w-xl bg-card border border-border rounded-lg shadow-lg overflow-hidden"
        x-init="$nextTick(() => $refs.title.focus())">
     <form hx-post="{% url 'web:create_task' %}"
           hx-swap="none">
       {% csrf_token %}
       <input type="hidden" name="open_after_create" :value="openAfter ? '1' : '0'">
 
-      <header class="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
-        <h2 class="text-sm font-medium text-zinc-800 dark:text-zinc-200">{% trans "New task" %}</h2>
+      <header class="flex items-center justify-between px-4 py-3 border-b border-border">
+        <h2 class="text-sm font-medium text-foreground">{% trans "New task" %}</h2>
         <button type="button" @click="close()"
-                class="p-1 rounded-md text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+                class="p-1 rounded-md text-zinc-500 hover:text-foreground hover:bg-muted">
           {% lucide "x" "w-4 h-4" %}
         </button>
       </header>
@@ -63,7 +63,7 @@ planned editor upgrade. Plain ``<textarea>`` keeps the modal snappy.
                   hx-target="#modal-root"
                   hx-swap="innerHTML"
                   hx-include="this"
-                  class="mt-1 w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-md px-2 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-brand-500">
+                  class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500">
             {% for project in projects %}
             <option value="{{ project.slug_prefix }}"
                     {% if selected_project and selected_project.slug_prefix == project.slug_prefix %}selected{% endif %}>
@@ -79,14 +79,14 @@ planned editor upgrade. Plain ``<textarea>`` keeps the modal snappy.
         <div>
           <label class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Title" %}</label>
           <input type="text" name="title" maxlength="200" required x-ref="title"
-                 class="mt-1 w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-md px-2 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-brand-500"
+                 class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500"
                  placeholder="{% trans 'What needs to be done?' %}">
         </div>
 
         <div>
           <label class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Description" %}</label>
           <textarea name="description" rows="3"
-                    class="mt-1 w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-md px-2 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-brand-500"
+                    class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500"
                     placeholder="{% trans 'Optional details…' %}"></textarea>
         </div>
 
@@ -94,7 +94,7 @@ planned editor upgrade. Plain ``<textarea>`` keeps the modal snappy.
           <div>
             <label class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Status" %}</label>
             <select name="status"
-                    class="mt-1 w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-md px-2 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-brand-500">
+                    class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500">
               {% for value, label in status_labels.items %}
               <option value="{{ value }}" {% if value == pre_status %}selected{% endif %}>{{ label }}</option>
               {% endfor %}
@@ -103,7 +103,7 @@ planned editor upgrade. Plain ``<textarea>`` keeps the modal snappy.
           <div>
             <label class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Priority" %}</label>
             <select name="priority"
-                    class="mt-1 w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-md px-2 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-brand-500">
+                    class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500">
               {% for value, label in priority_labels.items %}
               <option value="{{ value }}" {% if value == 0 %}selected{% endif %}>{{ label }}</option>
               {% endfor %}
@@ -115,12 +115,12 @@ planned editor upgrade. Plain ``<textarea>`` keeps the modal snappy.
           <div>
             <label class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Due date" %}</label>
             <input type="date" name="due_date"
-                   class="mt-1 w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-md px-2 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-brand-500">
+                   class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500">
           </div>
           <div>
             <label class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Assignee" %}</label>
             <select name="assignee"
-                    class="mt-1 w-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-md px-2 py-1.5 text-sm text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-brand-500">
+                    class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500">
               <option value="">{% trans "— Unassigned —" %}</option>
               {% for user in members %}
               <option value="{{ user.id }}"
@@ -173,15 +173,15 @@ planned editor upgrade. Plain ``<textarea>`` keeps the modal snappy.
         {% endif %}
       </div>
 
-      <footer class="flex items-center justify-between gap-2 px-4 py-3 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/60">
-        <label class="inline-flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-600 dark:text-zinc-400 cursor-pointer select-none">
+      <footer class="flex items-center justify-between gap-2 px-4 py-3 border-t border-border bg-subtle/60">
+        <label class="inline-flex items-center gap-2 text-xs text-zinc-500 dark:text-subtle-foreground cursor-pointer select-none">
           <input type="checkbox" :checked="openAfter" @change="toggleOpenAfter()"
                  class="acta-checkbox">
           {% trans "Open after create" %}
         </label>
         <div class="flex items-center gap-2">
           <button type="button" @click="close()"
-                  class="px-3 py-1.5 text-sm rounded-md text-zinc-500 dark:text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+                  class="px-3 py-1.5 text-sm rounded-md text-zinc-500 dark:text-subtle-foreground hover:text-foreground hover:bg-muted">
             {% trans "Cancel" %}
           </button>
           <button type="submit"

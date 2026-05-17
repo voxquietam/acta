@@ -19,11 +19,11 @@ all work here without changes.
     <input type="hidden" name="description" value="{{ project.description|default:'' }}" data-editor-output>
     <textarea class="description-editor-source hidden" readonly>{{ project.description|default:'' }}</textarea>
 
-    <div class="description-editor-fallback prose dark:prose-invert prose-sm max-w-none min-h-[6rem] text-zinc-800 dark:text-zinc-200">
+    <div class="description-editor-fallback prose dark:prose-invert prose-sm max-w-none min-h-[6rem] text-foreground">
       {% if project.description %}
         {{ project.description|markdown }}
       {% else %}
-        <p class="text-zinc-500 dark:text-zinc-600 italic">{% trans 'Write a description…' %}</p>
+        <p class="text-placeholder-foreground italic">{% trans 'Write a description…' %}</p>
       {% endif %}
     </div>
 
