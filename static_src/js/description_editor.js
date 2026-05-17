@@ -50,6 +50,16 @@ function initEditor(root) {
     return null;
   }
 
+  // Defensive cleanup: wipe any leftover ProseMirror markup inside the
+  // mount before TipTap creates its own. When HTMX swaps the
+  // description / comment partial in fast succession (e.g., user types
+  // a comment while a peer SSE event lands), the WeakMap-based instance
+  // guard above can race with TipTap's DOM insertion and we end up with
+  // two ``.ProseMirror`` siblings in one mount — visually a duplicated
+  // editor. Clearing innerHTML before init makes the second insertion
+  // overwrite cleanly.
+  mount.innerHTML = "";
+
   const initialMarkdown = source.value || "";
 
   const editor = new Editor({
@@ -164,9 +174,15 @@ function initEditor(root) {
   // TipTap surface. Done in a microtask so the layout transition is
   // a single paint.
   if (fallback) {
+    // ``style.display`` instead of just ``classList.add('hidden')``
+    // — the ``.prose`` rules carry the same specificity as ``.hidden``
+    // and load after in some bundles, leaving the fallback visible
+    // next to the live editor. Inline style wins unambiguously.
     fallback.classList.add("hidden");
+    fallback.style.display = "none";
   }
   mount.classList.remove("hidden");
+  mount.style.display = "";
 
   // Pagehide beacon: post the latest markdown if it differs from the
   // baseline. WeakMap entry will be garbage-collected when root is
