@@ -248,14 +248,31 @@ def broadcast_task_events(events: list[ActivityLog], tasks_by_id: dict[int, Task
     """
     if not events:
         return
+    from django.utils import timezone as _tz
+
     actor_id = actor.id if actor else None
+    # Pre-render every surface the task can appear on so peer clients
+    # apply the update with zero extra HTTP fetches. Three renders per
+    # affected task = ~3-5 ms server-side, swap is instant on the
+    # client. See ADR 0014 (the SSE pre-render path).
     card_html_by_task: dict[int, str] = {}
+    row_table_html_by_task: dict[int, str] = {}
+    row_list_html_by_task: dict[int, str] = {}
     priority_labels = dict(Task.PRIORITY_CHOICES)
+    status_labels = Task.STATUS_LABELS
+    today = _tz.localdate()
+    common_ctx = {
+        "priority_labels": priority_labels,
+        "status_labels": status_labels,
+        "today": today,
+        "show_project": True,
+        "show_labels": True,
+    }
     for task_id, task in tasks_by_id.items():
-        card_html_by_task[task_id] = render_to_string(
-            "web/projects/_task_card.html",
-            {"task": task, "priority_labels": priority_labels},
-        )
+        ctx = {**common_ctx, "task": task}
+        card_html_by_task[task_id] = render_to_string("web/projects/_task_card.html", ctx)
+        row_table_html_by_task[task_id] = render_to_string("web/projects/_table_row.html", ctx)
+        row_list_html_by_task[task_id] = render_to_string("web/_task_row.html", ctx)
     for ev in events:
         workspace_id = ev.workspace_id
         payload = {
@@ -268,6 +285,12 @@ def broadcast_task_events(events: list[ActivityLog], tasks_by_id: dict[int, Task
         card_html = card_html_by_task.get(ev.target_id)
         if card_html:
             payload["card_html"] = card_html
+        row_table_html = row_table_html_by_task.get(ev.target_id)
+        if row_table_html:
+            payload["row_html_table"] = row_table_html
+        row_list_html = row_list_html_by_task.get(ev.target_id)
+        if row_list_html:
+            payload["row_html_list"] = row_list_html
         event_type = ev.event_type
         transaction.on_commit(
             lambda wid=workspace_id, et=event_type, p=payload, aid=actor_id: broadcast_event(wid, et, p, aid),
@@ -303,6 +326,8 @@ def emit_task_diff_events(
     events = build_diff_events(old_state=old_state, task=task, actor=actor, bulk_id=bulk_id)
     if events:
         ActivityLog.objects.bulk_create(events)
-        task_for_render = Task.objects.select_related("project", "assignee").prefetch_related("labels").get(pk=task.pk)
+        task_for_render = (
+            Task.objects.select_related("project__workspace", "assignee").prefetch_related("labels").get(pk=task.pk)
+        )
         broadcast_task_events(events, {task.pk: task_for_render}, actor)
     return len(events)

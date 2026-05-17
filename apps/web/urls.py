@@ -22,6 +22,7 @@ from .views import (
     task_comments_fragment,
     task_description_fragment,
     task_meta_fragment,
+    task_row_fragment,
     task_title_fragment,
     task_topbar_title_fragment,
     toggle_project_member,
@@ -35,6 +36,7 @@ urlpatterns = [
     path("my-work/", MyWorkView.as_view(), name="my_work"),
     path("tasks/", AllTasksView.as_view(), name="all_tasks"),
     path("tasks/new/", create_task, name="create_task"),
+    path("tasks/<int:task_id>/row/", task_row_fragment, name="task_row_fragment"),
     path("projects/", ProjectListView.as_view(), name="project_list"),
     path("projects/<str:slug_prefix>/", ProjectDetailView.as_view(), name="project_detail"),
     path(

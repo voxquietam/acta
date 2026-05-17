@@ -766,11 +766,31 @@
     document.querySelectorAll(KANBAN_CARD(taskId)).forEach((el) => el.remove());
   }
 
+  // Track which SSE channels we've already subscribed to. Some pages
+  // (project / task detail) carry a specific ``data-workspace-sse``
+  // *and* the global app shell may emit a marker for the same
+  // workspace — only open the connection once per unique URL.
+  const SSE_BOUND_URLS = new Set();
+
   function initWorkspaceSse() {
-    const root = document.querySelector("[data-workspace-sse]");
+    // Bind one EventSource per ``[data-workspace-sse]`` element. Most
+    // pages have a single workspace context (project / task detail),
+    // but cross-workspace surfaces (My Work, All Tasks) emit one
+    // marker per workspace the user belongs to so SSE updates from
+    // any of them flow through. ``SSE_BOUND_URLS`` plus ``sseBound``
+    // guard keep re-init idempotent on HTMX swaps.
+    document.querySelectorAll("[data-workspace-sse]").forEach(initOneWorkspaceSse);
+  }
+
+  function initOneWorkspaceSse(root) {
     if (!root || root.dataset.sseBound === "true") return;
-    root.dataset.sseBound = "true";
     const url = root.getAttribute("data-workspace-sse");
+    if (!url || SSE_BOUND_URLS.has(url)) {
+      root.dataset.sseBound = "true";
+      return;
+    }
+    root.dataset.sseBound = "true";
+    SSE_BOUND_URLS.add(url);
     const meId = root.getAttribute("data-current-user-id") || "";
     const source = new EventSource(url);
     // Close the stream cleanly on navigation/reload. Without this the
@@ -801,13 +821,105 @@
       });
     };
 
-    handle("task.status_changed", (d) => applyCardMove(d.target_id, d.to, d.card_html));
-    handle("task.assigned", (d) => applyCardReplace(d.target_id, d.card_html));
-    handle("task.priority_changed", (d) => applyCardReplace(d.target_id, d.card_html));
-    handle("task.due_changed", (d) => applyCardReplace(d.target_id, d.card_html));
-    handle("task.labels_changed", (d) => applyCardReplace(d.target_id, d.card_html));
-    handle("task.updated", (d) => applyCardReplace(d.target_id, d.card_html));
-    handle("task.deleted", (d) => applyCardRemove(d.target_id));
+    // ----- SSE peer-edit handling --------------------------------
+    //
+    // Every task-mutation event arrives with pre-rendered HTML for
+    // each surface the task can appear on — see
+    // ``broadcast_task_events`` in apps/tasks/events.py. The client
+    // applies whatever HTML the payload carries; no extra HTTP
+    // round-trips, no fragment endpoint dance.
+    //
+    // ``morph:outerHTML`` (idiomorph) patches the existing DOM node
+    // in place instead of remove + reinsert — keeps focus, Alpine
+    // state, and avoids the empty-frame flicker that a naive
+    // outerHTML swap produces.
+    //
+    // List view groups by axis with section headers + counts; a
+    // peer's edit can move a task between sections, and an in-place
+    // row swap would leave it in the old section with stale section
+    // count. So list is the one surface that still refetches its
+    // whole panel (one HTMX request, debounced).
+    let listPanelRefetchTimer = null;
+    function refreshListPanel() {
+      if (!window.htmx) return;
+      if (listPanelRefetchTimer) clearTimeout(listPanelRefetchTimer);
+      listPanelRefetchTimer = setTimeout(() => {
+        document.querySelectorAll('[data-panel-slot="list"]').forEach((slot) => {
+          const url = new URL(window.location.href);
+          url.searchParams.set("panel", "list");
+          window.htmx.ajax("GET", url.pathname + url.search, {
+            target: slot,
+            swap: "innerHTML",
+          });
+        });
+        listPanelRefetchTimer = null;
+      }, 250);
+    }
+
+    function morphFromString(targetEl, html) {
+      if (!targetEl || !html) return;
+      const tpl = document.createElement("template");
+      tpl.innerHTML = html.trim();
+      const fresh = tpl.content.firstElementChild;
+      if (!fresh) return;
+      if (window.Idiomorph) {
+        window.Idiomorph.morph(targetEl, fresh, { morphStyle: "outerHTML" });
+      } else {
+        targetEl.replaceWith(fresh);
+      }
+    }
+
+    function applyRowHtmlTable(taskId, html) {
+      if (!html) return;
+      document
+        .querySelectorAll(`tr[data-task-id="${taskId}"]`)
+        .forEach((tr) => morphFromString(tr, html));
+    }
+
+    // Single dispatcher used by every per-task update event.
+    function applyTaskUpdate(d) {
+      if (d.card_html) {
+        applyCardReplace(d.target_id, d.card_html);
+      }
+      if (d.row_html_table) {
+        applyRowHtmlTable(d.target_id, d.row_html_table);
+      }
+      // List view rebuilds the whole panel — group membership and
+      // section counts re-compute together. Debounced.
+      refreshListPanel();
+    }
+
+    handle("task.status_changed", (d) => {
+      // Status change is the one event that *moves* the kanban card
+      // between columns — applyCardMove handles that; everything else
+      // (table / list) goes through the standard update dispatcher.
+      applyCardMove(d.target_id, d.to, d.card_html);
+      if (d.row_html_table) applyRowHtmlTable(d.target_id, d.row_html_table);
+      refreshListPanel();
+    });
+    handle("task.assigned", applyTaskUpdate);
+    handle("task.priority_changed", applyTaskUpdate);
+    handle("task.due_changed", applyTaskUpdate);
+    handle("task.labels_changed", applyTaskUpdate);
+    handle("task.updated", applyTaskUpdate);
+    handle("task.archived", applyTaskUpdate);
+    handle("task.unarchived", applyTaskUpdate);
+    handle("task.deleted", (d) => {
+      applyCardRemove(d.target_id);
+      document.querySelectorAll(`tr[data-task-id="${d.target_id}"]`).forEach((el) => el.remove());
+      refreshListPanel();
+    });
+
+    // New task from another user — server emits ``task.created``
+    // without a pre-rendered card (the create path uses
+    // ``log_event`` directly, not the diff broadcaster). Mirror the
+    // same custom event the local create flow already fires; panel
+    // wrappers refetch themselves and the new row shows up. The
+    // flash is acceptable here because there's no other way to
+    // insert the row into the existing DOM.
+    handle("task.created", () => {
+      document.body.dispatchEvent(new CustomEvent("acta:task-created", { bubbles: true }));
+    });
 
     // Activity-feed live refresh on the task detail page. The
     // ``#activity-list`` element has ``hx-trigger="refresh"`` + a

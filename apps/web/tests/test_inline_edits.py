@@ -632,6 +632,55 @@ class TestPostComment:
 
 
 @pytest.mark.django_db
+class TestTaskRowFragment:
+    """``/tasks/<id>/row/?as=table|list`` — per-row SSE refresh endpoint.
+
+    The client-side SSE handler calls this when a peer edits a task,
+    swapping just the matching ``<tr>`` / ``<a>`` element on every
+    page the task appears on. Returns the table partial by default;
+    ``?as=list`` returns the list-row partial.
+    """
+
+    def _url(self, task):
+        return reverse("web:task_row_fragment", kwargs={"task_id": task.id})
+
+    def test_table_fragment_is_a_tr(self, client, setup):
+        user, _, task = setup
+        client.force_login(user)
+        resp = client.get(self._url(task))
+        body = resp.content.decode().strip()
+        assert resp.status_code == 200
+        assert body.startswith("<tr")
+        assert f'data-task-id="{task.id}"' in body
+        # ``data-status`` etc. come from ``task_filter_attrs`` — client
+        # filter relies on them being present after a per-row swap.
+        assert f'data-status="{task.status}"' in body
+
+    def test_list_fragment_is_an_anchor(self, client, setup):
+        user, _, task = setup
+        client.force_login(user)
+        resp = client.get(self._url(task) + "?as=list")
+        body = resp.content.decode().strip()
+        assert resp.status_code == 200
+        assert body.startswith("<a")
+        assert f'data-task-id="{task.id}"' in body
+
+    def test_foreign_workspace_task_returns_404(self, client, setup):
+        user, _, _ = setup
+        foreign_ws = WorkspaceFactory()
+        foreign_project = ProjectFactory(workspace=foreign_ws)
+        foreign_task = TaskFactory(project=foreign_project, reporter=foreign_ws.owner)
+        client.force_login(user)
+        resp = client.get(reverse("web:task_row_fragment", kwargs={"task_id": foreign_task.id}))
+        assert resp.status_code == 404
+
+    def test_unauthenticated_redirects(self, client, setup):
+        _, _, task = setup
+        resp = client.get(self._url(task))
+        assert resp.status_code in (301, 302)
+
+
+@pytest.mark.django_db
 class TestArchiveTask:
     """Archive / unarchive endpoint — flips ``archived_at`` orthogonal
     to status, emits activity event."""

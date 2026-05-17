@@ -824,6 +824,38 @@ def task_meta_fragment(request, slug_prefix, number):
 
 
 @login_required
+def task_row_fragment(request, task_id):
+    """Render a single task row for table or list view.
+
+    Returns just the ``<tr>`` (``?as=table``) or the ``<a>`` row
+    (``?as=list``) for one task. The client-side SSE handler in
+    ``acta.js`` swaps each appearance of ``data-task-id`` after a
+    peer's edit — one row at a time, no flash, no scroll jump.
+
+    ``show_project`` / ``show_labels`` default to ``True`` (matches
+    the All Tasks rendering); per-project pages also include both
+    columns now, so the fragment is shape-stable across pages.
+    """
+    task = get_object_or_404(_user_task_qs(request.user), pk=task_id)
+    as_type = request.GET.get("as", "table")
+    template = "web/_task_row.html" if as_type == "list" else "web/projects/_table_row.html"
+    return HttpResponse(
+        render_to_string(
+            template,
+            {
+                "task": task,
+                "status_labels": Task.STATUS_LABELS,
+                "priority_labels": dict(Task.PRIORITY_CHOICES),
+                "today": timezone.localdate(),
+                "show_project": True,
+                "show_labels": True,
+            },
+            request=request,
+        ),
+    )
+
+
+@login_required
 def task_activity_fragment(request, slug_prefix, number):
     """Render just the ``_activity_list.html`` partial for one task.
 

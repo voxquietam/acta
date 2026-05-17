@@ -1,4 +1,5 @@
 {% load i18n %}
+{% load lucide %}
 {% load web_extras %}
 {% comment %}
 Tabular task list — used both inside a single project (kanban / table
@@ -94,7 +95,7 @@ clip overflowing text with an ellipsis instead of widening.
           <a href="{% sort_url request 'updated' %}" data-sort data-sort-key="updated"
              title="{% trans 'Updated' %}"
              class="hover:text-zinc-900 dark:hover:text-zinc-200 inline-flex items-center gap-1">
-            <i data-lucide="clock" class="w-3.5 h-3.5"></i>
+            {% lucide "clock" "w-3.5 h-3.5" %}
             <span class="text-brand-400 text-[10px]">{% sort_indicator request 'updated' %}</span>
           </a>
         </th>
@@ -111,147 +112,7 @@ clip overflowing text with an ellipsis instead of widening.
     — same trick the server uses (_PRIORITY_NOPRIO_LAST in filters.py).
     {% endcomment %}
     <tbody class="divide-y divide-zinc-200 dark:divide-zinc-800">
-      {% for task in tasks %}
-      <tr class="acta-row hover:bg-zinc-50 dark:hover:bg-zinc-100 dark:bg-zinc-800/30"
-          data-task-id="{{ task.id }}"
-          {% task_filter_attrs task %}
-          data-sort-id="{{ task.project.slug_prefix }}-{{ task.number|stringformat:"010d" }}"
-          data-sort-title="{{ task.title|lower }}"
-          data-sort-status="{% if task.status == 'planned' %}0{% elif task.status == 'to-do' %}1{% elif task.status == 'in-progress' %}2{% elif task.status == 'in-review' %}3{% elif task.status == 'done' %}4{% else %}99{% endif %}"
-          data-sort-priority="{% if task.priority %}{{ task.priority }}{% else %}99{% endif %}"
-          data-sort-size="{% if task.size %}{{ task.size }}{% else %}{% endif %}"
-          data-sort-assignee="{% if task.assignee %}{{ task.assignee.display_name|lower }}{% else %}{% endif %}"
-          data-sort-project="{{ task.project.name|lower }}"
-          data-sort-due="{% if task.due_date %}{{ task.due_date|date:"Y-m-d" }}{% else %}{% endif %}"
-          data-sort-updated="{{ task.updated_at|date:"c" }}"
-          :data-selected="$store.selection.has({{ task.id }}) ? 'true' : 'false'"
-          :class="$store.selection.has({{ task.id }}) && 'bg-brand-500/10 dark:bg-brand-500/5'">
-        <td class="px-3 py-2 text-center">
-          <input type="checkbox"
-                 :checked="$store.selection.has({{ task.id }})"
-                 @click.stop="$store.selection.toggle({{ task.id }})"
-                 class="acta-checkbox acta-row-check">
-        </td>
-        <td class="px-3 py-2 font-mono text-xs whitespace-nowrap
-          {% if task.priority == 1 %}text-rose-400
-          {% elif task.priority == 2 %}text-orange-400
-          {% elif task.priority == 3 %}text-amber-400
-          {% elif task.priority == 4 %}text-sky-400
-          {% else %}text-zinc-500{% endif %}">
-          <a href="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
-             class="hover:brightness-125">{{ task.slug }}</a>
-        </td>
-        <td class="px-3 py-2 max-w-md">
-          <a href="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
-             class="block text-zinc-900 dark:text-zinc-100 hover:text-brand-400 truncate"
-             title="{{ task.title }}">{{ task.title }}</a>
-        </td>
-        <td class="px-3 py-2 whitespace-nowrap">
-          <span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded
-            {% if task.status == 'planned' %}bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-600 dark:text-zinc-400
-            {% elif task.status == 'to-do' %}bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300
-            {% elif task.status == 'in-progress' %}bg-violet-100 dark:bg-violet-900 text-violet-700 dark:text-violet-300
-            {% elif task.status == 'in-review' %}bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300
-            {% elif task.status == 'done' %}bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300{% endif %}">
-            {{ status_labels|get_item:task.status|default:task.status }}
-          </span>
-        </td>
-        <td class="px-3 py-2 text-xs whitespace-nowrap">
-          {% if task.priority %}
-          <span class="inline-flex items-center
-            {% if task.priority == 1 %}text-rose-400
-            {% elif task.priority == 2 %}text-orange-400
-            {% elif task.priority == 3 %}text-amber-400
-            {% elif task.priority == 4 %}text-sky-400
-            {% else %}text-zinc-500{% endif %}"
-                title="{{ priority_labels|get_item:task.priority }}">
-            {% if task.priority == 1 %}<i data-lucide="chevrons-up" class="w-4 h-4"></i>
-            {% elif task.priority == 2 %}<i data-lucide="chevron-up" class="w-4 h-4"></i>
-            {% elif task.priority == 3 %}<i data-lucide="minus" class="w-4 h-4"></i>
-            {% elif task.priority == 4 %}<i data-lucide="chevron-down" class="w-4 h-4"></i>
-            {% else %}<i data-lucide="circle-dashed" class="w-4 h-4"></i>{% endif %}
-          </span>
-          {% else %}
-          <span class="text-zinc-500 dark:text-zinc-600">—</span>
-          {% endif %}
-        </td>
-        <td class="px-3 py-2 text-xs text-zinc-500 dark:text-zinc-600 dark:text-zinc-400 whitespace-nowrap">
-          {% if task.size %}
-          <span class="inline-flex items-center gap-1" title="{% trans 'Size estimate' %}">
-            <i data-lucide="gauge" class="w-3 h-3"></i>{{ task.size }}
-          </span>
-          {% else %}—{% endif %}
-        </td>
-        {% if show_labels %}
-        {% comment %}
-        Labels cell: colored dots only — one per label, no truncation,
-        no ellipsis. On hover, a small popover shows the full chips
-        (icon + colour + name) so the user can read everything without
-        widening the column.
-        {% endcomment %}
-        <td class="px-3 py-2 group relative">
-          {% if task.labels.all %}
-          {% comment %}
-          Show at most 9 colored dots (≈ two rows in the narrow column).
-          Anything beyond gets a literal ``…`` so the user knows to
-          hover for the full chip popover.
-          {% endcomment %}
-          <div class="flex items-center flex-wrap gap-1">
-            {% for label in task.labels.all|slice:":9" %}
-            <span class="w-2 h-2 rounded-full shrink-0"
-                  style="background-color: {{ label.color }};"
-                  title="{{ label.name }}"></span>
-            {% endfor %}
-            {% if task.labels.all|length > 9 %}
-            <span class="text-zinc-500 text-[10px] leading-none shrink-0" title="{% trans 'More — hover to see all' %}">…</span>
-            {% endif %}
-          </div>
-          {# Hover popover with full chips. #}
-          <div class="hidden group-hover:flex absolute z-30 top-full left-2 mt-1 max-w-xs flex-wrap gap-1 p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg">
-            {% for label in task.labels.all %}
-            <span class="acta-label-pill text-[11px] px-1.5 py-0.5 rounded inline-flex items-center gap-1 whitespace-nowrap"
-                  style="--label-color: {{ label.color }};">
-              <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background-color: {{ label.color }};"></span>
-              <span>{{ label.name }}</span>
-            </span>
-            {% endfor %}
-          </div>
-          {% else %}<span class="text-zinc-500 dark:text-zinc-600">—</span>{% endif %}
-        </td>
-        {% endif %}
-        <td class="px-3 py-2 text-xs overflow-hidden">
-          {% if task.assignee %}
-          <span class="flex items-center gap-1.5 min-w-0" title="{{ task.assignee.display_name }}">
-            <span class="w-5 h-5 rounded-full text-white grid place-items-center font-medium text-[10px] shrink-0"
-                  style="background-color: {{ task.assignee.avatar_color }};">
-              {{ task.assignee.display_name|slice:":1"|upper }}
-            </span>
-            <span class="text-zinc-700 dark:text-zinc-300 truncate">{{ task.assignee.display_name }}</span>
-          </span>
-          {% else %}
-          <span class="text-zinc-500 dark:text-zinc-600">{% trans "—" %}</span>
-          {% endif %}
-        </td>
-        {% if show_project %}
-        <td class="px-3 py-2 text-xs text-zinc-700 dark:text-zinc-300 overflow-hidden"
-            title="{{ task.project.workspace.name }} / {{ task.project.name }}">
-          <div class="flex items-center gap-1.5 min-w-0">
-            <i data-lucide="{{ task.project.icon|default:'folder' }}" class="w-3.5 h-3.5 text-zinc-500 shrink-0"></i>
-            <span class="truncate">{{ task.project.name }}</span>
-          </div>
-        </td>
-        {% endif %}
-        <td class="px-3 py-2 text-xs tabular-nums whitespace-nowrap
-          {% if today and task.due_date and task.due_date < today and task.status != 'done' %}text-rose-400
-          {% elif today and task.due_date == today and task.status != 'done' %}text-amber-400
-          {% else %}text-zinc-500{% endif %}">
-          {{ task.due_date|date:"M j"|default:"—" }}
-        </td>
-        <td class="px-3 py-2 text-xs text-zinc-500 whitespace-nowrap">
-          {{ task.updated_at|date:"M j" }}
-        </td>
-      </tr>
-      {% empty %}
+      {% for task in tasks %}{% include "web/projects/_table_row.html" %}{% empty %}
       <tr>
         <td colspan="{% if show_labels and show_project %}11{% elif show_labels or show_project %}10{% else %}9{% endif %}"
             class="px-3 py-8 text-center text-sm text-zinc-500 italic">
