@@ -46,7 +46,38 @@ Re-included by ``task_detail.html`` and rendered standalone by
     </div>
     <div class="flex justify-between"><span>{% trans "Created" %}</span><span>{{ task.created_at|date:"M j, Y" }}</span></div>
     <div class="flex justify-between"><span>{% trans "Updated" %}</span><span>{{ task.updated_at|date:"M j, Y" }}</span></div>
+    {% if task.archived_at %}
+    <div class="flex justify-between text-amber-400">
+      <span>{% trans "Archived" %}</span>
+      <span>{{ task.archived_at|date:"M j, Y" }}</span>
+    </div>
+    {% endif %}
   </div>
+
+  {% comment %}
+  Archive / unarchive button. Manual action — auto-archive cron is a
+  separate TODO. Posts to ``archive_task`` and swaps this meta panel
+  with the freshly rendered fragment (which now reflects the new
+  archived_at state).
+  {% endcomment %}
+  <form hx-post="{% url 'web:archive_task' slug_prefix=task.project.slug_prefix number=task.number %}"
+        hx-target="#task-meta"
+        hx-swap="innerHTML"
+        class="pt-2 border-t border-zinc-800">
+    {% csrf_token %}
+    {% if task.archived_at %}
+    <input type="hidden" name="unarchive" value="1">
+    <button type="submit"
+            class="w-full flex items-center justify-center gap-1.5 text-xs text-zinc-400 hover:text-amber-300 py-1 rounded transition">
+      <i data-lucide="archive-restore" class="w-3.5 h-3.5"></i>{% trans "Unarchive" %}
+    </button>
+    {% else %}
+    <button type="submit"
+            class="w-full flex items-center justify-center gap-1.5 text-xs text-zinc-500 hover:text-amber-400 py-1 rounded transition">
+      <i data-lucide="archive" class="w-3.5 h-3.5"></i>{% trans "Archive task" %}
+    </button>
+    {% endif %}
+  </form>
 </div>
 
 <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 mt-4">

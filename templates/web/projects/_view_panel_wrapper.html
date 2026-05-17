@@ -4,6 +4,9 @@ view-mode toggle (kanban / table) and by filter changes from the
 shared filter sidebar. The wrapper id has to match the htmx target
 both sources point at.
 {% endcomment %}
+{# OOB filter-count badges — see _all_tasks_inner.html. #}
+{% include "web/_filter_count_badges.html" with variant="collapsed" oob=True %}
+{% include "web/_filter_count_badges.html" with variant="expanded" oob=True %}
 <div id="project-view-panel">
   {% include "web/projects/_view_panel.html" %}
 </div>

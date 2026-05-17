@@ -1,0 +1,27 @@
+{% comment %}
+One active-filter count badge. Lives in two positions in
+``_filters_sidebar.html`` — the collapsed re-open pill and the
+expanded header. Each include passes ``variant``: ``"collapsed"`` or
+``"expanded"``.
+
+On filter form submit (HTMX), the inner response template re-includes
+both variants with ``oob=True``, which tells HTMX to ``hx-swap-oob``
+each span over the existing one by id — the sidebar itself is never
+the swap target, so without OOB the count would stay stale.
+
+Empty state: ``hidden`` Tailwind class keeps the element in the DOM
+(needed for OOB lookup by id) but invisible until a filter is active.
+{% endcomment %}
+{% if variant == "collapsed" %}
+<span id="filter-count-collapsed"
+      {% if oob %}hx-swap-oob="outerHTML"{% endif %}
+      class="{% if active_filter_count %}absolute -top-1 -right-1 px-1 py-0.5 rounded-full text-[9px] bg-brand-500 text-white font-medium min-w-[16px] text-center{% else %}hidden{% endif %}">
+  {% if active_filter_count %}{{ active_filter_count }}{% endif %}
+</span>
+{% else %}
+<span id="filter-count-expanded"
+      {% if oob %}hx-swap-oob="outerHTML"{% endif %}
+      class="{% if active_filter_count %}px-1.5 py-0.5 rounded-full text-[10px] bg-brand-500 text-white font-semibold min-w-[18px] text-center{% else %}hidden{% endif %}">
+  {% if active_filter_count %}{{ active_filter_count }}{% endif %}
+</span>
+{% endif %}

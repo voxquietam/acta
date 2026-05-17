@@ -137,6 +137,17 @@ class Task(models.Model):
         help_text="Labels attached to the task",
     )
 
+    archived_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text=(
+            "Timestamp when the task was archived. Orthogonal to status: an archived task "
+            "keeps its original status (typically done) so unarchiving restores the prior state. "
+            "Archived tasks are hidden from default views — Show archived toggle in the sidebar "
+            "brings them back, and ?xstatus / explicit filters still apply"
+        ),
+    )
     created_at = models.DateTimeField(
         auto_now_add=True,
         help_text="When the task was created",

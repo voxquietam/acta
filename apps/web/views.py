@@ -27,7 +27,7 @@ from apps.labels.models import Label
 from apps.projects.models import Project, ProjectUpdate
 from apps.tasks.events import emit_task_diff_events, snapshot_task
 from apps.tasks.models import Task
-from apps.web.filters import apply_task_filters, apply_task_ordering, filter_sidebar_context
+from apps.web.filters import apply_task_filters, apply_task_ordering, filter_sidebar_context, resolve_show_archived
 from apps.workspaces.models import WorkspaceMember
 
 User = get_user_model()
@@ -68,6 +68,39 @@ def _resolve_view_mode(request, *, default, allow_overview=False):
         return view_mode
     cookie_pref = request.COOKIES.get("acta_view_mode")
     return cookie_pref if cookie_pref in allowed else default
+
+
+def _params_with_archive_cookie(request):
+    """Return a mutable copy of ``request.GET`` with the persisted
+    ``show_archived`` cookie merged in.
+
+    Querystring still wins — the user can flip the toggle in either
+    direction for one request and the cookie tracks it. Views call
+    this before handing params to ``apply_task_filters`` /
+    ``filter_sidebar_context`` so the cookie default doesn't have to
+    be re-implemented in either.
+    """
+    params = request.GET.copy()
+    if "show_archived" not in params:
+        params["show_archived"] = resolve_show_archived(request)
+    return params
+
+
+def _persist_archive_cookie(response, params):
+    """Stamp ``acta_show_archived`` on ``response`` to remember the
+    current toggle state for the next request.
+
+    Long max-age (1 year) so the toggle outlives sessions. Same-site
+    Lax because filter submits are first-party GETs.
+    """
+    value = "1" if "1" in params.getlist("show_archived") else "0"
+    response.set_cookie(
+        "acta_show_archived",
+        value,
+        max_age=60 * 60 * 24 * 365,
+        samesite="Lax",
+    )
+    return response
 
 
 def _user_task_qs(user):
@@ -208,11 +241,12 @@ class AllTasksView(LoginRequiredMixin, ListView):
         filtered set since both bodies render simultaneously.
         """
         qs = _user_task_qs(self.request.user)
-        qs = apply_task_filters(qs, self.request.GET, request_user=self.request.user)
-        return apply_task_ordering(qs, self.request.GET)
+        params = _params_with_archive_cookie(self.request)
+        qs = apply_task_filters(qs, params, request_user=self.request.user)
+        return apply_task_ordering(qs, params)
 
     def render_to_response(self, context, **response_kwargs):
-        """Persist the resolved ``view_mode`` to a long-lived cookie."""
+        """Persist ``view_mode`` + ``show_archived`` cookies."""
         response = super().render_to_response(context, **response_kwargs)
         response.set_cookie(
             "acta_view_mode",
@@ -220,6 +254,7 @@ class AllTasksView(LoginRequiredMixin, ListView):
             max_age=60 * 60 * 24 * 365,
             samesite="Lax",
         )
+        _persist_archive_cookie(response, _params_with_archive_cookie(self.request))
         return response
 
     def get_context_data(self, **kwargs):
@@ -261,6 +296,7 @@ class AllTasksView(LoginRequiredMixin, ListView):
                 self.request,
                 hide_assignee=True,
                 extra_preserved={"view": view_mode},
+                effective_params=_params_with_archive_cookie(self.request),
             )
         )
         return ctx
@@ -280,10 +316,17 @@ class MyWorkView(LoginRequiredMixin, TemplateView):
             return ["web/_my_work_inner.html"]
         return ["web/my_work.html"]
 
+    def render_to_response(self, context, **response_kwargs):
+        """Persist the ``show_archived`` toggle for the next visit."""
+        response = super().render_to_response(context, **response_kwargs)
+        _persist_archive_cookie(response, _params_with_archive_cookie(self.request))
+        return response
+
     def get_context_data(self, **kwargs):
         """Build the bucketed sections + filter sidebar context."""
         ctx = super().get_context_data(**kwargs)
-        ctx["sections"] = _my_work_sections(self.request.user, self.request.GET)
+        params = _params_with_archive_cookie(self.request)
+        ctx["sections"] = _my_work_sections(self.request.user, params)
         ctx["has_any_tasks"] = any(section["tasks"] for section in ctx["sections"])
         ctx.update(
             filter_sidebar_context(
@@ -291,6 +334,7 @@ class MyWorkView(LoginRequiredMixin, TemplateView):
                 hide_assignee=True,
                 hide_project=True,
                 htmx_target="#my-work-content",
+                effective_params=params,
             )
         )
         return ctx
@@ -372,7 +416,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         )
 
     def render_to_response(self, context, **response_kwargs):
-        """Persist the resolved ``view_mode`` to a long-lived cookie."""
+        """Persist ``view_mode`` + ``show_archived`` cookies."""
         response = super().render_to_response(context, **response_kwargs)
         response.set_cookie(
             "acta_view_mode",
@@ -380,6 +424,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             max_age=60 * 60 * 24 * 365,
             samesite="Lax",
         )
+        _persist_archive_cookie(response, _params_with_archive_cookie(self.request))
         return response
 
     def get_context_data(self, **kwargs):
@@ -419,7 +464,8 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             .select_related("assignee", "reporter", "parent", "project")
             .prefetch_related("labels")
         )
-        base = apply_task_filters(base, self.request.GET, request_user=self.request.user)
+        params = _params_with_archive_cookie(self.request)
+        base = apply_task_filters(base, params, request_user=self.request.user)
         # Both bodies render in the DOM; table honors ``?order=``,
         # kanban keeps the fixed status grouping. We sort once per
         # body — the difference is small enough not to need separate
@@ -458,6 +504,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
                 hide_status=(view_mode == "kanban"),
                 htmx_target="#project-view-panel",
                 extra_preserved={"view": view_mode},
+                effective_params=params,
                 available_labels=list(
                     Label.objects.filter(workspace=self.object.workspace).order_by("name"),
                 ),
@@ -1191,6 +1238,54 @@ def _project_workspace_members(project, *, exclude_user):
     if exclude_user is not None:
         qs = qs.exclude(pk=exclude_user.pk)
     return list(qs)
+
+
+@require_POST
+@login_required
+def archive_task(request, slug_prefix, number):
+    """Archive (or unarchive) a task — orthogonal to status.
+
+    Sets ``Task.archived_at`` to ``now()`` to archive, or ``None`` to
+    unarchive. The task's status is untouched so unarchive restores
+    the prior state. Emits a ``task.archived`` / ``task.unarchived``
+    activity event so the timeline tracks the action.
+    """
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    unarchive = request.POST.get("unarchive") == "1"
+    with transaction.atomic():
+        if unarchive:
+            if task.archived_at is None:
+                return HttpResponseBadRequest("task is not archived")
+            task.archived_at = None
+            event_type = "task.unarchived"
+        else:
+            if task.archived_at is not None:
+                return HttpResponseBadRequest("task is already archived")
+            task.archived_at = timezone.now()
+            event_type = "task.archived"
+        task.save(update_fields=["archived_at", "updated_at"])
+        log_event(
+            workspace=task.project.workspace,
+            project=task.project,
+            actor=request.user,
+            event_type=event_type,
+            target_type=ActivityLog.TARGET_TASK,
+            target_id=task.id,
+            payload={},
+        )
+    return _inline_edit_response(
+        request,
+        task,
+        "web/projects/_task_meta.html",
+        {
+            "task": task,
+            "workspace_members": _workspace_members(task),
+            "status_labels": Task.STATUS_LABELS,
+            "priority_labels": dict(Task.PRIORITY_CHOICES),
+            "workspace_labels": _workspace_labels(task),
+            "attached_label_ids": set(task.labels.values_list("id", flat=True)),
+        },
+    )
 
 
 @require_POST

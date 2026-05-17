@@ -160,18 +160,53 @@
     });
   }
 
+  // Generic scroll-fade visibility: an element with ``data-scroll-target``
+  // tells JS to watch its scroll position. Whenever there's more content
+  // past either edge, the corresponding ``data-overflow-*`` attribute
+  // pops onto the **parent** wrapper; CSS rules tie fade overlays to
+  // those attributes (so they fade in only when there's actually more
+  // to scroll to).
+  function updateScrollFades(target) {
+    const wrap = target.parentElement;
+    if (!wrap) return;
+    const maxX = target.scrollWidth - target.clientWidth;
+    const maxY = target.scrollHeight - target.clientHeight;
+    wrap.toggleAttribute("data-overflow-left", target.scrollLeft > 0);
+    wrap.toggleAttribute("data-overflow-right", target.scrollLeft < maxX - 1);
+    wrap.toggleAttribute("data-overflow-top", target.scrollTop > 0);
+    wrap.toggleAttribute("data-overflow-bottom", target.scrollTop < maxY - 1);
+  }
+  window.acta.updateScrollFades = updateScrollFades;
+
+  function initScrollFades() {
+    document.querySelectorAll("[data-scroll-target]").forEach((target) => {
+      if (target.dataset.scrollFadesBound === "true") return;
+      target.dataset.scrollFadesBound = "true";
+      updateScrollFades(target);
+      target.addEventListener("scroll", () => updateScrollFades(target), {
+        passive: true,
+      });
+      window.addEventListener("resize", () => updateScrollFades(target), {
+        passive: true,
+      });
+    });
+  }
+
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => {
       initStickyStacks();
       initStrips();
+      initScrollFades();
     });
   } else {
     initStickyStacks();
     initStrips();
+    initScrollFades();
   }
   document.body.addEventListener("htmx:afterSwap", () => {
     initStickyStacks();
     initStrips();
+    initScrollFades();
   });
 
   // Workspace SSE — opens a single EventSource per page on the

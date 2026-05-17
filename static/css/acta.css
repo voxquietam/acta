@@ -56,6 +56,23 @@ html {
   opacity: 1;
 }
 
+/* Generic scroll-fade overlays — hidden by default, JS sets
+   ``data-overflow-*`` on the wrapper when there's more content past
+   that edge. Used by kanban (horizontal) and table (vertical). */
+[data-scroll-wrap] > [data-fade-left],
+[data-scroll-wrap] > [data-fade-right],
+[data-scroll-wrap] > [data-fade-top],
+[data-scroll-wrap] > [data-fade-bottom] {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+[data-scroll-wrap][data-overflow-left] > [data-fade-left],
+[data-scroll-wrap][data-overflow-right] > [data-fade-right],
+[data-scroll-wrap][data-overflow-top] > [data-fade-top],
+[data-scroll-wrap][data-overflow-bottom] > [data-fade-bottom] {
+  opacity: 1;
+}
+
 /* Kanban empty placeholder: hide when the column has any task card.
    :has() is widely supported in 2025+ browsers (Safari 15.4+, Chrome 105+,
    Firefox 121+). Falls back to "always visible" on ancient browsers,

@@ -12,6 +12,13 @@ nav and view-body switching match the per-project page. Context flag
 ``show_project`` is True here so the table view shows the project
 column and the kanban cards still identify their project via the slug.
 {% endcomment %}
+{# OOB-swap the filter count badges only on HTMX requests — on a    #}
+{# cold page render they'd inject inline and the absolute-positioned #}
+{# collapsed variant would stretch across the layout.                #}
+{% if request.META.HTTP_HX_REQUEST %}
+{% include "web/_filter_count_badges.html" with variant="collapsed" oob=True %}
+{% include "web/_filter_count_badges.html" with variant="expanded" oob=True %}
+{% endif %}
 {% if tasks %}
 {% include "web/projects/_view_panel.html" %}
 {% else %}

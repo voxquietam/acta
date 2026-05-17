@@ -7,6 +7,7 @@ from .views import (
     ProjectDetailView,
     ProjectListView,
     TaskDetailView,
+    archive_task,
     post_comment,
     set_project_description,
     set_project_lead,
@@ -93,6 +94,11 @@ urlpatterns = [
         "projects/<str:slug_prefix>/<int:number>/comments/",
         post_comment,
         name="post_comment",
+    ),
+    path(
+        "projects/<str:slug_prefix>/<int:number>/archive/",
+        archive_task,
+        name="archive_task",
     ),
     path(
         "projects/<str:slug_prefix>/<int:number>/activity/",

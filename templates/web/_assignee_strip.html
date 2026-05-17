@@ -31,6 +31,7 @@ via ``form=`` and submits through the existing HTMX pipeline.
              class="strip-chip group inline-flex items-center gap-1.5 px-1 py-0.5 rounded-full cursor-pointer shrink-0 bg-zinc-800/40 hover:bg-zinc-800 transition"
              title="{{ request.user.display_name }} ({% trans 'you' %}) — {% trans 'click to include, right-click to exclude.' %}"
              data-strip-chip
+             @acta:filter-reset.window="state = 'none'"
              @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $nextTick(() => document.getElementById('filter-form').requestSubmit())">
         <input type="checkbox"
                :name="state === 'excluded' ? 'xassignee' : 'assignee'"
@@ -62,6 +63,7 @@ via ``form=`` and submits through the existing HTMX pipeline.
              class="strip-chip group inline-flex items-center gap-1.5 px-1 py-0.5 rounded-full cursor-pointer shrink-0 hover:bg-zinc-800/50 transition"
              title="{% trans 'Click to include, right-click to exclude.' %}"
              data-strip-chip
+             @acta:filter-reset.window="state = 'none'"
              @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $nextTick(() => document.getElementById('filter-form').requestSubmit())">
         <input type="checkbox"
                :name="state === 'excluded' ? 'xassignee' : 'assignee'"
@@ -89,6 +91,7 @@ via ``form=`` and submits through the existing HTMX pipeline.
              class="strip-chip group inline-flex items-center gap-1.5 px-1 py-0.5 rounded-full cursor-pointer shrink-0 hover:bg-zinc-800/50 transition"
              data-strip-chip
              title="{{ u.display_name }} — {% trans 'click to include, right-click to exclude.' %}"
+             @acta:filter-reset.window="state = 'none'"
              @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $nextTick(() => document.getElementById('filter-form').requestSubmit())">
         <input type="checkbox"
                :name="state === 'excluded' ? 'xassignee' : 'assignee'"

@@ -3,8 +3,13 @@
 Kanban board: 5 fixed-status columns of task cards.
 Drag-and-drop is wired via sortable.js — drop into a different column
 issues a PATCH to /api/v1/tasks/<id>/ with the new status.
+
+Wrapped in ``relative`` so the edge fade gradients (left / right) sit
+on top of the scrolling content. Same pattern as the assignee strip —
+hides the native scrollbar without losing the "you can scroll" cue.
 {% endcomment %}
-<div id="kanban" class="flex gap-3 overflow-x-auto pb-3">
+<div data-scroll-wrap class="relative flex-1 min-h-0">
+<div id="kanban" data-scroll-target class="flex gap-3 overflow-x-auto pb-3 scrollbar-none h-full">
   {% for col in columns %}
   {% comment %}
   Each column is collapsible: click the header toggles between full
@@ -71,7 +76,7 @@ issues a PATCH to /api/v1/tasks/<id>/ with the new status.
     cards hidden on first paint until Alpine decides whether the
     column is folded.
     {% endcomment %}
-    <div class="flex-1 min-h-0 overflow-y-auto p-2 space-y-2 kanban-column"
+    <div class="flex-1 min-h-0 overflow-y-auto p-2 space-y-2 kanban-column scrollbar-none"
          data-status="{{ col.key }}"
          x-show="!$store.kanban.isCollapsed('{{ col.key }}')"
          x-cloak>
@@ -84,6 +89,14 @@ issues a PATCH to /api/v1/tasks/<id>/ with the new status.
     </div>
   </div>
   {% endfor %}
+</div>
+{# Edge fade gradients — toggle visibility via ``data-overflow-*`` set #}
+{# by ``initScrollFades`` in acta.js. Faded out when there's nothing  #}
+{# more to scroll to on that side.                                    #}
+<div data-fade-left aria-hidden="true"
+     class="pointer-events-none absolute left-0 inset-y-0 w-8 bg-gradient-to-r from-zinc-950 to-transparent"></div>
+<div data-fade-right aria-hidden="true"
+     class="pointer-events-none absolute right-0 inset-y-0 w-8 bg-gradient-to-l from-zinc-950 to-transparent"></div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>

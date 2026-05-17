@@ -619,3 +619,188 @@ class TestPostComment:
         )
         assert resp.status_code == 404
         assert Comment.objects.filter(task=foreign_task).count() == 0
+
+
+@pytest.mark.django_db
+class TestArchiveTask:
+    """Archive / unarchive endpoint — flips ``archived_at`` orthogonal
+    to status, emits activity event."""
+
+    def _url(self, project, task):
+        return reverse(
+            "web:archive_task",
+            kwargs={"slug_prefix": project.slug_prefix, "number": task.number},
+        )
+
+    def test_archive_sets_timestamp_and_logs_event(self, client, setup):
+        user, project, task = setup
+        assert task.archived_at is None
+        client.force_login(user)
+        resp = client.post(self._url(project, task))
+        assert resp.status_code == 200
+        task.refresh_from_db()
+        assert task.archived_at is not None
+        events = ActivityLog.objects.filter(target_id=task.id, event_type="task.archived")
+        assert events.count() == 1
+
+    def test_archive_preserves_status(self, client, setup):
+        """Archive is orthogonal — the prior status (here ``to-do``) survives."""
+        user, project, task = setup
+        client.force_login(user)
+        client.post(self._url(project, task))
+        task.refresh_from_db()
+        assert task.status == Task.STATUS_TODO
+
+    def test_unarchive_clears_timestamp_and_logs_event(self, client, setup):
+        from django.utils import timezone as tz
+
+        user, project, task = setup
+        task.archived_at = tz.now()
+        task.save(update_fields=["archived_at"])
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"unarchive": "1"})
+        assert resp.status_code == 200
+        task.refresh_from_db()
+        assert task.archived_at is None
+        events = ActivityLog.objects.filter(target_id=task.id, event_type="task.unarchived")
+        assert events.count() == 1
+
+    def test_double_archive_returns_400(self, client, setup):
+        from django.utils import timezone as tz
+
+        user, project, task = setup
+        task.archived_at = tz.now()
+        task.save(update_fields=["archived_at"])
+        client.force_login(user)
+        resp = client.post(self._url(project, task))
+        assert resp.status_code == 400
+
+    def test_unarchive_when_active_returns_400(self, client, setup):
+        user, project, task = setup
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"unarchive": "1"})
+        assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+class TestArchivedFilter:
+    """``apply_task_filters`` hides archived rows unless
+    ``?show_archived=1``."""
+
+    def test_archived_hidden_by_default(self, client, setup):
+        from django.utils import timezone as tz
+
+        user, project, _ = setup
+        TaskFactory(project=project, reporter=user, title="active-task", status=Task.STATUS_TODO)
+        archived = TaskFactory(project=project, reporter=user, title="dusty-task", status=Task.STATUS_DONE)
+        archived.archived_at = tz.now()
+        archived.save(update_fields=["archived_at"])
+        client.force_login(user)
+        resp = client.get(reverse("web:all_tasks"))
+        body = resp.content.decode()
+        assert "active-task" in body
+        assert "dusty-task" not in body
+
+    def test_show_archived_param_includes_archived(self, client, setup):
+        from django.utils import timezone as tz
+
+        user, project, _ = setup
+        archived = TaskFactory(project=project, reporter=user, title="dusty-task", status=Task.STATUS_DONE)
+        archived.archived_at = tz.now()
+        archived.save(update_fields=["archived_at"])
+        client.force_login(user)
+        resp = client.get(reverse("web:all_tasks") + "?show_archived=1")
+        assert "dusty-task" in resp.content.decode()
+
+    def test_show_archived_persists_to_cookie(self, client, setup):
+        """Toggling Show archived ON sets the cookie so subsequent
+        navigation keeps archived rows visible."""
+        user, project, _ = setup
+        from django.utils import timezone as tz
+
+        archived = TaskFactory(project=project, reporter=user, title="dusty-task", status=Task.STATUS_DONE)
+        archived.archived_at = tz.now()
+        archived.save(update_fields=["archived_at"])
+        client.force_login(user)
+        resp = client.get(reverse("web:all_tasks") + "?show_archived=1")
+        assert resp.cookies["acta_show_archived"].value == "1"
+        # Next request without the querystring — cookie carries it.
+        resp2 = client.get(reverse("web:all_tasks"))
+        assert "dusty-task" in resp2.content.decode()
+
+    def test_show_archived_can_be_turned_off_when_cookie_is_on(self, client, setup):
+        """Toggling OFF (form sends ``?show_archived=0`` via the hidden
+        input) must override an existing ``=1`` cookie. Regression for
+        the bug where the toggle became one-way."""
+        from django.utils import timezone as tz
+
+        user, project, _ = setup
+        archived = TaskFactory(project=project, reporter=user, title="dusty-task", status=Task.STATUS_DONE)
+        archived.archived_at = tz.now()
+        archived.save(update_fields=["archived_at"])
+        client.cookies["acta_show_archived"] = "1"
+        client.force_login(user)
+        resp = client.get(reverse("web:all_tasks") + "?show_archived=0")
+        assert "dusty-task" not in resp.content.decode()
+        assert resp.cookies["acta_show_archived"].value == "0"
+
+    def test_active_filter_count_badge_oob_included_in_htmx_response(self, client, setup):
+        """HTMX responses must carry the OOB-marked filter-count badges
+        so the sidebar header refreshes without re-rendering the whole
+        sidebar. Counter increments visibly when a filter activates."""
+        import re
+
+        user, project, _ = setup
+        TaskFactory(project=project, reporter=user, title="t1", status=Task.STATUS_TODO)
+        client.force_login(user)
+
+        def find_badge(body, badge_id):
+            """Return the matched ``<span id=badge_id …>…</span>`` element."""
+            return re.search(
+                r'<span\s+id="' + re.escape(badge_id) + r'"[^>]*>\s*([^<]*?)\s*</span>',
+                body,
+                re.S,
+            )
+
+        # No active filters: both badge spans exist (for OOB targeting)
+        # but carry the ``hidden`` class and empty content.
+        resp_empty = client.get(reverse("web:all_tasks"), HTTP_HX_REQUEST="true")
+        body_empty = resp_empty.content.decode()
+        assert 'hx-swap-oob="outerHTML"' in body_empty
+        collapsed_empty = find_badge(body_empty, "filter-count-collapsed")
+        expanded_empty = find_badge(body_empty, "filter-count-expanded")
+        assert collapsed_empty and "hidden" in collapsed_empty.group(0)
+        assert expanded_empty and "hidden" in expanded_empty.group(0)
+        assert collapsed_empty.group(1) == ""
+        assert expanded_empty.group(1) == ""
+
+        # Activate one filter — badges drop ``hidden`` and show the count.
+        resp = client.get(
+            reverse("web:all_tasks") + "?status=to-do",
+            HTTP_HX_REQUEST="true",
+        )
+        body = resp.content.decode()
+        collapsed = find_badge(body, "filter-count-collapsed")
+        expanded = find_badge(body, "filter-count-expanded")
+        assert collapsed and "hidden" not in collapsed.group(0)
+        assert expanded and "hidden" not in expanded.group(0)
+        assert collapsed.group(1) == "1"
+        assert expanded.group(1) == "1"
+
+    def test_show_archived_hidden_input_and_checkbox_both_sent(self, client, setup):
+        """Form layout sends ``show_archived`` twice — the hidden ``0``
+        first, then the checked ``1``. Server must take the trailing
+        ``1`` as the truth.
+
+        Direct simulation of how ``_filters_sidebar.html`` posts.
+        """
+        from django.utils import timezone as tz
+
+        user, project, _ = setup
+        archived = TaskFactory(project=project, reporter=user, title="dusty-task", status=Task.STATUS_DONE)
+        archived.archived_at = tz.now()
+        archived.save(update_fields=["archived_at"])
+        client.force_login(user)
+        resp = client.get(reverse("web:all_tasks") + "?show_archived=0&show_archived=1")
+        assert "dusty-task" in resp.content.decode()
+        assert resp.cookies["acta_show_archived"].value == "1"

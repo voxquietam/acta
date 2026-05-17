@@ -11,17 +11,18 @@ swaps don't make the layout jump. Title is the elastic column —
 takes whatever space the others leave. Cells use ``truncate`` to
 clip overflowing text with an ellipsis instead of widening.
 {% endcomment %}
-<div class="bg-zinc-900 border border-zinc-800 rounded-lg overflow-auto flex-1 min-h-0">
-  <table class="w-full text-sm table-fixed min-w-[900px]">
+<div data-scroll-wrap class="relative flex-1 min-h-0">
+<div data-scroll-target class="bg-zinc-900 border border-zinc-800 rounded-lg overflow-y-auto overflow-x-hidden h-full scrollbar-none">
+  <table class="w-full text-sm table-fixed">
     <colgroup>
       <col style="width: 6%">                                   {# ID #}
       <col>                                                      {# Title — elastic, fills remaining #}
       <col style="width: 8%">                                   {# Status — fits the "IN-PROGRESS" badge #}
       <col style="width: 6%">                                   {# Priority — header word width, icon-only cell #}
       <col style="width: 4%">                                   {# Size — single number #}
-      {% if show_labels %}<col style="width: 11%">{% endif %}   {# Labels #}
+      {% if show_labels %}<col style="width: 6%">{% endif %}    {# Labels — dots only #}
       <col style="width: 12%">                                  {# Assignee #}
-      {% if show_project %}<col style="width: 12%">{% endif %}  {# Project #}
+      {% if show_project %}<col style="width: 9%">{% endif %}   {# Project #}
       <col style="width: 5%">                                   {# Due #}
       <col style="width: 6%">                                   {# Updated — header word needs the room #}
     </colgroup>
@@ -73,8 +74,11 @@ clip overflowing text with an ellipsis instead of widening.
           </a>
         </th>
         <th class="text-left px-3 py-2 font-medium">
-          <a href="{% sort_url request 'updated' %}" class="hover:text-zinc-200 inline-flex items-center gap-1">
-            {% trans "Updated" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'updated' %}</span>
+          <a href="{% sort_url request 'updated' %}"
+             title="{% trans 'Updated' %}"
+             class="hover:text-zinc-200 inline-flex items-center gap-1">
+            <i data-lucide="clock" class="w-3.5 h-3.5"></i>
+            <span class="text-brand-400 text-[10px]">{% sort_indicator request 'updated' %}</span>
           </a>
         </th>
       </tr>
@@ -134,28 +138,37 @@ clip overflowing text with an ellipsis instead of widening.
         </td>
         {% if show_labels %}
         {% comment %}
-        Labels cell: shows the first two chips with a normal gap; if
-        the task has more labels, the rest fold into a trailing ``+N``
-        chip. No overlap, no popup — the cell stays within its column
-        width and ``+N`` is never clipped by neighbours. Full label
-        list is available via the native ``title`` tooltip.
+        Labels cell: colored dots only — one per label, no truncation,
+        no ellipsis. On hover, a small popover shows the full chips
+        (icon + colour + name) so the user can read everything without
+        widening the column.
         {% endcomment %}
-        <td class="px-3 py-2 overflow-hidden">
+        <td class="px-3 py-2 group relative">
           {% if task.labels.all %}
-          <div class="flex items-center gap-1 min-w-0"
-               title="{% for label in task.labels.all %}{{ label.name }}{% if not forloop.last %}, {% endif %}{% endfor %}">
+          {% comment %}
+          Show at most 9 colored dots (≈ two rows in the narrow column).
+          Anything beyond gets a literal ``…`` so the user knows to
+          hover for the full chip popover.
+          {% endcomment %}
+          <div class="flex items-center flex-wrap gap-1">
+            {% for label in task.labels.all|slice:":9" %}
+            <span class="w-2 h-2 rounded-full shrink-0"
+                  style="background-color: {{ label.color }};"
+                  title="{{ label.name }}"></span>
+            {% endfor %}
+            {% if task.labels.all|length > 9 %}
+            <span class="text-zinc-500 text-[10px] leading-none shrink-0" title="{% trans 'More — hover to see all' %}">…</span>
+            {% endif %}
+          </div>
+          {# Hover popover with full chips. #}
+          <div class="hidden group-hover:flex absolute z-30 top-full left-2 mt-1 max-w-xs flex-wrap gap-1 p-2 bg-zinc-900 border border-zinc-800 rounded-lg shadow-lg">
             {% for label in task.labels.all %}
-            {% if forloop.counter <= 2 %}
-            <span class="text-[11px] px-1.5 py-0.5 rounded inline-flex items-center gap-1 shrink min-w-0"
+            <span class="text-[11px] px-1.5 py-0.5 rounded inline-flex items-center gap-1 whitespace-nowrap"
                   style="background: linear-gradient({{ label.color }}22, {{ label.color }}22), rgb(24 24 27); border: 1px solid {{ label.color }}55;">
               <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background-color: {{ label.color }};"></span>
-              <span class="text-zinc-300 truncate">{{ label.name }}</span>
+              <span class="text-zinc-300">{{ label.name }}</span>
             </span>
-            {% endif %}
             {% endfor %}
-            {% if task.labels.all|length > 2 %}
-            <span class="text-[11px] text-zinc-500 shrink-0">+{{ task.labels.all|length|add:"-2" }}</span>
-            {% endif %}
           </div>
           {% else %}<span class="text-zinc-600">—</span>{% endif %}
         </td>
@@ -174,10 +187,11 @@ clip overflowing text with an ellipsis instead of widening.
           {% endif %}
         </td>
         {% if show_project %}
-        <td class="px-3 py-2 text-xs text-zinc-400 overflow-hidden"
+        <td class="px-3 py-2 text-xs text-zinc-300 overflow-hidden"
             title="{{ task.project.workspace.name }} / {{ task.project.name }}">
-          <div class="truncate">
-            <span class="text-zinc-600">{{ task.project.workspace.name }} /</span> {{ task.project.name }}
+          <div class="flex items-center gap-1.5 min-w-0">
+            <i data-lucide="{{ task.project.icon|default:'folder' }}" class="w-3.5 h-3.5 text-zinc-500 shrink-0"></i>
+            <span class="truncate">{{ task.project.name }}</span>
           </div>
         </td>
         {% endif %}
@@ -201,4 +215,12 @@ clip overflowing text with an ellipsis instead of widening.
       {% endfor %}
     </tbody>
   </table>
+</div>
+{# Edge fade gradients — visible only when there's more to scroll to. #}
+{# JS in acta.js (``initScrollFades``) tracks scroll position and    #}
+{# toggles ``data-overflow-*`` on the wrapper.                       #}
+<div data-fade-top aria-hidden="true"
+     class="pointer-events-none absolute inset-x-0 top-0 h-6 bg-gradient-to-b from-zinc-950 to-transparent rounded-t-lg"></div>
+<div data-fade-bottom aria-hidden="true"
+     class="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-zinc-950 to-transparent rounded-b-lg"></div>
 </div>

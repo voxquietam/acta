@@ -4,6 +4,13 @@
 Inner fragment of My Work — bucketed sections, rendered both inside
 the full page on cold load and standalone for HTMX filter swaps.
 {% endcomment %}
+{# OOB filter-count badges only on HTMX swaps — on full page render #}
+{# they'd appear inline and stretch across the layout. The sidebar  #}
+{# carries the originals from filter_sidebar.html on cold load.     #}
+{% if request.META.HTTP_HX_REQUEST %}
+{% include "web/_filter_count_badges.html" with variant="collapsed" oob=True %}
+{% include "web/_filter_count_badges.html" with variant="expanded" oob=True %}
+{% endif %}
 {% if not has_any_tasks %}
 <div class="text-center py-20">
   <div class="w-12 h-12 rounded-full border border-dashed border-zinc-700 grid place-items-center text-zinc-600 mx-auto mb-3">

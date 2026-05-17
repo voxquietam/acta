@@ -35,6 +35,7 @@ def apply_task_filters(qs, params, *, request_user, default_show_done=True):
             user can toggle "always hide done" once and for all in
             their settings.
     """
+    qs = _filter_archived(qs, params)
     qs = _filter_status(qs, params, default_show_done=default_show_done)
     qs = _filter_int_field(qs, params, field="priority", include="priority", exclude="xpriority")
     qs = _filter_int_field(qs, params, field="project_id", include="project", exclude="xproject")
@@ -49,6 +50,43 @@ def apply_task_filters(qs, params, *, request_user, default_show_done=True):
     qs = _filter_labels(qs, params)
     qs = _filter_search(qs, params)
     return qs
+
+
+def _filter_archived(qs, params):
+    """Exclude archived tasks unless ``?show_archived=1`` is set.
+
+    Archive is orthogonal to status — an archived task keeps its
+    ``done`` (or whichever) status so unarchiving restores it. We
+    hide them by default everywhere; the toggle in the filter sidebar
+    flips the flag for one request.
+
+    The view layer (``resolve_show_archived``) merges querystring +
+    cookie into ``params`` before calling here, so a ``True`` cookie
+    persists across navigations without the user re-toggling.
+    """
+    if "1" in params.getlist("show_archived"):
+        return qs
+    return qs.filter(archived_at__isnull=True)
+
+
+def resolve_show_archived(request):
+    """Resolve the effective ``show_archived`` for this request.
+
+    Order: ``?show_archived=`` querystring → ``acta_show_archived``
+    cookie → False. Returns ``"1"`` / ``"0"`` suitable for stuffing
+    back into a mutable ``params`` copy that ``apply_task_filters``
+    reads.
+
+    The querystring carries **two** ``show_archived`` values when the
+    toggle submits — a hidden ``0`` (so unchecked sends an explicit
+    value) and the checkbox ``1`` if checked. ``params.get`` would
+    pick the first ("0") and break the toggle; we look for ``"1"`` in
+    the list explicitly.
+    """
+    raw_list = request.GET.getlist("show_archived")
+    if raw_list:
+        return "1" if "1" in raw_list else "0"
+    return "1" if request.COOKIES.get("acta_show_archived") == "1" else "0"
 
 
 def _filter_status(qs, params, *, default_show_done):
@@ -261,6 +299,7 @@ def filter_sidebar_context(
     hide_status=False,
     preserved_params=None,
     extra_preserved=None,
+    effective_params=None,
     form_url=None,
     htmx_target=None,
 ):
@@ -291,7 +330,11 @@ def filter_sidebar_context(
         Dict that should be merged into the view's context.
     """
     user = request.user
-    params = request.GET
+    # ``effective_params`` lets the caller fold in values resolved
+    # from cookies (e.g. show_archived) so the sidebar's selected /
+    # toggle state reflects them. Falls back to ``request.GET`` when
+    # the caller doesn't provide a merged view.
+    params = effective_params if effective_params is not None else request.GET
 
     if available_projects is None:
         available_projects = list(
@@ -326,6 +369,7 @@ def filter_sidebar_context(
     selected_workspaces = {int(w) for w in params.getlist("workspace") if w.isdigit()}
     selected_labels = {int(i) for i in params.getlist("label") if i.isdigit()}
     selected_assignees = set(params.getlist("assignee"))
+    show_archived = "1" in params.getlist("show_archived")
 
     # Excluded sets: right-click on a chip toggles a value into one of
     # these. Renders with a red strikethrough state; backend
@@ -353,6 +397,7 @@ def filter_sidebar_context(
         + len(excluded_workspaces)
         + len(excluded_projects)
         + len(excluded_labels)
+        + (1 if show_archived else 0)
     )
 
     preserved_pairs = []
@@ -388,6 +433,7 @@ def filter_sidebar_context(
         "excluded_workspaces": excluded_workspaces,
         "excluded_labels": excluded_labels,
         "excluded_assignees": excluded_assignees,
+        "show_archived": show_archived,
         "q": q,
         "available_projects": available_projects,
         "available_workspaces": available_workspaces,
