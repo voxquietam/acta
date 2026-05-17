@@ -288,6 +288,47 @@ html.dark .prose {
    mouseenter so the tip lines up with the hovered link's current
    bounding rect. The CSS class controls visual chrome + the show /
    hide transition only. */
+/* Top-of-viewport indeterminate progress bar shown during HTMX
+   navigation. ``hx-indicator="#acta-progress-bar"`` on the app shell
+   makes HTMX add ``.htmx-request`` to this element while any request
+   from its descendants is in flight. The thin brand-coloured sweep
+   gives users visual feedback that something is happening — covers
+   the perceived gap on heavier pages like All Tasks where the
+   server takes ~400ms to render the full panel. */
+#acta-progress-bar {
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 3px;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(90deg, transparent 0%, rgb(168 85 247) 50%, transparent 100%);
+  background-size: 50% 100%;
+  background-repeat: no-repeat;
+  transition: opacity 120ms ease;
+}
+#acta-progress-bar.htmx-request {
+  opacity: 1;
+  animation: acta-progress-slide 900ms linear infinite;
+}
+@keyframes acta-progress-slide {
+  0%   { background-position: -50% 0; }
+  100% { background-position: 150% 0; }
+}
+
+/* Active-state highlight for sidebar nav links. JS in ``acta.js``
+   toggles this class onto the link whose ``href`` matches the
+   current ``window.location.pathname`` after every HTMX boost
+   navigation — server-side conditional rendering can't pick up the
+   change because the sidebar element survives the swap. */
+.acta-rail-active {
+  background-color: rgb(168 85 247 / 0.15); /* brand-500/15 */
+  color: rgb(126 34 206);                    /* brand-700 */
+}
+html.dark .acta-rail-active {
+  color: rgb(216 180 254);                   /* brand-300 */
+}
+
 .acta-rail-tip {
   position: fixed;
   z-index: 50;

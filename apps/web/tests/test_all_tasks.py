@@ -16,6 +16,42 @@ from apps.tasks.tests.factories import TaskFactory
 from apps.workspaces.tests.factories import WorkspaceFactory, WorkspaceMemberFactory
 
 
+@pytest.mark.django_db
+class TestHtmxBoostTemplateSelection:
+    """``HX-Boosted`` swaps need the full template, not the inner partial.
+
+    Sidebar / topbar navigation links carry ``hx-boost="true"`` plus
+    ``hx-select="#app-content"`` — for that select to find anything
+    the response must extend ``base_app.html``. Plain ``HX-Request``
+    (filter form / panel refresh) keeps the inner-only partial.
+    """
+
+    def test_plain_htmx_returns_inner_partial(self, client):
+        ws = WorkspaceFactory()
+        ProjectFactory(workspace=ws)
+        client.force_login(ws.owner)
+        resp = client.get(reverse("web:all_tasks"), HTTP_HX_REQUEST="true")
+        body = resp.content.decode()
+        # Inner partial has no ``<!DOCTYPE`` / ``<html>`` shell.
+        assert "<!DOCTYPE" not in body
+        assert "<html" not in body
+
+    def test_htmx_boost_returns_full_shell(self, client):
+        ws = WorkspaceFactory()
+        ProjectFactory(workspace=ws)
+        client.force_login(ws.owner)
+        resp = client.get(
+            reverse("web:all_tasks"),
+            HTTP_HX_REQUEST="true",
+            HTTP_HX_BOOSTED="true",
+        )
+        body = resp.content.decode()
+        # Full template carries the shell so ``hx-select="#app-content"``
+        # can extract the target fragment.
+        assert 'id="app-content"' in body
+        assert "<html" in body
+
+
 def _table_body(html):
     """Return the substring covering the table body so ordering asserts
     don't pick up duplicate task titles rendered in the kanban body.

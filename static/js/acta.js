@@ -46,6 +46,35 @@
     },
   };
 
+  // Sidebar active-nav highlight. The sidebar element survives HTMX
+  // boost navigation (only ``#app-content`` swaps), so Django's
+  // template-time ``{% if current == "..." %}`` branch can't repaint
+  // the active link — we toggle ``.acta-rail-active`` here based on
+  // ``window.location.pathname`` instead. Runs on first paint and
+  // after every HTMX swap (``htmx:afterSettle``); also runs on
+  // ``popstate`` for browser back/forward.
+  function refreshSidebarActive() {
+    const path = window.location.pathname;
+    document.querySelectorAll(".acta-rail-link[href]").forEach((a) => {
+      let linkPath = "";
+      try {
+        linkPath = new URL(a.href, window.location.origin).pathname;
+      } catch (_) {
+        return;
+      }
+      // Default: exact match (top-level nav links — My Work, All Tasks,
+      // Dashboard, Projects). Links marked ``data-nav-prefix`` (project
+      // detail entries in the sidebar list) keep the highlight when the
+      // user drills into a task inside the same project.
+      const isPrefix = a.hasAttribute("data-nav-prefix");
+      const active = isPrefix ? path.startsWith(linkPath) : linkPath === path;
+      a.classList.toggle("acta-rail-active", active);
+    });
+  }
+  refreshSidebarActive();
+  document.body.addEventListener("htmx:afterSettle", refreshSidebarActive);
+  window.addEventListener("popstate", refreshSidebarActive);
+
   // Sidebar icon-rail tooltips. CSS gives them visual chrome only —
   // we set ``top`` / ``left`` here on mouseenter so the tip lines up
   // with the link regardless of scroll position or parent overflow.
@@ -215,12 +244,17 @@
       // Skip elements that don't carry filter attrs (some
       // ``data-task-id`` markers live on activity rows etc.).
       if (!row.hasAttribute("data-status")) return;
+      // For the list view the task element is an ``<a data-task-id>``
+      // wrapped in a ``<li>`` — hiding only the ``<a>`` leaves the
+      // ``<li>`` taking row height. Walk up to the closest ``<li>``
+      // (or ``<tr>`` for tables) and toggle ``hidden`` on that.
+      const target = row.closest("li") || row.closest("tr") || row;
       const match = rowMatches(row, state);
       if (match) {
-        row.removeAttribute("hidden");
+        target.removeAttribute("hidden");
         visible += 1;
       } else {
-        row.setAttribute("hidden", "");
+        target.setAttribute("hidden", "");
       }
     });
     refreshFilterCountBadges(activeFilterCount(state));

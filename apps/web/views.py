@@ -43,6 +43,20 @@ _OPEN_STATUSES = [
 _VIEW_MODES = {"overview", "kanban", "table", "list"}
 
 
+def _is_htmx_partial(request):
+    """True when the response should be the *inner* partial.
+
+    HTMX sends ``HX-Request: true`` on every AJAX swap. We narrow that
+    down: when ``HX-Boosted: true`` is also set, the request comes from
+    an ``hx-boost``-driven anchor (sidebar navigation), and we need the
+    **full** template so HTMX can ``hx-select`` the ``#app-content``
+    fragment from a shell-aware response. Only un-boosted HTMX requests
+    (filter form submit, kanban sort, panel refresh on ``acta:*``
+    events) want the inner-only partial.
+    """
+    return request.headers.get("HX-Request") == "true" and request.headers.get("HX-Boosted") != "true"
+
+
 def _resolve_list_axis(request, *, default, options):
     """Resolve the List view group axis: querystring → cookie → default.
 
@@ -243,7 +257,7 @@ class AllTasksView(LoginRequiredMixin, ListView):
         """
         if self.request.headers.get("HX-Target") == "task-table-root":
             return ["web/projects/_table.html"]
-        if self.request.headers.get("HX-Request"):
+        if _is_htmx_partial(self.request):
             return ["web/_all_tasks_inner.html"]
         return ["web/all_tasks.html"]
 
@@ -354,7 +368,7 @@ class MyWorkView(LoginRequiredMixin, TemplateView):
 
     def get_template_names(self):
         """Full page on cold load, inner fragment for HTMX filter swaps."""
-        if self.request.headers.get("HX-Request"):
+        if _is_htmx_partial(self.request):
             return ["web/_my_work_inner.html"]
         return ["web/my_work.html"]
 
@@ -476,7 +490,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         """
         if self.request.headers.get("HX-Target") == "task-table-root":
             return ["web/projects/_table.html"]
-        if self.request.headers.get("HX-Request"):
+        if _is_htmx_partial(self.request):
             return ["web/projects/_view_panel_wrapper.html"]
         return ["web/projects/detail.html"]
 

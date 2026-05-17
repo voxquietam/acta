@@ -6,8 +6,10 @@ Pages extend this and override the `app_main` block.
 {% endcomment %}
 
 {% block body %}
+<div id="acta-progress-bar"></div>
 <div x-data
      data-create-task-url="{% url 'web:create_task' %}"
+     hx-indicator="#acta-progress-bar"
      class="h-screen flex overflow-hidden">
 
   {# ---------- Sidebar ---------- #}
@@ -24,7 +26,22 @@ Pages extend this and override the `app_main` block.
   collapsed, so we don't need the parent to clip overflow horizontally.
   The inner ``nav`` keeps its own ``overflow-y-auto`` scroll.
   {% endcomment %}
+  {% comment %}
+  ``hx-boost`` intercepts every anchor inside the sidebar and routes
+  it through HTMX instead of a full page reload. ``hx-select`` plucks
+  ``#app-content`` out of the response — the server detects boosted
+  requests via ``HX-Boosted: true`` and returns the **full** template
+  (extends base_app) so the select target exists. Result: only the
+  right-hand column swaps; the sidebar element stays mounted, its
+  Alpine state (collapse / theme / selection) and Lucide-rendered
+  icons survive across navigations.
+  {% endcomment %}
   <aside :class="$store.sidebar.open ? 'md:w-64' : 'md:w-14'"
+         hx-boost="true"
+         hx-target="#app-content"
+         hx-select="#app-content"
+         hx-swap="outerHTML show:top"
+         hx-push-url="true"
          class="hidden md:flex md:flex-col shrink-0 bg-zinc-50 border-r border-zinc-200 dark:bg-zinc-900 dark:border-zinc-800 transition-[width] duration-200">
     {% comment %}
     Acta brand header. Collapses to just the "A" pill when the
@@ -47,7 +64,7 @@ Pages extend this and override the `app_main` block.
       <a href="{% url 'web:my_work' %}"
          :class="!$store.sidebar.open && 'justify-center'"
          class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-200/60 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100
-         {% if current == 'my_work' %}bg-brand-500/15 text-brand-700 dark:text-brand-300{% else %}text-zinc-700 dark:text-zinc-300{% endif %}">
+         text-zinc-700 dark:text-zinc-300">
         <i data-lucide="briefcase" class="w-4 h-4 shrink-0"></i>
         <span x-show="$store.sidebar.open" x-cloak>{% trans "My Work" %}</span>
         <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "My Work" %}</span>
@@ -55,7 +72,7 @@ Pages extend this and override the `app_main` block.
       <a href="{% url 'web:all_tasks' %}"
          :class="!$store.sidebar.open && 'justify-center'"
          class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-200/60 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100
-         {% if current == 'all_tasks' %}bg-brand-500/15 text-brand-700 dark:text-brand-300{% else %}text-zinc-700 dark:text-zinc-300{% endif %}">
+         text-zinc-700 dark:text-zinc-300">
         <i data-lucide="list-checks" class="w-4 h-4 shrink-0"></i>
         <span x-show="$store.sidebar.open" x-cloak>{% trans "All Tasks" %}</span>
         <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "All Tasks" %}</span>
@@ -63,7 +80,7 @@ Pages extend this and override the `app_main` block.
       <a href="{% url 'web:dashboard' %}"
          :class="!$store.sidebar.open && 'justify-center'"
          class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-200/60 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100
-         {% if current == 'dashboard' %}bg-brand-500/15 text-brand-700 dark:text-brand-300{% else %}text-zinc-700 dark:text-zinc-300{% endif %}">
+         text-zinc-700 dark:text-zinc-300">
         <i data-lucide="layout-dashboard" class="w-4 h-4 shrink-0"></i>
         <span x-show="$store.sidebar.open" x-cloak>{% trans "Dashboard" %}</span>
         <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "Dashboard" %}</span>
@@ -71,7 +88,7 @@ Pages extend this and override the `app_main` block.
       <a href="{% url 'web:project_list' %}"
          :class="!$store.sidebar.open && 'justify-center'"
          class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-200/60 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100
-         {% if current == 'project_list' %}bg-brand-500/15 text-brand-700 dark:text-brand-300{% else %}text-zinc-700 dark:text-zinc-300{% endif %}">
+         text-zinc-700 dark:text-zinc-300">
         <i data-lucide="folders" class="w-4 h-4 shrink-0"></i>
         <span x-show="$store.sidebar.open" x-cloak>{% trans "Projects" %}</span>
         <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "Projects" %}</span>
@@ -91,9 +108,9 @@ Pages extend this and override the `app_main` block.
           {% if not project.archived %}
           <li>
             <a href="{% url 'web:project_detail' slug_prefix=project.slug_prefix %}"
+               data-nav-prefix
                :class="!$store.sidebar.open && 'justify-center'"
-               class="acta-rail-link group relative flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-zinc-200/60 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100
-               {% if request.resolver_match.kwargs.slug_prefix == project.slug_prefix %}bg-brand-500/15 text-brand-700 dark:text-brand-300{% else %}text-zinc-700 dark:text-zinc-300{% endif %}">
+               class="acta-rail-link group relative flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-zinc-200/60 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 text-zinc-700 dark:text-zinc-300">
               <i data-lucide="{{ project.icon|default:'folder' }}" class="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-600 dark:text-zinc-400 dark:text-zinc-500 shrink-0"></i>
               <span x-show="$store.sidebar.open" x-cloak class="font-mono text-xs text-zinc-500 dark:text-zinc-600 dark:text-zinc-400 dark:text-zinc-500">{{ project.slug_prefix }}</span>
               <span x-show="$store.sidebar.open" x-cloak class="truncate">{{ project.name }}</span>
@@ -113,6 +130,7 @@ Pages extend this and override the `app_main` block.
 
     <div class="px-3 py-3 border-t border-zinc-200 dark:border-zinc-800 text-xs text-zinc-500">
       <a href="/admin/"
+         hx-boost="false"
          :class="!$store.sidebar.open && 'justify-center'"
          class="acta-rail-link group relative flex items-center gap-2 hover:text-zinc-900 dark:hover:text-zinc-300">
         <i data-lucide="settings" class="w-3.5 h-3.5 shrink-0"></i>
@@ -122,8 +140,15 @@ Pages extend this and override the `app_main` block.
     </div>
   </aside>
 
-  {# ---------- Main column ---------- #}
-  <div class="flex-1 flex flex-col min-w-0">
+  {% comment %}
+  Main column = topbar + main content. The whole column is the
+  HTMX-boost swap target for sidebar / topbar navigation links — see
+  ``hx-boost`` on the ``<aside>`` further up. Swapping just this
+  block keeps the sidebar mounted across pages (Alpine sidebar /
+  theme / selection stores survive, no re-render flicker, Lucide
+  icons stay rendered).
+  {% endcomment %}
+  <div id="app-content" class="flex-1 flex flex-col min-w-0">
 
     {# ---------- Top bar ---------- #}
     <header class="relative h-14 shrink-0 flex items-center px-4 md:px-6 bg-white/70 dark:bg-zinc-950/70 backdrop-blur z-20 gap-3">

@@ -53,6 +53,8 @@ No build step. No npm. No bundler. No node_modules. Four `<script>` tags in the 
 
 Unchanged from the first version of this ADR. `<script src="https://cdn.tailwindcss.com"></script>`. Tailwind config inline in base template. Switch to standalone CLI later if perf becomes a real complaint.
 
+> **Superseded 2026-05-17** by the build-step amendment below — Tailwind now compiles to a static `main.bundle.css`.
+
 ### Markdown rendering — server-side
 
 Unchanged from the first version. `markdown` + `bleach` on the backend. API and template context include `description_html` rendered and sanitized; templates inject it directly. Edit forms use the raw `description`.
@@ -109,3 +111,26 @@ The "no build step" rule above held for HTMX, Alpine, Tailwind (Play CDN), Chart
 **Scope of the exception**: this bundle is *only* for editor JS that fundamentally requires bundling. Page-glue JS, Alpine snippets, and HTMX wiring stay vanilla / inline / `static/js/*.js`. If a new feature wants to add another bundle entry, push back first — almost everything is one HTMX fragment away from not needing one.
 
 **Why this isn't a slippery slope**: the build pipeline is one esbuild command, no transpiler, no framework, no dev server. Adding a second entry costs minutes. The cost of a Node toolchain on the host is zero (Docker-wrapped). The boundary is "WYSIWYG editors and similar JS libraries that ship as a peer-dep graph" — not "any JS we want to write."
+
+## Amendment (2026-05-17): compile Tailwind to a static bundle
+
+The Tailwind Play CDN (`cdn.tailwindcss.com`) was the original choice for "no build step" — drop a `<script>` in the page, get Tailwind. It worked for early Stage 5 but stopped being viable:
+
+- **First-paint flash**. The CDN script downloads, parses the DOM, JIT-generates the matching CSS, then injects it. Users on slow networks see unstyled HTML for 200-500 ms on cold load. Vox flagged this directly: "вижу как интерфейс покосоебился пока прогружается".
+- **Inline config drift**. Brand palette + `darkMode: "class"` had to live as an inline `<script>` in `base.html` before the CDN script loaded — fragile, no source of truth for tooling.
+- **No tree-shake of unused utilities**. The Play CDN ships *every* utility on every page; the compiled bundle is roughly 60 KB minified after content-scanning only the classes actually used.
+
+**Decision**: compile Tailwind with the `tailwindcss` CLI inside the same Docker-wrapped node container that builds the editor bundle. Source: `static_src/css/main.css` (`@tailwind base/components/utilities` + project-specific custom rules). Output: `static/css/main.bundle.css`. `tailwind.config.js` holds the brand palette + `darkMode: "class"` + `content` paths for the extractor.
+
+- `make build-css` rebuilds the stylesheet (also via `make build-front` alongside the JS bundle).
+- `make watch-css` rebuilds on every template / CSS save during dev.
+- The compiled bundle is committed so deploy doesn't need Node — same shape as the description-editor JS bundle.
+- Inline `<script>` for Tailwind config and the `cdn.tailwindcss.com` `<script>` are removed from `base.html`; a single `<link rel="stylesheet" href="…/main.bundle.css">` replaces both.
+- `@tailwindcss/typography` plugin handles `.prose` styles; we register it in `tailwind.config.js`.
+
+**Why this isn't a slippery slope (again)**: same Node-in-Docker pipeline that bundles TipTap. No new tooling, no dev server. HTMX / Alpine / Chart.js / Lucide / sortable.js continue to load from CDN as before — they don't need a build step.
+
+**Trade-offs**:
+
+- Every template / Python file change that introduces a *new* utility class needs `make build-css` (or running `make watch-css` in another terminal) before the class shows up styled. The extractor scans `templates/**/*.html`, `apps/**/*.py`, `apps/**/*.html`, `static_src/js/**/*.js`, `static/js/**/*.js`, so dynamically composed class strings still need to appear as plain text somewhere — the same constraint as Tailwind anywhere else.
+- One more committed artefact (`static/css/main.bundle.css`) churns on every CSS-relevant template change. Worth it for first-paint and a single source of truth for theme tokens.
