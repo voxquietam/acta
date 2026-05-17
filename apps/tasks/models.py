@@ -168,23 +168,80 @@ class Task(models.Model):
             ),
         ]
         indexes = [
+            # Kanban grouping inside a project.
             models.Index(
                 fields=[
                     "project",
                     "status",
                 ],
             ),
+            # Default project table sort (most-recent-first).
             models.Index(
                 fields=[
                     "project",
                     "-updated_at",
                 ],
             ),
+            # My Work scope.
             models.Index(
                 fields=[
                     "assignee",
                     "status",
                 ],
+            ),
+            # Global table sort fallback (All Tasks default ordering).
+            models.Index(
+                fields=[
+                    "-updated_at",
+                ],
+            ),
+            # Sort-by-due-date in My Work / All Tasks. Nulls park
+            # together (Postgres treats NULL ordering deterministically
+            # within an index), and the index speeds up the
+            # ``ORDER BY due_date ASC NULLS LAST`` query used by the
+            # deadline bucketing in My Work.
+            models.Index(
+                fields=[
+                    "due_date",
+                ],
+            ),
+            # Sort-by-priority + tie-breaker on updated_at — matches the
+            # ``order=priority`` clause shape in apps/web/filters.py.
+            models.Index(
+                fields=[
+                    "priority",
+                    "-updated_at",
+                ],
+            ),
+            # Sort-by-size for the size column header.
+            models.Index(
+                fields=[
+                    "size",
+                ],
+            ),
+            # Default views exclude archived rows. Partial index keeps
+            # the index small on tables where most rows are active,
+            # and makes the ``WHERE archived_at IS NULL`` slice fast
+            # without scanning archived rows. ``status, -updated_at``
+            # covers both kanban + table table for the active set.
+            models.Index(
+                fields=[
+                    "status",
+                    "-updated_at",
+                ],
+                name="tasks_active_status_updated",
+                condition=models.Q(archived_at__isnull=True),
+            ),
+            # Future dashboards / analytics: workload by assignee with
+            # active-only filter. Saves a sequential scan when the
+            # team grows past a few hundred members.
+            models.Index(
+                fields=[
+                    "assignee",
+                    "-updated_at",
+                ],
+                name="tasks_active_assignee_updated",
+                condition=models.Q(archived_at__isnull=True),
             ),
         ]
         ordering = [
