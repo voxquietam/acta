@@ -8,6 +8,7 @@ from .views import (
     ProjectListView,
     TaskDetailView,
     archive_task,
+    create_task,
     post_comment,
     set_project_description,
     set_project_lead,
@@ -33,6 +34,7 @@ urlpatterns = [
     path("", DashboardView.as_view(), name="dashboard"),
     path("my-work/", MyWorkView.as_view(), name="my_work"),
     path("tasks/", AllTasksView.as_view(), name="all_tasks"),
+    path("tasks/new/", create_task, name="create_task"),
     path("projects/", ProjectListView.as_view(), name="project_list"),
     path("projects/<str:slug_prefix>/", ProjectDetailView.as_view(), name="project_detail"),
     path(

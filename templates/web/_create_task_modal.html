@@ -1,0 +1,195 @@
+{% load i18n %}
+{% load web_extras %}
+{% comment %}
+Create-task modal. Loaded via HTMX (``hx-get`` from the global ``+``
+button or the ``c`` hotkey) into ``#modal-root`` in ``base_app.html``.
+
+* Backdrop click and ``Esc`` close the modal.
+* Project dropdown change triggers an ``hx-get`` back to this template
+  so the assignee + label pickers refresh against the new workspace.
+* Labels render as toggleable pills (Linear-style): the underlying
+  ``<input type="checkbox">`` is sr-only; the visible chip carries a
+  data-state="on|off" attribute Alpine flips on click. Future label
+  groups slot into the same chip layout — see
+  [[project-todo-editor-mentions]] when label groups get scoped.
+* ``Open after create`` toggle (persisted in ``localStorage``): when
+  ON the server returns ``HX-Redirect`` to the new task; when OFF the
+  server returns ``204`` + ``HX-Trigger: acta:task-created`` so the
+  page panel can refresh without a full reload, and the modal closes
+  itself.
+
+No TipTap here yet — see [[project-todo-create-task-ui]] for the
+planned editor upgrade. Plain ``<textarea>`` keeps the modal snappy.
+{% endcomment %}
+<div x-data="{
+       openAfter: localStorage.getItem('acta:open_after_create') === '1',
+       close() {
+         const root = document.getElementById('modal-root');
+         if (root) root.innerHTML = '';
+       },
+       toggleOpenAfter() {
+         this.openAfter = !this.openAfter;
+         localStorage.setItem('acta:open_after_create', this.openAfter ? '1' : '0');
+       }
+     }"
+     @keydown.escape.window="close()"
+     @acta:task-created.window="close()"
+     class="fixed inset-0 z-50 flex items-start justify-center pt-16 px-4 bg-black/60 backdrop-blur-sm"
+     @click.self="close()">
+  <div class="w-full max-w-xl bg-zinc-900 border border-zinc-800 rounded-lg shadow-lg overflow-hidden"
+       x-init="$nextTick(() => $refs.title.focus())">
+    <form hx-post="{% url 'web:create_task' %}"
+          hx-swap="none">
+      {% csrf_token %}
+      <input type="hidden" name="open_after_create" :value="openAfter ? '1' : '0'">
+
+      <header class="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
+        <h2 class="text-sm font-medium text-zinc-200">{% trans "New task" %}</h2>
+        <button type="button" @click="close()"
+                class="p-1 rounded-md text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </header>
+
+      <div class="p-4 space-y-3">
+        {# Project picker — change triggers a refresh of the modal. #}
+        <div>
+          <label class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Project" %}</label>
+          {% if projects %}
+          <select name="project"
+                  hx-get="{% url 'web:create_task' %}"
+                  hx-trigger="change"
+                  hx-target="#modal-root"
+                  hx-swap="innerHTML"
+                  hx-include="this"
+                  class="mt-1 w-full bg-zinc-800 border border-zinc-700 rounded-md px-2 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-brand-500">
+            {% for project in projects %}
+            <option value="{{ project.slug_prefix }}"
+                    {% if selected_project and selected_project.slug_prefix == project.slug_prefix %}selected{% endif %}>
+              {{ project.workspace.name }} · {{ project.slug_prefix }} · {{ project.name }}
+            </option>
+            {% endfor %}
+          </select>
+          {% else %}
+          <p class="mt-1 text-xs text-zinc-500 italic">{% trans "No accessible projects — ask an admin to add you to a workspace." %}</p>
+          {% endif %}
+        </div>
+
+        <div>
+          <label class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Title" %}</label>
+          <input type="text" name="title" maxlength="200" required x-ref="title"
+                 class="mt-1 w-full bg-zinc-800 border border-zinc-700 rounded-md px-2 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-brand-500"
+                 placeholder="{% trans 'What needs to be done?' %}">
+        </div>
+
+        <div>
+          <label class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Description" %}</label>
+          <textarea name="description" rows="3"
+                    class="mt-1 w-full bg-zinc-800 border border-zinc-700 rounded-md px-2 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-brand-500"
+                    placeholder="{% trans 'Optional details…' %}"></textarea>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Status" %}</label>
+            <select name="status"
+                    class="mt-1 w-full bg-zinc-800 border border-zinc-700 rounded-md px-2 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-brand-500">
+              {% for value, label in status_labels.items %}
+              <option value="{{ value }}" {% if value == pre_status %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Priority" %}</label>
+            <select name="priority"
+                    class="mt-1 w-full bg-zinc-800 border border-zinc-700 rounded-md px-2 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-brand-500">
+              {% for value, label in priority_labels.items %}
+              <option value="{{ value }}" {% if value == 0 %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Due date" %}</label>
+            <input type="date" name="due_date"
+                   class="mt-1 w-full bg-zinc-800 border border-zinc-700 rounded-md px-2 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-brand-500">
+          </div>
+          <div>
+            <label class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Assignee" %}</label>
+            <select name="assignee"
+                    class="mt-1 w-full bg-zinc-800 border border-zinc-700 rounded-md px-2 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-brand-500">
+              <option value="">{% trans "— Unassigned —" %}</option>
+              {% for user in members %}
+              <option value="{{ user.id }}"
+                      {% if pre_assignee_id and user.id == pre_assignee_id %}selected{% endif %}>
+                {{ user.display_name|default:user.username }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        {% if labels %}
+        <div>
+          <label class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Labels" %}</label>
+          {% comment %}
+          Linear-style clickable pills. The ``<input>`` is sr-only —
+          submitted to the server like a normal checkbox, but the
+          visible chip is a styled ``<label>`` flipping ``data-state``
+          on click via Alpine. Tinted background uses the label's own
+          colour at 22% / border 55% — same recipe as the table cell
+          popover so the visual language stays consistent.
+          {% endcomment %}
+          <div class="mt-1 flex flex-wrap gap-1.5">
+            {% for label in labels %}
+            <label x-data="{ on: false }"
+                   :data-state="on ? 'on' : 'off'"
+                   class="acta-label-pill inline-flex items-center gap-1.5 px-2 py-1 rounded-md cursor-pointer text-xs select-none"
+                   style="--label-color: {{ label.color }};">
+              {% comment %}
+              Toggle is driven by the native ``<label>`` → ``<input>``
+              association — browser fires the right event on light /
+              force / keyboard activation alike. We deliberately do
+              NOT bind ``@click`` on the label too: that race-conditions
+              the state on Mac trackpads where light-press click was
+              eating the synthetic event and the ``on`` flag stayed
+              false. ``x-model`` on the checkbox is the single source
+              of truth.
+              {% endcomment %}
+              <input type="checkbox" name="labels" value="{{ label.id }}" x-model="on" class="sr-only">
+              <svg class="acta-label-pill-check" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                   stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="3.5 8.5 6.5 11.5 12.5 4.5"></polyline>
+              </svg>
+              <span class="acta-label-pill-dot w-1.5 h-1.5 rounded-full shrink-0" style="background-color: {{ label.color }};"></span>
+              <span>{{ label.name }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+      <footer class="flex items-center justify-between gap-2 px-4 py-3 border-t border-zinc-800 bg-zinc-900/60">
+        <label class="inline-flex items-center gap-2 text-xs text-zinc-400 cursor-pointer select-none">
+          <input type="checkbox" :checked="openAfter" @change="toggleOpenAfter()"
+                 class="acta-checkbox">
+          {% trans "Open after create" %}
+        </label>
+        <div class="flex items-center gap-2">
+          <button type="button" @click="close()"
+                  class="px-3 py-1.5 text-sm rounded-md text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800">
+            {% trans "Cancel" %}
+          </button>
+          <button type="submit"
+                  {% if not projects %}disabled{% endif %}
+                  class="px-3 py-1.5 text-sm rounded-md bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50 disabled:cursor-not-allowed">
+            {% trans "Create task" %}
+          </button>
+        </div>
+      </footer>
+    </form>
+  </div>
+</div>

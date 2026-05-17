@@ -40,7 +40,12 @@ overview tab is active.
     {% include "web/_assignee_strip.html" %}
   </div>
   <div class="flex-1 min-h-0 flex flex-col lg:flex-row gap-4 lg:items-stretch">
-    <div id="project-view-panel" class="flex-1 min-w-0 min-h-0 flex flex-col">
+    <div id="project-view-panel"
+         class="flex-1 min-w-0 min-h-0 flex flex-col"
+         hx-get="{{ request.path }}"
+         hx-trigger="acta:task-created from:body, acta:bulk-archived from:body"
+         hx-target="this"
+         hx-swap="innerHTML">
       {% include "web/projects/_view_panel.html" with allow_overview=True %}
     </div>
     <div x-show="$store.viewMode.current !== 'overview'" x-cloak>

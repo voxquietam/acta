@@ -34,14 +34,12 @@ hides the native scrollbar without losing the "you can scroll" cue.
          {% elif col.key == 'in-review' %}border-t-amber-500
          {% elif col.key == 'done' %}border-t-emerald-500{% endif %}">
 
-    <button type="button"
-            @click="$store.kanban.toggle('{{ col.key }}')"
-            :title="$store.kanban.isCollapsed('{{ col.key }}') ? '{% trans 'Expand column' %}' : '{% trans 'Collapse column' %}'"
-            :class="$store.kanban.isCollapsed('{{ col.key }}') ? 'flex-1' : 'shrink-0 border-b border-zinc-800'"
-            class="px-3 py-2 text-xs uppercase tracking-wider hover:bg-zinc-800/50 transition">
-      <div x-show="!$store.kanban.isCollapsed('{{ col.key }}')"
-           x-cloak
-           class="flex items-center justify-between">
+    <div x-show="!$store.kanban.isCollapsed('{{ col.key }}')" x-cloak
+         class="shrink-0 border-b border-zinc-800 flex items-center">
+      <button type="button"
+              @click="$store.kanban.toggle('{{ col.key }}')"
+              :title="'{% trans 'Collapse column' %}'"
+              class="flex-1 px-3 py-2 text-xs uppercase tracking-wider hover:bg-zinc-800/50 transition flex items-center justify-between">
         <span class="flex items-center gap-1.5 text-zinc-300">
           <span class="w-1.5 h-1.5 rounded-full
             {% if col.key == 'planned' %}bg-zinc-500
@@ -52,10 +50,25 @@ hides the native scrollbar without losing the "you can scroll" cue.
           {{ col.label }}
         </span>
         <span class="text-zinc-500" data-column-count>{{ col.tasks|length }}</span>
-      </div>
-      <div x-show="$store.kanban.isCollapsed('{{ col.key }}')"
-           x-cloak
-           class="flex flex-col items-center gap-1.5 py-1">
+      </button>
+      {# Add new task in this column — pre-fills project + status. #}
+      <button type="button"
+              hx-get="{% url 'web:create_task' %}?project={{ project.slug_prefix }}&status={{ col.key }}"
+              hx-target="#modal-root"
+              hx-swap="innerHTML"
+              title="{% trans 'New task' %}"
+              class="grid place-items-center p-2 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/50 transition">
+        <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+      </button>
+    </div>
+
+    <button type="button"
+            x-show="$store.kanban.isCollapsed('{{ col.key }}')"
+            x-cloak
+            @click="$store.kanban.toggle('{{ col.key }}')"
+            :title="'{% trans 'Expand column' %}'"
+            class="flex-1 px-3 py-2 text-xs uppercase tracking-wider hover:bg-zinc-800/50 transition">
+      <div class="flex flex-col items-center gap-1.5 py-1">
         <span class="text-zinc-500 text-[10px]" data-column-count>{{ col.tasks|length }}</span>
         <span class="w-1.5 h-1.5 rounded-full
           {% if col.key == 'planned' %}bg-zinc-500

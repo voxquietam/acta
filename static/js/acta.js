@@ -46,6 +46,61 @@
     },
   };
 
+  // Sidebar icon-rail tooltips. CSS gives them visual chrome only —
+  // we set ``top`` / ``left`` here on mouseenter so the tip lines up
+  // with the link regardless of scroll position or parent overflow.
+  // Delegated on document so links added by HTMX swaps work too.
+  document.addEventListener("mouseover", function (evt) {
+    const link = evt.target.closest(".acta-rail-link");
+    if (!link) return;
+    if (window.Alpine && window.Alpine.store && window.Alpine.store("sidebar")?.open) {
+      // Sidebar is expanded — labels are inline, no tooltip needed.
+      return;
+    }
+    const tip = link.querySelector(".acta-rail-tip");
+    if (!tip) return;
+    const rect = link.getBoundingClientRect();
+    tip.style.left = rect.right + 10 + "px";
+    tip.style.top = rect.top + rect.height / 2 + "px";
+    tip.classList.add("is-visible");
+  });
+  document.addEventListener("mouseout", function (evt) {
+    const link = evt.target.closest(".acta-rail-link");
+    if (!link) return;
+    const tip = link.querySelector(".acta-rail-tip");
+    if (tip) tip.classList.remove("is-visible");
+  });
+
+  // Global ``c`` hotkey — opens the Create Task modal. Lives in JS so
+  // it survives HTMX swaps without re-binding, and reliably ignores
+  // keys typed into inputs / textareas / contenteditable surfaces.
+  // Reads the endpoint URL from a ``data-create-task-url`` attribute
+  // on the root app shell so the Django {% url %} reverse is rendered
+  // exactly once on the page and the JS stays template-agnostic.
+  function isTypingTarget(el) {
+    if (!el) return false;
+    if (el.isContentEditable) return true;
+    const tag = el.tagName;
+    return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+  }
+  document.addEventListener("keydown", function onCreateTaskHotkey(evt) {
+    if (evt.key !== "c" && evt.key !== "C") return;
+    if (evt.metaKey || evt.ctrlKey || evt.altKey) return;
+    if (isTypingTarget(evt.target)) return;
+    const root = document.getElementById("modal-root");
+    if (!root || root.innerHTML.trim() !== "") return;
+    const shell = document.querySelector("[data-create-task-url]");
+    if (!shell || !window.htmx) return;
+    evt.preventDefault();
+    // Object form is the documented htmx 2.x signature for target+swap;
+    // bare-string target works in practice but the explicit form is
+    // less surprising when you read the code later.
+    window.htmx.ajax("GET", shell.dataset.createTaskUrl, {
+      target: "#modal-root",
+      swap: "innerHTML",
+    });
+  });
+
   // Lucide icons: replace every ``<i data-lucide="...">`` placeholder
   // with the inline SVG. Idempotent — already-replaced placeholders
   // are skipped, so we can safely re-scan after HTMX swaps without
@@ -444,6 +499,93 @@
         document.cookie = `acta_view_mode=${value}; path=/; max-age=${oneYear}; samesite=Lax`;
       },
     });
+
+    // Cross-page task selection for bulk operations. Holds task ids
+    // currently selected via the row checkboxes in the table view.
+    // Reset on every full-page navigation (Alpine boots fresh) — this
+    // is deliberate: the selection is a transient editing intent, not
+    // a persisted preference. The action bar renders when ``size > 0``.
+    window.Alpine.store("selection", {
+      ids: new Set(),
+      has(id) {
+        return this.ids.has(id);
+      },
+      toggle(id) {
+        if (this.ids.has(id)) this.ids.delete(id);
+        else this.ids.add(id);
+        this._tick();
+      },
+      add(id) {
+        this.ids.add(id);
+        this._tick();
+      },
+      clear() {
+        this.ids.clear();
+        this._tick();
+      },
+      get size() {
+        return this.ids.size;
+      },
+      // Toggle every id under ``container``. If all are already selected,
+      // clear them; otherwise add the missing ones. ``data-task-id``
+      // attributes on rows drive the lookup.
+      toggleAll(container) {
+        const rows = container ? container.querySelectorAll("[data-task-id]") : [];
+        if (!rows.length) return;
+        const ids = [...rows].map((r) => Number(r.dataset.taskId)).filter(Number.isFinite);
+        const allOn = ids.every((id) => this.ids.has(id));
+        if (allOn) ids.forEach((id) => this.ids.delete(id));
+        else ids.forEach((id) => this.ids.add(id));
+        this._tick();
+      },
+      _tick() {
+        // Force Alpine to re-evaluate ``size`` getters bound in views —
+        // Sets are not reactive in Alpine 3, so we swap the reference.
+        this.ids = new Set(this.ids);
+      },
+    });
+
+    // Bulk-archive driver used by the action bar in ``base_app.html``.
+    // Fires a single PATCH ``/api/v1/tasks/bulk/`` with ``archived=true``
+    // for every selected id, then reloads the page so all caches (row
+    // list, sidebar counters, kanban) reflect the change. The bulk
+    // endpoint contract is in ``docs/decisions/0012-bulk-operations.md``.
+    window.actaBulkArchive = async function actaBulkArchive() {
+      const store = window.Alpine.store("selection");
+      if (!store || store.size === 0) return;
+      const ids = [...store.ids];
+      const csrfMatch = document.cookie.match(/csrftoken=([^;]+)/);
+      const csrfToken = csrfMatch ? decodeURIComponent(csrfMatch[1]) : "";
+      const resp = await fetch("/api/v1/tasks/bulk/", {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": csrfToken,
+        },
+        body: JSON.stringify({ ids, updates: { archived: true } }),
+      });
+      if (resp.ok) {
+        store.clear();
+        // Fire a custom event the page panels listen to via
+        // ``hx-trigger="acta:bulk-archived from:body"``. The listener
+        // re-fetches its own fragment, so the rows disappear without
+        // a full page reload (no scroll jump, no SSE reconnect).
+        document.body.dispatchEvent(new CustomEvent("acta:bulk-archived", { bubbles: true }));
+      } else {
+        // Surface the failure so the user knows nothing happened — once
+        // [[project-todo-global-htmx-error-toast]] lands this can drop
+        // the ``alert``.
+        let detail = "";
+        try {
+          const data = await resp.json();
+          detail = data.detail || JSON.stringify(data);
+        } catch (_) {
+          detail = resp.statusText;
+        }
+        window.alert("Bulk archive failed: " + detail);
+      }
+    };
 
     window.Alpine.store("kanban", {
       collapsed: new Set(collapsed),

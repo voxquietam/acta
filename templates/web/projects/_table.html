@@ -13,8 +13,12 @@ clip overflowing text with an ellipsis instead of widening.
 {% endcomment %}
 <div data-scroll-wrap class="relative flex-1 min-h-0">
 <div data-scroll-target class="bg-zinc-900 border border-zinc-800 rounded-lg overflow-y-auto overflow-x-hidden h-full scrollbar-none">
-  <table class="w-full text-sm table-fixed">
+  <table x-data
+         x-ref="taskTable"
+         :class="$store.selection.size > 0 ? 'has-selection' : ''"
+         class="acta-table w-full text-sm table-fixed">
     <colgroup>
+      <col style="width: 3%">                                   {# Select #}
       <col style="width: 6%">                                   {# ID #}
       <col>                                                      {# Title — elastic, fills remaining #}
       <col style="width: 8%">                                   {# Status — fits the "IN-PROGRESS" badge #}
@@ -28,6 +32,16 @@ clip overflowing text with an ellipsis instead of widening.
     </colgroup>
     <thead class="bg-zinc-900/60 text-zinc-400 text-xs uppercase tracking-wider">
       <tr>
+        <th class="px-3 py-2 text-center">
+          {% comment %}
+          Master checkbox — toggles every visible row. State derived
+          from the selection store: ``size > 0`` ticks the box.
+          {% endcomment %}
+          <input type="checkbox"
+                 :checked="$store.selection.size > 0"
+                 @click="$store.selection.toggleAll($refs.taskTable)"
+                 class="acta-checkbox">
+        </th>
         <th class="text-left px-3 py-2 font-medium">
           <a href="{% sort_url request 'id' %}" class="hover:text-zinc-200 inline-flex items-center gap-1">
             {% trans "ID" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'id' %}</span>
@@ -85,7 +99,16 @@ clip overflowing text with an ellipsis instead of widening.
     </thead>
     <tbody class="divide-y divide-zinc-800">
       {% for task in tasks %}
-      <tr class="hover:bg-zinc-800/30">
+      <tr class="acta-row hover:bg-zinc-800/30"
+          data-task-id="{{ task.id }}"
+          :data-selected="$store.selection.has({{ task.id }}) ? 'true' : 'false'"
+          :class="$store.selection.has({{ task.id }}) && 'bg-brand-500/5'">
+        <td class="px-3 py-2 text-center">
+          <input type="checkbox"
+                 :checked="$store.selection.has({{ task.id }})"
+                 @click.stop="$store.selection.toggle({{ task.id }})"
+                 class="acta-checkbox acta-row-check">
+        </td>
         <td class="px-3 py-2 font-mono text-xs whitespace-nowrap
           {% if task.priority == 1 %}text-rose-400
           {% elif task.priority == 2 %}text-orange-400
@@ -207,7 +230,7 @@ clip overflowing text with an ellipsis instead of widening.
       </tr>
       {% empty %}
       <tr>
-        <td colspan="{% if show_labels and show_project %}10{% elif show_labels or show_project %}9{% else %}8{% endif %}"
+        <td colspan="{% if show_labels and show_project %}11{% elif show_labels or show_project %}10{% else %}9{% endif %}"
             class="px-3 py-8 text-center text-sm text-zinc-500 italic">
           {% trans "No tasks." %}
         </td>

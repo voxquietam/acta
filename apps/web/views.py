@@ -1373,3 +1373,251 @@ def post_comment(request, slug_prefix, number):
         "web/projects/_comment.html",
         {"comment": comment},
     )
+
+
+def _user_accessible_projects(user):
+    """Return projects the user can post tasks to, with workspace eager-loaded.
+
+    Args:
+        user: The acting :class:`User`.
+
+    Returns:
+        A queryset of :class:`Project` rows ordered by workspace name,
+        then project name. Empty workspaces don't surface (no projects).
+    """
+    return (
+        Project.objects.filter(workspace__memberships__user=user)
+        .select_related("workspace")
+        .order_by("workspace__name", "name")
+        .distinct()
+    )
+
+
+def _project_members_qs(project):
+    """Members of ``project``'s workspace ordered by display name.
+
+    Args:
+        project: The :class:`Project` whose workspace members to fetch.
+
+    Returns:
+        A queryset of :class:`User` rows.
+    """
+    return project.workspace.members.order_by("first_name", "last_name", "username")
+
+
+def _project_labels_qs(project):
+    """Labels available in ``project``'s workspace.
+
+    Args:
+        project: The :class:`Project` whose workspace labels to fetch.
+
+    Returns:
+        A queryset of :class:`Label` rows ordered by name.
+    """
+    return Label.objects.filter(workspace=project.workspace).order_by("name")
+
+
+@login_required
+def create_task(request):
+    """Render the create-task modal (GET) or persist the new task (POST).
+
+    GET: returns the ``_create_task_modal.html`` fragment, pre-filled
+    from optional querystring args (``?project=<slug_prefix>`` to
+    lock the project picker, ``?status=<value>`` to pre-pick a status —
+    used by the per-kanban-column ``+`` button so the new task lands in
+    the column the user clicked from).
+
+    POST: validates the form, creates the :class:`Task`, and returns a
+    302 redirect to its detail page (HTMX honours the ``HX-Redirect``
+    response header). Each form field is gated to values the user has
+    permission to pick — project must be in a workspace the user is a
+    member of, assignee must be a member of that workspace, labels must
+    belong to that workspace too. Activity events ride the standard
+    ``emit_task_diff_events`` path (kanban cards refresh via SSE).
+    """
+    if request.method == "POST":
+        return _create_task_post(request)
+    return _create_task_get(request)
+
+
+def _create_task_get(request):
+    """Render the modal form for a fresh task.
+
+    Pre-fills:
+
+    * ``project`` — from ``?project=<slug>`` if set, else the first
+      accessible project (alphabetically per workspace then name).
+    * ``status`` — from ``?status=<value>`` if a valid status; else
+      ``planned`` (backlog). Kanban's per-column ``+`` always passes
+      ``?status=`` so the new task lands in the column the user clicked.
+    * ``assignee`` — the current user when they're a member of the
+      selected project's workspace; ``None`` otherwise (the form
+      offers an explicit "Unassigned" option to clear it).
+
+    Args:
+        request: The active ``HttpRequest`` carrying optional ``project``
+            and ``status`` querystring keys.
+
+    Returns:
+        Rendered HTML of the modal partial.
+    """
+    projects = list(_user_accessible_projects(request.user))
+    requested_slug = request.GET.get("project") or ""
+    selected_project = None
+    for project in projects:
+        if project.slug_prefix == requested_slug:
+            selected_project = project
+            break
+    if selected_project is None and projects:
+        selected_project = projects[0]
+    members = list(_project_members_qs(selected_project)) if selected_project else []
+    labels = list(_project_labels_qs(selected_project)) if selected_project else []
+    pre_status = request.GET.get("status") or Task.STATUS_PLANNED
+    if pre_status not in Task.STATUS_VALUES:
+        pre_status = Task.STATUS_PLANNED
+    pre_assignee_id = None
+    if selected_project and any(m.pk == request.user.pk for m in members):
+        pre_assignee_id = request.user.pk
+    return HttpResponse(
+        render_to_string(
+            "web/_create_task_modal.html",
+            {
+                "projects": projects,
+                "selected_project": selected_project,
+                "members": members,
+                "labels": labels,
+                "pre_status": pre_status,
+                "pre_assignee_id": pre_assignee_id,
+                "status_labels": Task.STATUS_LABELS,
+                "priority_labels": dict(Task.PRIORITY_CHOICES),
+            },
+            request=request,
+        ),
+    )
+
+
+def _create_task_post(request):
+    """Persist a new task and tell HTMX to navigate to its detail page.
+
+    All access checks: the project must belong to a workspace the user
+    is a member of, the assignee (if set) must be a member of that
+    workspace, and any labels must live in that workspace. Anything
+    else returns ``400`` — the modal stays open, the user can fix the
+    field. The activity log gets a ``task.created`` event with
+    ``actor=request.user``; per-watched-field diff events do not fire
+    because there is no prior state.
+
+    Args:
+        request: ``HttpRequest`` whose POST body carries the form.
+
+    Returns:
+        ``204 No Content`` with an ``HX-Redirect`` header pointing at
+        the new task's detail page on success; ``400`` on validation
+        failure.
+    """
+    project_slug = (request.POST.get("project") or "").strip()
+    title = (request.POST.get("title") or "").strip()
+    if not project_slug:
+        return HttpResponseBadRequest("project required")
+    if not title:
+        return HttpResponseBadRequest("title required")
+    if len(title) > 200:
+        return HttpResponseBadRequest("title too long")
+    project = get_object_or_404(
+        _user_accessible_projects(request.user),
+        slug_prefix=project_slug,
+    )
+    description = request.POST.get("description") or ""
+    status = request.POST.get("status") or Task.STATUS_PLANNED
+    if status not in Task.STATUS_VALUES:
+        return HttpResponseBadRequest("invalid status")
+    raw_priority = request.POST.get("priority") or str(Task.NO_PRIORITY)
+    try:
+        priority = int(raw_priority)
+    except (TypeError, ValueError):
+        return HttpResponseBadRequest("invalid priority")
+    if priority not in {p[0] for p in Task.PRIORITY_CHOICES}:
+        return HttpResponseBadRequest("invalid priority")
+    due_date_raw = (request.POST.get("due_date") or "").strip()
+    due_date = None
+    if due_date_raw:
+        try:
+            due_date = datetime.date.fromisoformat(due_date_raw)
+        except ValueError:
+            return HttpResponseBadRequest("invalid due_date")
+    assignee = None
+    assignee_id_raw = request.POST.get("assignee") or ""
+    if assignee_id_raw:
+        try:
+            assignee_id = int(assignee_id_raw)
+        except ValueError:
+            return HttpResponseBadRequest("invalid assignee")
+        # ``filter(...).first()`` returns None when the user is not in
+        # the project workspace — we treat that as a 400 rather than a
+        # 404 because the form sent a malformed value, not a missing
+        # resource.
+        assignee = (
+            User.objects.filter(
+                pk=assignee_id,
+                workspace_memberships__workspace=project.workspace,
+            )
+            .distinct()
+            .first()
+        )
+        if assignee is None:
+            return HttpResponseBadRequest("assignee not in workspace")
+    label_ids_raw = request.POST.getlist("labels")
+    label_ids: list[int] = []
+    for raw in label_ids_raw:
+        try:
+            label_ids.append(int(raw))
+        except ValueError:
+            return HttpResponseBadRequest("invalid label id")
+    if label_ids:
+        valid_ids = set(
+            Label.objects.filter(id__in=label_ids, workspace=project.workspace).values_list("id", flat=True),
+        )
+        if valid_ids != set(label_ids):
+            return HttpResponseBadRequest("labels not in workspace")
+    with transaction.atomic():
+        task = Task(
+            project=project,
+            title=title,
+            description=description,
+            status=status,
+            priority=priority,
+            due_date=due_date,
+            assignee=assignee,
+            reporter=request.user,
+        )
+        task.save()
+        if label_ids:
+            task.labels.set(label_ids)
+        log_event(
+            workspace=project.workspace,
+            project=project,
+            actor=request.user,
+            event_type="task.created",
+            target_type=ActivityLog.TARGET_TASK,
+            target_id=task.id,
+            payload={"title": task.title, "status": task.status},
+        )
+    detail_url = f"/projects/{project.slug_prefix}/{task.number}/"
+    response = HttpResponse(status=204)
+    open_after = request.POST.get("open_after_create") == "1"
+    if open_after:
+        # ``HX-Redirect`` alone — no companion ``acta:task-created``
+        # event. Firing the event in the same response causes panel
+        # listeners on the current page (kanban / table / my-work) to
+        # refetch their fragment in the brief moment before the browser
+        # navigates, which flashes a stale-then-fresh view through the
+        # closing modal. The real fix for "open task feels slow" lives
+        # in [[project-todo-task-modal]] — partial swap, no reload.
+        response["HX-Redirect"] = detail_url
+    else:
+        # No redirect: stay on the current page, but tell the page to
+        # refresh its task list. Connected HTMX listeners on
+        # ``acta:task-created`` re-fetch their fragment; the modal
+        # picks up the same event and closes itself.
+        response["HX-Trigger"] = "acta:task-created"
+    return response

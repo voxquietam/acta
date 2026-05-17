@@ -6,7 +6,9 @@ Pages extend this and override the `app_main` block.
 {% endcomment %}
 
 {% block body %}
-<div x-data class="h-screen flex overflow-hidden">
+<div x-data
+     data-create-task-url="{% url 'web:create_task' %}"
+     class="h-screen flex overflow-hidden">
 
   {# ---------- Sidebar ---------- #}
   {% comment %}
@@ -15,8 +17,15 @@ Pages extend this and override the `app_main` block.
   ``localStorage``). When closed: ``w-0 overflow-hidden`` so children
   stay in the DOM (no re-init on reopen) but take zero space.
   {% endcomment %}
+  {% comment %}
+  No ``overflow-hidden`` on the aside — that would clip the icon-rail
+  tooltip when the sidebar is collapsed. Child elements either use
+  ``truncate`` (single-line names) or are hidden via ``x-show`` while
+  collapsed, so we don't need the parent to clip overflow horizontally.
+  The inner ``nav`` keeps its own ``overflow-y-auto`` scroll.
+  {% endcomment %}
   <aside :class="$store.sidebar.open ? 'md:w-64' : 'md:w-14'"
-         class="hidden md:flex md:flex-col shrink-0 bg-zinc-900 border-r border-zinc-800 transition-[width] duration-200 overflow-hidden">
+         class="hidden md:flex md:flex-col shrink-0 bg-zinc-900 border-r border-zinc-800 transition-[width] duration-200">
     {% comment %}
     Acta brand header. Collapses to just the "A" pill when the
     sidebar is in icon-rail mode so the row aligns vertically with
@@ -37,35 +46,35 @@ Pages extend this and override the `app_main` block.
       {% with current=request.resolver_match.url_name %}
       <a href="{% url 'web:my_work' %}"
          :class="!$store.sidebar.open && 'justify-center'"
-         title="{% trans 'My Work' %}"
-         class="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-800 hover:text-zinc-100
+         class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-800 hover:text-zinc-100
          {% if current == 'my_work' %}bg-brand-500/15 text-brand-300{% else %}text-zinc-300{% endif %}">
         <i data-lucide="briefcase" class="w-4 h-4 shrink-0"></i>
         <span x-show="$store.sidebar.open" x-cloak>{% trans "My Work" %}</span>
+        <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "My Work" %}</span>
       </a>
       <a href="{% url 'web:all_tasks' %}"
          :class="!$store.sidebar.open && 'justify-center'"
-         title="{% trans 'All Tasks' %}"
-         class="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-800 hover:text-zinc-100
+         class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-800 hover:text-zinc-100
          {% if current == 'all_tasks' %}bg-brand-500/15 text-brand-300{% else %}text-zinc-300{% endif %}">
         <i data-lucide="list-checks" class="w-4 h-4 shrink-0"></i>
         <span x-show="$store.sidebar.open" x-cloak>{% trans "All Tasks" %}</span>
+        <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "All Tasks" %}</span>
       </a>
       <a href="{% url 'web:dashboard' %}"
          :class="!$store.sidebar.open && 'justify-center'"
-         title="{% trans 'Dashboard' %}"
-         class="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-800 hover:text-zinc-100
+         class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-800 hover:text-zinc-100
          {% if current == 'dashboard' %}bg-brand-500/15 text-brand-300{% else %}text-zinc-300{% endif %}">
         <i data-lucide="layout-dashboard" class="w-4 h-4 shrink-0"></i>
         <span x-show="$store.sidebar.open" x-cloak>{% trans "Dashboard" %}</span>
+        <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "Dashboard" %}</span>
       </a>
       <a href="{% url 'web:project_list' %}"
          :class="!$store.sidebar.open && 'justify-center'"
-         title="{% trans 'Projects' %}"
-         class="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-800 hover:text-zinc-100
+         class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-800 hover:text-zinc-100
          {% if current == 'project_list' %}bg-brand-500/15 text-brand-300{% else %}text-zinc-300{% endif %}">
         <i data-lucide="folders" class="w-4 h-4 shrink-0"></i>
         <span x-show="$store.sidebar.open" x-cloak>{% trans "Projects" %}</span>
+        <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "Projects" %}</span>
       </a>
       {% endwith %}
     </div>
@@ -83,12 +92,12 @@ Pages extend this and override the `app_main` block.
           <li>
             <a href="{% url 'web:project_detail' slug_prefix=project.slug_prefix %}"
                :class="!$store.sidebar.open && 'justify-center'"
-               title="{{ project.slug_prefix }} · {{ project.name }}"
-               class="flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-zinc-800 hover:text-zinc-100
+               class="acta-rail-link group relative flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-zinc-800 hover:text-zinc-100
                {% if request.resolver_match.kwargs.slug_prefix == project.slug_prefix %}bg-brand-500/15 text-brand-300{% else %}text-zinc-300{% endif %}">
               <i data-lucide="{{ project.icon|default:'folder' }}" class="w-3.5 h-3.5 text-zinc-500 shrink-0"></i>
               <span x-show="$store.sidebar.open" x-cloak class="font-mono text-xs text-zinc-500">{{ project.slug_prefix }}</span>
               <span x-show="$store.sidebar.open" x-cloak class="truncate">{{ project.name }}</span>
+              <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{{ project.slug_prefix }} · {{ project.name }}</span>
             </a>
           </li>
           {% endif %}
@@ -105,10 +114,10 @@ Pages extend this and override the `app_main` block.
     <div class="px-3 py-3 border-t border-zinc-800 text-xs text-zinc-500">
       <a href="/admin/"
          :class="!$store.sidebar.open && 'justify-center'"
-         title="{% trans 'Admin' %}"
-         class="flex items-center gap-2 hover:text-zinc-300">
+         class="acta-rail-link group relative flex items-center gap-2 hover:text-zinc-300">
         <i data-lucide="settings" class="w-3.5 h-3.5 shrink-0"></i>
         <span x-show="$store.sidebar.open" x-cloak>{% trans "Admin" %}</span>
+        <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "Admin" %}</span>
       </a>
     </div>
   </aside>
@@ -141,6 +150,16 @@ Pages extend this and override the `app_main` block.
       </div>
 
       <div class="flex items-center gap-3 flex-1 justify-end">
+        {# New task — global ``+`` button. Without a project context. #}
+        <button type="button"
+                hx-get="{% url 'web:create_task' %}"
+                hx-target="#modal-root"
+                hx-swap="innerHTML"
+                title="{% trans 'New task' %} (c)"
+                class="grid place-items-center p-1.5 rounded-md text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100">
+          <i data-lucide="plus" class="w-4 h-4"></i>
+        </button>
+
         {# Language switcher #}
         <div x-data="{ open: false }" class="relative">
           <button @click="open = !open"
@@ -191,6 +210,38 @@ Pages extend this and override the `app_main` block.
     <main class="flex-1 overflow-y-auto px-4 md:px-8 pt-5 pb-6">
       {% block app_main %}{% endblock %}
     </main>
+  </div>
+
+  {# Modal mount point — HTMX swaps create-task / future modals here. #}
+  <div id="modal-root"></div>
+
+  {% comment %}
+  Sticky action bar for bulk operations on selected tasks. Floats
+  above the bottom of the viewport when ``$store.selection.size``
+  is non-zero. Today only Archive is wired up; Move / Delete /
+  Label can land in the same bar later.
+  {% endcomment %}
+  <div x-data
+       x-show="$store.selection.size > 0"
+       x-cloak
+       class="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg shadow-lg text-sm">
+    <span class="text-zinc-300">
+      <span class="text-brand-400 font-medium" x-text="$store.selection.size"></span>
+      <span class="text-zinc-500">{% trans "selected" %}</span>
+    </span>
+    <span class="w-px h-4 bg-zinc-800"></span>
+    <button type="button"
+            @click="window.actaBulkArchive()"
+            class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100">
+      <i data-lucide="archive" class="w-3.5 h-3.5"></i>
+      {% trans "Archive" %}
+    </button>
+    <button type="button"
+            @click="$store.selection.clear()"
+            class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-zinc-500 hover:text-rose-400">
+      <i data-lucide="x" class="w-3.5 h-3.5"></i>
+      {% trans "Clear" %}
+    </button>
   </div>
 </div>
 
