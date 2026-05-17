@@ -12,6 +12,7 @@ zinc-500.
    data-task-id="{{ task.id }}"
    data-task-slug="{{ task.slug }}"
    data-task-title="{{ task.title }}"
+   {% open_task_modal_attrs task %}
    {% task_filter_attrs task %}
    class="flex items-center gap-3 px-3 py-2 hover:bg-muted/60 text-sm">
 

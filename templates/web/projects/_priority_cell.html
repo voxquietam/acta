@@ -7,9 +7,26 @@ The leading colored dot makes the priority recognizable at a glance
 without relying on color alone (also helps when scanning the cell next
 to the equally-colored status badge).
 {% endcomment %}
-<div id="priority-cell" x-data="{ open: false }" class="relative inline-block">
+<div id="priority-cell"
+     x-data="{
+       open: false,
+       rect: { top: 0, left: 0, bottom: 0, right: 0 },
+       measure() {
+         const r = this.$refs.trigger.getBoundingClientRect();
+         this.rect = { top: r.top, left: r.left, bottom: r.bottom, right: r.right };
+       },
+       toggle() { if (!this.open) this.measure(); this.open = !this.open; }
+     }"
+     x-init="
+       const onScroll = (e) => { if (open && !($refs.panel && $refs.panel.contains(e.target))) open = false; };
+       document.addEventListener('scroll', onScroll, true);
+       $cleanup(() => document.removeEventListener('scroll', onScroll, true));
+     "
+     @resize.window="if (open) open = false"
+     class="inline-block">
   <button type="button"
-          @click="open = !open"
+          x-ref="trigger"
+          @click="toggle()"
           class="text-xs cursor-pointer hover:text-foreground inline-flex items-center gap-1.5
             {% if task.priority == 1 %}text-rose-400
             {% elif task.priority == 2 %}text-orange-400
@@ -23,10 +40,14 @@ to the equally-colored status badge).
     {% else %}{% lucide "circle-dashed" "w-3.5 h-3.5" %}{% endif %}
     <span>{{ priority_labels|get_item:task.priority }}</span>
   </button>
-  <div x-show="open"
+  <template x-teleport="body">
+  <div x-ref="panel"
+       x-show="open"
        @click.outside="open = false"
+       x-init="$nextTick(() => window.htmx && window.htmx.process($el))"
        x-cloak
-       class="absolute right-0 mt-1 w-44 bg-card border border-border rounded-lg shadow-lg overflow-hidden z-20">
+       :style="`position:fixed; top:${rect.bottom + 4}px; left:${rect.left}px; width:11rem;`"
+       class="bg-card border border-border rounded-lg shadow-lg overflow-hidden z-50">
     {% for priority_key, priority_label in priority_labels.items %}
     <form method="post"
           hx-post="{% url 'web:set_task_priority' slug_prefix=task.project.slug_prefix number=task.number %}"
@@ -55,4 +76,5 @@ to the equally-colored status badge).
     </form>
     {% endfor %}
   </div>
+  </template>
 </div>

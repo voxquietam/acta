@@ -1,0 +1,51 @@
+{% load i18n %}
+{% load lucide %}
+{% load web_extras %}
+{% comment %}
+Topbar fragment for the task detail view — breadcrumb + slug + topbar
+title + copy buttons. Hosted by both the full-page ``task_detail.html``
+(inside ``block topbar_left``) and the modal-mode ``task_detail_modal``
+shell, so the same content shows up in either layout without
+duplication.
+{% endcomment %}
+<a href="{% url 'web:project_list' %}" class="text-placeholder-foreground hover:text-foreground text-sm shrink-0">{% trans "Projects" %}</a>
+<span class="text-border-strong shrink-0">/</span>
+<a href="{% url 'web:project_detail' slug_prefix=task.project.slug_prefix %}"
+   class="text-placeholder-foreground hover:text-foreground text-sm shrink-0">{{ task.project.slug_prefix }}</a>
+<span class="text-border-strong shrink-0">/</span>
+<h1 class="text-base font-medium font-mono shrink-0
+  {% if task.priority == 1 %}text-rose-400
+  {% elif task.priority == 2 %}text-orange-400
+  {% elif task.priority == 3 %}text-amber-400
+  {% elif task.priority == 4 %}text-sky-400
+  {% else %}text-muted-foreground{% endif %}"
+  {% if task.priority %}data-tooltip="{{ priority_labels|get_item:task.priority }}" aria-label="{{ priority_labels|get_item:task.priority }}"{% endif %}>{{ task.slug }}</h1>
+
+{% include "web/projects/_topbar_task_title.html" %}
+
+{% comment %}
+Copy buttons: link copies the full task URL, # copies the bare slug
+(``AUD-167``). Briefly flips to a check icon for ~1.5s on success.
+Both icons are hydrated by Lucide on page load and toggled via Alpine
+``x-show`` so the SVGs stay in the DOM and don't need re-hydration.
+{% endcomment %}
+<div class="flex items-center gap-0.5 shrink-0">
+  <button type="button"
+          x-data="{ copied: false }"
+          @click="navigator.clipboard.writeText(window.location.href).then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
+          :data-tooltip="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy task link' %}'"
+          :aria-label="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy task link' %}'"
+          class="p-1 rounded hover:bg-muted text-placeholder-foreground hover:text-foreground transition">
+    <span x-show="!copied">{% lucide "link-2" "w-3.5 h-3.5" %}</span>
+    <span x-show="copied" x-cloak class="text-emerald-400">{% lucide "check" "w-3.5 h-3.5" %}</span>
+  </button>
+  <button type="button"
+          x-data="{ copied: false }"
+          @click="navigator.clipboard.writeText('{{ task.slug }}').then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
+          :data-tooltip="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy task ID' %}'"
+          :aria-label="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy task ID' %}'"
+          class="p-1 rounded hover:bg-muted text-placeholder-foreground hover:text-foreground transition">
+    <span x-show="!copied">{% lucide "hash" "w-3.5 h-3.5" %}</span>
+    <span x-show="copied" x-cloak class="text-emerald-400">{% lucide "check" "w-3.5 h-3.5" %}</span>
+  </button>
+</div>

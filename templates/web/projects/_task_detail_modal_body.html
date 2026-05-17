@@ -1,0 +1,94 @@
+{% load i18n %}
+{% load web_extras %}
+{% comment %}
+Body fragment for the *modal-mode* task detail. Differs from the
+full-page body (``_task_detail_body.html``) by:
+
+* no two-column grid — title + description run full width
+* metadata row sits inline above the title (status / priority /
+  assignee / due / labels), replacing the right rail
+* same unified comments + activity timeline + comment form
+
+SSE refresh + inline-edit wiring works unchanged: the compact meta
+listens for ``refresh`` on ``#task-meta-compact``, the timeline on
+``#task-timeline-wrap``.
+{% endcomment %}
+<div data-workspace-sse="/events/workspace/{{ task.project.workspace.id }}"
+     data-current-user-id="{{ request.user.id }}"
+     class="space-y-5">
+
+  {% comment %}
+  Compact metadata row + labels. SSE peer-updates hit
+  ``task_meta_compact_fragment`` and swap the inner content.
+  {% endcomment %}
+  <div id="task-meta-compact"
+       data-meta-for-task="{{ task.id }}"
+       hx-get="{% url 'web:task_meta_compact_fragment' slug_prefix=task.project.slug_prefix number=task.number %}"
+       hx-trigger="refresh"
+       hx-swap="innerHTML">
+    {% include "web/projects/_task_meta_compact.html" %}
+  </div>
+
+  {# Title — full width #}
+  <div id="title-section"
+       data-title-for-task="{{ task.id }}"
+       hx-get="{% url 'web:task_title_fragment' slug_prefix=task.project.slug_prefix number=task.number %}"
+       hx-trigger="refresh"
+       hx-swap="innerHTML">
+    {% include "web/projects/_title_cell.html" %}
+  </div>
+
+  {# Description — full width #}
+  <div id="description"
+       data-description-for-task="{{ task.id }}"
+       hx-get="{% url 'web:task_description_fragment' slug_prefix=task.project.slug_prefix number=task.number %}"
+       hx-trigger="refresh"
+       hx-swap="innerHTML">
+    {% include "web/projects/_description_cell.html" %}
+  </div>
+
+  {# Subtasks (when present) #}
+  {% if subtasks %}
+  <div id="subtasks">
+    <div class="text-xs uppercase tracking-wider text-placeholder-foreground mb-2">
+      {% blocktrans count counter=subtasks|length %}Subtask{% plural %}Subtasks{% endblocktrans %}
+      ({{ subtasks|length }})
+    </div>
+    <ul class="space-y-1 bg-card border border-border rounded-lg p-2">
+      {% for sub in subtasks %}
+      <li>
+        <a href="{% url 'web:task_detail' slug_prefix=sub.project.slug_prefix number=sub.number %}"
+           class="flex items-center gap-2 px-2 py-1 rounded hover:bg-muted text-sm">
+          <span class="font-mono text-xs text-placeholder-foreground">{{ sub.slug }}</span>
+          <span class="flex-1 truncate {% if sub.status == 'done' %}line-through text-placeholder-foreground{% endif %}">{{ sub.title }}</span>
+          <span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded
+            {% if sub.status == 'planned' %}bg-muted text-subtle-foreground
+            {% elif sub.status == 'to-do' %}bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300
+            {% elif sub.status == 'in-progress' %}bg-violet-100 dark:bg-violet-900 text-violet-700 dark:text-violet-300
+            {% elif sub.status == 'in-review' %}bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300
+            {% elif sub.status == 'done' %}bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300{% endif %}">
+            {{ status_labels|get_item:sub.status|default:sub.status }}
+          </span>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {# Unified comments + activity timeline #}
+  <div id="task-timeline">
+    <div class="text-xs uppercase tracking-wider text-placeholder-foreground mb-2">{% trans "Activity" %}</div>
+    <div id="task-timeline-wrap"
+         data-timeline-for-task="{{ task.id }}"
+         hx-get="{% url 'web:task_timeline_fragment' slug_prefix=task.project.slug_prefix number=task.number %}"
+         hx-trigger="refresh"
+         hx-swap="innerHTML">
+      {% include "web/projects/_task_detail_timeline.html" %}
+    </div>
+
+    <div class="mt-4">
+      {% include "web/projects/_comment_form.html" %}
+    </div>
+  </div>
+</div>

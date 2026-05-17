@@ -16,67 +16,7 @@ chopped at the edge.
 <div>
   <ul class="space-y-2">
     {% for event in activity|slice:":5" %}
-    <li class="text-xs text-subtle-foreground break-words">
-      <div>
-        <span class="text-muted-foreground">{% if event.actor %}{{ event.actor.display_name }}{% else %}system{% endif %}</span>
-        {% if event.event_type == "task.status_changed" %}
-          <span class="text-placeholder-foreground">{% trans "changed status" %}</span>
-          <span class="text-placeholder-foreground">
-            {{ status_labels|get_item:event.payload.from|default:event.payload.from|default:"—" }}
-            →
-            {{ status_labels|get_item:event.payload.to|default:event.payload.to|default:"—" }}
-          </span>
-        {% elif event.event_type == "task.priority_changed" %}
-          <span class="text-placeholder-foreground">{% trans "changed priority" %}</span>
-          <span class="text-placeholder-foreground">
-            {{ priority_labels|get_item:event.payload.from|default:"—" }}
-            →
-            {{ priority_labels|get_item:event.payload.to|default:"—" }}
-          </span>
-        {% elif event.event_type == "task.due_changed" %}
-          <span class="text-placeholder-foreground">{% trans "changed due date" %}</span>
-          <span class="text-placeholder-foreground">
-            {{ event.payload.from|default:"—" }} → {{ event.payload.to|default:"—" }}
-          </span>
-        {% elif event.event_type == "task.assigned" %}
-          <span class="text-placeholder-foreground">{% trans "changed assignee" %}</span>
-          <span class="text-placeholder-foreground">
-            {{ event.assigned_from_name|default:"—" }}
-            →
-            {{ event.assigned_to_name|default:"unassigned" }}
-          </span>
-        {% elif event.event_type == "task.labels_changed" %}
-          <span class="text-placeholder-foreground">{% trans "changed labels" %}</span>
-          <span class="text-placeholder-foreground">
-            {% if event.added_label_names %}+{{ event.added_label_names|join:", " }}{% endif %}
-            {% if event.added_label_names and event.removed_label_names %} · {% endif %}
-            {% if event.removed_label_names %}−{{ event.removed_label_names|join:", " }}{% endif %}
-          </span>
-        {% elif event.event_type == "task.updated" %}
-          {% if event.payload.changes.title %}
-            <span class="text-placeholder-foreground">{% trans "renamed task" %}</span>
-            <span class="text-placeholder-foreground block truncate"
-                  title='"{{ event.payload.changes.title.old }}" → "{{ event.payload.changes.title.new }}"'>
-              "{{ event.payload.changes.title.old }}" → "{{ event.payload.changes.title.new }}"
-            </span>
-          {% elif event.payload.changes.description %}
-            <span class="text-placeholder-foreground">{% trans "updated description" %}</span>
-          {% elif event.payload.changes.size %}
-            <span class="text-placeholder-foreground">{% trans "changed size" %}</span>
-            <span class="text-placeholder-foreground">
-              {{ event.payload.changes.size.old|default:"—" }}
-              →
-              {{ event.payload.changes.size.new|default:"—" }}
-            </span>
-          {% else %}
-            <span class="text-placeholder-foreground">{{ event.event_type|event_label }}</span>
-          {% endif %}
-        {% else %}
-          <span class="text-placeholder-foreground">{{ event.event_type|event_label }}</span>
-        {% endif %}
-      </div>
-      <div class="text-[10px] text-placeholder-foreground">{{ event.created_at|date:"M j, H:i" }}</div>
-    </li>
+    {% include "web/projects/_activity_event.html" with event=event %}
     {% endfor %}
   </ul>
   {% if activity|length > 5 %}

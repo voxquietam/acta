@@ -1,0 +1,63 @@
+{% load i18n %}
+{% load web_extras %}
+{% comment %}
+One activity event row — single-line compact form. Reused by the rail
+activity panel and the modal/full-page unified timeline so changes
+land in one place. Expects ``event`` plus the surrounding
+``status_labels`` + ``priority_labels`` dicts in context.
+
+Layout: ``actor verb diff … timestamp`` all on one line, with the
+timestamp pushed to the far right via ``ml-auto``. Long diffs truncate
+with ``truncate`` so the row never wraps.
+{% endcomment %}
+<li class="text-xs text-subtle-foreground px-3 py-1 flex items-baseline gap-1.5 min-w-0">
+  <span class="text-muted-foreground shrink-0">{% if event.actor %}{{ event.actor.display_name }}{% else %}system{% endif %}</span>
+  {% if event.event_type == "task.status_changed" %}
+    <span class="text-placeholder-foreground shrink-0">{% trans "changed status" %}</span>
+    <span class="text-placeholder-foreground truncate">
+      {{ status_labels|get_item:event.payload.from|default:event.payload.from|default:"—" }}
+      →
+      {{ status_labels|get_item:event.payload.to|default:event.payload.to|default:"—" }}
+    </span>
+  {% elif event.event_type == "task.priority_changed" %}
+    <span class="text-placeholder-foreground shrink-0">{% trans "changed priority" %}</span>
+    <span class="text-placeholder-foreground truncate">
+      {{ priority_labels|get_item:event.payload.from|default:"—" }}
+      →
+      {{ priority_labels|get_item:event.payload.to|default:"—" }}
+    </span>
+  {% elif event.event_type == "task.due_changed" %}
+    <span class="text-placeholder-foreground shrink-0">{% trans "changed due date" %}</span>
+    <span class="text-placeholder-foreground truncate">
+      {{ event.payload.from|default:"—" }} → {{ event.payload.to|default:"—" }}
+    </span>
+  {% elif event.event_type == "task.assigned" %}
+    <span class="text-placeholder-foreground shrink-0">{% trans "changed assignee" %}</span>
+    <span class="text-placeholder-foreground truncate">
+      {{ event.assigned_from_name|default:"—" }}
+      →
+      {{ event.assigned_to_name|default:"unassigned" }}
+    </span>
+  {% elif event.event_type == "task.labels_changed" %}
+    <span class="text-placeholder-foreground shrink-0">{% trans "changed labels" %}</span>
+    <span class="text-placeholder-foreground truncate">
+      {% if event.added_label_names %}+{{ event.added_label_names|join:", " }}{% endif %}
+      {% if event.added_label_names and event.removed_label_names %} · {% endif %}
+      {% if event.removed_label_names %}−{{ event.removed_label_names|join:", " }}{% endif %}
+    </span>
+  {% elif event.event_type == "task.updated" %}
+    {% if event.payload.changes.size %}
+      <span class="text-placeholder-foreground shrink-0">{% trans "changed size" %}</span>
+      <span class="text-placeholder-foreground truncate">
+        {{ event.payload.changes.size.old|default:"—" }}
+        →
+        {{ event.payload.changes.size.new|default:"—" }}
+      </span>
+    {% else %}
+      <span class="text-placeholder-foreground truncate">{{ event.event_type|event_label }}</span>
+    {% endif %}
+  {% else %}
+    <span class="text-placeholder-foreground truncate">{{ event.event_type|event_label }}</span>
+  {% endif %}
+  <span class="text-[10px] text-placeholder-foreground ml-auto shrink-0">{{ event.created_at|date:"M j, H:i" }}</span>
+</li>

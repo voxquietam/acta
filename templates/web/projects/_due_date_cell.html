@@ -41,7 +41,8 @@ explicit.
     <input type="hidden" name="due_date" value="">
     <button type="submit"
             class="text-placeholder-foreground hover:text-rose-400 text-xs opacity-0 group-hover:opacity-100 transition"
-            title="{% trans 'Clear deadline' %}">✕</button>
+            data-tooltip="{% trans 'Clear deadline' %}"
+            aria-label="{% trans 'Clear deadline' %}">✕</button>
   </form>
   {% endif %}
 </div>

@@ -159,7 +159,7 @@ Pages extend this and override the `app_main` block.
       {% endcomment %}
       <button type="button"
               @click="$store.sidebar.toggle()"
-              :title="$store.sidebar.open ? '{% trans 'Hide sidebar' %}' : '{% trans 'Show sidebar' %}'"
+              :data-tooltip="$store.sidebar.open ? '{% trans 'Hide sidebar' %}' : '{% trans 'Show sidebar' %}'"
               class="hidden md:grid place-items-center p-1.5 rounded-md text-subtle-foreground hover:bg-muted hover:text-foreground transition shrink-0">
         <span x-show="$store.sidebar.open">{% lucide "panel-left-close" "w-4 h-4" %}</span>
         <span x-show="!$store.sidebar.open" x-cloak>{% lucide "panel-left-open" "w-4 h-4" %}</span>
@@ -186,7 +186,7 @@ Pages extend this and override the `app_main` block.
         {# Theme toggle — light / dark. Icon flips via Alpine store. #}
         <button type="button"
                 @click="$store.theme.toggle()"
-                :title="$store.theme.current === 'dark' ? '{% trans 'Switch to light mode' %}' : '{% trans 'Switch to dark mode' %}'"
+                :data-tooltip="$store.theme.current === 'dark' ? '{% trans 'Switch to light mode' %}' : '{% trans 'Switch to dark mode' %}'"
                 class="grid place-items-center p-1.5 rounded-md text-placeholder-foreground hover:bg-muted hover:text-foreground">
           <span x-show="$store.theme.current === 'dark'">{% lucide "sun" "w-4 h-4" %}</span>
           <span x-show="$store.theme.current === 'light'" x-cloak>{% lucide "moon" "w-4 h-4" %}</span>
@@ -348,9 +348,9 @@ Pages extend this and override the `app_main` block.
        @keydown.enter.window="if (open && !busy) confirm()">
     <div x-show="open"
          x-cloak
-         class="fixed inset-0 z-50 flex items-start justify-center pt-24 px-4 bg-black/60 backdrop-blur-sm"
+         class="acta-modal-backdrop pt-24"
          @click.self="cancel()">
-      <div class="w-full max-w-md bg-card border border-border rounded-lg shadow-lg overflow-hidden">
+      <div class="acta-modal-panel max-w-md">
         <header class="flex items-center justify-between px-4 py-3 border-b border-border">
           <h2 class="text-sm font-medium text-foreground">
             <span x-text="$store.selection.size"></span>

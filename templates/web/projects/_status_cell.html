@@ -9,9 +9,26 @@ Each dropdown row carries the same color treatment as the current-state
 badge — a colored dot plus matching text — so you can pick visually
 without parsing the labels.
 {% endcomment %}
-<div id="status-cell" x-data="{ open: false }" class="relative inline-block">
+<div id="status-cell"
+     x-data="{
+       open: false,
+       rect: { top: 0, left: 0, bottom: 0, right: 0 },
+       measure() {
+         const r = this.$refs.trigger.getBoundingClientRect();
+         this.rect = { top: r.top, left: r.left, bottom: r.bottom, right: r.right };
+       },
+       toggle() { if (!this.open) this.measure(); this.open = !this.open; }
+     }"
+     x-init="
+       const onScroll = (e) => { if (open && !($refs.panel && $refs.panel.contains(e.target))) open = false; };
+       document.addEventListener('scroll', onScroll, true);
+       $cleanup(() => document.removeEventListener('scroll', onScroll, true));
+     "
+     @resize.window="if (open) open = false"
+     class="inline-block">
   <button type="button"
-          @click="open = !open"
+          x-ref="trigger"
+          @click="toggle()"
           class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded cursor-pointer
             {% if task.status == 'planned' %}bg-muted text-subtle-foreground hover:bg-border-strong
             {% elif task.status == 'to-do' %}bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800
@@ -20,10 +37,14 @@ without parsing the labels.
             {% elif task.status == 'done' %}bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-800{% endif %}">
     {{ status_labels|get_item:task.status|default:task.status }}
   </button>
-  <div x-show="open"
+  <template x-teleport="body">
+  <div x-ref="panel"
+       x-show="open"
        @click.outside="open = false"
+       x-init="$nextTick(() => window.htmx && window.htmx.process($el))"
        x-cloak
-       class="absolute right-0 mt-1 w-44 bg-card border border-border rounded-lg shadow-lg overflow-hidden z-20">
+       :style="`position:fixed; top:${rect.bottom + 4}px; left:${rect.left}px; width:11rem;`"
+       class="bg-card border border-border rounded-lg shadow-lg overflow-hidden z-50">
     {% for status_key, status_label in status_labels.items %}
     <form method="post"
           hx-post="{% url 'web:set_task_status' slug_prefix=task.project.slug_prefix number=task.number %}"
@@ -52,4 +73,5 @@ without parsing the labels.
     </form>
     {% endfor %}
   </div>
+  </template>
 </div>

@@ -9,11 +9,18 @@ We swapped from a tippy-positioned bubble menu to a static toolbar
 after the bubble's show/hide kept misfiring in edge cases — see
 ``feedback_stop_kostyling`` memory for the lesson learned.
 
+Buttons use ``data-tooltip="…"`` + ``aria-label="…"`` instead of the
+native ``title`` attribute — the browser default tooltip is black/
+yellow OS chrome that clashes with our themed surfaces. The themed
+tooltip rule in ``main.css`` reads ``data-tooltip`` and renders a
+card-coloured pop on hover; ``aria-label`` keeps screen-reader
+accessibility.
+
 Two modes via Alpine state — "menu" (default toolbar) and "link"
 (an inline URL input replacing the buttons, so we don't fall back to
 the native ``window.prompt`` dialog on link insertion).
 {% endcomment %}
-<div class="description-editor-toolbar flex flex-wrap items-center justify-center gap-0.5 border-b border-border pb-1.5 mb-2 sticky -top-6 z-10 bg-background/95 backdrop-blur-sm"
+<div class="description-editor-toolbar flex flex-wrap items-center justify-center gap-0.5 border-b border-border pb-1.5 mb-2 sticky -top-6 z-10 backdrop-blur-md"
      x-data="{
        mode: 'menu',
        url: '',
@@ -52,48 +59,59 @@ the native ``window.prompt`` dialog on link insertion).
     <button type="button"
             onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleBold().run()"
             class="w-7 h-7 grid place-items-center rounded hover:bg-muted text-muted-foreground text-sm font-bold"
-            title="{% trans 'Bold' %}">B</button>
+            aria-label="{% trans 'Bold' %}"
+            data-tooltip="{% trans 'Bold' %}">B</button>
     <button type="button"
             onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleItalic().run()"
             class="w-7 h-7 grid place-items-center rounded hover:bg-muted text-muted-foreground text-sm italic"
-            title="{% trans 'Italic' %}">I</button>
+            aria-label="{% trans 'Italic' %}"
+            data-tooltip="{% trans 'Italic' %}">I</button>
     <button type="button"
             onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleStrike().run()"
             class="w-7 h-7 grid place-items-center rounded hover:bg-muted text-muted-foreground text-sm line-through"
-            title="{% trans 'Strike' %}">S</button>
+            aria-label="{% trans 'Strike' %}"
+            data-tooltip="{% trans 'Strike' %}">S</button>
     <button type="button"
             onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleUnderline().run()"
             class="w-7 h-7 grid place-items-center rounded hover:bg-muted text-muted-foreground text-sm underline"
-            title="{% trans 'Underline' %}">U</button>
+            aria-label="{% trans 'Underline' %}"
+            data-tooltip="{% trans 'Underline' %}">U</button>
     <button type="button"
             onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleCode().run()"
             class="w-7 h-7 grid place-items-center rounded hover:bg-muted text-muted-foreground text-xs font-mono"
-            title="{% trans 'Inline code' %}">&lt;/&gt;</button>
+            aria-label="{% trans 'Inline code' %}"
+            data-tooltip="{% trans 'Inline code' %}">&lt;/&gt;</button>
     <button type="button"
             onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleHighlight().run()"
             class="w-7 h-7 grid place-items-center rounded hover:bg-muted text-amber-700 dark:text-amber-300 text-sm"
-            title="{% trans 'Highlight' %}">H</button>
+            aria-label="{% trans 'Highlight' %}"
+            data-tooltip="{% trans 'Highlight' %}">H</button>
     <button type="button"
             @click="openLink()"
             class="w-7 h-7 grid place-items-center rounded hover:bg-muted text-muted-foreground text-sm"
-            title="{% trans 'Link' %}">🔗</button>
+            aria-label="{% trans 'Link' %}"
+            data-tooltip="{% trans 'Link' %}">🔗</button>
     <span class="w-px h-4 bg-muted mx-1"></span>
     <button type="button"
             onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleHeading({ level: 2 }).run()"
             class="px-2 h-7 grid place-items-center rounded hover:bg-muted text-muted-foreground text-xs"
-            title="{% trans 'Heading' %}">H</button>
+            aria-label="{% trans 'Heading' %}"
+            data-tooltip="{% trans 'Heading' %}">H</button>
     <button type="button"
             onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleBulletList().run()"
             class="px-2 h-7 grid place-items-center rounded hover:bg-muted text-muted-foreground text-xs"
-            title="{% trans 'Bullet list' %}">•</button>
+            aria-label="{% trans 'Bullet list' %}"
+            data-tooltip="{% trans 'Bullet list' %}">•</button>
     <button type="button"
             onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleOrderedList().run()"
             class="px-2 h-7 grid place-items-center rounded hover:bg-muted text-muted-foreground text-xs"
-            title="{% trans 'Numbered list' %}">1.</button>
+            aria-label="{% trans 'Numbered list' %}"
+            data-tooltip="{% trans 'Numbered list' %}">1.</button>
     <button type="button"
             onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleTaskList && this.closest('[data-description-editor]')._editor?.chain().focus().toggleTaskList().run()"
             class="w-7 h-7 grid place-items-center rounded hover:bg-muted text-muted-foreground text-xs"
-            title="{% trans 'Task list' %}">☐</button>
+            aria-label="{% trans 'Task list' %}"
+            data-tooltip="{% trans 'Task list' %}">☐</button>
   </div>
 
   <div x-show="mode === 'link'" x-cloak class="flex items-center gap-1">
@@ -107,15 +125,18 @@ the native ``window.prompt`` dialog on link insertion).
     <button type="button"
             @click="applyLink()"
             class="px-2 h-7 grid place-items-center rounded hover:bg-muted text-muted-foreground text-xs"
-            title="{% trans 'Apply' %}">↵</button>
+            aria-label="{% trans 'Apply' %}"
+            data-tooltip="{% trans 'Apply' %}">↵</button>
     <button type="button"
             x-show="originalUrl !== ''"
             @click="removeLink()"
             class="w-7 h-7 grid place-items-center rounded hover:bg-muted text-rose-600 dark:text-rose-400 text-xs"
-            title="{% trans 'Remove link' %}">🗑</button>
+            aria-label="{% trans 'Remove link' %}"
+            data-tooltip="{% trans 'Remove link' %}">🗑</button>
     <button type="button"
             @click="cancelLink()"
             class="w-7 h-7 grid place-items-center rounded hover:bg-muted text-placeholder-foreground text-xs"
-            title="{% trans 'Cancel' %}">✕</button>
+            aria-label="{% trans 'Cancel' %}"
+            data-tooltip="{% trans 'Cancel' %}">✕</button>
   </div>
 </div>

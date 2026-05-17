@@ -18,7 +18,7 @@ Comment posting form — same TipTap rich editor used for descriptions
 <form x-data="{ empty: true }"
       @editor:change="empty = $event.detail.empty"
       hx-post="{% url 'web:post_comment' slug_prefix=task.project.slug_prefix number=task.number %}"
-      hx-target="#comment-list"
+      hx-target="#task-timeline-list"
       hx-swap="beforeend"
       @htmx:after-request="
         if ($event.detail.successful) {
@@ -26,7 +26,7 @@ Comment posting form — same TipTap rich editor used for descriptions
           if (ed) ed.commands.clearContent();
         }
       "
-      class="max-w-3xl space-y-2">
+      class="space-y-2">
   {% csrf_token %}
 
   {% comment %}

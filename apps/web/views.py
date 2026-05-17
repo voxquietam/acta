@@ -692,6 +692,19 @@ class TaskDetailView(LoginRequiredMixin, DetailView):
     context_object_name = "task"
     template_name = "web/projects/task_detail.html"
 
+    def get_template_names(self):
+        """Pick modal-mode template when ``?modal=1`` is set.
+
+        The HTMX-driven row click in tables / kanban cards fetches the
+        task URL with ``?modal=1`` so the response is just the modal
+        shell + body partial, ready to drop into ``#modal-root``.
+        Direct URL load (no querystring) returns the full page so
+        shared links still open as a regular task page.
+        """
+        if self.request.GET.get("modal") == "1":
+            return ["web/projects/task_detail_modal.html"]
+        return [self.template_name]
+
     def get_object(self, queryset=None):
         """Resolve the task by slug_prefix + number, 404 if foreign.
 
@@ -709,7 +722,16 @@ class TaskDetailView(LoginRequiredMixin, DetailView):
         )
 
     def get_context_data(self, **kwargs):
-        """Attach subtasks, comments, and activity timeline."""
+        """Attach subtasks, comments, activity timeline, and the merged
+        modal timeline that interleaves comments with non-comment
+        activity events sorted by ``created_at``.
+
+        The merged timeline is consumed by the modal-mode body template
+        (``_task_detail_modal_body.html``). Comment activity events
+        (``comment.*``) are filtered out of the merge because the
+        comments themselves carry the body — keeping both would render
+        each post twice.
+        """
         ctx = super().get_context_data(**kwargs)
         task = self.object
         ctx["subtasks"] = list(
@@ -719,6 +741,11 @@ class TaskDetailView(LoginRequiredMixin, DetailView):
             task.comments.select_related("author").order_by("created_at"),
         )
         ctx["activity"] = _task_activity(task)
+        non_comment_activity = [e for e in ctx["activity"] if not (e.event_type or "").startswith("comment.")]
+        ctx["timeline"] = sorted(
+            [("comment", c) for c in ctx["comments"]] + [("event", e) for e in non_comment_activity],
+            key=lambda kv: kv[1].created_at,
+        )
         ctx["status_labels"] = Task.STATUS_LABELS
         ctx["priority_labels"] = dict(Task.PRIORITY_CHOICES)
         ctx["workspace_members"] = _workspace_members(task)
@@ -824,6 +851,65 @@ def task_meta_fragment(request, slug_prefix, number):
 
 
 @login_required
+def task_timeline_fragment(request, slug_prefix, number):
+    """Render the unified comments + activity timeline for one task.
+
+    SSE-triggered ``hx-get`` lands here when a comment is posted or an
+    activity event fires; the page-level timeline div refreshes its
+    inner ``<ul>`` so peer-driven updates land without a full reload.
+    """
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    comments = list(task.comments.select_related("author").order_by("created_at"))
+    activity = _task_activity(task)
+    non_comment_activity = [e for e in activity if not (e.event_type or "").startswith("comment.")]
+    timeline = sorted(
+        [("comment", c) for c in comments] + [("event", e) for e in non_comment_activity],
+        key=lambda kv: kv[1].created_at,
+    )
+    return HttpResponse(
+        render_to_string(
+            "web/projects/_task_detail_timeline.html",
+            {
+                "timeline": timeline,
+                "status_labels": Task.STATUS_LABELS,
+                "priority_labels": dict(Task.PRIORITY_CHOICES),
+            },
+            request=request,
+        ),
+    )
+
+
+@login_required
+def task_meta_compact_fragment(request, slug_prefix, number):
+    """Render the horizontal metadata row for one task (modal layout).
+
+    Counterpart of ``task_meta_fragment`` for the modal view, which uses
+    a single-line ``_task_meta_compact.html`` partial instead of the
+    vertical rail card. SSE peer-updates hit this endpoint when the
+    task is open in modal mode.
+    """
+    task = get_object_or_404(
+        _user_task_qs(request.user).select_related("reporter"),
+        project__slug_prefix=slug_prefix,
+        number=number,
+    )
+    return HttpResponse(
+        render_to_string(
+            "web/projects/_task_meta_compact.html",
+            {
+                "task": task,
+                "status_labels": Task.STATUS_LABELS,
+                "priority_labels": dict(Task.PRIORITY_CHOICES),
+                "workspace_members": _workspace_members(task),
+                "workspace_labels": _workspace_labels(task),
+                "attached_label_ids": set(task.labels.values_list("id", flat=True)),
+            },
+            request=request,
+        ),
+    )
+
+
+@login_required
 def task_row_fragment(request, task_id):
     """Render a single task row for table or list view.
 
@@ -888,6 +974,19 @@ def _task_activity(task, limit=25):
           table) means an event remains visible on the task even after
           the underlying comment row is deleted.
 
+    Excluded from the user-facing feed:
+        * ``task.labels_changed`` — too chatty for the timeline.
+        * ``task.updated`` whose ``payload.changes`` only touches
+          ``title`` and/or ``description`` — title/description history
+          will live on a dedicated "full history" page later; the
+          inline timeline gets too noisy otherwise. ``task.updated``
+          events that also carry other changes (e.g. ``size``) stay
+          visible.
+
+    All hidden events are still written to the DB by ``log_event`` so
+    dashboards and audit queries can read them directly from
+    ``ActivityLog``.
+
     Attaches ``assigned_from_name`` and ``assigned_to_name`` to every
     ``task.assigned`` event, resolving the user ids in a single
     batched query so the template can show ``X → Y`` without per-row
@@ -908,9 +1007,23 @@ def _task_activity(task, limit=25):
             Q(target_type=ActivityLog.TARGET_TASK, target_id=task.id)
             | Q(target_type=ActivityLog.TARGET_COMMENT, payload__task_id=task.id),
         )
+        .exclude(event_type="task.labels_changed")
         .select_related("actor")
         .order_by("-created_at")[:limit],
     )
+    # Hide title-only / description-only ``task.updated`` events from
+    # the feed. Done in Python (not via JSON queries) because the test
+    # is "what keys are present in payload.changes" — clean expressed
+    # imperatively, awkward in SQL across DB backends.
+    _hide_only_keys = {"title", "description"}
+
+    def _visible(e):
+        if e.event_type != "task.updated":
+            return True
+        keys = set(((e.payload or {}).get("changes") or {}).keys())
+        return bool(keys - _hide_only_keys)
+
+    events = [e for e in events if _visible(e)]
     user_ids = set()
     label_ids = set()
     for e in events:
@@ -995,13 +1108,25 @@ def _inline_edit_response(request, task, primary_template, primary_context):
         "web/projects/_activity_oob.html",
         {
             "task": task,
-            "activity": _task_activity(task),
+            "timeline": _build_timeline(task),
             "status_labels": Task.STATUS_LABELS,
             "priority_labels": dict(Task.PRIORITY_CHOICES),
         },
         request=request,
     )
     return HttpResponse(primary_html + activity_html)
+
+
+def _build_timeline(task):
+    """Merge comments + non-comment activity events into the unified
+    timeline tuple list consumed by ``_task_detail_timeline.html``."""
+    comments = list(task.comments.select_related("author").order_by("created_at"))
+    activity = _task_activity(task)
+    non_comment = [e for e in activity if not (e.event_type or "").startswith("comment.")]
+    return sorted(
+        [("comment", c) for c in comments] + [("event", e) for e in non_comment],
+        key=lambda kv: kv[1].created_at,
+    )
 
 
 # ---------------------------------------------------------------------
@@ -1135,7 +1260,7 @@ def set_task_description(request, slug_prefix, number):
         "web/projects/_activity_oob.html",
         {
             "task": task,
-            "activity": _task_activity(task),
+            "timeline": _build_timeline(task),
             "status_labels": Task.STATUS_LABELS,
             "priority_labels": dict(Task.PRIORITY_CHOICES),
         },
@@ -1247,7 +1372,7 @@ def toggle_task_label(request, slug_prefix, number):
         "web/projects/_activity_oob.html",
         {
             "task": task,
-            "activity": _task_activity(task),
+            "timeline": _build_timeline(task),
             "status_labels": Task.STATUS_LABELS,
             "priority_labels": dict(Task.PRIORITY_CHOICES),
         },

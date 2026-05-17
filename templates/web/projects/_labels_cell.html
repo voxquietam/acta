@@ -60,6 +60,7 @@ assignee treatment.
     <div x-ref="panel"
          x-show="open"
          @click.outside="open = false"
+         x-init="$nextTick(() => window.htmx && window.htmx.process($el))"
          x-effect="if (open) $nextTick(() => $refs.search.focus())"
          x-cloak
          :style="dropUp

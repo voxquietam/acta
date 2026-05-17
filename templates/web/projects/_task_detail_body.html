@@ -1,0 +1,130 @@
+{% load i18n %}
+{% load lucide %}
+{% load web_extras %}
+{% comment %}
+Body fragment for the task detail view — title + description + subtasks
++ comments + sticky right rail. Hosted by both the full-page
+``task_detail.html`` (inside ``block app_main``) and the modal-mode
+``task_detail_modal`` shell, so the same content renders in either
+layout. Wrapper element keeps the SSE data attributes so the JS handler
+finds them whether the body lives in main or in a modal.
+
+Two-column grid on xl+: description (1fr) and right rail (22rem).
+``max-w-2xl`` on the description block keeps it readable on wide
+screens while leaving enough room for the 22rem rail at the narrow
+end of the xl breakpoint (around 1280px).
+{% endcomment %}
+<div class="xl:grid xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start"
+     data-workspace-sse="/events/workspace/{{ task.project.workspace.id }}"
+     data-current-user-id="{{ request.user.id }}">
+
+  <div class="min-w-0">
+   <div class="max-w-2xl mx-auto w-full space-y-6">
+
+    {% comment %}
+    Title + description wrappers carry their own ``hx-trigger="refresh"``
+    so the SSE handler can swap them when a peer's edit lands. The
+    inner ``#title-cell`` / ``#description-cell`` keep their own ids
+    for inline-edit OOB swaps from ``set_task_title`` /
+    ``set_task_description`` — the outer wrapper stays put, the inner
+    cell can be replaced via either path without losing the SSE wiring.
+    {% endcomment %}
+    <div id="title-section"
+         data-title-for-task="{{ task.id }}"
+         hx-get="{% url 'web:task_title_fragment' slug_prefix=task.project.slug_prefix number=task.number %}"
+         hx-trigger="refresh"
+         hx-swap="innerHTML">
+      {% include "web/projects/_title_cell.html" %}
+    </div>
+
+    <div id="description"
+         class="!mt-2"
+         data-description-for-task="{{ task.id }}"
+         hx-get="{% url 'web:task_description_fragment' slug_prefix=task.project.slug_prefix number=task.number %}"
+         hx-trigger="refresh"
+         hx-swap="innerHTML">
+      {% include "web/projects/_description_cell.html" %}
+    </div>
+
+    {# Subtasks #}
+    {% if subtasks %}
+    <div id="subtasks">
+      <div class="text-xs uppercase tracking-wider text-placeholder-foreground mb-2">
+        {% blocktrans count counter=subtasks|length %}Subtask{% plural %}Subtasks{% endblocktrans %}
+        ({{ subtasks|length }})
+      </div>
+      <ul class="space-y-1 bg-card border border-border rounded-lg p-2 max-w-2xl">
+        {% for sub in subtasks %}
+        <li>
+          <a href="{% url 'web:task_detail' slug_prefix=sub.project.slug_prefix number=sub.number %}"
+             class="flex items-center gap-2 px-2 py-1 rounded hover:bg-muted text-sm">
+            <span class="font-mono text-xs text-placeholder-foreground">{{ sub.slug }}</span>
+            <span class="flex-1 truncate {% if sub.status == 'done' %}line-through text-placeholder-foreground{% endif %}">{{ sub.title }}</span>
+            <span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded
+              {% if sub.status == 'planned' %}bg-muted text-subtle-foreground
+              {% elif sub.status == 'to-do' %}bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300
+              {% elif sub.status == 'in-progress' %}bg-violet-100 dark:bg-violet-900 text-violet-700 dark:text-violet-300
+              {% elif sub.status == 'in-review' %}bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300
+              {% elif sub.status == 'done' %}bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300{% endif %}">
+              {{ status_labels|get_item:sub.status|default:sub.status }}
+            </span>
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {# Unified comments + activity timeline #}
+    <div id="task-timeline">
+      <div class="text-xs uppercase tracking-wider text-placeholder-foreground mb-2">{% trans "Activity" %}</div>
+      <div id="task-timeline-wrap"
+           data-timeline-for-task="{{ task.id }}"
+           hx-get="{% url 'web:task_timeline_fragment' slug_prefix=task.project.slug_prefix number=task.number %}"
+           hx-trigger="refresh"
+           hx-swap="innerHTML">
+        {% include "web/projects/_task_detail_timeline.html" %}
+      </div>
+
+      <div class="mt-4">
+        {% include "web/projects/_comment_form.html" %}
+      </div>
+    </div>
+   </div>
+  </div>
+
+  {% comment %}
+  Right rail: sits in the third grid column on xl+, so it hugs the
+  right edge of main while the middle column stays centered. Sticky to
+  viewport top so metadata is always visible. Stacks below on smaller
+  screens.
+  {% endcomment %}
+  <aside class="mt-8 xl:mt-0 space-y-4 text-sm xl:sticky xl:top-0 xl:max-h-[calc(100vh-4rem)] xl:overflow-y-auto xl:pb-4">
+
+    {# Jump links — visible only on lg+ where the rail is sticky #}
+    <div class="hidden lg:flex flex-wrap gap-3 text-[11px] text-placeholder-foreground">
+      <a href="#description" class="hover:text-foreground">{% trans "Description" %}</a>
+      {% if subtasks %}
+      <a href="#subtasks" class="hover:text-foreground">
+        {% trans "Subtasks" %} <span class="text-placeholder-foreground">{{ subtasks|length }}</span>
+      </a>
+      {% endif %}
+      <a href="#task-timeline" class="hover:text-foreground">{% trans "Activity" %}</a>
+    </div>
+
+    {% comment %}
+    Right-rail metadata + labels. Bundled in ``#task-meta`` so a
+    single ``hx-get`` swaps both panels when a peer's edit lands
+    over SSE. ``acta.js`` dispatches a ``refresh`` event here on
+    every ``task.*`` event whose ``target_id`` matches.
+    {% endcomment %}
+    <div id="task-meta"
+         data-meta-for-task="{{ task.id }}"
+         hx-get="{% url 'web:task_meta_fragment' slug_prefix=task.project.slug_prefix number=task.number %}"
+         hx-trigger="refresh"
+         hx-swap="innerHTML">
+      {% include "web/projects/_task_meta.html" %}
+    </div>
+  </aside>
+
+</div>

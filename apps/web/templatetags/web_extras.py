@@ -64,6 +64,39 @@ def task_filter_attrs(context, task):
 
 
 @register.simple_tag
+def open_task_modal_attrs(task):
+    """Emit ``hx-*`` attributes that open the task in a modal on click.
+
+    Plain click → ``HX-Get`` the task URL with ``?modal=1`` and swap
+    the response into ``#modal-root``. Ctrl/Cmd/Shift/middle-click
+    fail the ``hx-trigger`` filter, so HTMX skips the request and the
+    surrounding ``<a href="…">`` falls through to native browser
+    behaviour (open in new tab, etc.).
+
+    ``hx-push-url`` is the bare task URL (no ``?modal=1``) so the
+    address bar reflects the task while the modal is open; closing
+    the modal pops the entry and returns to the previous view.
+
+    Args:
+        task: A :class:`Task` instance (needs ``project.slug_prefix``
+            and ``number``).
+
+    Returns:
+        Safe HTML attribute string; drop into any ``<a>`` element that
+        links to the task detail page.
+    """
+    url = f"/projects/{task.project.slug_prefix}/{task.number}/"
+    attrs = (
+        f'hx-get="{url}?modal=1" '
+        f'hx-target="#modal-root" '
+        f'hx-swap="innerHTML" '
+        f'hx-push-url="{url}" '
+        f'hx-trigger="click[!ctrlKey&amp;&amp;!metaKey&amp;&amp;!shiftKey]"'
+    )
+    return mark_safe(attrs)
+
+
+@register.simple_tag
 def url_replace(request, key, value):
     """Return the current querystring with one key replaced.
 

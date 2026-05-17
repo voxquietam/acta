@@ -1,0 +1,41 @@
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+Compact metadata row used by the modal-mode task detail layout.
+Horizontal flex of the same cell partials the rail uses — each is
+``inline-block`` and self-contained (own Alpine state for open/close
+dropdowns + HTMX form per option), so dropping them in a row works
+without changes.
+
+Labels wrap onto a second line if the chips overflow. Reporter /
+created / updated stay out of this view — they live in the rail of
+the full-page layout for cases when those details matter.
+{% endcomment %}
+<div class="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
+  {% include "web/projects/_status_cell.html" %}
+  <span class="text-border-strong" aria-hidden="true">·</span>
+  {% include "web/projects/_priority_cell.html" %}
+  <span class="text-border-strong" aria-hidden="true">·</span>
+  {% include "web/projects/_assignee_cell.html" %}
+  <span class="text-border-strong" aria-hidden="true">·</span>
+  {% include "web/projects/_due_date_cell.html" %}
+  {% if task.size %}
+  <span class="text-border-strong" aria-hidden="true">·</span>
+  <span class="text-muted-foreground font-mono text-sm inline-flex items-center gap-1"
+        data-tooltip="{% trans 'Size estimate' %}"
+        aria-label="{% trans 'Size estimate' %}">
+    {% lucide "gauge" "w-3.5 h-3.5" %}{{ task.size }}
+  </span>
+  {% endif %}
+</div>
+
+<div class="mt-2">
+  {% include "web/projects/_labels_cell.html" %}
+</div>
+
+{% if task.archived_at %}
+<div class="mt-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 text-xs">
+  {% lucide "archive" "w-3 h-3" %}
+  {% trans "Archived" %} · {{ task.archived_at|date:"M j, Y" }}
+</div>
+{% endif %}

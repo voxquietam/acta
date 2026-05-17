@@ -21,8 +21,10 @@ from .views import (
     task_activity_fragment,
     task_comments_fragment,
     task_description_fragment,
+    task_meta_compact_fragment,
     task_meta_fragment,
     task_row_fragment,
+    task_timeline_fragment,
     task_title_fragment,
     task_topbar_title_fragment,
     toggle_project_member,
@@ -113,6 +115,16 @@ urlpatterns = [
         "projects/<str:slug_prefix>/<int:number>/meta/",
         task_meta_fragment,
         name="task_meta_fragment",
+    ),
+    path(
+        "projects/<str:slug_prefix>/<int:number>/meta-compact/",
+        task_meta_compact_fragment,
+        name="task_meta_compact_fragment",
+    ),
+    path(
+        "projects/<str:slug_prefix>/<int:number>/timeline/",
+        task_timeline_fragment,
+        name="task_timeline_fragment",
     ),
     path(
         "projects/<str:slug_prefix>/<int:number>/title-fragment/",

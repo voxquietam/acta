@@ -39,7 +39,7 @@ hides the native scrollbar without losing the "you can scroll" cue.
          class="shrink-0 border-b border-border flex items-center">
       <button type="button"
               @click="$store.kanban.toggle('{{ col.key }}')"
-              :title="'{% trans 'Collapse column' %}'"
+              :data-tooltip="'{% trans 'Collapse column' %}'"
               class="flex-1 px-3 py-2 text-xs uppercase tracking-wider hover:bg-muted/60 transition flex items-center justify-between">
         <span class="flex items-center gap-1.5 text-muted-foreground">
           <span class="w-1.5 h-1.5 rounded-full
@@ -67,7 +67,7 @@ hides the native scrollbar without losing the "you can scroll" cue.
             x-show="$store.kanban.isCollapsed('{{ col.key }}')"
             x-cloak
             @click="$store.kanban.toggle('{{ col.key }}')"
-            :title="'{% trans 'Expand column' %}'"
+            :data-tooltip="'{% trans 'Expand column' %}'"
             class="flex-1 px-3 py-2 text-xs uppercase tracking-wider hover:bg-muted/60 transition">
       <div class="flex flex-col items-center gap-1.5 py-1">
         <span class="text-placeholder-foreground text-[10px]" data-column-count>{{ col.tasks|length }}</span>

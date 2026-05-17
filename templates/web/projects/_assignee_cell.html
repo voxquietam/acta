@@ -23,15 +23,28 @@ dropdown focused on member selection rather than mixing in a no-op
      x-data="{
        open: false,
        q: '',
+       rect: { top: 0, left: 0, bottom: 0, right: 0 },
        matches(name) {
          return name.toLowerCase().includes(this.q.toLowerCase());
        },
+       measure() {
+         const r = this.$refs.trigger.getBoundingClientRect();
+         this.rect = { top: r.top, left: r.left, bottom: r.bottom, right: r.right };
+       },
+       toggle() { if (!this.open) this.measure(); this.open = !this.open; }
      }"
-     class="relative inline-block group">
+     x-init="
+       const onScroll = (e) => { if (open && !($refs.panel && $refs.panel.contains(e.target))) open = false; };
+       document.addEventListener('scroll', onScroll, true);
+       $cleanup(() => document.removeEventListener('scroll', onScroll, true));
+     "
+     @resize.window="if (open) open = false"
+     class="inline-block group">
 
   <div class="flex items-center gap-1.5">
     <button type="button"
-            @click="open = !open"
+            x-ref="trigger"
+            @click="toggle()"
             class="cursor-pointer text-left">
       {% if task.assignee %}
       <div class="flex items-center gap-1.5">
@@ -58,16 +71,21 @@ dropdown focused on member selection rather than mixing in a no-op
       <input type="hidden" name="assignee_id" value="">
       <button type="submit"
               class="text-placeholder-foreground hover:text-rose-400 text-xs opacity-0 group-hover:opacity-100 transition"
-              title="{% trans 'Unassign' %}">✕</button>
+              data-tooltip="{% trans 'Unassign' %}"
+              aria-label="{% trans 'Unassign' %}">✕</button>
     </form>
     {% endif %}
   </div>
 
-  <div x-show="open"
+  <template x-teleport="body">
+  <div x-ref="panel"
+       x-show="open"
        @click.outside="open = false"
+       x-init="$nextTick(() => window.htmx && window.htmx.process($el))"
        x-effect="if (open) $nextTick(() => $refs.search.focus())"
        x-cloak
-       class="absolute right-0 mt-1 w-60 bg-card border border-border rounded-lg shadow-lg overflow-hidden z-20">
+       :style="`position:fixed; top:${rect.bottom + 4}px; left:${rect.left}px; width:15rem;`"
+       class="bg-card border border-border rounded-lg shadow-lg overflow-hidden z-50">
 
     <div class="p-2 border-b border-border">
       <input x-ref="search"
@@ -101,4 +119,5 @@ dropdown focused on member selection rather than mixing in a no-op
       {% endfor %}
     </div>
   </div>
+  </template>
 </div>

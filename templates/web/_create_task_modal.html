@@ -35,9 +35,9 @@ planned editor upgrade. Plain ``<textarea>`` keeps the modal snappy.
      }"
      @keydown.escape.window="close()"
      @acta:task-created.window="close()"
-     class="fixed inset-0 z-50 flex items-start justify-center pt-16 px-4 bg-black/60 backdrop-blur-sm"
+     class="acta-modal-backdrop"
      @click.self="close()">
-  <div class="w-full max-w-xl bg-card border border-border rounded-lg shadow-lg overflow-hidden"
+  <div class="acta-modal-panel max-w-xl"
        x-init="$nextTick(() => $refs.title.focus())">
     <form hx-post="{% url 'web:create_task' %}"
           hx-swap="none">

@@ -38,10 +38,12 @@ in context.
     {% elif task.priority == 4 %}text-sky-400
     {% else %}text-placeholder-foreground{% endif %}">
     <a href="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
+       {% open_task_modal_attrs task %}
        class="hover:brightness-125">{{ task.slug }}</a>
   </td>
   <td class="px-3 py-2 max-w-md">
     <a href="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
+       {% open_task_modal_attrs task %}
        class="block text-foreground hover:text-brand-400 truncate"
        title="{{ task.title }}">{{ task.title }}</a>
   </td>

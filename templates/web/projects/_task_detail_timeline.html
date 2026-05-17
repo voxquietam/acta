@@ -1,0 +1,29 @@
+{% load i18n %}
+{% comment %}
+Unified comments + activity timeline. Renders ``timeline`` from the
+view's context, a list of ``(kind, item)`` tuples sorted by
+``created_at`` ascending. ``kind`` is ``"comment"`` (item is a
+:class:`Comment`) or ``"event"`` (item is an :class:`ActivityLog`).
+
+Used by both the full-page task detail (replaces the separate
+Comments section + rail Activity panel) and the modal view. The
+comment form posts append a new ``<li>`` to ``#task-timeline-list`` via
+``hx-swap="beforeend"``; ``task_timeline_fragment`` refreshes the
+whole list when SSE peer-events fire.
+
+Comment events (``comment.created``) are filtered out upstream so each
+post appears once — as its full body, not as a one-line "added a
+comment" verb.
+{% endcomment %}
+<ul id="task-timeline-list" class="space-y-1">
+  {% for kind, item in timeline %}
+    {% if kind == "comment" %}
+      {% include "web/projects/_comment.html" with comment=item %}
+    {% else %}
+      {% include "web/projects/_activity_event.html" with event=item %}
+    {% endif %}
+  {% endfor %}
+</ul>
+{% if not timeline %}
+<div class="text-sm text-placeholder-foreground italic mt-2">{% trans "No activity yet." %}</div>
+{% endif %}

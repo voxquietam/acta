@@ -916,30 +916,32 @@
       document.body.dispatchEvent(new CustomEvent("acta:task-created", { bubbles: true }));
     });
 
-    // Activity-feed live refresh on the task detail page. The
-    // ``#activity-list`` element has ``hx-trigger="refresh"`` + a
-    // matching ``hx-get`` to its fragment endpoint, so we just need
-    // to dispatch the ``refresh`` event whenever an event mentions
-    // the current task. Works for direct task targets (target_id)
-    // and ``comment.*`` events (payload.task_id).
-    // Refresh helpers — dispatch a ``refresh`` custom event on the
-    // matching wrapper, which then runs its ``hx-get`` to fetch the
-    // updated fragment. Each wrapper carries a distinct ``data-...-
-    // for-task`` attribute so we only fire on events targeting the
-    // task currently open on this page.
+    // Live refresh on the task detail page. Each section wrapper
+    // carries a ``data-*-for-task`` attribute + ``hx-trigger="refresh"``
+    // + ``hx-get`` so we just dispatch the ``refresh`` event on the
+    // wrapper whose ``data-*-for-task`` matches the SSE event's task.
+    //
+    // ``querySelectorAll`` (not ``querySelector``) is intentional —
+    // when a task is open in modal-mode, the *same* task can also be
+    // visible in the underlying page (e.g. as a kanban card or table
+    // row). Each occurrence has its own wrapper; refreshing all of
+    // them is harmless and keeps every surface in sync.
     const refreshIf = (selector, attr, taskId) => {
-      const el = document.querySelector(selector);
-      if (!el || String(el.dataset[attr]) !== String(taskId)) return;
-      el.dispatchEvent(new CustomEvent("refresh"));
+      document.querySelectorAll(selector).forEach((el) => {
+        if (String(el.dataset[attr]) !== String(taskId)) return;
+        el.dispatchEvent(new CustomEvent("refresh"));
+      });
     };
-    const refreshActivity = (taskId) => refreshIf("#activity-list", "activityForTask", taskId);
-    const refreshMeta = (taskId) => refreshIf("#task-meta", "metaForTask", taskId);
+    const refreshTimeline = (taskId) => refreshIf("#task-timeline-wrap", "timelineForTask", taskId);
+    const refreshMeta = (taskId) => {
+      refreshIf("#task-meta", "metaForTask", taskId);
+      refreshIf("#task-meta-compact", "metaForTask", taskId);
+    };
     const refreshTitle = (taskId) => {
       refreshIf("#title-section", "titleForTask", taskId);
       refreshIf("#topbar-task-title", "titleTopbarForTask", taskId);
     };
     const refreshDescription = (taskId) => refreshIf("#description", "descriptionForTask", taskId);
-    const refreshComments = (taskId) => refreshIf("#comment-list", "commentsForTask", taskId);
 
     const taskEvents = [
       "task.status_changed",
@@ -951,7 +953,7 @@
     ];
     taskEvents.forEach((t) =>
       handle(t, (d) => {
-        refreshActivity(d.target_id);
+        refreshTimeline(d.target_id);
         refreshMeta(d.target_id);
       }),
     );
@@ -960,7 +962,7 @@
     // that actually changed rather than retemplating the whole page
     // on a stray rename.
     handle("task.updated", (d) => {
-      refreshActivity(d.target_id);
+      refreshTimeline(d.target_id);
       refreshMeta(d.target_id);
       const changes = d.changes || {};
       if (changes.title) refreshTitle(d.target_id);
@@ -969,8 +971,7 @@
     const commentEvents = ["comment.created", "comment.updated", "comment.deleted"];
     commentEvents.forEach((t) =>
       handle(t, (d) => {
-        refreshActivity(d.task_id);
-        refreshComments(d.task_id);
+        refreshTimeline(d.task_id);
       }),
     );
   }
@@ -980,6 +981,51 @@
     initWorkspaceSse();
   }
   document.body.addEventListener("htmx:afterSwap", initWorkspaceSse);
+
+  // Remember the URL we came from any time a click is about to open a
+  // modal-root surface. The task-detail modal shell uses this on close
+  // to ``history.replaceState`` back without triggering popstate
+  // (which would conflict with hx-boost on the sidebar). We capture
+  // on ``click`` in the capture phase — runs *before* HTMX intercepts
+  // the click and before ``hx-push-url`` rewrites the address bar, so
+  // ``window.location.href`` is still the original page (project list,
+  // all tasks, full task page, wherever the user came from).
+  //
+  // We save on every modal-root opener — create-task / bulk-archive
+  // close paths don't read this variable, so the harmless write is OK.
+  document.body.addEventListener(
+    "click",
+    (evt) => {
+      const opener = evt.target.closest && evt.target.closest('[hx-target="#modal-root"]');
+      if (!opener) return;
+      if (evt.ctrlKey || evt.metaKey || evt.shiftKey || evt.button !== 0) return;
+      window._actaModalReturnTo = window.location.href;
+    },
+    true,
+  );
+
+  // Themed tooltips — convert every ``title="…"`` to ``data-tooltip``
+  // (+ ``aria-label`` if unset) so the CSS rule in ``main.css`` renders
+  // a card-coloured pop on hover instead of the OS's default black /
+  // yellow chrome. Run on initial load and after every HTMX swap so
+  // fragments fetched on demand (modal body, cell partials, comments)
+  // pick it up too. Idempotent — skips elements already converted.
+  function themeTooltips(root) {
+    if (!root || !root.querySelectorAll) return;
+    root.querySelectorAll("[title]:not([data-tooltip])").forEach((el) => {
+      const t = el.getAttribute("title");
+      if (!t) return;
+      el.setAttribute("data-tooltip", t);
+      if (!el.getAttribute("aria-label")) el.setAttribute("aria-label", t);
+      el.removeAttribute("title");
+    });
+  }
+  themeTooltips(document.body);
+  document.body.addEventListener("htmx:afterSwap", () => themeTooltips(document.body));
+  // Alpine x-teleport / x-show toggles can insert nodes outside the
+  // HTMX swap path. Cheap belt: re-scan whenever Alpine processes a
+  // tree (event fires after each Alpine ``x-init`` / DOM change).
+  document.addEventListener("alpine:initialized", () => themeTooltips(document.body));
 
   // Shared Alpine store for the filter sidebar's open / collapsed state.
   // Drives both the sidebar itself (collapsed button vs full form) and
