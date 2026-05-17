@@ -147,7 +147,7 @@ planned editor upgrade. Plain ``<textarea>`` keeps the modal snappy.
             {% for label in labels %}
             <label x-data="{ on: false }"
                    :data-state="on ? 'on' : 'off'"
-                   class="acta-label-pill inline-flex items-center gap-1.5 px-2 py-1 rounded-md cursor-pointer text-xs select-none"
+                   class="acta-label-pill cursor-pointer select-none"
                    style="--label-color: {{ label.color }};">
               {% comment %}
               Toggle is driven by the native ``<label>`` → ``<input>``
@@ -164,7 +164,7 @@ planned editor upgrade. Plain ``<textarea>`` keeps the modal snappy.
                    stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <polyline points="3.5 8.5 6.5 11.5 12.5 4.5"></polyline>
               </svg>
-              <span class="acta-label-pill-dot w-1.5 h-1.5 rounded-full shrink-0" style="background-color: {{ label.color }};"></span>
+              <span class="acta-label-pill-dot" style="background-color: {{ label.color }};"></span>
               <span>{{ label.name }}</span>
             </label>
             {% endfor %}

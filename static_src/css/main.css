@@ -411,13 +411,29 @@ html.dark .acta-rail-tip {
 
    Notably no ``font-weight`` change on toggle: that's what was
    pushing the row around when Vox toggled a pill. */
+/* Label pill — unified look across filter sidebar, task row, table
+   row hover popover, task-detail rail, and create-task modal.
+
+   Dimensions / typography are baked into the class so every site
+   renders identical pills. Sites only add ``--label-color`` (the
+   per-label hex from the DB) and optional context modifiers
+   (overlap margin in the list view, excluded ring/strikethrough in
+   the filter sidebar). Dot child uses ``.acta-label-pill-dot``. */
 .acta-label-pill {
-  /* Tint over the current card surface — works in both themes. */
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;            /* 6px = gap-1.5 */
+  padding: 0.0625rem 0.5rem; /* ~1px / 8px */
+  border-radius: 0.375rem;   /* rounded-md */
+  font-size: 11px;
+  line-height: 1.45;
+  font-weight: 500;
   background-color: color-mix(in srgb, var(--label-color) 13%, rgb(var(--card)));
   border: 1px solid color-mix(in srgb, var(--label-color) 38%, transparent);
   color: rgb(var(--muted-foreground));
   transition: filter 80ms ease, color 80ms ease, background-color 80ms ease;
   position: relative;
+  white-space: nowrap;
 }
 .acta-label-pill:hover {
   filter: brightness(0.95);
@@ -434,11 +450,27 @@ html.dark .acta-label-pill:hover {
   box-shadow: 0 0 0 1px var(--label-color);
 }
 html.dark .acta-label-pill[data-state="on"] {
-  background-color: var(--label-color);
   filter: none;
-  color: white;
-  border-color: var(--label-color);
-  box-shadow: 0 0 0 1px var(--label-color);
+}
+
+/* Coloured dot used inside ``.acta-label-pill`` and as a standalone
+   marker in compact contexts (table row cell, kanban card, search
+   dropdown rows). The ``box-shadow`` ring is the surrounding surface
+   (card) colour, so the dot reads cleanly against the pill's own
+   tint *and* against bare card backgrounds — same recipe works in
+   both placements. Inline ``style`` on the element sets the fill via
+   ``background-color`` (per-label hex). */
+.acta-label-pill-dot {
+  width: 0.5rem;        /* 8px */
+  height: 0.5rem;
+  border-radius: 9999px;
+  box-shadow: 0 0 0 1.5px rgb(var(--card));
+  flex-shrink: 0;
+}
+.acta-label-pill[data-state="on"] .acta-label-pill-dot {
+  /* On the saturated on-state background, ring against the saturated
+     colour would look halo'd. Switch the ring to white. */
+  box-shadow: 0 0 0 1.5px rgb(255 255 255 / 0.4);
 }
 .acta-label-pill-check {
   /* Reserved for a future explicit-on variant — currently brightness

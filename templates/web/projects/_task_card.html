@@ -39,7 +39,7 @@
       <span>{{ task.due_date|date:"M j" }}</span>
       {% endif %}
       {% for label in task.labels.all %}
-      <span class="w-2 h-2 rounded-full" style="background-color: {{ label.color }};" title="{{ label.name }}"></span>
+      <span class="acta-label-pill-dot" style="background-color: {{ label.color }};" title="{{ label.name }}"></span>
       {% endfor %}
     </div>
     {% if task.assignee %}

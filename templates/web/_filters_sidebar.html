@@ -259,9 +259,9 @@ Section visibility flags:
                   :class="{
                     'line-through opacity-60 ring-1 ring-rose-500/60': state === 'excluded',
                   }"
-                  class="acta-label-pill flex items-center gap-1 px-2 py-1 rounded-md text-[11px] transition"
+                  class="acta-label-pill"
                   style="--label-color: {{ label.color }};">
-              <span class="w-1.5 h-1.5 rounded-full" style="background-color: {{ label.color }};"></span>
+              <span class="acta-label-pill-dot" style="background-color: {{ label.color }};"></span>
               {{ label.name }}
             </span>
           </label>

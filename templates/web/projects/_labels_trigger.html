@@ -10,9 +10,9 @@ keeps the dropdown open across consecutive selections.
   {% if task.labels.all %}
   <div class="flex flex-wrap gap-1">
     {% for label in task.labels.all %}
-    <span class="acta-label-pill text-[11px] px-1.5 py-0.5 rounded flex items-center gap-1"
+    <span class="acta-label-pill"
           style="--label-color: {{ label.color }};">
-      <span class="w-1.5 h-1.5 rounded-full" style="background-color: {{ label.color }};"></span>
+      <span class="acta-label-pill-dot" style="background-color: {{ label.color }};"></span>
       <span>{{ label.name }}</span>
     </span>
     {% endfor %}
