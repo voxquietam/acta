@@ -32,12 +32,31 @@ def setup(db):
     return ws.owner, project
 
 
+def _deadline_sections(resp):
+    """Return the deadline-axis sections list from a My Work response."""
+    return resp.context["list_sections_by_axis"]["deadline"]
+
+
 def _section(sections, key):
     """Look up a section by key in the view context list."""
     for s in sections:
         if s["key"] == key:
             return s
     raise AssertionError(f"section {key!r} not in {[s['key'] for s in sections]}")
+
+
+def _section_or_empty(sections, key):
+    """Look up a section by key, returning an empty task list if absent.
+
+    The grouping helper drops empty deadline buckets (except
+    ``recently_done`` which is pinned via ``keep_empty``), so tests that
+    expect "no task fell into this bucket" should accept the section
+    being missing entirely.
+    """
+    for s in sections:
+        if s["key"] == key:
+            return s
+    return {"key": key, "tasks": []}
 
 
 @pytest.mark.django_db
@@ -126,7 +145,7 @@ class TestMyWorkBucketing:
         )
         client.force_login(user)
         resp = client.get(reverse("web:my_work"))
-        ctx = resp.context["sections"]
+        ctx = _deadline_sections(resp)
         assert overdue in _section(ctx, "overdue")["tasks"]
         assert today_task in _section(ctx, "today")["tasks"]
         assert week_task in _section(ctx, "week")["tasks"]
@@ -155,7 +174,7 @@ class TestMyWorkBucketing:
         Task.objects.filter(pk=recent.pk).update(updated_at=now - datetime.timedelta(days=1))
         client.force_login(user)
         resp = client.get(reverse("web:my_work"))
-        ctx = resp.context["sections"]
+        ctx = _deadline_sections(resp)
         recently = _section(ctx, "recently_done")["tasks"]
         recent_titles = {t.title for t in recently}
         assert "recent_done" in recent_titles
@@ -183,7 +202,7 @@ class TestMyWorkBucketing:
         )
         client.force_login(user)
         resp = client.get(reverse("web:my_work"), {"status": "to-do"})
-        ctx = resp.context["sections"]
+        ctx = _deadline_sections(resp)
         recently = {t.title for t in _section(ctx, "recently_done")["tasks"]}
         assert "recent_done" not in recently
 
@@ -202,8 +221,8 @@ class TestMyWorkBucketing:
         )
         client.force_login(user)
         resp = client.get(reverse("web:my_work"))
-        ctx = resp.context["sections"]
-        overdue_titles = {t.title for t in _section(ctx, "overdue")["tasks"]}
+        ctx = _deadline_sections(resp)
+        overdue_titles = {t.title for t in _section_or_empty(ctx, "overdue")["tasks"]}
         assert "done_old_due" not in overdue_titles
         assert done_old_due in _section(ctx, "recently_done")["tasks"]
 

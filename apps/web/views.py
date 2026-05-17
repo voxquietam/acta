@@ -16,7 +16,6 @@ from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404
 from django.template.loader import render_to_string
 from django.utils import timezone
-from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_POST
 from django.views.generic import DetailView, ListView, TemplateView
 
@@ -180,18 +179,19 @@ def _get_user_task_or_404(user, slug_prefix, number):
     )
 
 
-def _my_work_sections(user, params):
-    """Group tasks assigned to ``user`` into deadline-aware buckets.
+def _my_work_tasks(user, params):
+    """Resolve the My Work task queryset for ``user``.
 
-    Querystring filters (``params``) narrow the base queryset before
-    bucketing — except the assignee filter, which is implicit (``me``).
-    Done tasks reach the queryset via the page's own
-    ``Q(status=DONE, updated_at>=cutoff)`` clause and are not stripped
-    by :func:`apply_task_filters` (``default_show_done=True``). If the
-    user picks specific statuses in the sidebar, those override.
+    Querystring filters (``params``) narrow the base queryset — except
+    the assignee filter, which is implicit (``me``). Done tasks reach
+    the queryset via the page-specific
+    ``Q(status=DONE, updated_at>=cutoff)`` clause so the "Recently done"
+    bucket stays populated without showing ancient done rows. If the
+    user picks specific statuses in the sidebar, those override the
+    open/recently-done split (``apply_task_filters`` honours the
+    selection). Grouping into sections is delegated to
+    :func:`apps.web.grouping.group_tasks`.
     """
-    today = timezone.localdate()
-    week_end = today + datetime.timedelta(days=6)
     done_cutoff = timezone.now() - datetime.timedelta(days=7)
     base = (
         Task.objects.filter(assignee=user)
@@ -202,48 +202,13 @@ def _my_work_sections(user, params):
         .prefetch_related("labels")
     )
     base = apply_task_filters(base, params, request_user=user)
-    tasks = list(
+    return list(
         base.order_by(
             F("due_date").asc(nulls_last=True),
             "-priority",
             "-updated_at",
         ),
     )
-    buckets = {
-        "overdue": [],
-        "today": [],
-        "week": [],
-        "later": [],
-        "no_deadline": [],
-        "recently_done": [],
-    }
-    for task in tasks:
-        if task.status == Task.STATUS_DONE:
-            buckets["recently_done"].append(task)
-            continue
-        if task.due_date is None:
-            buckets["no_deadline"].append(task)
-        elif task.due_date < today:
-            buckets["overdue"].append(task)
-        elif task.due_date == today:
-            buckets["today"].append(task)
-        elif task.due_date <= week_end:
-            buckets["week"].append(task)
-        else:
-            buckets["later"].append(task)
-    return [
-        {"key": "overdue", "label": _("Overdue"), "tone": "rose", "tasks": buckets["overdue"]},
-        {"key": "today", "label": _("Today"), "tone": "amber", "tasks": buckets["today"]},
-        {"key": "week", "label": _("This week"), "tone": "violet", "tasks": buckets["week"]},
-        {"key": "later", "label": _("Later"), "tone": "zinc", "tasks": buckets["later"]},
-        {"key": "no_deadline", "label": _("No deadline"), "tone": "zinc", "tasks": buckets["no_deadline"]},
-        {
-            "key": "recently_done",
-            "label": _("Recently done"),
-            "tone": "emerald",
-            "tasks": buckets["recently_done"],
-        },
-    ]
 
 
 class AllTasksView(LoginRequiredMixin, ListView):
@@ -369,17 +334,42 @@ class MyWorkView(LoginRequiredMixin, TemplateView):
         return ["web/my_work.html"]
 
     def render_to_response(self, context, **response_kwargs):
-        """Persist the ``show_archived`` toggle for the next visit."""
+        """Persist the ``show_archived`` + ``list_axis`` toggles."""
         response = super().render_to_response(context, **response_kwargs)
         _persist_archive_cookie(response, _params_with_archive_cookie(self.request))
+        if context.get("list_axis"):
+            response.set_cookie(
+                "acta_list_axis",
+                context["list_axis"],
+                max_age=60 * 60 * 24 * 365,
+                samesite="Lax",
+            )
         return response
 
     def get_context_data(self, **kwargs):
-        """Build the bucketed sections + filter sidebar context."""
+        """Build the list panel + filter sidebar context.
+
+        My Work has the same axis picker as All Tasks / project detail
+        but excludes the ``assignee`` axis (already implicitly the
+        current user). Default axis is ``deadline``.
+        """
         ctx = super().get_context_data(**kwargs)
         params = _params_with_archive_cookie(self.request)
-        ctx["sections"] = _my_work_sections(self.request.user, params)
-        ctx["has_any_tasks"] = any(section["tasks"] for section in ctx["sections"])
+        tasks = _my_work_tasks(self.request.user, params)
+        ctx["has_any_tasks"] = bool(tasks)
+        list_axis_keys = ("deadline", "status", "priority", "project")
+        list_axis = _resolve_list_axis(self.request, default="deadline", options=list_axis_keys)
+        ctx["list_axis"] = list_axis
+        ctx["list_axis_options"] = _list_axis_options(list_axis_keys, list_axis)
+        # Keep the recently_done bucket visible on the deadline axis
+        # even when empty — preserves the inbox layout My Work shipped
+        # with from day one.
+        ctx["list_sections_by_axis"] = {
+            "deadline": group_tasks(tasks, "deadline", request_user=self.request.user, keep_empty={"recently_done"}),
+            "status": group_tasks(tasks, "status", request_user=self.request.user),
+            "priority": group_tasks(tasks, "priority", request_user=self.request.user),
+            "project": group_tasks(tasks, "project", request_user=self.request.user),
+        }
         ctx.update(
             filter_sidebar_context(
                 self.request,

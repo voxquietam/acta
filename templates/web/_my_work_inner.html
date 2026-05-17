@@ -1,8 +1,11 @@
 {% load i18n %}
 {% load web_extras %}
 {% comment %}
-Inner fragment of My Work — bucketed sections, rendered both inside
-the full page on cold load and standalone for HTMX filter swaps.
+Inner fragment of My Work — grouped sections of task rows with the
+shared axis picker (deadline / status / priority / project; no
+assignee axis since My Work is implicitly the current user).
+Rendered both inside the full page on cold load and standalone for
+HTMX filter swaps.
 {% endcomment %}
 {# OOB filter-count badges only on HTMX swaps — on full page render #}
 {# they'd appear inline and stretch across the layout. The sidebar  #}
@@ -20,26 +23,5 @@ the full page on cold load and standalone for HTMX filter swaps.
   <p class="text-sm text-zinc-500 mt-1">{% trans "When someone assigns you a task it shows up here." %}</p>
 </div>
 {% else %}
-<div class="space-y-8">
-  {% for section in sections %}
-    {% if section.tasks %}
-    <section>
-      <div class="flex items-baseline gap-2 mb-3">
-        <h2 class="text-xs uppercase tracking-wider font-medium
-          {% if section.tone == 'rose' %}text-rose-400
-          {% elif section.tone == 'amber' %}text-amber-400
-          {% elif section.tone == 'violet' %}text-violet-400
-          {% elif section.tone == 'emerald' %}text-emerald-400
-          {% else %}text-zinc-500{% endif %}">{{ section.label }}</h2>
-        <span class="text-xs text-zinc-600">{{ section.tasks|length }}</span>
-      </div>
-      <ul class="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden divide-y divide-zinc-800">
-        {% for task in section.tasks %}
-        <li>{% include "web/_task_row.html" with task=task %}</li>
-        {% endfor %}
-      </ul>
-    </section>
-    {% endif %}
-  {% endfor %}
-</div>
+{% include "web/projects/_list_panel.html" %}
 {% endif %}
