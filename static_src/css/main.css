@@ -65,21 +65,21 @@
 
 /* Acta-specific tweaks that Tailwind utilities don't cover. */
 
-/* Global thin dark scrollbar — applies to every scrollable element
-   in the app (kanban columns, task list panel, filter sidebar lists,
+/* Global thin scrollbar — applies to every scrollable element in
+   the app (kanban columns, task list panel, filter sidebar lists,
    sidebar nav, ``main``, modals…). Browser default scrollbars look
-   off-palette on a dark theme, and the macOS default hides on
+   off-palette in either theme, and the macOS default hides on
    non-hover then pops in as an ugly white bar mid-interaction.
    ``.scrollbar-none`` opts an element out (top strips use that).
+
+   Colour tracks ``--border-strong`` (zinc-300 light / zinc-700 dark)
+   so the bar reads as part of the theme's border / chrome layer.
 
    Firefox uses the ``scrollbar-*`` properties; WebKit / Blink use
    the pseudo-element rules. Set both so every browser matches. */
 html {
   scrollbar-width: thin;
-  scrollbar-color: rgb(212 212 216) transparent; /* zinc-300 — light default */
-}
-html.dark {
-  scrollbar-color: rgb(63 63 70) transparent;    /* zinc-700 — dark override */
+  scrollbar-color: rgb(var(--border-strong)) transparent;
 }
 ::-webkit-scrollbar {
   width: 6px;
@@ -89,17 +89,11 @@ html.dark {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgb(212 212 216);   /* zinc-300 */
+  background: rgb(var(--border-strong));
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgb(161 161 170);   /* zinc-400 */
-}
-html.dark ::-webkit-scrollbar-thumb {
-  background: rgb(63 63 70);      /* zinc-700 */
-}
-html.dark ::-webkit-scrollbar-thumb:hover {
-  background: rgb(82 82 91);      /* zinc-600 */
+  background: rgb(var(--subtle-foreground));
 }
 
 .scrollbar-none {
@@ -193,8 +187,8 @@ main {
   content: none;
 }
 .prose code {
-  background-color: rgb(39 39 42);
-  color: rgb(229 231 235);
+  background-color: rgb(var(--muted));
+  color: rgb(var(--foreground));
   padding: 0.125rem 0.35rem;
   border-radius: 0.25rem;
   font-weight: 400;
@@ -231,7 +225,7 @@ main {
 /* TipTap placeholder for the empty editor: shown via a CSS pseudo-element
    when the first paragraph has no content. */
 .ProseMirror p.is-editor-empty:first-child::before {
-  color: rgb(82 82 91);
+  color: rgb(var(--placeholder-foreground));
   content: attr(data-placeholder);
   float: left;
   height: 0;
@@ -309,16 +303,12 @@ main {
 
 /* TipTap mounts a contenteditable whose default colour is the
    browser's text-fill (a faded gray on light surfaces, almost
-   invisible). Force explicit colours per theme so user input is
-   readable while typing — server-rendered ``.prose`` view inherits
+   invisible). Force the foreground token explicitly so user input
+   is readable while typing — server-rendered ``.prose`` view inherits
    from this same rule for the read-only state. */
 .ProseMirror,
-.prose:not(.dark\:prose-invert) {
-  color: rgb(24 24 27);                /* zinc-900 */
-}
-html.dark .ProseMirror,
-html.dark .prose {
-  color: rgb(228 228 231);             /* zinc-200 */
+.prose {
+  color: rgb(var(--foreground));
 }
 
 /* Highlight mark — yellow marker pen. Applies inside the TipTap
@@ -392,9 +382,9 @@ html.dark .acta-rail-active {
   padding: 0.25rem 0.5rem;
   font-size: 0.75rem;
   border-radius: 0.375rem;
-  background-color: white;
-  color: rgb(24 24 27);               /* zinc-900 */
-  border: 1px solid rgb(228 228 231); /* zinc-200 */
+  background-color: rgb(var(--card));
+  color: rgb(var(--foreground));
+  border: 1px solid rgb(var(--border));
   box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.15), 0 4px 6px -4px rgb(0 0 0 / 0.15);
   opacity: 0;
   visibility: hidden;
@@ -402,10 +392,7 @@ html.dark .acta-rail-active {
   transition: opacity 120ms ease, visibility 0s linear 120ms;
   transform: translateY(-50%);
 }
-.dark .acta-rail-tip {
-  background-color: rgb(24 24 27);   /* zinc-900 */
-  color: rgb(228 228 231);            /* zinc-200 */
-  border-color: rgb(39 39 42);       /* zinc-800 */
+html.dark .acta-rail-tip {
   box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.5), 0 4px 6px -4px rgb(0 0 0 / 0.5);
 }
 .acta-rail-tip.is-visible {
@@ -425,16 +412,20 @@ html.dark .acta-rail-active {
    Notably no ``font-weight`` change on toggle: that's what was
    pushing the row around when Vox toggled a pill. */
 .acta-label-pill {
-  /* Light mode: tint over white. */
-  background-color: color-mix(in srgb, var(--label-color) 12%, white);
-  border: 1px solid color-mix(in srgb, var(--label-color) 40%, transparent);
-  color: rgb(63 63 70);               /* zinc-700 */
+  /* Tint over the current card surface — works in both themes. */
+  background-color: color-mix(in srgb, var(--label-color) 13%, rgb(var(--card)));
+  border: 1px solid color-mix(in srgb, var(--label-color) 38%, transparent);
+  color: rgb(var(--muted-foreground));
   transition: filter 80ms ease, color 80ms ease, background-color 80ms ease;
   position: relative;
 }
 .acta-label-pill:hover {
   filter: brightness(0.95);
-  color: rgb(24 24 27);               /* zinc-900 */
+  color: rgb(var(--foreground));
+}
+html.dark .acta-label-pill:hover {
+  filter: brightness(1.25);
+  color: rgb(var(--foreground));
 }
 .acta-label-pill[data-state="on"] {
   background-color: var(--label-color);
@@ -442,16 +433,7 @@ html.dark .acta-rail-active {
   border-color: var(--label-color);
   box-shadow: 0 0 0 1px var(--label-color);
 }
-.dark .acta-label-pill {
-  background-color: color-mix(in srgb, var(--label-color) 13%, rgb(24 24 27));
-  border-color: color-mix(in srgb, var(--label-color) 33%, transparent);
-  color: rgb(212 212 216);            /* zinc-300 */
-}
-.dark .acta-label-pill:hover {
-  filter: brightness(1.25);
-  color: rgb(244 244 245);            /* zinc-100 */
-}
-.dark .acta-label-pill[data-state="on"] {
+html.dark .acta-label-pill[data-state="on"] {
   background-color: var(--label-color);
   filter: none;
   color: white;
@@ -475,8 +457,8 @@ html.dark .acta-rail-active {
   width: 0.9rem;
   height: 0.9rem;
   border-radius: 0.25rem;
-  background-color: white;
-  border: 1px solid rgb(212 212 216); /* zinc-300 */
+  background-color: rgb(var(--card));
+  border: 1px solid rgb(var(--border-strong));
   cursor: pointer;
   display: inline-grid;
   place-items: center;
@@ -485,14 +467,10 @@ html.dark .acta-rail-active {
   vertical-align: middle;
 }
 .acta-checkbox:hover {
-  border-color: rgb(161 161 170);    /* zinc-400 */
+  border-color: rgb(var(--subtle-foreground));
 }
-.dark .acta-checkbox {
-  background-color: rgb(39 39 42);   /* zinc-800 */
-  border-color: rgb(82 82 91);       /* zinc-600 */
-}
-.dark .acta-checkbox:hover {
-  border-color: rgb(113 113 122);    /* zinc-500 */
+html.dark .acta-checkbox {
+  background-color: rgb(var(--muted));
 }
 .acta-checkbox:checked {
   background-color: #9333ea;       /* brand-600 */

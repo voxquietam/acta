@@ -22,10 +22,9 @@
     })();
   </script>
 
-  {# Pre-compiled Tailwind stylesheet — replaces the Tailwind Play CDN. #}
-  {# Built by ``make build-css`` (or ``watch-css`` for dev). All custom  #}
-  {# rules from ``static/css/acta.css`` get imported into the same       #}
-  {# bundle, so this is the only stylesheet the page needs.              #}
+  {# Pre-compiled Tailwind stylesheet — replaces the Tailwind Play CDN.  #}
+  {# Built from ``static_src/css/main.css`` (Tailwind base/components/   #}
+  {# utilities + project-specific rules) via ``npm run build:css``.     #}
   <link rel="stylesheet" href="{% static 'css/main.bundle.css' %}">
 
   <script src="https://unpkg.com/htmx.org@2"></script>
