@@ -11,9 +11,12 @@ Alpine ``{open, q, ...}`` state stays mounted, so consecutive clicks
 keep the dropdown open and the search box keeps focus + its current
 query.
 
-Dropdown direction flips upward when the cell sits near the bottom of
-the viewport (under ~360px of space below), because the rail's
-``overflow-y-auto`` clips fixed-direction popovers at the bottom edge.
+The dropdown is teleported to ``<body>`` and positioned ``fixed`` from
+the trigger's bounding rect, so the rail's ``overflow-y-auto`` does not
+clip it. Flips upward when the trigger sits within ~360px of the
+viewport bottom. Closes on any scroll (any ancestor) to avoid the
+"floating popover detached from a scrolling trigger" gotcha — same UX
+as a native ``<select>``.
 
 Includes a client-side search input filtering labels by name
 substring (same UX as the assignee picker). Empty trigger uses a
@@ -25,41 +28,55 @@ assignee treatment.
        open: false,
        dropUp: false,
        q: '',
+       rect: { top: 0, left: 0, bottom: 0, width: 0 },
        matches(name) {
          return name.toLowerCase().includes(this.q.toLowerCase());
        },
-       togglePicker() {
-         if (!this.open) {
-           const rect = this.$el.getBoundingClientRect();
-           this.dropUp = (window.innerHeight - rect.bottom) < 360;
-         }
+       measure() {
+         const r = this.$refs.trigger.getBoundingClientRect();
+         this.rect = { top: r.top, left: r.left, bottom: r.bottom, width: r.width };
+         this.dropUp = (window.innerHeight - r.bottom) < 360;
+       },
+       toggle() {
+         if (!this.open) { this.measure(); }
          this.open = !this.open;
        },
      }"
-     class="relative">
+     x-init="
+       const onScroll = (e) => { if (open && !($refs.panel && $refs.panel.contains(e.target))) open = false; };
+       document.addEventListener('scroll', onScroll, true);
+       $cleanup(() => document.removeEventListener('scroll', onScroll, true));
+     "
+     @resize.window="if (open) open = false">
 
   <button type="button"
-          @click="togglePicker()"
+          x-ref="trigger"
+          @click="toggle()"
           class="text-left cursor-pointer w-full">
     {% include "web/projects/_labels_trigger.html" %}
   </button>
 
-  <div x-show="open"
-       @click.outside="open = false"
-       x-effect="if (open) $nextTick(() => $refs.search.focus())"
-       x-cloak
-       :class="dropUp ? 'bottom-full mb-1' : 'top-full mt-1'"
-       class="absolute left-0 w-60 bg-card border border-border rounded-lg shadow-lg overflow-hidden z-20">
+  <template x-teleport="body">
+    <div x-ref="panel"
+         x-show="open"
+         @click.outside="open = false"
+         x-effect="if (open) $nextTick(() => $refs.search.focus())"
+         x-cloak
+         :style="dropUp
+           ? `position:fixed; left:${rect.left}px; bottom:${window.innerHeight - rect.top + 4}px; width:15rem;`
+           : `position:fixed; left:${rect.left}px; top:${rect.bottom + 4}px; width:15rem;`"
+         class="bg-card border border-border rounded-lg shadow-lg overflow-hidden z-50">
 
-    <div class="p-2 border-b border-border">
-      <input x-ref="search"
-             x-model="q"
-             @keydown.escape.prevent="open = false"
-             type="text"
-             placeholder="{% trans 'Search labels…' %}"
-             class="w-full bg-muted border border-border-strong rounded px-2 py-1 text-xs text-foreground placeholder-zinc-500 focus:outline-none focus:border-brand-500">
+      <div class="p-2 border-b border-border">
+        <input x-ref="search"
+               x-model="q"
+               @keydown.escape.prevent="open = false"
+               type="text"
+               placeholder="{% trans 'Search labels…' %}"
+               class="w-full bg-muted border border-border-strong rounded px-2 py-1 text-xs text-foreground placeholder-placeholder-foreground focus:outline-none focus:border-brand-500">
+      </div>
+
+      {% include "web/projects/_labels_dropdown_inner.html" %}
     </div>
-
-    {% include "web/projects/_labels_dropdown_inner.html" %}
-  </div>
+  </template>
 </div>
