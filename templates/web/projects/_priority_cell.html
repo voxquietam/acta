@@ -15,7 +15,7 @@ to the equally-colored status badge).
             {% elif task.priority == 2 %}text-orange-400
             {% elif task.priority == 3 %}text-amber-400
             {% elif task.priority == 4 %}text-sky-400
-            {% else %}text-zinc-500{% endif %}">
+            {% else %}text-placeholder-foreground{% endif %}">
     {% if task.priority == 1 %}{% lucide "chevrons-up" "w-3.5 h-3.5" %}
     {% elif task.priority == 2 %}{% lucide "chevron-up" "w-3.5 h-3.5" %}
     {% elif task.priority == 3 %}{% lucide "minus" "w-3.5 h-3.5" %}
@@ -43,7 +43,7 @@ to the equally-colored status badge).
           {% elif priority_key == 2 %}text-orange-400
           {% elif priority_key == 3 %}text-amber-400
           {% elif priority_key == 4 %}text-sky-400
-          {% else %}text-zinc-500{% endif %}">
+          {% else %}text-placeholder-foreground{% endif %}">
           {% if priority_key == 1 %}{% lucide "chevrons-up" "w-3.5 h-3.5" %}
           {% elif priority_key == 2 %}{% lucide "chevron-up" "w-3.5 h-3.5" %}
           {% elif priority_key == 3 %}{% lucide "minus" "w-3.5 h-3.5" %}

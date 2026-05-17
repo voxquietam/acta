@@ -6,11 +6,11 @@
 {% block title %}{{ task.slug }} · {{ task.title }} · Acta{% endblock %}
 
 {% block topbar_left %}
-<a href="{% url 'web:project_list' %}" class="text-zinc-500 hover:text-foreground text-sm shrink-0">{% trans "Projects" %}</a>
-<span class="text-zinc-300 dark:text-zinc-700 shrink-0">/</span>
+<a href="{% url 'web:project_list' %}" class="text-placeholder-foreground hover:text-foreground text-sm shrink-0">{% trans "Projects" %}</a>
+<span class="text-border-strong shrink-0">/</span>
 <a href="{% url 'web:project_detail' slug_prefix=task.project.slug_prefix %}"
-   class="text-zinc-500 hover:text-foreground text-sm shrink-0">{{ task.project.slug_prefix }}</a>
-<span class="text-zinc-300 dark:text-zinc-700 shrink-0">/</span>
+   class="text-placeholder-foreground hover:text-foreground text-sm shrink-0">{{ task.project.slug_prefix }}</a>
+<span class="text-border-strong shrink-0">/</span>
 <h1 class="text-base font-medium font-mono shrink-0
   {% if task.priority == 1 %}text-rose-400
   {% elif task.priority == 2 %}text-orange-400
@@ -33,7 +33,7 @@ Both icons are hydrated by Lucide on page load and toggled via Alpine
           @click="navigator.clipboard.writeText(window.location.href).then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
           :title="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy task link' %}'"
           :aria-label="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy task link' %}'"
-          class="p-1 rounded hover:bg-muted text-zinc-500 hover:text-foreground transition">
+          class="p-1 rounded hover:bg-muted text-placeholder-foreground hover:text-foreground transition">
     <span x-show="!copied">{% lucide "link-2" "w-3.5 h-3.5" %}</span>
     <span x-show="copied" x-cloak class="text-emerald-400">{% lucide "check" "w-3.5 h-3.5" %}</span>
   </button>
@@ -42,7 +42,7 @@ Both icons are hydrated by Lucide on page load and toggled via Alpine
           @click="navigator.clipboard.writeText('{{ task.slug }}').then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
           :title="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy task ID' %}'"
           :aria-label="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy task ID' %}'"
-          class="p-1 rounded hover:bg-muted text-zinc-500 hover:text-foreground transition">
+          class="p-1 rounded hover:bg-muted text-placeholder-foreground hover:text-foreground transition">
     <span x-show="!copied">{% lucide "hash" "w-3.5 h-3.5" %}</span>
     <span x-show="copied" x-cloak class="text-emerald-400">{% lucide "check" "w-3.5 h-3.5" %}</span>
   </button>
@@ -93,7 +93,7 @@ wide. Single column on smaller screens (rail stacks below).
     {# Subtasks #}
     {% if subtasks %}
     <div id="subtasks">
-      <div class="text-xs uppercase tracking-wider text-zinc-500 mb-2">
+      <div class="text-xs uppercase tracking-wider text-placeholder-foreground mb-2">
         {% blocktrans count counter=subtasks|length %}Subtask{% plural %}Subtasks{% endblocktrans %}
         ({{ subtasks|length }})
       </div>
@@ -102,10 +102,10 @@ wide. Single column on smaller screens (rail stacks below).
         <li>
           <a href="{% url 'web:task_detail' slug_prefix=sub.project.slug_prefix number=sub.number %}"
              class="flex items-center gap-2 px-2 py-1 rounded hover:bg-muted text-sm">
-            <span class="font-mono text-xs text-zinc-500">{{ sub.slug }}</span>
-            <span class="flex-1 truncate {% if sub.status == 'done' %}line-through text-zinc-500{% endif %}">{{ sub.title }}</span>
+            <span class="font-mono text-xs text-placeholder-foreground">{{ sub.slug }}</span>
+            <span class="flex-1 truncate {% if sub.status == 'done' %}line-through text-placeholder-foreground{% endif %}">{{ sub.title }}</span>
             <span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded
-              {% if sub.status == 'planned' %}bg-muted text-zinc-500 dark:text-subtle-foreground
+              {% if sub.status == 'planned' %}bg-muted text-subtle-foreground
               {% elif sub.status == 'to-do' %}bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300
               {% elif sub.status == 'in-progress' %}bg-violet-100 dark:bg-violet-900 text-violet-700 dark:text-violet-300
               {% elif sub.status == 'in-review' %}bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300
@@ -121,7 +121,7 @@ wide. Single column on smaller screens (rail stacks below).
 
     {# Comments #}
     <div id="comments">
-      <div class="text-xs uppercase tracking-wider text-zinc-500 mb-2">
+      <div class="text-xs uppercase tracking-wider text-placeholder-foreground mb-2">
         {% blocktrans count counter=comments|length %}{{ counter }} comment{% plural %}{{ counter }} comments{% endblocktrans %}
       </div>
       {% comment %}
@@ -161,14 +161,14 @@ wide. Single column on smaller screens (rail stacks below).
   <aside class="mt-8 xl:mt-0 space-y-4 text-sm xl:sticky xl:top-0 xl:max-h-[calc(100vh-4rem)] xl:overflow-y-auto xl:pb-4">
 
     {# Jump links — visible only on lg+ where the rail is sticky #}
-    <div class="hidden lg:flex flex-wrap gap-3 text-[11px] text-zinc-500">
-      <a href="#description" class="hover:text-zinc-900 dark:hover:text-zinc-300">{% trans "Description" %}</a>
+    <div class="hidden lg:flex flex-wrap gap-3 text-[11px] text-placeholder-foreground">
+      <a href="#description" class="hover:text-foreground">{% trans "Description" %}</a>
       {% if subtasks %}
-      <a href="#subtasks" class="hover:text-zinc-900 dark:hover:text-zinc-300">
+      <a href="#subtasks" class="hover:text-foreground">
         {% trans "Subtasks" %} <span class="text-placeholder-foreground">{{ subtasks|length }}</span>
       </a>
       {% endif %}
-      <a href="#comments" class="hover:text-zinc-900 dark:hover:text-zinc-300">
+      <a href="#comments" class="hover:text-foreground">
         {% trans "Comments" %} <span class="text-placeholder-foreground">{{ comments|length }}</span>
       </a>
     </div>
@@ -196,7 +196,7 @@ wide. Single column on smaller screens (rail stacks below).
     * Full page reload as a fallback.
     {% endcomment %}
     <div>
-      <div class="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">{% trans "Activity" %}</div>
+      <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground mb-2">{% trans "Activity" %}</div>
       <div id="activity-list"
            data-activity-for-task="{{ task.id }}"
            hx-get="{% url 'web:task_activity_fragment' slug_prefix=task.project.slug_prefix number=task.number %}"

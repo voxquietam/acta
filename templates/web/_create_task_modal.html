@@ -47,7 +47,7 @@ planned editor upgrade. Plain ``<textarea>`` keeps the modal snappy.
       <header class="flex items-center justify-between px-4 py-3 border-b border-border">
         <h2 class="text-sm font-medium text-foreground">{% trans "New task" %}</h2>
         <button type="button" @click="close()"
-                class="p-1 rounded-md text-zinc-500 hover:text-foreground hover:bg-muted">
+                class="p-1 rounded-md text-placeholder-foreground hover:text-foreground hover:bg-muted">
           {% lucide "x" "w-4 h-4" %}
         </button>
       </header>
@@ -55,7 +55,7 @@ planned editor upgrade. Plain ``<textarea>`` keeps the modal snappy.
       <div class="p-4 space-y-3">
         {# Project picker — change triggers a refresh of the modal. #}
         <div>
-          <label class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Project" %}</label>
+          <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Project" %}</label>
           {% if projects %}
           <select name="project"
                   hx-get="{% url 'web:create_task' %}"
@@ -72,19 +72,19 @@ planned editor upgrade. Plain ``<textarea>`` keeps the modal snappy.
             {% endfor %}
           </select>
           {% else %}
-          <p class="mt-1 text-xs text-zinc-500 italic">{% trans "No accessible projects — ask an admin to add you to a workspace." %}</p>
+          <p class="mt-1 text-xs text-placeholder-foreground italic">{% trans "No accessible projects — ask an admin to add you to a workspace." %}</p>
           {% endif %}
         </div>
 
         <div>
-          <label class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Title" %}</label>
+          <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Title" %}</label>
           <input type="text" name="title" maxlength="200" required x-ref="title"
                  class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500"
                  placeholder="{% trans 'What needs to be done?' %}">
         </div>
 
         <div>
-          <label class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Description" %}</label>
+          <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Description" %}</label>
           <textarea name="description" rows="3"
                     class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500"
                     placeholder="{% trans 'Optional details…' %}"></textarea>
@@ -92,7 +92,7 @@ planned editor upgrade. Plain ``<textarea>`` keeps the modal snappy.
 
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Status" %}</label>
+            <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Status" %}</label>
             <select name="status"
                     class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500">
               {% for value, label in status_labels.items %}
@@ -101,7 +101,7 @@ planned editor upgrade. Plain ``<textarea>`` keeps the modal snappy.
             </select>
           </div>
           <div>
-            <label class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Priority" %}</label>
+            <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Priority" %}</label>
             <select name="priority"
                     class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500">
               {% for value, label in priority_labels.items %}
@@ -113,12 +113,12 @@ planned editor upgrade. Plain ``<textarea>`` keeps the modal snappy.
 
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Due date" %}</label>
+            <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Due date" %}</label>
             <input type="date" name="due_date"
                    class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500">
           </div>
           <div>
-            <label class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Assignee" %}</label>
+            <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Assignee" %}</label>
             <select name="assignee"
                     class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500">
               <option value="">{% trans "— Unassigned —" %}</option>
@@ -134,7 +134,7 @@ planned editor upgrade. Plain ``<textarea>`` keeps the modal snappy.
 
         {% if labels %}
         <div>
-          <label class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "Labels" %}</label>
+          <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Labels" %}</label>
           {% comment %}
           Linear-style clickable pills. The ``<input>`` is sr-only —
           submitted to the server like a normal checkbox, but the
@@ -174,14 +174,14 @@ planned editor upgrade. Plain ``<textarea>`` keeps the modal snappy.
       </div>
 
       <footer class="flex items-center justify-between gap-2 px-4 py-3 border-t border-border bg-subtle/60">
-        <label class="inline-flex items-center gap-2 text-xs text-zinc-500 dark:text-subtle-foreground cursor-pointer select-none">
+        <label class="inline-flex items-center gap-2 text-xs text-subtle-foreground cursor-pointer select-none">
           <input type="checkbox" :checked="openAfter" @change="toggleOpenAfter()"
                  class="acta-checkbox">
           {% trans "Open after create" %}
         </label>
         <div class="flex items-center gap-2">
           <button type="button" @click="close()"
-                  class="px-3 py-1.5 text-sm rounded-md text-zinc-500 dark:text-subtle-foreground hover:text-foreground hover:bg-muted">
+                  class="px-3 py-1.5 text-sm rounded-md text-subtle-foreground hover:text-foreground hover:bg-muted">
             {% trans "Cancel" %}
           </button>
           <button type="submit"

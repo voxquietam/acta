@@ -11,7 +11,7 @@ dropdown is the same endpoint, just adding.
 
   <ul class="flex flex-wrap gap-2">
     {% for member in members %}
-    <li class="group flex items-center gap-1.5 bg-muted/60 border border-zinc-200 dark:border-transparent rounded-full pl-1 pr-2 py-0.5 text-xs">
+    <li class="group flex items-center gap-1.5 bg-muted/60 border border-border dark:border-transparent rounded-full pl-1 pr-2 py-0.5 text-xs">
       <span class="w-5 h-5 rounded-full text-white grid place-items-center font-medium text-[10px]"
             style="background-color: {{ member.avatar_color }};">
         {{ member.display_name|slice:":1"|upper }}
@@ -65,11 +65,11 @@ dropdown is the same endpoint, just adding.
       </form>
       {% endif %}
       {% empty %}
-      <p class="px-3 py-2 text-xs text-zinc-500 italic">{% trans "No more workspace members." %}</p>
+      <p class="px-3 py-2 text-xs text-placeholder-foreground italic">{% trans "No more workspace members." %}</p>
       {% endfor %}
       {% with addable=workspace_members|length %}
       {% if addable == members|length %}
-      <p class="px-3 py-2 text-xs text-zinc-500 italic">{% trans "Everyone in the workspace is already a member." %}</p>
+      <p class="px-3 py-2 text-xs text-placeholder-foreground italic">{% trans "Everyone in the workspace is already a member." %}</p>
       {% endif %}
       {% endwith %}
     </div>

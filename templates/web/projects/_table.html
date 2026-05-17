@@ -34,7 +34,7 @@ clip overflowing text with an ellipsis instead of widening.
       <col style="width: 5%">                                   {# Due #}
       <col style="width: 6%">                                   {# Updated — header word needs the room #}
     </colgroup>
-    <thead class="bg-subtle/60 text-zinc-500 dark:text-subtle-foreground text-xs uppercase tracking-wider">
+    <thead class="bg-subtle/60 text-subtle-foreground text-xs uppercase tracking-wider">
       <tr>
         <th class="px-3 py-2 text-center">
           {% comment %}
@@ -115,7 +115,7 @@ clip overflowing text with an ellipsis instead of widening.
       {% for task in tasks %}{% include "web/projects/_table_row.html" %}{% empty %}
       <tr>
         <td colspan="{% if show_labels and show_project %}11{% elif show_labels or show_project %}10{% else %}9{% endif %}"
-            class="px-3 py-8 text-center text-sm text-zinc-500 italic">
+            class="px-3 py-8 text-center text-sm text-placeholder-foreground italic">
           {% trans "No tasks." %}
         </td>
       </tr>

@@ -6,7 +6,7 @@ the task page and as the HTMX append target when a new comment is
 posted from the inline form.
 {% endcomment %}
 <li class="bg-card border border-border rounded-lg p-3 max-w-3xl">
-  <div class="flex items-center gap-2 text-xs text-zinc-500 mb-1.5">
+  <div class="flex items-center gap-2 text-xs text-placeholder-foreground mb-1.5">
     <span class="w-5 h-5 rounded-full text-white grid place-items-center font-medium text-[10px]"
           style="background-color: {{ comment.author.avatar_color }};">
       {{ comment.author.display_name|slice:":1"|upper }}

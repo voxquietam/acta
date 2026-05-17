@@ -44,7 +44,7 @@ Pages extend this and override the `app_main` block.
          hx-select="#app-content"
          hx-swap="outerHTML show:top"
          hx-push-url="true"
-         class="hidden md:flex md:flex-col shrink-0 bg-zinc-50 border-r border-zinc-200 dark:bg-zinc-900 dark:border-zinc-800 transition-[width] duration-200">
+         class="hidden md:flex md:flex-col shrink-0 bg-subtle border-r border-border transition-[width] duration-200">
     {% comment %}
     Acta brand header. Collapses to just the "A" pill when the
     sidebar is in icon-rail mode so the row aligns vertically with
@@ -58,39 +58,35 @@ Pages extend this and override the `app_main` block.
         <span x-show="!$store.sidebar.open" x-cloak>A</span>
       </span>
       <span x-show="$store.sidebar.open" x-cloak
-            class="text-[10px] uppercase tracking-wider text-zinc-500">{% trans "task tracker" %}</span>
+            class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "task tracker" %}</span>
     </a>
 
     <div class="px-3 pt-4 pb-3 space-y-0.5 text-sm border-b border-border/60">
       {% with current=request.resolver_match.url_name %}
       <a href="{% url 'web:my_work' %}"
          :class="!$store.sidebar.open && 'justify-center'"
-         class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-200/60 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100
-         text-muted-foreground">
+         class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground">
         {% lucide "briefcase" "w-4 h-4 shrink-0" %}
         <span x-show="$store.sidebar.open" x-cloak>{% trans "My Work" %}</span>
         <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "My Work" %}</span>
       </a>
       <a href="{% url 'web:all_tasks' %}"
          :class="!$store.sidebar.open && 'justify-center'"
-         class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-200/60 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100
-         text-muted-foreground">
+         class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground">
         {% lucide "list-checks" "w-4 h-4 shrink-0" %}
         <span x-show="$store.sidebar.open" x-cloak>{% trans "All Tasks" %}</span>
         <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "All Tasks" %}</span>
       </a>
       <a href="{% url 'web:dashboard' %}"
          :class="!$store.sidebar.open && 'justify-center'"
-         class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-200/60 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100
-         text-muted-foreground">
+         class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground">
         {% lucide "layout-dashboard" "w-4 h-4 shrink-0" %}
         <span x-show="$store.sidebar.open" x-cloak>{% trans "Dashboard" %}</span>
         <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "Dashboard" %}</span>
       </a>
       <a href="{% url 'web:project_list' %}"
          :class="!$store.sidebar.open && 'justify-center'"
-         class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-200/60 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100
-         text-muted-foreground">
+         class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground">
         {% lucide "folders" "w-4 h-4 shrink-0" %}
         <span x-show="$store.sidebar.open" x-cloak>{% trans "Projects" %}</span>
         <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "Projects" %}</span>
@@ -102,7 +98,7 @@ Pages extend this and override the `app_main` block.
       {% for ws in nav_workspaces %}
       <div>
         <div x-show="$store.sidebar.open" x-cloak
-             class="px-2 mb-1 flex items-center justify-between text-xs uppercase tracking-wider text-zinc-500">
+             class="px-2 mb-1 flex items-center justify-between text-xs uppercase tracking-wider text-placeholder-foreground">
           <span class="truncate">{{ ws.name }}</span>
         </div>
         <ul class="space-y-0.5">
@@ -112,9 +108,9 @@ Pages extend this and override the `app_main` block.
             <a href="{% url 'web:project_detail' slug_prefix=project.slug_prefix %}"
                data-nav-prefix
                :class="!$store.sidebar.open && 'justify-center'"
-               class="acta-rail-link group relative flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-zinc-200/60 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 text-muted-foreground">
-              {% lucide project.icon|default:"folder" "w-3.5 h-3.5 text-zinc-500 dark:text-subtle-foreground shrink-0" %}
-              <span x-show="$store.sidebar.open" x-cloak class="font-mono text-xs text-zinc-500 dark:text-subtle-foreground">{{ project.slug_prefix }}</span>
+               class="acta-rail-link group relative flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground">
+              {% lucide project.icon|default:"folder" "w-3.5 h-3.5 text-subtle-foreground shrink-0" %}
+              <span x-show="$store.sidebar.open" x-cloak class="font-mono text-xs text-subtle-foreground">{{ project.slug_prefix }}</span>
               <span x-show="$store.sidebar.open" x-cloak class="truncate">{{ project.name }}</span>
               <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{{ project.slug_prefix }} · {{ project.name }}</span>
             </a>
@@ -126,15 +122,15 @@ Pages extend this and override the `app_main` block.
         </ul>
       </div>
       {% empty %}
-      <p x-show="$store.sidebar.open" x-cloak class="px-2 text-xs text-zinc-500">{% trans "no workspaces yet" %}</p>
+      <p x-show="$store.sidebar.open" x-cloak class="px-2 text-xs text-placeholder-foreground">{% trans "no workspaces yet" %}</p>
       {% endfor %}
     </nav>
 
-    <div class="px-3 py-3 border-t border-border text-xs text-zinc-500">
+    <div class="px-3 py-3 border-t border-border text-xs text-placeholder-foreground">
       <a href="/admin/"
          hx-boost="false"
          :class="!$store.sidebar.open && 'justify-center'"
-         class="acta-rail-link group relative flex items-center gap-2 hover:text-zinc-900 dark:hover:text-zinc-300">
+         class="acta-rail-link group relative flex items-center gap-2 hover:text-foreground">
         {% lucide "settings" "w-3.5 h-3.5 shrink-0" %}
         <span x-show="$store.sidebar.open" x-cloak>{% trans "Admin" %}</span>
         <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "Admin" %}</span>
@@ -164,7 +160,7 @@ Pages extend this and override the `app_main` block.
       <button type="button"
               @click="$store.sidebar.toggle()"
               :title="$store.sidebar.open ? '{% trans 'Hide sidebar' %}' : '{% trans 'Show sidebar' %}'"
-              class="hidden md:grid place-items-center p-1.5 rounded-md text-zinc-500 dark:text-subtle-foreground hover:bg-muted hover:text-foreground transition shrink-0">
+              class="hidden md:grid place-items-center p-1.5 rounded-md text-subtle-foreground hover:bg-muted hover:text-foreground transition shrink-0">
         <span x-show="$store.sidebar.open">{% lucide "panel-left-close" "w-4 h-4" %}</span>
         <span x-show="!$store.sidebar.open" x-cloak>{% lucide "panel-left-open" "w-4 h-4" %}</span>
       </button>
@@ -183,7 +179,7 @@ Pages extend this and override the `app_main` block.
                 hx-target="#modal-root"
                 hx-swap="innerHTML"
                 title="{% trans 'New task' %} (c)"
-                class="grid place-items-center p-1.5 rounded-md text-placeholder-foreground hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">
+                class="grid place-items-center p-1.5 rounded-md text-placeholder-foreground hover:bg-muted hover:text-foreground">
           {% lucide "plus" "w-4 h-4" %}
         </button>
 
@@ -191,7 +187,7 @@ Pages extend this and override the `app_main` block.
         <button type="button"
                 @click="$store.theme.toggle()"
                 :title="$store.theme.current === 'dark' ? '{% trans 'Switch to light mode' %}' : '{% trans 'Switch to dark mode' %}'"
-                class="grid place-items-center p-1.5 rounded-md text-placeholder-foreground hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">
+                class="grid place-items-center p-1.5 rounded-md text-placeholder-foreground hover:bg-muted hover:text-foreground">
           <span x-show="$store.theme.current === 'dark'">{% lucide "sun" "w-4 h-4" %}</span>
           <span x-show="$store.theme.current === 'light'" x-cloak>{% lucide "moon" "w-4 h-4" %}</span>
         </button>
@@ -199,7 +195,7 @@ Pages extend this and override the `app_main` block.
         {# Language switcher #}
         <div x-data="{ open: false }" class="relative">
           <button @click="open = !open"
-                  class="px-2 py-1.5 rounded-md text-sm text-zinc-500 dark:text-subtle-foreground hover:bg-muted hover:text-foreground uppercase tracking-wider">
+                  class="px-2 py-1.5 rounded-md text-sm text-subtle-foreground hover:bg-muted hover:text-foreground uppercase tracking-wider">
             {{ LANGUAGE_CODE|default:"en" }}
           </button>
           <div x-show="open" @click.outside="open = false" x-cloak
@@ -281,7 +277,7 @@ Pages extend this and override the `app_main` block.
        class="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-3 py-2 bg-card border border-border rounded-lg shadow-lg text-sm">
     <span class="text-muted-foreground">
       <span class="text-brand-600 dark:text-brand-400 font-medium" x-text="$store.selection.size"></span>
-      <span class="text-zinc-500">{% trans "selected" %}</span>
+      <span class="text-placeholder-foreground">{% trans "selected" %}</span>
     </span>
     <span class="w-px h-4 bg-muted"></span>
     <button type="button"
@@ -292,7 +288,7 @@ Pages extend this and override the `app_main` block.
     </button>
     <button type="button"
             @click="$store.selection.clear()"
-            class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-zinc-500 hover:text-rose-500 dark:hover:text-rose-400">
+            class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-placeholder-foreground hover:text-rose-500 dark:hover:text-rose-400">
       {% lucide "x" "w-3.5 h-3.5" %}
       {% trans "Clear" %}
     </button>

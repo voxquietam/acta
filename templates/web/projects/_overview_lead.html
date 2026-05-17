@@ -32,8 +32,8 @@ fragment. Empty value clears the lead.
     </span>
     <span class="text-foreground">{{ project.lead.display_name }}</span>
     {% else %}
-    <span class="w-5 h-5 rounded-full border border-dashed border-zinc-400 dark:border-zinc-600 grid place-items-center text-zinc-500 text-[10px]">?</span>
-    <span class="text-zinc-500 dark:text-subtle-foreground italic">{% trans "No lead set" %}</span>
+    <span class="w-5 h-5 rounded-full border border-dashed border-border-strong grid place-items-center text-placeholder-foreground text-[10px]">?</span>
+    <span class="text-subtle-foreground italic">{% trans "No lead set" %}</span>
     {% endif %}
   </button>
 
@@ -51,7 +51,7 @@ fragment. Empty value clears the lead.
         {% csrf_token %}
         <input type="hidden" name="lead_id" value="">
         <button type="submit"
-                class="w-full text-left px-3 py-1.5 text-xs hover:bg-muted text-zinc-500 italic border-b border-border">
+                class="w-full text-left px-3 py-1.5 text-xs hover:bg-muted text-placeholder-foreground italic border-b border-border">
           {% trans "Clear lead" %}
         </button>
       </form>
@@ -71,7 +71,7 @@ fragment. Empty value clears the lead.
             {{ member.display_name|slice:":1"|upper }}
           </span>
           <span class="flex-1">{{ member.display_name }}</span>
-          {% if project.lead_id == member.id %}<span class="text-zinc-500">✓</span>{% endif %}
+          {% if project.lead_id == member.id %}<span class="text-placeholder-foreground">✓</span>{% endif %}
         </button>
       </form>
       {% endfor %}

@@ -11,12 +11,12 @@
 <div class="space-y-8 max-w-6xl">
 
   <section>
-    <h2 class="text-sm font-medium text-zinc-500 dark:text-subtle-foreground mb-3">{% trans "Your workspaces" %}</h2>
+    <h2 class="text-sm font-medium text-subtle-foreground mb-3">{% trans "Your workspaces" %}</h2>
     <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
       {% for ws in nav_workspaces %}
       <div class="bg-card border border-border rounded-lg p-4">
         <div class="text-base font-medium">{{ ws.name }}</div>
-        <div class="text-xs text-zinc-500 mt-0.5">
+        <div class="text-xs text-placeholder-foreground mt-0.5">
           {% blocktrans count counter=ws.projects.count %}{{ counter }} project{% plural %}{{ counter }} projects{% endblocktrans %}
         </div>
       </div>
@@ -24,7 +24,7 @@
     </div>
   </section>
 
-  <section class="text-sm text-zinc-500">
+  <section class="text-sm text-placeholder-foreground">
     {% trans "Real-time activity feed, throughput charts, and workload widgets come next." %}
   </section>
 

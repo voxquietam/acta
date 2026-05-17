@@ -13,7 +13,7 @@ updates ``activeAxis`` + ``history.pushState`` so URLs stay shareable.
 <div data-scroll-target class="h-full overflow-y-auto scrollbar-none pb-4">
 
   <div class="flex items-center gap-3 mb-3 text-xs">
-    <span class="text-[10px] uppercase tracking-wider text-zinc-500 font-medium">{% trans "Group by" %}</span>
+    <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground font-medium">{% trans "Group by" %}</span>
     <nav class="flex items-center gap-1">
       {% for ax in list_axis_options %}
       <a href="?axis={{ ax.key }}"
@@ -26,7 +26,7 @@ updates ``activeAxis`` + ``history.pushState`` so URLs stay shareable.
          "
          :class="activeAxis === '{{ ax.key }}'
            ? 'bg-muted text-foreground'
-           : 'text-zinc-500 dark:text-subtle-foreground hover:text-foreground hover:bg-zinc-100/60 dark:hover:bg-muted/60'"
+           : 'text-subtle-foreground hover:text-foreground hover:bg-muted/60'"
          class="px-2 py-0.5 rounded-md transition">
         {{ ax.label }}
       </a>
@@ -50,7 +50,7 @@ updates ``activeAxis`` + ``history.pushState`` so URLs stay shareable.
             {% elif section.tone == 'blue' %}text-blue-400
             {% elif section.tone == 'orange' %}text-orange-400
             {% elif section.tone == 'sky' %}text-sky-400
-            {% else %}text-zinc-500{% endif %}">{{ section.label }}</h2>
+            {% else %}text-placeholder-foreground{% endif %}">{{ section.label }}</h2>
           <span class="text-xs text-placeholder-foreground">{{ section.tasks|length }}</span>
         </div>
         <ul class="bg-card border border-border rounded-lg overflow-hidden divide-y divide-zinc-200 dark:divide-zinc-800">
@@ -69,7 +69,7 @@ updates ``activeAxis`` + ``history.pushState`` so URLs stay shareable.
           {% lucide "list" "w-5 h-5" %}
         </div>
         <h2 class="text-lg font-medium text-muted-foreground">{% trans "No tasks match these filters" %}</h2>
-        <p class="text-sm text-zinc-500 mt-1">{% trans "Try a different group axis or clear filters." %}</p>
+        <p class="text-sm text-placeholder-foreground mt-1">{% trans "Try a different group axis or clear filters." %}</p>
       </div>
     </div>
     {% endif %}

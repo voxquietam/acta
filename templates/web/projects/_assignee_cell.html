@@ -43,8 +43,8 @@ dropdown focused on member selection rather than mixing in a no-op
       </div>
       {% else %}
       <div class="flex items-center gap-1.5">
-        <span class="w-5 h-5 rounded-full border border-dashed border-zinc-400 dark:border-zinc-600 grid place-items-center text-zinc-500 text-[10px]">?</span>
-        <span class="text-zinc-500">{% trans "Unassigned" %}</span>
+        <span class="w-5 h-5 rounded-full border border-dashed border-border-strong grid place-items-center text-placeholder-foreground text-[10px]">?</span>
+        <span class="text-placeholder-foreground">{% trans "Unassigned" %}</span>
       </div>
       {% endif %}
     </button>
@@ -95,7 +95,7 @@ dropdown focused on member selection rather than mixing in a no-op
             {{ member.user.display_name|slice:":1"|upper }}
           </span>
           <span class="flex-1">{{ member.user.display_name }}</span>
-          {% if task.assignee_id == member.user.id %}<span class="text-zinc-500">✓</span>{% endif %}
+          {% if task.assignee_id == member.user.id %}<span class="text-placeholder-foreground">✓</span>{% endif %}
         </button>
       </form>
       {% endfor %}
