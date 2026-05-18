@@ -92,12 +92,6 @@ INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-    # WhiteNoise serves ``STATIC_ROOT`` directly from the Python process.
-    # Must sit immediately after SecurityMiddleware and before anything
-    # else so static asset responses bypass the rest of the chain. In
-    # dev (``runserver``) Django's static-files finder still wins; in
-    # prod (uvicorn) this is the only thing serving ``/static/``.
-    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -223,24 +217,6 @@ LOCALE_PATHS = [
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "static_collected"
 STATICFILES_DIRS = [BASE_DIR / "static"]
-
-# WhiteNoise compressed + manifest storage:
-#   - Gzips assets at ``collectstatic`` time so responses ship as
-#     ``Content-Encoding: gzip`` without paying CPU per request.
-#   - Hashes filenames (``main.bundle.HASH.css``) so we can serve them
-#     with a far-future ``Cache-Control: max-age=31536000, immutable``
-#     header — the URL changes when the file changes, so stale caches
-#     are impossible.
-# The matching Django 5 ``STORAGES`` shape replaces the legacy
-# ``STATICFILES_STORAGE`` string.
-STORAGES = {
-    "default": {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
-    },
-    "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
-    },
-}
 
 
 # -----------------------------------------------------------------------------

@@ -38,3 +38,28 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = "DENY"
+
+# WhiteNoise — production only. Sits right after SecurityMiddleware so
+# static-file responses bypass the rest of the chain. In dev runserver
+# handles static itself, so this layer would only add scan-on-boot
+# overhead without value.
+MIDDLEWARE.insert(  # noqa: F405 — MIDDLEWARE comes from ``base.py``
+    MIDDLEWARE.index("django.middleware.security.SecurityMiddleware") + 1,  # noqa: F405
+    "whitenoise.middleware.WhiteNoiseMiddleware",
+)
+
+# Compressed manifest storage:
+#   - Gzips at ``collectstatic`` time → responses ship pre-compressed.
+#   - Hashes filenames so we can serve them ``immutable`` with
+#     ``Cache-Control: max-age=31536000``.
+# Skipped in dev because ``runserver`` doesn't run ``collectstatic`` on
+# every reload, so a manifest entry for every referenced ``{% static %}``
+# would be missing and pages would 500.
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
