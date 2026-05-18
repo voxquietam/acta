@@ -71,6 +71,101 @@ class TestCreateTaskGet:
         resp = client.get(reverse("web:create_task"))
         assert resp.status_code in (302, 301)
 
+    def test_title_prefilled_from_querystring(self, client, setup):
+        """``?title=`` survives the project-switch HTMX re-render."""
+        _, _, user = setup
+        client.force_login(user)
+        resp = client.get(reverse("web:create_task"), {"title": "Carry me"})
+        assert b'value="Carry me"' in resp.content
+
+    def test_description_prefilled_from_querystring(self, client, setup):
+        """Description value lands in the hidden editor-output input AND
+        the TipTap source textarea so the editor seeds with it."""
+        _, _, user = setup
+        client.force_login(user)
+        resp = client.get(
+            reverse("web:create_task"),
+            {"description": "**bold** text"},
+        )
+        body = resp.content.decode()
+        # Hidden input form-submit carrier.
+        assert 'value="**bold** text"' in body
+        # TipTap source textarea (HTML-escaped between tags).
+        assert "**bold** text" in body
+
+    def test_priority_prefilled_from_querystring(self, client, setup):
+        _, _, user = setup
+        client.force_login(user)
+        resp = client.get(reverse("web:create_task"), {"priority": "2"})
+        body = resp.content.decode()
+        # Priority 2 option carries ``selected``.
+        assert 'value="2" selected' in body or 'value="2"\n        selected' in body
+
+    def test_invalid_priority_falls_back_to_no_priority(self, client, setup):
+        _, _, user = setup
+        client.force_login(user)
+        resp = client.get(reverse("web:create_task"), {"priority": "abc"})
+        # No crash — page renders with priority 0 selected.
+        assert resp.status_code == 200
+
+    def test_due_date_prefilled_from_querystring(self, client, setup):
+        _, _, user = setup
+        client.force_login(user)
+        resp = client.get(reverse("web:create_task"), {"due_date": "2026-12-31"})
+        assert b'value="2026-12-31"' in resp.content
+
+    def test_assignee_preserved_when_member_of_new_project(self, client, setup):
+        """When the assignee is in the newly-picked project's workspace,
+        their id stays selected — typical project-switch flow."""
+        ws, project, user = setup
+        client.force_login(user)
+        resp = client.get(
+            reverse("web:create_task"),
+            {"project": project.slug_prefix, "assignee": str(user.id)},
+        )
+        body = resp.content.decode()
+        # Option with that id renders with ``selected``.
+        assert f'value="{user.id}"' in body
+        assert "selected" in body
+
+    def test_assignee_dropped_when_not_in_new_workspace(self, client, setup):
+        """If the assignee isn't a member of the new project's workspace,
+        the pre-fill silently drops it (submit would 400 otherwise)."""
+        ws, project, user = setup
+        # Foreign workspace + user who's only in that one.
+        from apps.workspaces.tests.factories import WorkspaceFactory
+
+        foreign_ws = WorkspaceFactory()
+        client.force_login(user)
+        resp = client.get(
+            reverse("web:create_task"),
+            {"project": project.slug_prefix, "assignee": str(foreign_ws.owner.id)},
+        )
+        body = resp.content.decode()
+        # The foreign user's id is NOT a member of ``ws`` so it can't be
+        # the selected option. The fallback (current user, who *is* a
+        # member) takes the selection instead.
+        # Just sanity-check no crash + the foreign id isn't selected.
+        assert resp.status_code == 200
+        # foreign user not in members list at all, so won't appear as
+        # ``selected``.
+        assert f'value="{foreign_ws.owner.id}" selected' not in body
+
+    def test_labels_preserved_for_workspace(self, client, setup):
+        """Labels from the project's workspace stay pre-checked."""
+        ws, project, user = setup
+        from apps.labels.tests.factories import LabelFactory
+
+        label = LabelFactory(workspace=ws)
+        client.force_login(user)
+        resp = client.get(
+            reverse("web:create_task"),
+            {"project": project.slug_prefix, "labels": str(label.id)},
+        )
+        body = resp.content.decode()
+        # Alpine ``x-data`` carries the on-state for that label.
+        assert "on: true" in body
+
 
 @pytest.mark.django_db
 class TestCreateTaskPost:
