@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% load i18n %}
 {% load lucide %}
+{% load static %}
 {% comment %}
 Shared shell for all authenticated pages: top bar + sidebar + main content.
 Pages extend this and override the `app_main` block.
@@ -53,12 +54,12 @@ Pages extend this and override the `app_main` block.
     <a href="{% url 'web:dashboard' %}"
        :class="$store.sidebar.open ? 'px-5 py-4 gap-2' : 'p-3 justify-center'"
        class="flex items-center">
-      <span class="text-lg font-semibold tracking-tight">
-        <span x-show="$store.sidebar.open" x-cloak>Acta</span>
-        <span x-show="!$store.sidebar.open" x-cloak>A</span>
+      <img src="{% static 'img/brand/logo-mark.svg' %}" alt="Acta"
+           class="w-7 h-7 shrink-0">
+      <span x-show="$store.sidebar.open" x-cloak class="flex items-center gap-2">
+        <span class="text-lg font-semibold tracking-tight">Acta</span>
+        <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "task tracker" %}</span>
       </span>
-      <span x-show="$store.sidebar.open" x-cloak
-            class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "task tracker" %}</span>
     </a>
 
     <div class="px-3 pt-4 pb-3 space-y-0.5 text-sm border-b border-border/60">

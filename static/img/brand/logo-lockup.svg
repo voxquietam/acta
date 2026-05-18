@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 64" width="220" height="64" role="img" aria-label="Acta">
+  <g transform="translate(0,0)">
+    <rect x="6" y="12" width="40" height="40" rx="8" fill="#2e44d6"></rect>
+    <g transform="translate(6,12) scale(0.625)">
+  <path d="M32 14 L52 50 L44 50 L32 28 L20 50 L12 50 Z" fill="#ffffff" stroke="#ffffff" stroke-width="0.5" stroke-linejoin="round"></path>
+  <path d="M24 39 L30 45 L42 33" fill="none" stroke="#ffffff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"></path>
+</g>
+  </g>
+  <text x="58" y="44" font-family="Play, Ubuntu, ui-sans-serif, system-ui, sans-serif" font-size="30" font-weight="700" letter-spacing="-0.5" fill="#f4f4f5">Acta</text>
+</svg>
