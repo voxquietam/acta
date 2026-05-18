@@ -15,6 +15,7 @@ browser back/forward keeps the active tab in sync.
        $store.viewMode.set('overview');
        const u = new URL(window.location);
        u.searchParams.set('view', 'overview');
+       u.searchParams.delete('axis');
        history.pushState({}, '', u);
      "
      :class="$store.viewMode.current === 'overview'
@@ -40,6 +41,7 @@ browser back/forward keeps the active tab in sync.
        $store.viewMode.set('kanban');
        const u = new URL(window.location);
        u.searchParams.set('view', 'kanban');
+       u.searchParams.delete('axis');
        history.pushState({}, '', u);
      "
      :class="$store.viewMode.current === 'kanban'
@@ -53,6 +55,7 @@ browser back/forward keeps the active tab in sync.
        $store.viewMode.set('table');
        const u = new URL(window.location);
        u.searchParams.set('view', 'table');
+       u.searchParams.delete('axis');
        history.pushState({}, '', u);
      "
      :class="$store.viewMode.current === 'table'
