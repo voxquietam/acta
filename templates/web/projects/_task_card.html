@@ -2,14 +2,13 @@
 {% load lucide %}
 {% load web_extras %}
 {% comment %}
-Single task card used inside a kanban column. Layout per
-``acta-design-system/preview/comp-task-card.html``: top meta strip
-(slug · priority · size · label dots aligned right), focal title
-(line-clamp 3), bottom strip separated by a thin border (due ·
-updated · avatar). Done state line-throughs the title and dims it.
-Subtask progress / blocked-by / live-edit pulse are design-system
-features Acta doesn't have data for yet — skipped here, captured as
-TODO entries on the design system follow-up list.
+Single task card used inside a kanban column. Layout follows the
+v3 design in ``acta-design-system/preview/comp-task-card-detail.html``:
+top strip (slug · priority · size), focal title (line-clamp 3), then
+optional full-name label pills on their own row, and a bottom strip
+(due · timesince · avatar) separated by a thin border. Subtask
+progress / blocked-by / live-edit pulse are design-system futures
+Acta doesn't have data for yet.
 {% endcomment %}
 <a href="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
    data-task-id="{{ task.id }}"
@@ -17,10 +16,10 @@ TODO entries on the design system follow-up list.
    data-task-title="{{ task.title }}"
    {% open_task_modal_attrs task %}
    {% task_filter_attrs task %}
-   class="block bg-card border border-border rounded-lg p-2.5 hover:border-border-strong transition group cursor-grab active:cursor-grabbing
+   class="block bg-card border border-border rounded-lg p-2.5 overflow-hidden hover:border-border-strong transition group cursor-grab active:cursor-grabbing
      {% if task.status == 'done' %}opacity-90{% endif %}">
 
-  <div class="flex items-center gap-1.5 text-[11px] text-placeholder-foreground">
+  <div class="flex items-center gap-1.5 text-[11px] text-placeholder-foreground min-w-0">
     <span class="font-mono">{{ task.slug }}</span>
     {% if task.priority %}
     <span class="inline-flex items-center
@@ -43,15 +42,6 @@ TODO entries on the design system follow-up list.
       {% lucide "gauge" "w-3 h-3" %}{{ task.size }}
     </span>
     {% endif %}
-    {% if task.labels.all %}
-    <span class="ml-auto inline-flex items-center gap-1">
-      {% for label in task.labels.all|slice:":4" %}
-      <span class="w-[7px] h-[7px] rounded-full"
-            style="background-color: {{ label.color }}; box-shadow: 0 0 0 1.5px rgb(var(--card));"
-            title="{{ label.name }}"></span>
-      {% endfor %}
-    </span>
-    {% endif %}
   </div>
 
   <div class="text-sm leading-snug mt-1.5 line-clamp-3
@@ -59,7 +49,21 @@ TODO entries on the design system follow-up list.
     {{ task.title }}
   </div>
 
-  <div class="flex items-center gap-2 mt-2 pt-2 border-t border-border text-[11px] text-placeholder-foreground">
+  {% if task.labels.all %}
+  <div class="flex flex-wrap items-center gap-1 mt-2 min-w-0">
+    {% for label in task.labels.all|slice:":3" %}
+    <span class="acta-label-pill" style="--label-color: {{ label.color }};">
+      <span class="acta-label-pill-dot" style="background-color: {{ label.color }};"></span>
+      <span>{{ label.name }}</span>
+    </span>
+    {% endfor %}
+    {% if task.labels.all|length > 3 %}
+    <span class="text-[10px] text-placeholder-foreground font-mono">+{{ task.labels.all|length|add:"-3" }}</span>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div class="flex items-center gap-2 mt-2 pt-2 border-t border-border text-[11px] text-placeholder-foreground min-w-0">
     {% if task.due_date %}
     <span class="inline-flex items-center gap-1 font-mono
       {% if today and task.due_date < today and task.status != 'done' %}text-rose-400
