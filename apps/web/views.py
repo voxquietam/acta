@@ -497,6 +497,16 @@ class ProjectListView(LoginRequiredMixin, ListView):
             .distinct()
         )
 
+    def get_context_data(self, **kwargs):
+        """Expose the user's favourite project ids so each card can
+        render its star toggle in the correct (starred / unstarred)
+        state without an N+1 lookup."""
+        ctx = super().get_context_data(**kwargs)
+        ctx["favourite_project_ids"] = set(
+            self.request.user.favourite_projects.values_list("id", flat=True),
+        )
+        return ctx
+
 
 class ProjectDetailView(LoginRequiredMixin, DetailView):
     """Project page with Kanban / Table view switching."""
@@ -1468,6 +1478,44 @@ def set_task_due_date(request, slug_prefix, number):
 
 @require_POST
 @login_required
+@require_POST
+@login_required
+def toggle_project_favourite(request, slug_prefix):
+    """Star / unstar a project from the user's favourites.
+
+    Sidebar nav lists only favourited projects. Project list cards
+    expose a star toggle that POSTs here; response is the freshly
+    rendered star button (so the icon flips state in place) plus an
+    OOB swap of the sidebar nav list so the new entry appears /
+    disappears live.
+    """
+    project = _get_user_project_or_404(request.user, slug_prefix)
+    user = request.user
+    if user.favourite_projects.filter(pk=project.pk).exists():
+        user.favourite_projects.remove(project)
+        is_favourite = False
+    else:
+        user.favourite_projects.add(project)
+        is_favourite = True
+    star_html = render_to_string(
+        "web/projects/_project_favourite_star.html",
+        {"project": project, "is_favourite": is_favourite},
+        request=request,
+    )
+    from apps.web.nav import get_nav_workspaces
+
+    nav = get_nav_workspaces(user)
+    sidebar_oob = render_to_string(
+        "web/_sidebar_favourites_oob.html",
+        {
+            "nav_workspaces": nav,
+            "nav_has_favourites": any(ws.favourite_projects for ws in nav),
+        },
+        request=request,
+    )
+    return HttpResponse(star_html + sidebar_oob)
+
+
 @require_POST
 @login_required
 def set_project_icon(request, slug_prefix):

@@ -1,7 +1,7 @@
 {% extends "base_app.html" %}
 {% load i18n %}
-
 {% load lucide %}
+{% load web_extras %}
 {% block title %}{% trans "Projects" %} · Acta{% endblock %}
 
 {% block topbar_left %}
@@ -13,10 +13,17 @@
 
   <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
     {% for project in projects %}
+    {% comment %}
+    Card wrapper is ``position: relative`` so the star toggle can
+    sit absolute at top-right without nesting a ``<form>`` inside
+    the ``<a>`` (invalid HTML and clicks would bubble to navigation).
+    Star button uses ``z-10`` to ride above the anchor.
+    {% endcomment %}
+    <div class="relative">
     <a href="{% url 'web:project_detail' slug_prefix=project.slug_prefix %}"
        class="block bg-card border border-border rounded-lg p-4 hover:border-border-strong transition">
       <div class="flex items-start justify-between gap-2">
-        <div class="min-w-0 flex-1">
+        <div class="min-w-0 flex-1 pr-8">
           <div class="flex items-center gap-1.5">
             <span class="shrink-0 {{ project.icon_color_class }}">
               {% lucide project.icon|default:"folder" "w-3.5 h-3.5" %}
@@ -69,6 +76,10 @@
         </span>
       </div>
     </a>
+    <div class="absolute top-2 right-2 z-10">
+      {% project_star project favourite_project_ids %}
+    </div>
+    </div>
     {% empty %}
     <div class="col-span-full text-sm text-placeholder-foreground italic py-12 text-center">
       {% trans "No projects yet. Create one in admin to get started." %}

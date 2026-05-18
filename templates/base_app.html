@@ -95,37 +95,51 @@ Pages extend this and override the `app_main` block.
     </div>
 
     <nav class="flex-1 overflow-y-auto px-3 py-3 space-y-6 text-sm">
-      {% for ws in nav_workspaces %}
-      <div>
-        <div x-show="$store.sidebar.open" x-cloak
-             class="px-2 mb-1 flex items-center justify-between text-xs uppercase tracking-wider text-placeholder-foreground">
-          <span class="truncate">{{ ws.name }}</span>
+      {% comment %}
+      Favourites list. Only renders projects the user has starred from
+      the Projects page — see ``apps.web.nav.get_nav_workspaces``. The
+      ``#sidebar-favourites`` wrapper is the OOB swap target for
+      ``toggle_project_favourite`` responses so the rail refreshes
+      live when a star toggles. Empty state renders when the user
+      hasn't starred anything yet.
+      {% endcomment %}
+      <div id="sidebar-favourites">
+        {% for ws in nav_workspaces %}
+        {% if ws.favourite_projects %}
+        <div>
+          <div x-show="$store.sidebar.open" x-cloak
+               class="px-2 mb-1 flex items-center justify-between text-xs uppercase tracking-wider text-placeholder-foreground">
+            <span class="truncate">{{ ws.name }}</span>
+          </div>
+          <ul class="space-y-0.5">
+            {% for project in ws.favourite_projects %}
+            <li>
+              <a href="{% url 'web:project_detail' slug_prefix=project.slug_prefix %}"
+                 data-nav-prefix
+                 :class="!$store.sidebar.open && 'justify-center'"
+                 class="acta-rail-link group relative flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground">
+                <span class="shrink-0 {{ project.icon_color_class }}" data-project-icon-for="{{ project.slug_prefix }}">
+                  {% lucide project.icon|default:"folder" "w-3.5 h-3.5" %}
+                </span>
+                <span x-show="$store.sidebar.open" x-cloak class="font-mono text-xs text-subtle-foreground">{{ project.slug_prefix }}</span>
+                <span x-show="$store.sidebar.open" x-cloak class="truncate">{{ project.name }}</span>
+                <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{{ project.slug_prefix }} · {{ project.name }}</span>
+              </a>
+            </li>
+            {% endfor %}
+          </ul>
         </div>
-        <ul class="space-y-0.5">
-          {% for project in ws.projects.all %}
-          {% if not project.archived %}
-          <li>
-            <a href="{% url 'web:project_detail' slug_prefix=project.slug_prefix %}"
-               data-nav-prefix
-               :class="!$store.sidebar.open && 'justify-center'"
-               class="acta-rail-link group relative flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground">
-              <span class="shrink-0 {{ project.icon_color_class }}" data-project-icon-for="{{ project.slug_prefix }}">
-                {% lucide project.icon|default:"folder" "w-3.5 h-3.5" %}
-              </span>
-              <span x-show="$store.sidebar.open" x-cloak class="font-mono text-xs text-subtle-foreground">{{ project.slug_prefix }}</span>
-              <span x-show="$store.sidebar.open" x-cloak class="truncate">{{ project.name }}</span>
-              <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{{ project.slug_prefix }} · {{ project.name }}</span>
-            </a>
-          </li>
-          {% endif %}
-          {% empty %}
-          <li x-show="$store.sidebar.open" x-cloak class="px-2 py-1 text-xs text-placeholder-foreground italic">{% trans "no projects yet" %}</li>
-          {% endfor %}
-        </ul>
+        {% endif %}
+        {% endfor %}
+
+        {% if not nav_has_favourites %}
+        <div x-show="$store.sidebar.open" x-cloak
+             class="px-2 py-3 text-xs text-placeholder-foreground italic flex items-start gap-2">
+          {% lucide "star" "w-3.5 h-3.5 mt-0.5 shrink-0" %}
+          <span>{% trans "Star a project from the Projects page to pin it here." %}</span>
+        </div>
+        {% endif %}
       </div>
-      {% empty %}
-      <p x-show="$store.sidebar.open" x-cloak class="px-2 text-xs text-placeholder-foreground">{% trans "no workspaces yet" %}</p>
-      {% endfor %}
     </nav>
 
     <div class="px-3 py-3 border-t border-border text-xs text-placeholder-foreground">

@@ -21,6 +21,16 @@ class User(AbstractUser):
         choices=settings.LANGUAGES,
         help_text="Preferred UI language. Overrides browser cookie and Accept-Language",
     )
+    favourite_projects = models.ManyToManyField(
+        "projects.Project",
+        blank=True,
+        related_name="favourited_by",
+        help_text=(
+            "Projects this user has starred for quick access. The sidebar nav lists "
+            "only these (with an empty-state CTA when the set is empty); the project "
+            "list page renders a toggle star on every card to maintain the set"
+        ),
+    )
 
     class Meta(AbstractUser.Meta):
         verbose_name = _("User")

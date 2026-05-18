@@ -28,6 +28,7 @@ from .views import (
     task_timeline_fragment,
     task_title_fragment,
     task_topbar_title_fragment,
+    toggle_project_favourite,
     toggle_project_member,
     toggle_task_label,
 )
@@ -56,6 +57,11 @@ urlpatterns = [
         "projects/<str:slug_prefix>/icon/",
         set_project_icon,
         name="set_project_icon",
+    ),
+    path(
+        "projects/<str:slug_prefix>/favourite/",
+        toggle_project_favourite,
+        name="toggle_project_favourite",
     ),
     path(
         "projects/<str:slug_prefix>/members/toggle/",

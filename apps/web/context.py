@@ -6,15 +6,16 @@ that nearly every page template needs (current user's workspaces and
 the projects inside them) without forcing each view to recompute it.
 """
 
-from apps.workspaces.models import Workspace
+from apps.web.nav import get_nav_workspaces
 
 
 def workspace_nav(request):
-    """Inject the request user's workspaces (with projects) into every template.
+    """Inject the request user's workspaces (with favourite projects).
 
-    Computes a single queryset with ``prefetch_related("projects")`` so
-    sidebar rendering stays O(1) in workspace and project count. Empty
-    dict for anonymous requests so login/error templates do not crash.
+    Workspaces carry a ``favourite_projects`` attribute populated by
+    :func:`apps.web.nav.get_nav_workspaces` — only starred, non-archived
+    projects in each workspace, ordered by name. Empty dict for
+    anonymous requests so login / error templates do not crash.
 
     Args:
         request: The current :class:`HttpRequest`.
@@ -25,10 +26,11 @@ def workspace_nav(request):
     """
     if not getattr(request, "user", None) or not request.user.is_authenticated:
         return {}
-    workspaces = list(
-        Workspace.objects.filter(memberships__user=request.user)
-        .prefetch_related("projects")
-        .order_by("name")
-        .distinct(),
-    )
-    return {"nav_workspaces": workspaces}
+    workspaces = get_nav_workspaces(request.user)
+    # Pre-compute the "any favourite anywhere" flag so the sidebar
+    # template doesn't fire a separate ``user.favourite_projects.all()``
+    # query just to decide whether to render the empty-state CTA.
+    return {
+        "nav_workspaces": workspaces,
+        "nav_has_favourites": any(ws.favourite_projects for ws in workspaces),
+    }

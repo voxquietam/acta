@@ -63,6 +63,28 @@ def task_filter_attrs(context, task):
     return mark_safe(attrs)
 
 
+@register.inclusion_tag("web/projects/_project_favourite_star.html")
+def project_star(project, favourite_ids):
+    """Render the project favourite-star toggle for a list card.
+
+    ``favourite_ids`` is the set of project ids the current user has
+    starred — passed once from the view (``ProjectListView`` adds
+    ``favourite_project_ids`` to context) so each card's render is a
+    set membership check, not a separate ``filter().exists()`` query.
+
+    Args:
+        project: The :class:`Project` being rendered.
+        favourite_ids: Iterable of project ids the user has favourited.
+
+    Returns:
+        Context dict for ``_project_favourite_star.html``.
+    """
+    return {
+        "project": project,
+        "is_favourite": project.id in (favourite_ids or set()),
+    }
+
+
 @register.simple_tag
 def open_task_modal_attrs(task):
     """Emit ``hx-*`` attributes that open the task in a modal on click.

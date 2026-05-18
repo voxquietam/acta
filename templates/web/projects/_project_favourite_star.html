@@ -1,0 +1,32 @@
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+Star toggle button for the project list. Expects ``project`` +
+``is_favourite`` (bool) in context — most callers go through the
+``{% project_star %}`` inclusion tag (see ``apps/web/templatetags/
+web_extras.py``) which computes ``is_favourite`` from a set of
+favourite ids without an extra query per row.
+
+Submits to ``toggle_project_favourite``; response includes this same
+partial (icon flips in place) plus an OOB swap of the sidebar nav so
+the newly starred project appears / disappears live in the rail.
+{% endcomment %}
+<form id="project-favourite-{{ project.slug_prefix }}"
+      hx-post="{% url 'web:toggle_project_favourite' slug_prefix=project.slug_prefix %}"
+      hx-target="#project-favourite-{{ project.slug_prefix }}"
+      hx-swap="outerHTML"
+      hx-swap-oob="outerHTML:#project-favourite-{{ project.slug_prefix }}"
+      class="inline-flex">
+  {% csrf_token %}
+  <button type="submit"
+          aria-label="{% if is_favourite %}{% trans 'Unstar project' %}{% else %}{% trans 'Star project' %}{% endif %}"
+          data-tooltip="{% if is_favourite %}{% trans 'Unstar' %}{% else %}{% trans 'Star' %}{% endif %}"
+          class="p-1 rounded-md hover:bg-muted transition
+                 {% if is_favourite %}text-amber-400{% else %}text-placeholder-foreground hover:text-foreground{% endif %}">
+    {% if is_favourite %}
+      {% lucide "star" "w-4 h-4 fill-current" %}
+    {% else %}
+      {% lucide "star" "w-4 h-4" %}
+    {% endif %}
+  </button>
+</form>
