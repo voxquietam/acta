@@ -57,7 +57,7 @@ x-data="{
               hx-target="#modal-root"
               hx-swap="innerHTML"
               hx-include="closest form"
-              class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500">
+              class="mt-1 acta-input">
         {% for project in projects %}
         <option value="{{ project.slug_prefix }}"
                 {% if selected_project and selected_project.slug_prefix == project.slug_prefix %}selected{% endif %}>
@@ -74,7 +74,7 @@ x-data="{
       <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Title" %}</label>
       <input type="text" name="title" maxlength="200" required x-ref="title"
              value="{{ pre_title|default:'' }}"
-             class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500"
+             class="mt-1 acta-input"
              placeholder="{% trans 'What needs to be done?' %}">
     </div>
 
@@ -102,7 +102,7 @@ x-data="{
       <div>
         <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Status" %}</label>
         <select name="status"
-                class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500">
+                class="mt-1 acta-input">
           {% for value, label in status_labels.items %}
           <option value="{{ value }}" {% if value == pre_status %}selected{% endif %}>{{ label }}</option>
           {% endfor %}
@@ -111,7 +111,7 @@ x-data="{
       <div>
         <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Priority" %}</label>
         <select name="priority"
-                class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500">
+                class="mt-1 acta-input">
           {% for value, label in priority_labels.items %}
           <option value="{{ value }}" {% if value == pre_priority %}selected{% endif %}>{{ label }}</option>
           {% endfor %}
@@ -124,12 +124,12 @@ x-data="{
         <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Due date" %}</label>
         <input type="date" name="due_date"
                value="{{ pre_due_date|default:'' }}"
-               class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500">
+               class="mt-1 acta-input">
       </div>
       <div>
         <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Assignee" %}</label>
         <select name="assignee"
-                class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500">
+                class="mt-1 acta-input">
           <option value="">{% trans "— Unassigned —" %}</option>
           {% for user in members %}
           <option value="{{ user.id }}"

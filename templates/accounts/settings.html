@@ -35,13 +35,13 @@
           <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "First name" %}</label>
           <input type="text" name="first_name" maxlength="150"
                  value="{{ request.user.first_name }}"
-                 class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500">
+                 class="mt-1 acta-input">
         </div>
         <div>
           <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Last name" %}</label>
           <input type="text" name="last_name" maxlength="150"
                  value="{{ request.user.last_name }}"
-                 class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500">
+                 class="mt-1 acta-input">
         </div>
       </div>
 
@@ -49,7 +49,7 @@
         <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Email" %}</label>
         <input type="email" disabled
                value="{{ request.user.email }}"
-               class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-placeholder-foreground cursor-not-allowed">
+               class="mt-1 acta-input">
         <p class="mt-1 text-[10px] text-placeholder-foreground">{% trans "Email changes go through the admin for now." %}</p>
       </div>
 
@@ -59,7 +59,7 @@
         <div>
           <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Language" %}</label>
           <select name="language"
-                  class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500">
+                  class="mt-1 acta-input">
             {% for code, label in languages %}
             <option value="{{ code }}" {% if code == request.user.language %}selected{% endif %}>{{ label }}</option>
             {% endfor %}

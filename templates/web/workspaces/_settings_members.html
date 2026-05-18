@@ -29,7 +29,7 @@ themselves only when they are also admin / owner per the guard in
         {% trans "Add member" %}
       </label>
       <select name="user_id" id="add-member-user" required
-              class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500">
+              class="mt-1 acta-input">
         <option value="">{% trans "Choose user…" %}</option>
         {% for candidate in candidates %}
         <option value="{{ candidate.id }}">
@@ -43,7 +43,7 @@ themselves only when they are also admin / owner per the guard in
         {% trans "Role" %}
       </label>
       <select name="role" id="add-member-role"
-              class="mt-1 bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500">
+              class="mt-1 acta-input">
         {% for value, label in role_choices %}
           {% if value != "owner" %}
           <option value="{{ value }}" {% if value == 'member' %}selected{% endif %}>{{ label }}</option>
@@ -92,7 +92,7 @@ themselves only when they are also admin / owner per the guard in
           {% csrf_token %}
           <select name="role"
                   @change="$el.closest('form').requestSubmit()"
-                  class="bg-muted border border-border-strong rounded-md px-2 py-1 text-xs text-foreground focus:outline-none focus:border-brand-500">
+                  class="acta-input px-2 py-1 text-xs">
             {% for value, label in role_choices %}
               {% if value != "owner" %}
               <option value="{{ value }}" {% if value == m.role %}selected{% endif %}>{{ label }}</option>

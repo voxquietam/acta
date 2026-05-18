@@ -677,6 +677,31 @@ select:-webkit-autofill {
   .acta-btn-icon:hover {
     @apply bg-muted text-foreground;
   }
+
+  /* Form input shell — primitives from
+     ``acta-design-system/preview/comp-input.html``. Hover deepens the
+     border, focus paints brand-500 + a translucent 3px ring via
+     box-shadow, and ``:invalid:not(:placeholder-shown)`` tints rose
+     (so an empty required field doesn't scream red until the user
+     touches it). Use on ``<input>``, ``<select>`` and ``<textarea>``
+     — same look, single class. */
+  .acta-input {
+    @apply w-full bg-muted border border-border-strong rounded-md px-3 py-1.5 text-sm text-foreground transition;
+  }
+  .acta-input:hover {
+    @apply border-placeholder-foreground;
+  }
+  .acta-input:focus {
+    @apply outline-none border-brand-500 bg-card;
+    box-shadow: 0 0 0 3px rgb(66 90 245 / 0.13);
+  }
+  .acta-input:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+  .acta-input:invalid:not(:placeholder-shown) {
+    @apply border-rose-500;
+    box-shadow: 0 0 0 3px rgb(244 63 94 / 0.1);
+  }
 }
 
 /* Per-row checkbox visibility in the task table. Hidden by default;

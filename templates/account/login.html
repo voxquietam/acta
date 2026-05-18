@@ -39,7 +39,7 @@ requirement appears.
     </label>
     <input type="text" name="login" id="id_login" autofocus required autocomplete="username"
            value="{{ form.login.value|default_if_none:'' }}"
-           class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500">
+           class="mt-1 acta-input">
     {% if form.login.errors %}
     <p class="mt-1 text-xs text-rose-400">{{ form.login.errors|join:" " }}</p>
     {% endif %}
@@ -50,7 +50,7 @@ requirement appears.
       {% trans "Password" %}
     </label>
     <input type="password" name="password" id="id_password" required autocomplete="current-password"
-           class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500">
+           class="mt-1 acta-input">
     {% if form.password.errors %}
     <p class="mt-1 text-xs text-rose-400">{{ form.password.errors|join:" " }}</p>
     {% endif %}

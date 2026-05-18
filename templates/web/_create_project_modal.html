@@ -75,7 +75,7 @@ x-data="{
               hx-target="#modal-root"
               hx-swap="innerHTML"
               hx-include="closest form"
-              class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500">
+              class="mt-1 acta-input">
         {% for ws in workspaces %}
         <option value="{{ ws.pk }}" {% if selected_workspace and selected_workspace.pk == ws.pk %}selected{% endif %}>
           {{ ws.name }}
@@ -96,7 +96,7 @@ x-data="{
              x-model="name"
              @input="syncSlug()"
              placeholder="{% trans 'Project name' %}"
-             class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500">
+             class="mt-1 acta-input">
     </div>
 
     <div>
@@ -112,7 +112,7 @@ x-data="{
              x-model="slug"
              @input="onSlugInput($event)"
              placeholder="ABC"
-             class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground font-mono uppercase focus:outline-none focus:border-brand-500">
+             class="mt-1 acta-input font-mono uppercase">
     </div>
 
     <div>
@@ -121,7 +121,7 @@ x-data="{
         <span class="text-placeholder-foreground/70 normal-case font-normal">({% trans "optional" %})</span>
       </label>
       <select name="lead" id="cp-lead"
-              class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500">
+              class="mt-1 acta-input">
         <option value="">{% trans "— No lead —" %}</option>
         {% for member in members %}
         <option value="{{ member.pk }}" {% if pre_lead_id and pre_lead_id == member.pk %}selected{% endif %}>
