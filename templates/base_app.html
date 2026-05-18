@@ -347,35 +347,51 @@ Pages extend this and override the `app_main` block.
   {% endif %}
 
   {% comment %}
-  Sticky action bar for bulk operations on selected tasks. Floats
-  above the bottom of the viewport when ``$store.selection.size``
-  is non-zero. Today only Archive is wired up; Move / Delete /
-  Label can land in the same bar later.
+  Floating bulk-action bar — appears centred-bottom when at least one
+  task is selected. Layout per
+  ``acta-design-system/preview/comp-bulk-bar.html``: brand-tinted count
+  chip on the left (white digit on a brand-600 square), thin 1px
+  dividers between action groups, and a glass background (zinc-900/95
+  + backdrop-blur) lifted off the page with a layered shadow and a
+  4px brand-glow outer ring + 1px brand-500/20 inset ring.
 
-  Archive opens a confirmation modal (peer ``#bulk-archive-confirm``
-  below) — the actual PATCH lives in ``window.actaBulkArchive()`` and
-  fires only after the user confirms.
+  Today only Archive is wired up; Status / Assign / Label / Due groups
+  from the design system land here once their bulk endpoints are
+  surfaced. Archive opens a confirmation modal (peer
+  ``#bulk-archive-confirm`` below) — the actual PATCH lives in
+  ``window.actaBulkArchive()`` and fires only after the user confirms.
   {% endcomment %}
   <div x-data
        x-show="$store.selection.size > 0"
        x-cloak
-       class="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-3 py-2 bg-card border border-border rounded-lg shadow-lg text-sm">
-    <span class="text-muted-foreground">
-      <span class="text-brand-600 dark:text-brand-400 font-medium" x-text="$store.selection.size"></span>
-      <span class="text-placeholder-foreground">{% trans "selected" %}</span>
-    </span>
-    <span class="w-px h-4 bg-muted"></span>
+       @keydown.escape.window="$store.selection.size > 0 && (document.getElementById('modal-root').innerHTML.trim() === '') && $store.selection.clear()"
+       class="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 inline-flex items-stretch gap-0.5 p-1.5 rounded-xl bg-zinc-900/95 border border-border-strong backdrop-blur-md text-[12.5px]"
+       style="box-shadow: 0 20px 40px -8px rgb(0 0 0 / 0.7), 0 6px 12px -4px rgb(0 0 0 / 0.4), inset 0 0 0 1px rgb(66 90 245 / 0.2), 0 0 0 4px rgb(66 90 245 / 0.06);">
+    <div class="inline-flex items-center gap-1.5 px-2.5 rounded-lg bg-brand-500/15 text-brand-300 font-mono text-[11px] font-medium">
+      <span class="text-sm font-bold text-white bg-brand-600 rounded px-1.5 py-0.5 leading-tight tabular-nums"
+            x-text="$store.selection.size"></span>
+      <span>{% trans "selected" %}</span>
+    </div>
+
+    <span class="w-px self-stretch bg-border-strong mx-1 my-1"></span>
+
     <button type="button"
             @click="$dispatch('acta:bulk-archive-confirm')"
-            class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground">
-      {% lucide "archive" "w-3.5 h-3.5" %}
+            class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-subtle-foreground hover:bg-muted hover:text-foreground transition text-xs">
+      <span class="text-placeholder-foreground group-hover:text-foreground">
+        {% lucide "archive" "w-3.5 h-3.5" %}
+      </span>
       {% trans "Archive" %}
     </button>
+
+    <span class="w-px self-stretch bg-border-strong mx-1 my-1"></span>
+
     <button type="button"
             @click="$store.selection.clear()"
-            class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-placeholder-foreground hover:text-rose-500 dark:hover:text-rose-400">
+            data-tooltip="{% trans 'Clear selection' %}"
+            class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-subtle-foreground hover:bg-muted hover:text-foreground transition text-xs">
       {% lucide "x" "w-3.5 h-3.5" %}
-      {% trans "Clear" %}
+      <kbd class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-zinc-800/60 border border-border text-placeholder-foreground">esc</kbd>
     </button>
   </div>
 
