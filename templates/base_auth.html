@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% comment %}
+Standalone shell for unauthenticated pages — no sidebar, no topbar.
+Used by allauth templates (``account/login.html``, ``account/signup_closed.html``)
+to render a centred card with the Acta wordmark. Pages extend this and
+override the ``auth_main`` block for the card body.
+
+Keep the visual language aligned with ``base_app.html`` — same tokens
+(``bg-card``, ``border-border``, ``bg-brand-600``) so a fresh user
+transitions smoothly into the app after logging in.
+{% endcomment %}
+
+{% block body %}
+<div class="min-h-screen w-full flex items-center justify-center px-4 py-12">
+  <div class="w-full mx-auto" style="max-width: 26rem;">
+    <a href="/" class="flex items-center justify-center gap-2 mb-6 text-foreground">
+      <span class="shrink-0 grid place-items-center w-10 h-10 rounded-lg bg-brand-600 text-white font-semibold text-base">A</span>
+      <span class="text-2xl font-semibold tracking-tight">Acta</span>
+    </a>
+
+    <div class="bg-card border border-border rounded-lg p-7 shadow-lg">
+      {% block auth_main %}{% endblock %}
+    </div>
+
+    {% block auth_footer %}{% endblock %}
+  </div>
+</div>
+{% endblock %}

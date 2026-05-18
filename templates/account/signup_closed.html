@@ -1,0 +1,27 @@
+{% extends "base_auth.html" %}
+{% load i18n %}
+{% load lucide %}
+
+{% comment %}
+Shown by allauth when ``is_open_for_signup`` returns False (see
+``apps.accounts.adapters.NoSignupAccountAdapter``). Friendly redirect
+to login for users who land on ``/accounts/signup/`` directly.
+{% endcomment %}
+
+{% block title %}{% trans "Registration closed" %} · Acta{% endblock %}
+
+{% block auth_main %}
+<div class="flex flex-col items-center text-center">
+  <span class="grid place-items-center w-12 h-12 rounded-full bg-muted text-placeholder-foreground mb-3">
+    {% lucide "lock" "w-5 h-5" %}
+  </span>
+  <h1 class="text-base font-medium text-foreground mb-1">{% trans "Registration is closed" %}</h1>
+  <p class="text-xs text-placeholder-foreground mb-4">
+    {% trans "Acta accounts are created by administrators. Reach out to an admin to be added to a workspace." %}
+  </p>
+  <a href="{% url 'account_login' %}"
+     class="px-4 py-1.5 text-sm rounded-md bg-brand-600 hover:bg-brand-500 text-white">
+    {% trans "Back to login" %}
+  </a>
+</div>
+{% endblock %}

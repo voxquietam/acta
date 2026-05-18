@@ -1,0 +1,79 @@
+{% extends "base_auth.html" %}
+{% load i18n %}
+
+{% comment %}
+Custom allauth login template — overrides ``allauth/templates/account/login.html``.
+Uses our dark/light Tailwind tokens so the page reads as part of Acta
+instead of the default allauth bootstrap.
+
+Form fields:
+- ``login`` is the unified email-or-username input (allauth derives this
+  from ``ACCOUNT_LOGIN_METHODS = {"email", "username"}`` in settings).
+- ``password`` is the password input.
+
+The ``remember`` checkbox is omitted because session cookies are
+already configured for the lifetime we want — adding a "remember me"
+toggle would create two competing session lifetimes for the user to
+reason about. Bring it back via ``{{ form.remember }}`` if/when the
+requirement appears.
+{% endcomment %}
+
+{% block title %}{% trans "Log in" %} · Acta{% endblock %}
+
+{% block auth_main %}
+<h1 class="text-base font-medium text-foreground mb-1">{% trans "Log in" %}</h1>
+<p class="text-xs text-placeholder-foreground mb-4">{% trans "Sign in with your Acta account." %}</p>
+
+<form method="post" action="{% url 'account_login' %}" class="space-y-3">
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+  <div class="text-xs text-rose-400 bg-rose-950/40 border border-rose-900 rounded-md px-2 py-1.5">
+    {{ form.non_field_errors|join:" " }}
+  </div>
+  {% endif %}
+
+  <div>
+    <label for="id_login" class="text-[10px] uppercase tracking-wider text-placeholder-foreground">
+      {% trans "Email or username" %}
+    </label>
+    <input type="text" name="login" id="id_login" autofocus required autocomplete="username"
+           value="{{ form.login.value|default_if_none:'' }}"
+           class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500">
+    {% if form.login.errors %}
+    <p class="mt-1 text-xs text-rose-400">{{ form.login.errors|join:" " }}</p>
+    {% endif %}
+  </div>
+
+  <div>
+    <label for="id_password" class="text-[10px] uppercase tracking-wider text-placeholder-foreground">
+      {% trans "Password" %}
+    </label>
+    <input type="password" name="password" id="id_password" required autocomplete="current-password"
+           class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500">
+    {% if form.password.errors %}
+    <p class="mt-1 text-xs text-rose-400">{{ form.password.errors|join:" " }}</p>
+    {% endif %}
+  </div>
+
+  {% if redirect_field_value %}
+  <input type="hidden" name="{{ redirect_field_name }}" value="{{ redirect_field_value }}">
+  {% endif %}
+
+  <div class="flex items-center justify-between pt-2">
+    <a href="{% url 'account_reset_password' %}" class="text-xs text-placeholder-foreground hover:text-foreground">
+      {% trans "Forgot password?" %}
+    </a>
+    <button type="submit"
+            class="px-4 py-1.5 text-sm rounded-md bg-brand-600 hover:bg-brand-500 text-white">
+      {% trans "Log in" %}
+    </button>
+  </div>
+</form>
+{% endblock %}
+
+{% block auth_footer %}
+<p class="mt-4 text-center text-[11px] text-placeholder-foreground">
+  {% trans "Account required — contact an admin if you need access." %}
+</p>
+{% endblock %}
