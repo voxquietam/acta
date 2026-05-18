@@ -1,14 +1,21 @@
 {% load i18n %}
+{% load lucide %}
 {% comment %}
-Project view tabs (Overview / Kanban / Table). Lives in the topbar
-``topbar_mid`` block on the project detail page, so the active tab is
-visible regardless of scroll. Clicking a tab updates the ``viewMode``
-Alpine store and pushes the new ``?view=`` URL via
+Project view tabs (Overview / Kanban / Table / List). Lives in the
+topbar ``topbar_mid`` block on the project detail page, so the active
+tab is visible regardless of scroll. Clicking a tab updates the
+``viewMode`` Alpine store and pushes the new ``?view=`` URL via
 ``history.pushState`` — no full nav, no HTMX request. The tabs'
-highlighted state is data-bound to the store so reverting via
-browser back/forward keeps the active tab in sync.
+highlighted state is data-bound to the store so reverting via browser
+back/forward keeps the active tab in sync.
+
+Layout per ``acta-design-system/preview/comp-tabs.html`` — segmented
+pill: card-coloured wrapper with thin padding holds each tab; the
+active tab is brand-tinted with a 1px inset ring and Lucide icons.
+Disabled placeholders (Timeline; Overview on All Tasks) keep the slot
+visible with a ``lock`` glyph.
 {% endcomment %}
-<nav x-data class="flex items-center gap-1 text-sm">
+<nav x-data class="inline-flex items-center bg-card border border-border rounded-lg p-1 gap-0.5 text-sm">
   {% if allow_overview %}
   <a href="?view=overview"
      @click.prevent="
@@ -19,9 +26,10 @@ browser back/forward keeps the active tab in sync.
        history.pushState({}, '', u);
      "
      :class="$store.viewMode.current === 'overview'
-       ? 'bg-muted text-foreground'
-       : 'text-subtle-foreground hover:text-foreground hover:bg-muted/60'"
-     class="px-2.5 py-1 rounded-md transition">
+       ? 'bg-brand-500/15 text-brand-300 ring-1 ring-brand-500/30 ring-inset'
+       : 'text-subtle-foreground hover:text-foreground hover:bg-muted/50'"
+     class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md transition">
+    {% lucide "layout-grid" "w-3.5 h-3.5" %}
     {% trans "Overview" %}
   </a>
   {% else %}
@@ -31,8 +39,9 @@ browser back/forward keeps the active tab in sync.
   correlation dashboards (workload, deadline pressure, priority
   churn). Kept in the nav so the future is visible.
   {% endcomment %}
-  <span class="px-2.5 py-1 rounded-md text-placeholder-foreground cursor-not-allowed select-none"
+  <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-placeholder-foreground cursor-not-allowed select-none opacity-60"
         title="{% trans 'Coming soon' %}">
+    {% lucide "layout-grid" "w-3.5 h-3.5" %}
     {% trans "Overview" %}
   </span>
   {% endif %}
@@ -45,9 +54,10 @@ browser back/forward keeps the active tab in sync.
        history.pushState({}, '', u);
      "
      :class="$store.viewMode.current === 'kanban'
-       ? 'bg-muted text-foreground'
-       : 'text-subtle-foreground hover:text-foreground hover:bg-muted/60'"
-     class="px-2.5 py-1 rounded-md transition">
+       ? 'bg-brand-500/15 text-brand-300 ring-1 ring-brand-500/30 ring-inset'
+       : 'text-subtle-foreground hover:text-foreground hover:bg-muted/50'"
+     class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md transition">
+    {% lucide "kanban" "w-3.5 h-3.5" %}
     {% trans "Kanban" %}
   </a>
   <a href="?view=table"
@@ -59,9 +69,10 @@ browser back/forward keeps the active tab in sync.
        history.pushState({}, '', u);
      "
      :class="$store.viewMode.current === 'table'
-       ? 'bg-muted text-foreground'
-       : 'text-subtle-foreground hover:text-foreground hover:bg-muted/60'"
-     class="px-2.5 py-1 rounded-md transition">
+       ? 'bg-brand-500/15 text-brand-300 ring-1 ring-brand-500/30 ring-inset'
+       : 'text-subtle-foreground hover:text-foreground hover:bg-muted/50'"
+     class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md transition">
+    {% lucide "table-2" "w-3.5 h-3.5" %}
     {% trans "Table" %}
   </a>
   <a href="?view=list"
@@ -72,21 +83,24 @@ browser back/forward keeps the active tab in sync.
        history.pushState({}, '', u);
      "
      :class="$store.viewMode.current === 'list'
-       ? 'bg-muted text-foreground'
-       : 'text-subtle-foreground hover:text-foreground hover:bg-muted/60'"
-     class="px-2.5 py-1 rounded-md transition">
+       ? 'bg-brand-500/15 text-brand-300 ring-1 ring-brand-500/30 ring-inset'
+       : 'text-subtle-foreground hover:text-foreground hover:bg-muted/50'"
+     class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md transition">
+    {% lucide "list" "w-3.5 h-3.5" %}
     {% trans "List" %}
   </a>
 
   {% comment %}
   Disabled placeholder for the future Gantt-style timeline view —
-  see [[project-todo-timeline-view]]. Stays in the nav so the slot is
-  visible and Vox doesn't forget it's planned. ``pointer-events-none``
-  + ``cursor-not-allowed`` blocks interaction; muted colour makes the
+  see [[project-todo-timeline-view]]. Lucide ``lock`` glyph mirrors the
+  design-system's "coming soon" marker. ``pointer-events-none`` +
+  ``cursor-not-allowed`` blocks interaction; muted colour makes the
   disabled state read at a glance.
   {% endcomment %}
-  <span class="px-2.5 py-1 rounded-md text-placeholder-foreground cursor-not-allowed select-none"
+  <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-placeholder-foreground cursor-not-allowed select-none opacity-60"
         title="{% trans 'Coming soon' %}">
+    {% lucide "clock" "w-3.5 h-3.5" %}
     {% trans "Timeline" %}
+    {% lucide "lock" "w-3 h-3 opacity-70" %}
   </span>
 </nav>
