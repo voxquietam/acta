@@ -1,0 +1,93 @@
+{% extends "base_app.html" %}
+{% load i18n %}
+{% load lucide %}
+
+{% block title %}{% trans "Settings" %} · Acta{% endblock %}
+
+{% block topbar_left %}
+<h1 class="text-base font-medium shrink-0">{% trans "Settings" %}</h1>
+{% endblock %}
+
+{% block app_main %}
+<div class="max-w-2xl mx-auto w-full space-y-6">
+
+  {# ----- Profile section ----- #}
+  <section class="bg-card border border-border rounded-lg p-4">
+    <header class="flex items-center gap-3 mb-4">
+      <h2 class="text-sm font-medium text-foreground">{% trans "Profile" %}</h2>
+    </header>
+    <form method="post" action="{% url 'accounts:settings' %}" class="space-y-3">
+      {% csrf_token %}
+
+      <div class="flex items-center gap-3">
+        <span class="w-12 h-12 rounded-full text-white grid place-items-center font-medium text-base shrink-0"
+              style="background-color: {{ request.user.avatar_color }};">
+          {{ request.user.display_name|slice:":1"|upper }}
+        </span>
+        <div class="text-xs text-placeholder-foreground">
+          <div>{% trans "Avatar colour is derived from your username." %}</div>
+          <div class="font-mono text-foreground">@{{ request.user.username }}</div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "First name" %}</label>
+          <input type="text" name="first_name" maxlength="150"
+                 value="{{ request.user.first_name }}"
+                 class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500">
+        </div>
+        <div>
+          <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Last name" %}</label>
+          <input type="text" name="last_name" maxlength="150"
+                 value="{{ request.user.last_name }}"
+                 class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500">
+        </div>
+      </div>
+
+      <div>
+        <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Email" %}</label>
+        <input type="email" disabled
+               value="{{ request.user.email }}"
+               class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-placeholder-foreground cursor-not-allowed">
+        <p class="mt-1 text-[10px] text-placeholder-foreground">{% trans "Email changes go through the admin for now." %}</p>
+      </div>
+
+      {# ----- Preferences section (same form so one Save submits both) ----- #}
+      <div class="pt-4 mt-2 border-t border-border">
+        <h3 class="text-sm font-medium text-foreground mb-3">{% trans "Preferences" %}</h3>
+        <div>
+          <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Language" %}</label>
+          <select name="language"
+                  class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500">
+            {% for code, label in languages %}
+            <option value="{{ code }}" {% if code == request.user.language %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end pt-2">
+        <button type="submit"
+                class="px-3 py-1.5 text-sm rounded-md bg-brand-600 hover:bg-brand-500 text-white">
+          {% trans "Save changes" %}
+        </button>
+      </div>
+    </form>
+  </section>
+
+  {# ----- Session section ----- #}
+  <section class="bg-card border border-border rounded-lg p-4">
+    <h2 class="text-sm font-medium text-foreground mb-3">{% trans "Session" %}</h2>
+    <form method="post" action="{% url 'account_logout' %}">
+      {% csrf_token %}
+      <button type="submit"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md text-rose-400 hover:bg-muted">
+        {% lucide "log-out" "w-4 h-4" %}
+        {% trans "Log out" %}
+      </button>
+    </form>
+  </section>
+
+</div>
+{% endblock %}

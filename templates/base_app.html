@@ -192,29 +192,6 @@ Pages extend this and override the `app_main` block.
           <span x-show="$store.theme.current === 'light'" x-cloak>{% lucide "moon" "w-4 h-4" %}</span>
         </button>
 
-        {# Language switcher #}
-        <div x-data="{ open: false }" class="relative">
-          <button @click="open = !open"
-                  class="px-2 py-1.5 rounded-md text-sm text-subtle-foreground hover:bg-muted hover:text-foreground uppercase tracking-wider">
-            {{ LANGUAGE_CODE|default:"en" }}
-          </button>
-          <div x-show="open" @click.outside="open = false" x-cloak
-               class="absolute right-0 mt-2 w-32 bg-card border border-border rounded-md shadow-lg overflow-hidden">
-            {% get_available_languages as LANGUAGES %}
-            {% get_language_info_list for LANGUAGES as languages %}
-            {% for lang in languages %}
-            <form method="post" action="{% url 'accounts:set_language' %}">
-              {% csrf_token %}
-              <input type="hidden" name="language" value="{{ lang.code }}">
-              <button type="submit"
-                      class="w-full text-left px-3 py-2 text-sm hover:bg-muted {% if lang.code == LANGUAGE_CODE %}text-brand-600 dark:text-brand-500{% endif %}">
-                {{ lang.name_local }}
-              </button>
-            </form>
-            {% endfor %}
-          </div>
-        </div>
-
         {% if user.is_authenticated %}
         <div x-data="{ open: false }" class="relative">
           <button @click="open = !open"
@@ -227,10 +204,21 @@ Pages extend this and override the `app_main` block.
           </button>
           <div x-show="open" @click.outside="open = false" x-cloak
                class="absolute right-0 mt-2 w-44 bg-card border border-border rounded-md shadow-lg overflow-hidden">
-            <a href="/admin/" class="block px-3 py-2 text-sm hover:bg-muted">{% trans "Admin" %}</a>
-            <form method="post" action="{% url 'account_logout' %}">
+            <a href="{% url 'accounts:settings' %}"
+               class="flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted">
+              {% lucide "settings" "w-3.5 h-3.5" %}
+              {% trans "Settings" %}
+            </a>
+            <a href="/admin/" class="flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted">
+              {% lucide "shield" "w-3.5 h-3.5" %}
+              {% trans "Admin" %}
+            </a>
+            <form method="post" action="{% url 'account_logout' %}" class="border-t border-border">
               {% csrf_token %}
-              <button class="w-full text-left px-3 py-2 text-sm hover:bg-muted" type="submit">{% trans "Log out" %}</button>
+              <button class="w-full text-left flex items-center gap-2 px-3 py-2 text-sm text-rose-400 hover:bg-muted" type="submit">
+                {% lucide "log-out" "w-3.5 h-3.5" %}
+                {% trans "Log out" %}
+              </button>
             </form>
           </div>
         </div>

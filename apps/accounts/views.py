@@ -1,7 +1,9 @@
 """Account-related page views."""
 
 from django.conf import settings
+from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseBadRequest, HttpResponseRedirect
+from django.shortcuts import render
 from django.urls import reverse
 from django.utils import translation
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -65,3 +67,64 @@ def set_language(request):
         samesite=settings.LANGUAGE_COOKIE_SAMESITE,
     )
     return response
+
+
+@login_required
+def user_settings(request):
+    """Render the user-settings page or apply a profile update.
+
+    Hosts the profile fields (``first_name`` / ``last_name``) and the
+    preference fields (``language``) on a single page. The language
+    switcher used to live in the topbar; it's been moved here so the
+    topbar stays focused on workspace navigation. The same
+    ``set_language`` cookie + UI activation path is reused — the
+    settings POST just delegates to that view's helper logic so the
+    cookie + reload semantics stay identical.
+
+    GET → renders ``accounts/settings.html``.
+    POST → updates the user record, persists the language cookie if
+    the picked value changed, redirects back to ``/settings/`` (so a
+    hard refresh shows the new state) with a flash message ready for
+    the toast layer via ``HX-Trigger`` headers in a follow-up pass.
+    """
+    user = request.user
+    if request.method == "POST":
+        first = (request.POST.get("first_name") or "").strip()[:150]
+        last = (request.POST.get("last_name") or "").strip()[:150]
+        lang = (request.POST.get("language") or "").strip()
+        allowed = {code for code, _ in settings.LANGUAGES}
+        updates = []
+        if user.first_name != first:
+            user.first_name = first
+            updates.append("first_name")
+        if user.last_name != last:
+            user.last_name = last
+            updates.append("last_name")
+        lang_changed = False
+        if lang and lang in allowed and getattr(user, "language", "") != lang:
+            user.language = lang
+            updates.append("language")
+            lang_changed = True
+        if updates:
+            user.save(update_fields=updates)
+        response = HttpResponseRedirect(reverse("accounts:settings"))
+        if lang_changed:
+            translation.activate(lang)
+            response.set_cookie(
+                settings.LANGUAGE_COOKIE_NAME,
+                lang,
+                max_age=settings.LANGUAGE_COOKIE_AGE,
+                path=settings.LANGUAGE_COOKIE_PATH,
+                domain=settings.LANGUAGE_COOKIE_DOMAIN,
+                secure=settings.LANGUAGE_COOKIE_SECURE,
+                httponly=settings.LANGUAGE_COOKIE_HTTPONLY,
+                samesite=settings.LANGUAGE_COOKIE_SAMESITE,
+            )
+        return response
+    return render(
+        request,
+        "accounts/settings.html",
+        {
+            "languages": list(settings.LANGUAGES),
+        },
+    )
