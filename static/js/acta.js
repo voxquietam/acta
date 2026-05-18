@@ -313,6 +313,15 @@
       }
     });
     refreshFilterCountBadges(activeFilterCount(state));
+    // Kanban column counts reflect visible cards, not the server-side
+    // total — match the same logic the drag-and-drop handler uses
+    // after a successful drop. List-view section counts are
+    // server-rendered and not yet recomputed here (TODO).
+    document.querySelectorAll(".kanban-column").forEach((c) => {
+      const visible = c.querySelectorAll("[data-task-id]:not([hidden])").length;
+      const counter = c.parentElement?.querySelector("[data-column-count]");
+      if (counter) counter.textContent = String(visible);
+    });
     // Update ``acta_show_archived`` cookie so a hard refresh remembers
     // the toggle — server-side fallback path reads this on cold load.
     const oneYear = 60 * 60 * 24 * 365;

@@ -22,45 +22,71 @@ hides the native scrollbar without losing the "you can scroll" cue.
   drop target so users can drop a card into a folded Done).
   {% endcomment %}
   {% comment %}
-  Column accent colours match the status palette used in
-  ``_status_cell.html`` (top border + small dot in the header). The
-  background stays neutral so cards remain the visual focus.
+  Column header redesigned per acta-design-system/preview/comp-kanban-
+  column-head.html — "terminal voice": no top accent stripe, mono
+  uppercase status name, mono fraction-style count, status dot leading
+  the row. Background stays neutral so cards remain the visual focus.
   {% endcomment %}
   <div x-data
        :class="$store.kanban.isCollapsed('{{ col.key }}') ? 'w-10 self-start h-72' : 'w-72 max-h-[calc(100vh-12rem)]'"
-       class="shrink-0 bg-subtle/50 border border-border border-t-2 rounded-lg flex flex-col overflow-hidden
-         {% if col.key == 'planned' %}border-t-zinc-500
-         {% elif col.key == 'to-do' %}border-t-blue-500
-         {% elif col.key == 'in-progress' %}border-t-violet-500
-         {% elif col.key == 'in-review' %}border-t-amber-500
-         {% elif col.key == 'done' %}border-t-emerald-500{% endif %}">
+       class="shrink-0 bg-subtle/50 border border-border rounded-lg flex flex-col overflow-hidden">
 
     <div x-show="!$store.kanban.isCollapsed('{{ col.key }}')" x-cloak
-         class="shrink-0 border-b border-border flex items-center">
-      <button type="button"
-              @click="$store.kanban.toggle('{{ col.key }}')"
-              :data-tooltip="'{% trans 'Collapse column' %}'"
-              class="flex-1 px-3 py-2 text-xs uppercase tracking-wider hover:bg-muted/60 transition flex items-center justify-between">
-        <span class="flex items-center gap-1.5 text-muted-foreground">
-          <span class="w-1.5 h-1.5 rounded-full
+         class="shrink-0 border-b border-border bg-card/40 hover:bg-muted/40 transition-colors flex flex-col">
+      <div class="flex items-center">
+        <button type="button"
+                @click="$store.kanban.toggle('{{ col.key }}')"
+                :data-tooltip="'{% trans 'Collapse column' %}'"
+                class="flex-1 min-w-0 px-3 py-2 flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full shrink-0
             {% if col.key == 'planned' %}bg-zinc-500
             {% elif col.key == 'to-do' %}bg-blue-500
             {% elif col.key == 'in-progress' %}bg-violet-500
             {% elif col.key == 'in-review' %}bg-amber-500
             {% elif col.key == 'done' %}bg-emerald-500{% endif %}"></span>
-          {{ col.label }}
-        </span>
-        <span class="text-placeholder-foreground" data-column-count>{{ col.tasks|length }}</span>
-      </button>
-      {# Add new task in this column — pre-fills project + status. #}
-      <button type="button"
-              hx-get="{% url 'web:create_task' %}?project={{ project.slug_prefix }}&status={{ col.key }}"
-              hx-target="#modal-root"
-              hx-swap="innerHTML"
-              title="{% trans 'New task' %}"
-              class="grid place-items-center p-2 text-placeholder-foreground hover:text-foreground hover:bg-muted/60 transition">
-        {% lucide "plus" "w-3.5 h-3.5" %}
-      </button>
+          <span class="font-mono text-[11px] font-bold uppercase tracking-wider text-foreground truncate min-w-0">{{ col.label }}</span>
+          <span class="ml-auto shrink-0 font-mono text-[11px] text-subtle-foreground" data-column-count>{{ col.tasks|length }}</span>
+        </button>
+        {# Add new task in this column — pre-fills project + status. #}
+        <button type="button"
+                hx-get="{% url 'web:create_task' %}?project={{ project.slug_prefix }}&status={{ col.key }}"
+                hx-target="#modal-root"
+                hx-swap="innerHTML"
+                title="{% trans 'New task' %}"
+                class="grid place-items-center p-2 text-placeholder-foreground hover:text-foreground transition">
+          {% lucide "plus" "w-3.5 h-3.5" %}
+        </button>
+      </div>
+
+      {% comment %}
+      Sub-status line — overdue count on non-done columns, "++ N this
+      week" trend on the Done column. Avatar stack on the right shows
+      up to 4 unique assignees in this column. The whole row only
+      renders when there's something to say so calm columns stay
+      visually quiet.
+      {% endcomment %}
+      {% if col.overdue_count or col.done_this_week or col.active_avatars %}
+      <div class="px-3 pb-2 flex items-center justify-between font-mono text-[10px] -mt-1">
+        {% if col.overdue_count %}
+        <span class="text-rose-300">!! {{ col.overdue_count }} overdue</span>
+        {% elif col.key == 'done' and col.done_this_week %}
+        <span class="text-emerald-300">++ {{ col.done_this_week }} this week</span>
+        {% else %}
+        <span></span>
+        {% endif %}
+        {% if col.active_avatars %}
+        <div class="flex items-center">
+          {% for avatar in col.active_avatars %}
+          <span class="w-3.5 h-3.5 rounded-full text-white grid place-items-center text-[8px] font-medium -ml-1 first:ml-0"
+                style="background-color: {{ avatar.avatar_color }}; box-shadow: 0 0 0 1.5px rgb(var(--card));"
+                title="{{ avatar.display_name }}">
+            {{ avatar.display_name|slice:":1"|upper }}
+          </span>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
     </div>
 
     <button type="button"
@@ -68,16 +94,17 @@ hides the native scrollbar without losing the "you can scroll" cue.
             x-cloak
             @click="$store.kanban.toggle('{{ col.key }}')"
             :data-tooltip="'{% trans 'Expand column' %}'"
-            class="flex-1 px-3 py-2 text-xs uppercase tracking-wider hover:bg-muted/60 transition">
-      <div class="flex flex-col items-center gap-1.5 py-1">
-        <span class="text-placeholder-foreground text-[10px]" data-column-count>{{ col.tasks|length }}</span>
-        <span class="w-1.5 h-1.5 rounded-full
+            class="flex-1 px-3 py-2 hover:bg-muted/60 transition">
+      <div class="flex flex-col items-center gap-2 py-1">
+        <span class="font-mono text-[13px] font-bold text-foreground" data-column-count>{{ col.tasks|length }}</span>
+        <span class="w-2 h-2 rounded-full
           {% if col.key == 'planned' %}bg-zinc-500
           {% elif col.key == 'to-do' %}bg-blue-500
           {% elif col.key == 'in-progress' %}bg-violet-500
           {% elif col.key == 'in-review' %}bg-amber-500
           {% elif col.key == 'done' %}bg-emerald-500{% endif %}"></span>
-        <span class="text-muted-foreground whitespace-nowrap" style="writing-mode: vertical-rl; transform: rotate(180deg);">
+        <span class="font-mono text-[11px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap"
+              style="writing-mode: vertical-rl; transform: rotate(180deg);">
           {{ col.label }}
         </span>
       </div>

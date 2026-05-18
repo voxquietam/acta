@@ -357,14 +357,7 @@ class AllTasksView(LoginRequiredMixin, ListView):
                     -t.updated_at.timestamp(),
                 ),
             )
-            ctx["columns"] = [
-                {
-                    "key": status,
-                    "label": Task.STATUS_LABELS[status],
-                    "tasks": [t for t in kanban_tasks if t.status == status],
-                }
-                for status in Task.STATUS_VALUES
-            ]
+            ctx["columns"] = _build_kanban_columns(kanban_tasks)
             list_axis_keys = ("deadline", "status", "priority", "assignee", "project")
             list_axis = _resolve_list_axis(self.request, default="project", options=list_axis_keys)
             ctx["list_axis"] = list_axis
@@ -649,16 +642,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         if not table_only:
             kanban_tasks = list(base.order_by("status", "-priority", "-updated_at"))
             ctx["tasks"] = table_tasks if view_mode == "table" else kanban_tasks
-            columns = []
-            for status in Task.STATUS_VALUES:
-                columns.append(
-                    {
-                        "key": status,
-                        "label": Task.STATUS_LABELS[status],
-                        "tasks": [t for t in kanban_tasks if t.status == status],
-                    },
-                )
-            ctx["columns"] = columns
+            ctx["columns"] = _build_kanban_columns(kanban_tasks)
             list_axis_keys = ("deadline", "status", "priority", "assignee")
             list_axis = _resolve_list_axis(self.request, default="status", options=list_axis_keys)
             ctx["list_axis"] = list_axis
@@ -2099,6 +2083,50 @@ def _get_user_workspace_or_404(user, slug):
         Workspace.objects.filter(memberships__user=user),
         slug=slug,
     )
+
+
+def _build_kanban_columns(tasks, today=None):
+    """Build the 5 kanban column dicts from an already-materialised
+    task list — single pass over ``tasks`` bucketing by status and
+    accumulating per-column substatus stats (``overdue_count``,
+    ``active_avatars`` for the header avatar stack, ``done_this_week``
+    for the Done column trend line).
+
+    All in-memory work, no DB hits. ``tasks`` is whatever the caller
+    already paid for; this just shape-shifts it for the template.
+    """
+    today = today or datetime.date.today()
+    week_ago = today - datetime.timedelta(days=7)
+
+    buckets: dict[str, list] = {status: [] for status in Task.STATUS_VALUES}
+    overdue: dict[str, int] = {status: 0 for status in Task.STATUS_VALUES}
+    avatars: dict[str, dict[int, "User"]] = {status: {} for status in Task.STATUS_VALUES}
+    done_this_week = 0
+
+    for t in tasks:
+        status = t.status if t.status in buckets else None
+        if status is None:
+            continue
+        buckets[status].append(t)
+        if t.due_date and t.due_date < today and status != Task.STATUS_DONE:
+            overdue[status] += 1
+        col_avs = avatars[status]
+        if t.assignee_id and t.assignee_id not in col_avs and len(col_avs) < 4:
+            col_avs[t.assignee_id] = t.assignee
+        if status == Task.STATUS_DONE and t.updated_at.date() >= week_ago:
+            done_this_week += 1
+
+    return [
+        {
+            "key": status,
+            "label": Task.STATUS_LABELS[status],
+            "tasks": buckets[status],
+            "overdue_count": overdue[status],
+            "active_avatars": list(avatars[status].values()),
+            "done_this_week": done_this_week if status == Task.STATUS_DONE else 0,
+        }
+        for status in Task.STATUS_VALUES
+    ]
 
 
 def _workspace_member_or_none(user, workspace):
