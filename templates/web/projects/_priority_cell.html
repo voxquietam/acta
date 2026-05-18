@@ -23,6 +23,12 @@ to the equally-colored status badge).
        $cleanup(() => document.removeEventListener('scroll', onScroll, true));
      "
      @resize.window="if (open) open = false"
+     @keydown.window="
+       if (!open) return;
+       if (!'01234'.includes($event.key)) return;
+       const form = $refs.panel && $refs.panel.querySelector(`form[data-priority='${$event.key}']`);
+       if (form) { $event.preventDefault(); form.requestSubmit(); }
+     "
      class="inline-block">
   <button type="button"
           x-ref="trigger"
@@ -50,6 +56,7 @@ to the equally-colored status badge).
        class="bg-card border border-border rounded-lg shadow-lg overflow-hidden z-50">
     {% for priority_key, priority_label in priority_labels.items %}
     <form method="post"
+          data-priority="{{ priority_key }}"
           hx-post="{% url 'web:set_task_priority' slug_prefix=task.project.slug_prefix number=task.number %}"
           hx-target="#priority-cell"
           hx-swap="outerHTML"
@@ -71,7 +78,8 @@ to the equally-colored status badge).
           {% elif priority_key == 4 %}{% lucide "chevron-down" "w-3.5 h-3.5" %}
           {% else %}{% lucide "circle-dashed" "w-3.5 h-3.5" %}{% endif %}
         </span>
-        {{ priority_label }}
+        <span class="flex-1">{{ priority_label }}</span>
+        <kbd class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-muted text-subtle-foreground">{{ priority_key }}</kbd>
       </button>
     </form>
     {% endfor %}
