@@ -550,6 +550,24 @@ html.dark .acta-checkbox {
   opacity: 1;
 }
 
+/* Reset native focus outline on form controls — browsers default to a
+   thick coloured outline (Firefox pink, Chrome blue, Safari blue) that
+   clashes with our brand palette. Visual focus is delivered through the
+   ``focus:border-brand-500`` utility applied at each input site, so
+   removing the outline here keeps focus indication brand-coloured and
+   consistent across all themes / browsers. ``focus-visible`` covers
+   keyboard-only focus on browsers that implement it; ``focus`` covers
+   everything else. */
+input:focus,
+input:focus-visible,
+select:focus,
+select:focus-visible,
+textarea:focus,
+textarea:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
 /* Browser autofill paints native inputs with its own background (yellow
    on Chrome, blue on Safari) that ignores ``bg-muted``. The standard
    workaround is an inset ``box-shadow`` covering the autofilled cell
