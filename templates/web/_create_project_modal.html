@@ -1,0 +1,148 @@
+{% extends "web/_modal_shell.html" %}
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+Create-project modal. Loaded via HTMX (``hx-get`` from the "+ Create
+project" button on the project list page) into ``#modal-root`` in
+``base_app.html``.
+
+* Workspace dropdown change → ``hx-get`` refresh so the lead picker
+  re-populates against the newly-selected workspace's members. Same
+  pattern create-task uses.
+* ``name`` input drives ``slug_prefix`` via Alpine: first letters of
+  each word, capped at 6 characters. User can override; once they
+  type into slug_prefix manually it stops auto-syncing.
+* Description is plain textarea for v0.1.0 (no TipTap) — the editor
+  bundle is 500 KB and project descriptions don't need rich text yet.
+  Switch later if needed.
+* Submit → server returns ``HX-Redirect`` to the new project detail.
+
+ADR 0010 allows any workspace member to create projects, so no admin
+gate on the modal itself.
+{% endcomment %}
+
+{% block root_attrs %}
+x-data="{
+  name: '{{ pre_name|escapejs }}',
+  slug: '{{ pre_slug_prefix|escapejs }}',
+  manualSlug: {% if pre_slug_prefix %}true{% else %}false{% endif %},
+  syncSlug() {
+    if (this.manualSlug) return;
+    // First letter of each word, A-Z only, capped at 6.
+    const letters = (this.name || '')
+      .split(/\s+/)
+      .map(w => (w || '')[0] || '')
+      .join('')
+      .toUpperCase()
+      .replace(/[^A-Z]/g, '')
+      .slice(0, 6);
+    this.slug = letters;
+  },
+  onSlugInput(e) {
+    this.manualSlug = true;
+    this.slug = (e.target.value || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 6);
+    e.target.value = this.slug;
+  },
+  close() {
+    const root = document.getElementById('modal-root');
+    if (root) root.innerHTML = '';
+  },
+}"
+{% endblock %}
+
+{% block panel_class %}max-w-lg{% endblock %}
+
+{% block panel_attrs %}x-init="$nextTick(() => $refs.name.focus())"{% endblock %}
+
+{% block title %}<h2 class="text-sm font-medium text-foreground">{% trans "New project" %}</h2>{% endblock %}
+
+{% block body %}
+<form hx-post="{% url 'web:create_project' %}"
+      hx-swap="none">
+  {% csrf_token %}
+
+  <div class="p-4 space-y-3">
+
+    {# Workspace picker — only shown when user is in more than one workspace. #}
+    {% if workspaces|length > 1 %}
+    <div>
+      <label for="cp-workspace" class="text-[10px] uppercase tracking-wider text-placeholder-foreground">
+        {% trans "Workspace" %}
+      </label>
+      <select name="workspace" id="cp-workspace"
+              hx-get="{% url 'web:create_project' %}"
+              hx-trigger="change"
+              hx-target="#modal-root"
+              hx-swap="innerHTML"
+              hx-include="closest form"
+              class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500">
+        {% for ws in workspaces %}
+        <option value="{{ ws.pk }}" {% if selected_workspace and selected_workspace.pk == ws.pk %}selected{% endif %}>
+          {{ ws.name }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    {% elif selected_workspace %}
+    <input type="hidden" name="workspace" value="{{ selected_workspace.pk }}">
+    {% endif %}
+
+    <div>
+      <label for="cp-name" class="text-[10px] uppercase tracking-wider text-placeholder-foreground">
+        {% trans "Name" %}
+      </label>
+      <input type="text" name="name" id="cp-name" required maxlength="120"
+             x-ref="name"
+             x-model="name"
+             @input="syncSlug()"
+             placeholder="{% trans 'Project name' %}"
+             class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500">
+    </div>
+
+    <div>
+      <label for="cp-slug" class="text-[10px] uppercase tracking-wider text-placeholder-foreground">
+        {% trans "Slug prefix" %}
+        <span class="text-placeholder-foreground/70 normal-case font-normal">
+          ({% trans "2–6 uppercase letters, e.g. HRW for HRW-49" %})
+        </span>
+      </label>
+      <input type="text" name="slug_prefix" id="cp-slug" required
+             maxlength="6"
+             pattern="[A-Z]{2,6}"
+             x-model="slug"
+             @input="onSlugInput($event)"
+             placeholder="ABC"
+             class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground font-mono uppercase focus:outline-none focus:border-brand-500">
+    </div>
+
+    <div>
+      <label for="cp-lead" class="text-[10px] uppercase tracking-wider text-placeholder-foreground">
+        {% trans "Lead" %}
+        <span class="text-placeholder-foreground/70 normal-case font-normal">({% trans "optional" %})</span>
+      </label>
+      <select name="lead" id="cp-lead"
+              class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500">
+        <option value="">{% trans "— No lead —" %}</option>
+        {% for member in members %}
+        <option value="{{ member.pk }}" {% if pre_lead_id and pre_lead_id == member.pk %}selected{% endif %}>
+          {{ member.display_name }} (@{{ member.username }})
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+  </div>
+
+  <footer class="flex items-center justify-end gap-2 px-4 py-3 border-t border-border bg-subtle/60">
+    <button type="button" @click="close()"
+            class="px-3 py-1.5 text-sm rounded-md text-subtle-foreground hover:text-foreground hover:bg-muted">
+      {% trans "Cancel" %}
+    </button>
+    <button type="submit"
+            {% if not workspaces %}disabled{% endif %}
+            class="px-3 py-1.5 text-sm rounded-md bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50 disabled:cursor-not-allowed">
+      {% trans "Create project" %}
+    </button>
+  </footer>
+</form>
+{% endblock %}

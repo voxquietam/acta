@@ -1,0 +1,107 @@
+{% extends "web/_modal_shell.html" %}
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+Create-workspace modal. Loaded via HTMX (``hx-get`` from "+ New
+workspace" in the sidebar footer) into ``#modal-root`` in
+``base_app.html``.
+
+Any logged-in user can create a workspace and becomes its owner — no
+admin gate. Slug is optional: empty means "auto-generate from name"
+(server side via ``slugify`` + uniqueness suffix). The Alpine input
+sync mirrors the create-project flow but writes lowercase-hyphen
+slugs instead of uppercase-Latin prefixes.
+
+On success the server returns ``HX-Redirect`` to the new workspace's
+settings page so the user can start inviting members immediately.
+{% endcomment %}
+
+{% block root_attrs %}
+x-data="{
+  name: '{{ pre_name|escapejs }}',
+  slug: '{{ pre_slug|escapejs }}',
+  manualSlug: {% if pre_slug %}true{% else %}false{% endif %},
+  syncSlug() {
+    if (this.manualSlug) return;
+    // Lowercase + hyphens, strip non-[a-z0-9-]. Server re-runs slugify
+    // anyway; this is just a live preview for the user.
+    this.slug = (this.name || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .trim()
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-');
+  },
+  onSlugInput(e) {
+    this.manualSlug = true;
+    this.slug = (e.target.value || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, '')
+      .replace(/-+/g, '-');
+    e.target.value = this.slug;
+  },
+  close() {
+    const root = document.getElementById('modal-root');
+    if (root) root.innerHTML = '';
+  },
+}"
+{% endblock %}
+
+{% block panel_class %}max-w-md{% endblock %}
+
+{% block panel_attrs %}x-init="$nextTick(() => $refs.name.focus())"{% endblock %}
+
+{% block title %}<h2 class="text-sm font-medium text-foreground">{% trans "New workspace" %}</h2>{% endblock %}
+
+{% block body %}
+<form hx-post="{% url 'web:create_workspace' %}"
+      hx-swap="none">
+  {% csrf_token %}
+
+  <div class="p-4 space-y-3">
+
+    <div>
+      <label for="cw-name" class="text-[10px] uppercase tracking-wider text-placeholder-foreground">
+        {% trans "Name" %}
+      </label>
+      <input type="text" name="name" id="cw-name" required maxlength="120"
+             x-ref="name"
+             x-model="name"
+             @input="syncSlug()"
+             placeholder="{% trans 'Workspace name' %}"
+             class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500">
+    </div>
+
+    <div>
+      <label for="cw-slug" class="text-[10px] uppercase tracking-wider text-placeholder-foreground">
+        {% trans "Slug" %}
+        <span class="text-placeholder-foreground/70 normal-case font-normal">
+          ({% trans "URL identifier, lowercase letters / numbers / hyphens" %})
+        </span>
+      </label>
+      <input type="text" name="slug" id="cw-slug"
+             maxlength="60"
+             x-model="slug"
+             @input="onSlugInput($event)"
+             placeholder="{% trans 'auto-generated from name' %}"
+             class="mt-1 w-full bg-muted border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground font-mono focus:outline-none focus:border-brand-500">
+    </div>
+
+    <p class="text-xs text-placeholder-foreground italic">
+      {% trans "You become the workspace owner. Add team members on the settings page after creation." %}
+    </p>
+
+  </div>
+
+  <footer class="flex items-center justify-end gap-2 px-4 py-3 border-t border-border bg-subtle/60">
+    <button type="button" @click="close()"
+            class="px-3 py-1.5 text-sm rounded-md text-subtle-foreground hover:text-foreground hover:bg-muted">
+      {% trans "Cancel" %}
+    </button>
+    <button type="submit"
+            class="px-3 py-1.5 text-sm rounded-md bg-brand-600 hover:bg-brand-500 text-white">
+      {% trans "Create workspace" %}
+    </button>
+  </footer>
+</form>
+{% endblock %}

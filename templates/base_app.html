@@ -142,7 +142,30 @@ Pages extend this and override the `app_main` block.
       </div>
     </nav>
 
-    <div class="px-3 py-3 border-t border-border text-xs text-placeholder-foreground">
+    <div class="px-3 py-3 border-t border-border text-xs text-placeholder-foreground space-y-2">
+      <button type="button"
+              hx-get="{% url 'web:create_workspace' %}"
+              hx-target="#modal-root"
+              hx-swap="innerHTML"
+              hx-boost="false"
+              hx-push-url="false"
+              :class="!$store.sidebar.open && 'justify-center'"
+              class="w-full acta-rail-link group relative flex items-center gap-2 hover:text-foreground">
+        {% lucide "plus" "w-3.5 h-3.5 shrink-0" %}
+        <span x-show="$store.sidebar.open" x-cloak>{% trans "New workspace" %}</span>
+        <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "New workspace" %}</span>
+      </button>
+      {% if nav_workspaces %}
+      {% with primary_workspace=nav_workspaces.0 %}
+      <a href="{% url 'web:workspace_settings' slug=primary_workspace.slug %}"
+         :class="!$store.sidebar.open && 'justify-center'"
+         class="acta-rail-link group relative flex items-center gap-2 hover:text-foreground">
+        {% lucide "users" "w-3.5 h-3.5 shrink-0" %}
+        <span x-show="$store.sidebar.open" x-cloak>{% trans "Workspace settings" %}</span>
+        <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "Workspace settings" %}</span>
+      </a>
+      {% endwith %}
+      {% endif %}
       <a href="/admin/"
          hx-boost="false"
          :class="!$store.sidebar.open && 'justify-center'"

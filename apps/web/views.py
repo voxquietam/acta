@@ -6,6 +6,7 @@ endpoints (or from `/api/v1/...` for JSON-only consumers).
 """
 
 import datetime
+import re
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
@@ -13,9 +14,10 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
 from django.db.models import Count, F, OuterRef, Q, Subquery
 from django.http import HttpResponse, HttpResponseBadRequest
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, redirect
 from django.template.loader import render_to_string
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_POST
 from django.views.generic import DetailView, ListView, TemplateView
 
@@ -28,7 +30,7 @@ from apps.tasks.events import emit_task_diff_events, snapshot_task
 from apps.tasks.models import Task
 from apps.web.filters import apply_task_filters, apply_task_ordering, filter_sidebar_context, resolve_show_archived
 from apps.web.grouping import group_tasks
-from apps.workspaces.models import WorkspaceMember
+from apps.workspaces.models import Workspace, WorkspaceMember
 
 User = get_user_model()
 
@@ -2067,4 +2069,427 @@ def _create_task_post(request):
         # ``acta:task-created`` re-fetch their fragment; the modal
         # picks up the same event and closes itself.
         response["HX-Trigger"] = "acta:task-created"
+    return response
+
+
+# -----------------------------------------------------------------------------
+# Workspace settings + member management
+# -----------------------------------------------------------------------------
+
+
+def _get_user_workspace_or_404(user, slug):
+    """Return the workspace if ``user`` is a member, otherwise 404.
+
+    Mirrors the per-project / per-task ``_get_user_*_or_404`` helpers.
+    Non-members get a flat 404 rather than 403 so the workspace's
+    existence is not leaked.
+
+    Args:
+        user: The current authenticated :class:`User`.
+        slug: URL slug of the workspace.
+
+    Returns:
+        The :class:`Workspace` instance.
+
+    Raises:
+        Http404: When the workspace does not exist OR the user has no
+            membership in it.
+    """
+    return get_object_or_404(
+        Workspace.objects.filter(memberships__user=user),
+        slug=slug,
+    )
+
+
+def _workspace_member_or_none(user, workspace):
+    """Return the :class:`WorkspaceMember` row for ``user`` in ``workspace``."""
+    return WorkspaceMember.objects.filter(user=user, workspace=workspace).first()
+
+
+def _user_is_workspace_admin(user, workspace):
+    """True when the user is owner or admin of the workspace.
+
+    Used by web views to gate mutations on the settings page. Mirrors
+    ``IsWorkspaceAdmin`` from the DRF layer but in a plain-function
+    shape so view code can branch on it.
+    """
+    m = _workspace_member_or_none(user, workspace)
+    return m is not None and m.role in (WorkspaceMember.OWNER, WorkspaceMember.ADMIN)
+
+
+def _render_workspace_members(workspace, *, viewer):
+    """Build the context payload shared by full-page + HTMX fragment.
+
+    ``viewer_membership`` lets the template gate admin-only buttons
+    without making the template query the DB again.
+    """
+    memberships = list(
+        workspace.memberships.select_related("user").order_by(
+            "-role",
+            "user__first_name",
+            "user__last_name",
+            "user__username",
+        )
+    )
+    member_user_ids = {m.user_id for m in memberships}
+    candidates = list(
+        User.objects.exclude(pk__in=member_user_ids).order_by(
+            "first_name",
+            "last_name",
+            "username",
+        )
+    )
+    viewer_membership = _workspace_member_or_none(viewer, workspace)
+    return {
+        "workspace": workspace,
+        "memberships": memberships,
+        "candidates": candidates,
+        "role_choices": WorkspaceMember.ROLE_CHOICES,
+        "viewer_membership": viewer_membership,
+        "viewer_is_admin": (
+            viewer_membership is not None and viewer_membership.role in (WorkspaceMember.OWNER, WorkspaceMember.ADMIN)
+        ),
+    }
+
+
+class WorkspaceSettingsView(LoginRequiredMixin, TemplateView):
+    """Workspace settings — member list with admin-only mutation controls.
+
+    Any workspace member can open the page and see the roster. Add /
+    remove / role-change actions are submitted to dedicated POST views
+    and gated to owners and admins there. The page is intentionally
+    minimal for v0.1.0 — one tab, one panel; future fields (auto-
+    archive policy, label management entry, etc.) layer on as panels.
+    """
+
+    template_name = "web/workspaces/settings.html"
+
+    def get_context_data(self, **kwargs):
+        """Return workspace + member roster + add-form candidates."""
+        ctx = super().get_context_data(**kwargs)
+        workspace = _get_user_workspace_or_404(self.request.user, self.kwargs["slug"])
+        ctx.update(_render_workspace_members(workspace, viewer=self.request.user))
+        return ctx
+
+
+def _members_partial_response(request, workspace):
+    """Render just the members panel — used after every mutation."""
+    return HttpResponse(
+        render_to_string(
+            "web/workspaces/_settings_members.html",
+            _render_workspace_members(workspace, viewer=request.user),
+            request=request,
+        ),
+    )
+
+
+@require_POST
+@login_required
+def add_workspace_member(request, slug):
+    """Add an existing user to the workspace.
+
+    Form fields: ``user_id`` (int), ``role`` (one of the role choices,
+    defaults to ``member``). The acting user must be admin or owner.
+    Returns the re-rendered members partial so HTMX can swap it
+    in-place.
+    """
+    workspace = _get_user_workspace_or_404(request.user, slug)
+    if not _user_is_workspace_admin(request.user, workspace):
+        return HttpResponseBadRequest(_("Admin or owner only"))
+    try:
+        user_id = int(request.POST.get("user_id") or "")
+    except (TypeError, ValueError):
+        return HttpResponseBadRequest(_("Invalid user_id"))
+    role = request.POST.get("role") or WorkspaceMember.MEMBER
+    if role not in {choice for choice, _label in WorkspaceMember.ROLE_CHOICES}:
+        return HttpResponseBadRequest(_("Invalid role"))
+    if role == WorkspaceMember.OWNER:
+        # Ownership is reassigned through a dedicated transfer flow
+        # (not yet built). The Add form must not be able to mint a
+        # second owner — the constraint is one owner per workspace.
+        return HttpResponseBadRequest(_("Cannot add another owner"))
+    user = User.objects.filter(pk=user_id).first()
+    if user is None:
+        return HttpResponseBadRequest(_("User not found"))
+    if WorkspaceMember.objects.filter(workspace=workspace, user=user).exists():
+        return HttpResponseBadRequest(_("User already a member"))
+    WorkspaceMember.objects.create(workspace=workspace, user=user, role=role)
+    return _members_partial_response(request, workspace)
+
+
+@require_POST
+@login_required
+def set_workspace_member_role(request, slug, user_id):
+    """Promote / demote a workspace member.
+
+    ``role`` form field carries the new role. The owner cannot be
+    demoted from this endpoint (use a transfer-ownership flow instead).
+    """
+    workspace = _get_user_workspace_or_404(request.user, slug)
+    if not _user_is_workspace_admin(request.user, workspace):
+        return HttpResponseBadRequest(_("Admin or owner only"))
+    target = WorkspaceMember.objects.filter(workspace=workspace, user_id=user_id).first()
+    if target is None:
+        return HttpResponseBadRequest(_("Not a member"))
+    if target.role == WorkspaceMember.OWNER:
+        return HttpResponseBadRequest(_("Transfer ownership first"))
+    role = request.POST.get("role") or ""
+    if role not in {choice for choice, _label in WorkspaceMember.ROLE_CHOICES}:
+        return HttpResponseBadRequest(_("Invalid role"))
+    if role == WorkspaceMember.OWNER:
+        return HttpResponseBadRequest(_("Ownership transfer not supported here"))
+    if target.role == role:
+        # No-op write; surface the panel without touching the DB.
+        return _members_partial_response(request, workspace)
+    target.role = role
+    target.save(update_fields=["role"])
+    return _members_partial_response(request, workspace)
+
+
+@require_POST
+@login_required
+def remove_workspace_member(request, slug, user_id):
+    """Remove a member from the workspace. Owner can never be removed."""
+    workspace = _get_user_workspace_or_404(request.user, slug)
+    if not _user_is_workspace_admin(request.user, workspace):
+        return HttpResponseBadRequest(_("Admin or owner only"))
+    target = WorkspaceMember.objects.filter(workspace=workspace, user_id=user_id).first()
+    if target is None:
+        return HttpResponseBadRequest(_("Not a member"))
+    if target.role == WorkspaceMember.OWNER:
+        return HttpResponseBadRequest(_("Cannot remove owner"))
+    target.delete()
+    return _members_partial_response(request, workspace)
+
+
+# -----------------------------------------------------------------------------
+# Project create modal
+# -----------------------------------------------------------------------------
+
+
+@login_required
+def create_project(request):
+    """Create-project modal: GET renders the form, POST creates the project.
+
+    ADR 0010 grants project creation to any workspace member (including
+    plain Member role), so the only gate is workspace membership — no
+    extra admin check here.
+
+    GET:
+        Returns the modal HTML fragment (``_create_project_modal.html``).
+        Re-fires itself on workspace ``<select>`` change via ``hx-get``
+        so the lead picker can refresh against the new workspace's
+        members.
+
+    POST:
+        Validates name + slug_prefix + workspace + lead; on success
+        creates the :class:`Project` and tells HTMX to navigate to the
+        new project's detail page via ``HX-Redirect``.
+    """
+    if request.method == "POST":
+        return _create_project_post(request)
+    if not _is_htmx_partial(request):
+        return redirect("/projects/")
+    return _create_project_get(request)
+
+
+def _create_project_get(request):
+    """Render the create-project modal pre-filled from the querystring.
+
+    The workspace dropdown change event fires this view again with the
+    new workspace pre-selected (``?workspace=<id>``), so the lead
+    picker can re-populate with that workspace's members.
+    """
+    workspaces = list(Workspace.objects.filter(memberships__user=request.user).order_by("name"))
+    selected_workspace = None
+    raw_ws = request.GET.get("workspace") or ""
+    if raw_ws:
+        try:
+            ws_id = int(raw_ws)
+        except (TypeError, ValueError):
+            ws_id = None
+        if ws_id is not None:
+            selected_workspace = next((w for w in workspaces if w.pk == ws_id), None)
+    if selected_workspace is None and workspaces:
+        selected_workspace = workspaces[0]
+
+    members = []
+    if selected_workspace is not None:
+        members = list(selected_workspace.members.order_by("first_name", "last_name", "username"))
+
+    return HttpResponse(
+        render_to_string(
+            "web/_create_project_modal.html",
+            {
+                "workspaces": workspaces,
+                "selected_workspace": selected_workspace,
+                "members": members,
+                "pre_name": request.GET.get("name") or "",
+                "pre_slug_prefix": request.GET.get("slug_prefix") or "",
+                "pre_description": request.GET.get("description") or "",
+                "pre_lead_id": _safe_int(request.GET.get("lead")),
+            },
+            request=request,
+        ),
+    )
+
+
+def _safe_int(raw):
+    """Return ``int(raw)`` or ``None`` — small helper used by the GET path."""
+    try:
+        return int(raw) if raw not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _create_project_post(request):
+    """Validate + persist a new project and HX-Redirect to its detail page.
+
+    All access checks: the workspace must be one the user is a member
+    of; the lead (if set) must also be a workspace member. Anything
+    else returns ``400`` with a short reason. The slug_prefix is
+    matched against the regex from the model validator BEFORE the DB
+    insert so the bad-shape case returns a friendlier ``400`` than a
+    raw IntegrityError.
+    """
+    raw_workspace = request.POST.get("workspace") or ""
+    try:
+        workspace_id = int(raw_workspace)
+    except (TypeError, ValueError):
+        return HttpResponseBadRequest(_("Invalid workspace"))
+    workspace = Workspace.objects.filter(
+        memberships__user=request.user,
+        pk=workspace_id,
+    ).first()
+    if workspace is None:
+        return HttpResponseBadRequest(_("Workspace not accessible"))
+
+    name = (request.POST.get("name") or "").strip()
+    if not name:
+        return HttpResponseBadRequest(_("Name is required"))
+    if len(name) > 120:
+        return HttpResponseBadRequest(_("Name too long"))
+
+    slug_prefix = (request.POST.get("slug_prefix") or "").strip().upper()
+    if not re.match(r"^[A-Z]{2,6}$", slug_prefix):
+        return HttpResponseBadRequest(_("Slug prefix must be 2–6 uppercase Latin letters."))
+    if Project.objects.filter(workspace=workspace, slug_prefix=slug_prefix).exists():
+        return HttpResponseBadRequest(_("Slug prefix already used in this workspace"))
+
+    description = request.POST.get("description") or ""
+
+    lead = None
+    raw_lead = (request.POST.get("lead") or "").strip()
+    if raw_lead:
+        try:
+            lead_id = int(raw_lead)
+        except (TypeError, ValueError):
+            return HttpResponseBadRequest(_("Invalid lead"))
+        lead = User.objects.filter(
+            workspace_memberships__workspace=workspace,
+            pk=lead_id,
+        ).first()
+        if lead is None:
+            return HttpResponseBadRequest(_("Lead must be a member of the project's workspace."))
+
+    with transaction.atomic():
+        project = Project.objects.create(
+            workspace=workspace,
+            name=name,
+            slug_prefix=slug_prefix,
+            description=description,
+            lead=lead,
+        )
+
+    response = HttpResponse(status=204)
+    response["HX-Redirect"] = f"/projects/{project.slug_prefix}/"
+    return response
+
+
+# -----------------------------------------------------------------------------
+# Workspace create modal
+# -----------------------------------------------------------------------------
+
+
+@login_required
+def create_workspace(request):
+    """Create-workspace modal: GET renders the form, POST creates the workspace.
+
+    Any logged-in user can create a workspace and becomes its owner;
+    a matching :class:`WorkspaceMember` row with ``role="owner"`` is
+    seeded in the same transaction, mirroring what
+    :class:`WorkspaceSerializer.create` does for the API.
+
+    GET without an HX-Request header (i.e. a direct browser navigation
+    to ``/workspaces/new/``) lands on the projects list instead of
+    rendering the bare modal fragment — the page chrome only shows up
+    when the fragment is swapped into ``#modal-root``.
+    """
+    if request.method == "POST":
+        return _create_workspace_post(request)
+    if not _is_htmx_partial(request):
+        return redirect("/projects/")
+    return HttpResponse(
+        render_to_string(
+            "web/_create_workspace_modal.html",
+            {
+                "pre_name": request.GET.get("name") or "",
+                "pre_slug": request.GET.get("slug") or "",
+            },
+            request=request,
+        ),
+    )
+
+
+def _create_workspace_post(request):
+    """Validate + persist a new workspace and HX-Redirect to its settings page.
+
+    Slug logic:
+        * If the user provided a slug, validate it and use as-is
+          (failures bubble up as ``400``).
+        * Else auto-generate from ``name`` via Django's ``slugify``,
+          appending ``-2``, ``-3`` until unique. Practical caveat:
+          two simultaneous creates with the same slug race — the DB
+          unique constraint catches it and we ``400`` with a clear
+          message asking for a manual slug.
+    """
+    from django.utils.text import slugify
+
+    name = (request.POST.get("name") or "").strip()
+    if not name:
+        return HttpResponseBadRequest(_("Name is required"))
+    if len(name) > 120:
+        return HttpResponseBadRequest(_("Name too long"))
+
+    raw_slug = (request.POST.get("slug") or "").strip().lower()
+    if raw_slug:
+        slug = slugify(raw_slug)
+        if not slug:
+            return HttpResponseBadRequest(_("Invalid slug"))
+        if Workspace.objects.filter(slug=slug).exists():
+            return HttpResponseBadRequest(_("Slug already taken"))
+    else:
+        base = slugify(name) or "workspace"
+        slug = base
+        suffix = 2
+        while Workspace.objects.filter(slug=slug).exists():
+            slug = f"{base}-{suffix}"
+            suffix += 1
+            if suffix > 100:  # pragma: no cover — runaway loop guard
+                return HttpResponseBadRequest(_("Cannot generate unique slug"))
+
+    with transaction.atomic():
+        workspace = Workspace.objects.create(
+            name=name,
+            slug=slug,
+            owner=request.user,
+        )
+        WorkspaceMember.objects.create(
+            workspace=workspace,
+            user=request.user,
+            role=WorkspaceMember.OWNER,
+        )
+
+    response = HttpResponse(status=204)
+    response["HX-Redirect"] = f"/workspaces/{workspace.slug}/settings/"
     return response

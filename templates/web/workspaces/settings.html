@@ -1,0 +1,39 @@
+{% extends "base_app.html" %}
+{% load i18n %}
+{% load lucide %}
+
+{% comment %}
+Workspace settings — single page with one panel for v0.1.0
+(members). Future settings sections (auto-archive policy, label
+manager entry, danger zone) layer in as additional ``<section>``
+panels below.
+
+The members panel is its own partial so the role-change / add /
+remove flows can swap just that block without reloading the page.
+{% endcomment %}
+
+{% block title %}{% trans "Workspace settings" %} · {{ workspace.name }} · Acta{% endblock %}
+
+{% block topbar_left %}
+<h1 class="text-base font-medium shrink-0">
+  {% trans "Workspace settings" %}
+  <span class="text-placeholder-foreground font-normal">· {{ workspace.name }}</span>
+</h1>
+{% endblock %}
+
+{% block app_main %}
+<div class="max-w-3xl mx-auto w-full space-y-6">
+
+  <section class="bg-card border border-border rounded-lg p-5">
+    <header class="flex items-center justify-between mb-4">
+      <h2 class="text-sm font-medium text-foreground">{% trans "Members" %}</h2>
+      <span class="text-xs text-placeholder-foreground">
+        {% blocktrans count counter=memberships|length %}{{ counter }} member{% plural %}{{ counter }} members{% endblocktrans %}
+      </span>
+    </header>
+
+    {% include "web/workspaces/_settings_members.html" %}
+  </section>
+
+</div>
+{% endblock %}

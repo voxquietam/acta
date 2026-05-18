@@ -11,6 +11,19 @@
 {% block app_main %}
 <div class="space-y-4 max-w-6xl">
 
+  {% if projects %}
+  <div class="flex justify-end">
+    <button type="button"
+            hx-get="{% url 'web:create_project' %}"
+            hx-target="#modal-root"
+            hx-swap="innerHTML"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-brand-600 hover:bg-brand-500 text-white">
+      {% lucide "plus" "w-4 h-4" %}
+      {% trans "Create project" %}
+    </button>
+  </div>
+  {% endif %}
+
   <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
     {% for project in projects %}
     {% comment %}
@@ -81,8 +94,16 @@
     </div>
     </div>
     {% empty %}
-    <div class="col-span-full text-sm text-placeholder-foreground italic py-12 text-center">
-      {% trans "No projects yet. Create one in admin to get started." %}
+    <div class="col-span-full flex flex-col items-center gap-3 py-12 text-center">
+      <p class="text-sm text-placeholder-foreground italic">{% trans "No projects yet." %}</p>
+      <button type="button"
+              hx-get="{% url 'web:create_project' %}"
+              hx-target="#modal-root"
+              hx-swap="innerHTML"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-brand-600 hover:bg-brand-500 text-white">
+        {% lucide "plus" "w-4 h-4" %}
+        {% trans "Create your first project" %}
+      </button>
     </div>
     {% endfor %}
   </div>
