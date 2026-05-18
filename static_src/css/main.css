@@ -42,7 +42,7 @@
     --border-strong: 212 212 216;   /* zinc-300 — input border, raised */
 
     /* Interactive accents */
-    --ring: 168 85 247;             /* brand-500 — focus ring */
+    --ring: 66 90 245;              /* brand-500 — focus ring */
   }
 
   html.dark {
@@ -59,7 +59,7 @@
     --border: 39 39 42;             /* zinc-800 */
     --border-strong: 63 63 70;      /* zinc-700 */
 
-    --ring: 168 85 247;             /* brand-500 — same accent in both themes */
+    --ring: 66 90 245;              /* brand-500 — same accent in both themes */
   }
 }
 
@@ -348,7 +348,7 @@ main {
   z-index: 100;
   pointer-events: none;
   opacity: 0;
-  background: linear-gradient(90deg, transparent 0%, rgb(168 85 247) 50%, transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, rgb(66 90 245) 50%, transparent 100%);
   background-size: 50% 100%;
   background-repeat: no-repeat;
   transition: opacity 120ms ease;
@@ -368,11 +368,11 @@ main {
    navigation — server-side conditional rendering can't pick up the
    change because the sidebar element survives the swap. */
 .acta-rail-active {
-  background-color: rgb(168 85 247 / 0.15); /* brand-500/15 */
-  color: rgb(126 34 206);                    /* brand-700 */
+  background-color: rgb(66 90 245 / 0.15);   /* brand-500/15 */
+  color: rgb(36 53 173);                     /* brand-700 */
 }
 html.dark .acta-rail-active {
-  color: rgb(216 180 254);                   /* brand-300 */
+  color: rgb(148 163 255);                   /* brand-300 */
 }
 
 .acta-rail-tip {
@@ -505,8 +505,8 @@ html.dark .acta-checkbox {
   background-color: rgb(var(--muted));
 }
 .acta-checkbox:checked {
-  background-color: #9333ea;       /* brand-600 */
-  border-color: #a855f7;            /* brand-500 */
+  background-color: #2e44d6;       /* brand-600 */
+  border-color: #425af5;            /* brand-500 */
 }
 .acta-checkbox:checked::after {
   content: "";

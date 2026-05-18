@@ -32,21 +32,24 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Brand palette mirrors the inline config that lived in
-        // base.html under the Play CDN. Lavender by default; swap
-        // here to re-skin the whole app.
+        // Brand palette — custom indigo-blue, anchored at #425af5.
+        // Swapped from the Tailwind lavender ramp on 2026-05-18 per
+        // the design system in `acta-design-system/colors_and_type.css`.
+        // ``brand-500`` is the focus ring / accent fill; ``brand-600``
+        // is the primary CTA fill with ``hover:bg-brand-500`` (lighter
+        // on hover — the signature "lift" move).
         brand: {
-          50:  "#faf5ff",
-          100: "#f3e8ff",
-          200: "#e9d5ff",
-          300: "#d8b4fe",
-          400: "#c084fc",
-          500: "#a855f7",
-          600: "#9333ea",
-          700: "#7e22ce",
-          800: "#6b21a8",
-          900: "#581c87",
-          950: "#3b0764",
+          50:  "#f0f3ff",
+          100: "#dfe5ff",
+          200: "#bcc8ff",
+          300: "#94a3ff",
+          400: "#6c7efb",
+          500: "#425af5",
+          600: "#2e44d6",
+          700: "#2435ad",
+          800: "#1d2a87",
+          900: "#182466",
+          950: "#0e1340",
         },
 
         // Semantic colour tokens — backed by CSS variables defined in
