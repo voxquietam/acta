@@ -647,6 +647,36 @@ select:-webkit-autofill {
        scroll container (modal body) carries its own ``overflow-y-auto``
        which keeps scrolling content clipped. */
   }
+
+  /* Button primitives — design-system tokens from
+     ``acta-design-system/preview/comp-buttons.html``. The signature
+     "lighter on hover" move (brand-600 → brand-500) lives in
+     ``acta-btn-primary``; ``acta-btn-ghost`` is the un-fill Cancel
+     pair; ``acta-btn-icon`` is the topbar-style minimal action. */
+  .acta-btn-primary {
+    @apply inline-flex items-center justify-center gap-1.5 px-4 py-1.5 text-sm rounded-md bg-brand-600 text-white transition;
+  }
+  .acta-btn-primary:hover {
+    @apply bg-brand-500;
+  }
+  .acta-btn-primary:disabled,
+  .acta-btn-primary[disabled] {
+    @apply opacity-50 cursor-not-allowed bg-brand-600;
+  }
+
+  .acta-btn-ghost {
+    @apply inline-flex items-center justify-center gap-1.5 px-3 py-1 text-xs rounded-md text-subtle-foreground transition;
+  }
+  .acta-btn-ghost:hover {
+    @apply bg-muted text-foreground;
+  }
+
+  .acta-btn-icon {
+    @apply inline-grid place-items-center p-1.5 rounded-md text-placeholder-foreground transition;
+  }
+  .acta-btn-icon:hover {
+    @apply bg-muted text-foreground;
+  }
 }
 
 /* Per-row checkbox visibility in the task table. Hidden by default;

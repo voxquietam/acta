@@ -17,7 +17,7 @@
             hx-get="{% url 'web:create_project' %}"
             hx-target="#modal-root"
             hx-swap="innerHTML"
-            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-brand-600 hover:bg-brand-500 text-white">
+            class="acta-btn-primary">
       {% lucide "plus" "w-4 h-4" %}
       {% trans "Create project" %}
     </button>
@@ -100,7 +100,7 @@
               hx-get="{% url 'web:create_project' %}"
               hx-target="#modal-root"
               hx-swap="innerHTML"
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-brand-600 hover:bg-brand-500 text-white">
+              class="acta-btn-primary">
         {% lucide "plus" "w-4 h-4" %}
         {% trans "Create your first project" %}
       </button>
