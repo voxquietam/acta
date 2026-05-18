@@ -1032,7 +1032,73 @@
   // the page-content wrapper that needs to reserve right padding for the
   // floating sidebar at ``lg+`` widths. Persisted in localStorage so it
   // survives page navigations.
+  // Toast helper exposed before Alpine boots — used by the global
+   // HTMX error listeners (which fire on the very first request, may
+   // be before ``alpine:init``). The store registration below adds
+   // the proper Alpine-reactive queue; this fallback keeps the call
+   // sites simple (``window.actaToast(...)`` always works).
+  const pendingToasts = [];
+  window.actaToast = function actaToast(message, level = "error", timeoutMs = 5000) {
+    if (window.Alpine && window.Alpine.store("toasts")) {
+      window.Alpine.store("toasts").push(message, level, timeoutMs);
+    } else {
+      pendingToasts.push({ message, level, timeoutMs });
+    }
+  };
+
+  // Global HTMX error surfacing. ``htmx:responseError`` fires when the
+  // server returns 4xx/5xx; ``htmx:sendError`` fires on network /
+  // connection failures (offline, DNS, TLS errors). Both used to drop
+  // silently and leave the user staring at stale DOM — toasts make
+  // the failure visible. Body of the response is preferred for the
+  // message because Django HttpResponseBadRequest carries a short
+  // human-readable string in ``responseText``.
+  document.body.addEventListener("htmx:responseError", (evt) => {
+    const xhr = evt.detail && evt.detail.xhr;
+    if (!xhr) return;
+    let msg = `Request failed (${xhr.status})`;
+    const body = (xhr.responseText || "").trim();
+    if (body) {
+      try {
+        const data = JSON.parse(body);
+        if (data && (data.detail || data.message)) {
+          msg = data.detail || data.message;
+        } else if (body.length < 200) {
+          msg = body;
+        }
+      } catch (_) {
+        if (body.length < 200) msg = body;
+      }
+    }
+    window.actaToast(msg, "error");
+  });
+  document.body.addEventListener("htmx:sendError", () => {
+    window.actaToast("Network error — check your connection.", "error");
+  });
+
   document.addEventListener("alpine:init", () => {
+    window.Alpine.store("toasts", {
+      items: [],
+      push(message, level = "error", timeoutMs = 5000) {
+        const id = Date.now() + Math.random();
+        this.items = [...this.items, { id, message: String(message || ""), level }];
+        if (timeoutMs > 0) {
+          setTimeout(() => this.dismiss(id), timeoutMs);
+        }
+      },
+      dismiss(id) {
+        this.items = this.items.filter((t) => t.id !== id);
+      },
+      clear() {
+        this.items = [];
+      },
+    });
+    // Drain anything queued before Alpine booted.
+    while (pendingToasts.length) {
+      const t = pendingToasts.shift();
+      window.Alpine.store("toasts").push(t.message, t.level, t.timeoutMs);
+    }
+
     window.Alpine.store("filters", {
       open: localStorage.getItem("filtersOpen") !== "false",
       toggle() {
@@ -1190,9 +1256,6 @@
         // a full page reload (no scroll jump, no SSE reconnect).
         document.body.dispatchEvent(new CustomEvent("acta:bulk-archived", { bubbles: true }));
       } else {
-        // Surface the failure so the user knows nothing happened — once
-        // [[project-todo-global-htmx-error-toast]] lands this can drop
-        // the ``alert``.
         let detail = "";
         try {
           const data = await resp.json();
@@ -1200,7 +1263,7 @@
         } catch (_) {
           detail = resp.statusText;
         }
-        window.alert("Bulk archive failed: " + detail);
+        window.actaToast("Bulk archive failed: " + detail, "error");
       }
     };
 

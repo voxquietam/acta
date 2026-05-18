@@ -25,7 +25,7 @@ Section visibility flags:
 <aside x-data="{ ready: false }"
        x-init="$nextTick(() => ready = true)"
        :class="[
-         $store.filters.open ? 'lg:w-64' : 'lg:w-10',
+         $store.filters.open ? 'lg:!w-64' : 'lg:!w-10',
          ready ? 'transition-[width] duration-200' : '',
        ]"
        class="w-full mt-6 lg:mt-0 lg:w-64 shrink-0 lg:max-h-full">

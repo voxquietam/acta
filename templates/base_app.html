@@ -248,6 +248,38 @@ Pages extend this and override the `app_main` block.
   <div id="modal-root"></div>
 
   {% comment %}
+  Toast layer — Alpine ``$store.toasts`` holds the queue. ``acta.js``
+  listens on ``htmx:responseError`` + ``htmx:sendError`` and pushes
+  one entry per failure; ``window.actaToast(msg, level)`` is the
+  imperative entry point for non-HTMX errors (e.g. the bulk-archive
+  fetch). Each toast auto-dismisses after 5s; the × button kills it
+  immediately. Bottom-right corner, stacks newest-on-top.
+  {% endcomment %}
+  <div x-data
+       x-show="$store.toasts && $store.toasts.items.length > 0"
+       style="display: none"
+       class="fixed bottom-4 right-4 z-[60] flex flex-col gap-2 max-w-sm pointer-events-none">
+    <template x-for="toast in $store.toasts.items" :key="toast.id">
+      <div :class="{
+             'border-rose-500/60 text-rose-700 dark:text-rose-300': toast.level === 'error',
+             'border-amber-500/60 text-amber-700 dark:text-amber-300': toast.level === 'warning',
+             'border-emerald-500/60 text-emerald-700 dark:text-emerald-300': toast.level === 'success',
+             'border-border text-foreground': !['error','warning','success'].includes(toast.level),
+           }"
+           class="pointer-events-auto flex items-start gap-2 px-3 py-2 rounded-lg border bg-card shadow-lg text-sm"
+           x-transition.opacity.duration.150ms>
+        <span class="flex-1 break-words" x-text="toast.message"></span>
+        <button type="button"
+                @click="$store.toasts.dismiss(toast.id)"
+                aria-label="{% trans 'Dismiss' %}"
+                class="shrink-0 -mr-1 p-0.5 rounded text-placeholder-foreground hover:text-foreground transition">
+          {% lucide "x" "w-3.5 h-3.5" %}
+        </button>
+      </div>
+    </template>
+  </div>
+
+  {% comment %}
   SSE subscription markers — one per workspace the user belongs to.
   Project / task detail pages put their own ``data-workspace-sse``
   near the content (so the channel is obviously tied to that page);
