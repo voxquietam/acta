@@ -528,7 +528,7 @@ html.dark .acta-checkbox {
 [data-tooltip]::after {
   content: attr(data-tooltip);
   position: absolute;
-  bottom: calc(100% + 0.375rem);
+  bottom: calc(100% + 0.5rem);
   left: 50%;
   transform: translateX(-50%);
   white-space: nowrap;
@@ -559,7 +559,11 @@ html.dark .acta-checkbox {
     @apply fixed inset-0 z-50 flex items-start justify-center pt-16 px-4 bg-black/60 backdrop-blur-sm;
   }
   .acta-modal-panel {
-    @apply w-full bg-card border border-border rounded-lg shadow-lg overflow-hidden flex flex-col;
+    @apply w-full bg-card border border-border rounded-lg shadow-lg flex flex-col;
+    /* No ``overflow-hidden`` on the panel: tooltips and dropdowns from
+       header buttons need to escape above the top edge. The inner
+       scroll container (modal body) carries its own ``overflow-y-auto``
+       which keeps scrolling content clipped. */
   }
 }
 
