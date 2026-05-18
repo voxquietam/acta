@@ -590,6 +590,12 @@ html.dark .acta-checkbox {
 [data-tooltip]:focus-visible::after {
   opacity: 1;
 }
+/* Tooltip below the trigger — use on top-edge elements (topbar icons)
+   where the default upward tooltip would clip past the viewport. */
+[data-tooltip][data-tooltip-pos="below"]::after {
+  bottom: auto;
+  top: calc(100% + 0.5rem);
+}
 
 /* Reset native focus outline on form controls — browsers default to a
    thick coloured outline (Firefox pink, Chrome blue, Safari blue) that

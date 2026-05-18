@@ -12,7 +12,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
-from django.db.models import Count, F, OuterRef, Q, Subquery
+from django.db.models import Count, F, Max, OuterRef, Q, Subquery
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect
 from django.template.loader import render_to_string
@@ -473,20 +473,54 @@ class ProjectListView(LoginRequiredMixin, ListView):
 
         ``select_related("lead")`` keeps the lead avatar rendering
         N+1-free; ``distinct=True`` on member count prevents the
-        member JOIN from inflating the open_task_count.
+        member JOIN from inflating the open_task_count. Each
+        per-status count is its own conditional Count so the card
+        can render the 5-segment progress bar and breakdown chips
+        without an N+1.
         """
         latest = ProjectUpdate.objects.filter(project=OuterRef("pk")).order_by("-created_at").values("health")[:1]
         return (
             Project.objects.filter(workspace__memberships__user=self.request.user)
             .select_related("workspace", "lead")
+            .prefetch_related("members")
             .annotate(
                 open_task_count=Count(
                     "tasks",
                     filter=Q(tasks__status__in=_OPEN_STATUSES),
                     distinct=True,
                 ),
+                total_task_count=Count(
+                    "tasks",
+                    distinct=True,
+                ),
+                planned_count=Count(
+                    "tasks",
+                    filter=Q(tasks__status=Task.STATUS_PLANNED),
+                    distinct=True,
+                ),
+                todo_count=Count(
+                    "tasks",
+                    filter=Q(tasks__status=Task.STATUS_TODO),
+                    distinct=True,
+                ),
+                in_progress_count=Count(
+                    "tasks",
+                    filter=Q(tasks__status=Task.STATUS_IN_PROGRESS),
+                    distinct=True,
+                ),
+                in_review_count=Count(
+                    "tasks",
+                    filter=Q(tasks__status=Task.STATUS_IN_REVIEW),
+                    distinct=True,
+                ),
+                done_count=Count(
+                    "tasks",
+                    filter=Q(tasks__status=Task.STATUS_DONE),
+                    distinct=True,
+                ),
                 member_count=Count("members", distinct=True),
                 latest_health=Subquery(latest),
+                last_activity_at=Max("tasks__updated_at"),
             )
             .order_by("archived", "workspace__name", "name")
             .distinct()
@@ -495,11 +529,15 @@ class ProjectListView(LoginRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         """Expose the user's favourite project ids so each card can
         render its star toggle in the correct (starred / unstarred)
-        state without an N+1 lookup."""
+        state without an N+1 lookup; and the ``stale_cutoff`` past
+        which the "updated X ago" footer dot loses its pulse.
+        """
         ctx = super().get_context_data(**kwargs)
         ctx["favourite_project_ids"] = set(
             self.request.user.favourite_projects.values_list("id", flat=True),
         )
+        ctx["stale_cutoff"] = timezone.now() - datetime.timedelta(days=3)
+        ctx["health_labels"] = dict(ProjectUpdate.HEALTH_CHOICES)
         return ctx
 
 
