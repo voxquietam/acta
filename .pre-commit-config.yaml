@@ -16,3 +16,17 @@ repos:
     hooks:
       - id: flake8
         language_version: python3.13
+
+  # Django templates: ban multi-line ``{# ... #}`` comments. Django's
+  # single-line comment syntax silently leaks literal text into rendered
+  # HTML when the opener and closer aren't on the same line. Use
+  # ``{% comment %} ... {% endcomment %}`` for anything spanning more
+  # than one line.
+  - repo: local
+    hooks:
+      - id: no-multiline-django-comments
+        name: Reject multi-line {# … #} comments in Django templates
+        entry: python3 scripts/check_template_comments.py
+        language: system
+        files: '\.html$'
+        pass_filenames: true
