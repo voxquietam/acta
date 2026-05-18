@@ -708,6 +708,20 @@ select:-webkit-autofill {
     @apply border-rose-500;
     box-shadow: 0 0 0 3px rgb(244 63 94 / 0.1);
   }
+  /* Custom chevron caret on ``<select>`` styled with ``.acta-input``.
+     The native arrow renders differently per OS / browser (blue triangle
+     on macOS Safari, grey on Chrome, themed on Firefox) and never picks
+     up our text colour. Painting it as a background SVG keeps the cue
+     consistent with our placeholder palette across all themes. */
+  select.acta-input {
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 0.625rem center;
+    background-size: 14px 14px;
+    padding-right: 2rem;
+  }
 }
 
 /* Per-row checkbox visibility in the task table. Hidden by default;
