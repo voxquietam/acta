@@ -57,17 +57,24 @@
   // produces 5 axes × N rows of HTML; without this it doubles the
   // first-paint time. Once loaded, switching tabs stays instant
   // because all three panels live in the DOM.
-  function lazyLoadPanels() {
+  function lazyLoadPanels(basePath) {
     const slots = document.querySelectorAll("[data-panel-slot]");
     slots.forEach((slot) => {
       if (slot.children.length > 0) return; // already filled
       if (slot.dataset.panelLoading === "true") return; // request in flight
       const key = slot.dataset.panelSlot;
       if (!key || !window.htmx) return;
-      const url = new URL(window.location.href);
-      url.searchParams.set("panel", key);
+      // HTMX boost runs ``hx-push-url`` AFTER ``htmx:afterSettle``, so
+      // ``window.location.href`` is still the *previous* URL when this
+      // fires. Prefer the request path of the boost that just settled
+      // (passed in by the listener) and fall back to window.location
+      // for the cold-load case where there's no boost event.
+      const base = basePath
+        ? new URL(basePath, window.location.origin)
+        : new URL(window.location.href);
+      base.searchParams.set("panel", key);
       slot.dataset.panelLoading = "true";
-      window.htmx.ajax("GET", url.pathname + url.search, {
+      window.htmx.ajax("GET", base.pathname + base.search, {
         target: slot,
         swap: "innerHTML",
       });
@@ -76,8 +83,9 @@
   // Run after initial paint settles, and after any HTMX swap that
   // might bring back empty slots (filter form refresh swaps the
   // whole panel wrapper).
-  document.body.addEventListener("htmx:afterSettle", () => {
-    setTimeout(lazyLoadPanels, 50);
+  document.body.addEventListener("htmx:afterSettle", (evt) => {
+    const path = evt.detail && evt.detail.requestConfig && evt.detail.requestConfig.path;
+    setTimeout(() => lazyLoadPanels(path), 50);
   });
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => setTimeout(lazyLoadPanels, 50));
@@ -1189,6 +1197,19 @@
         const oneYear = 60 * 60 * 24 * 365;
         document.cookie = `acta_view_mode=${value}; path=/; max-age=${oneYear}; samesite=Lax`;
       },
+      // Re-read the server-set cookie after every HTMX boost. The
+      // sidebar persists across navigations, so this store survives —
+      // but the cookie was reset by AllTasksView / MyWorkView (which
+      // disallow ``overview``). Without this sync the store keeps the
+      // pre-navigation value (e.g. ``overview`` from a project page),
+      // every tab's ``x-show`` resolves false, and the user lands on
+      // an empty page.
+      syncFromCookie() {
+        this.current = readViewModeCookie();
+      },
+    });
+    document.body.addEventListener("htmx:afterSettle", () => {
+      window.Alpine.store("viewMode").syncFromCookie();
     });
 
     // Cross-page task selection for bulk operations. Holds task ids
