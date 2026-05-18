@@ -143,12 +143,18 @@ Pages extend this and override the `app_main` block.
     </nav>
 
     <div class="px-3 py-3 border-t border-border text-xs text-placeholder-foreground space-y-2">
+      {% comment %}
+      Manual ``htmx.ajax`` call rather than declarative ``hx-get``
+      because the surrounding ``<aside hx-boost="true"
+      hx-select="#app-content">`` attributes inherit onto children.
+      ``hx-select`` in particular tries to extract ``#app-content``
+      from the modal fragment (which has no such element) and ends up
+      swapping nothing. The imperative API call leaves ``select``
+      undefined so the entire response is used — same fix without
+      fighting inheritance rules.
+      {% endcomment %}
       <button type="button"
-              hx-get="{% url 'web:create_workspace' %}"
-              hx-target="#modal-root"
-              hx-swap="innerHTML"
-              hx-boost="false"
-              hx-push-url="false"
+              @click="window.htmx && window.htmx.ajax('GET', '{% url 'web:create_workspace' %}', { target: '#modal-root', swap: 'innerHTML' })"
               :class="!$store.sidebar.open && 'justify-center'"
               class="w-full acta-rail-link group relative flex items-center gap-2 hover:text-foreground">
         {% lucide "plus" "w-3.5 h-3.5 shrink-0" %}
