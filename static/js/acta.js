@@ -291,9 +291,17 @@
       const match = rowMatches(row, state);
       if (match) {
         target.removeAttribute("hidden");
+        target.style.display = "";
         visible += 1;
       } else {
+        // ``[hidden]`` attribute has UA specificity 0,1,0 — equal to
+        // Tailwind ``.block`` on kanban cards, so source order decides.
+        // Inline ``display:none`` has the highest specificity and wins
+        // unconditionally. Belt + suspenders: keep the attribute too so
+        // ``:not([hidden])`` selectors (Tailwind ``space-y-*``) still
+        // skip the row correctly when computing sibling spacing.
         target.setAttribute("hidden", "");
+        target.style.display = "none";
       }
     });
     refreshFilterCountBadges(activeFilterCount(state));
