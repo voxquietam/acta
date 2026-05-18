@@ -1,0 +1,49 @@
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+Shared modal shell — wraps every modal in the app with the same
+backdrop + panel chrome and a header with title + close (×) button.
+Children extend this template and fill in the blocks:
+
+    {% extends "web/_modal_shell.html" %}
+
+    {% block root_attrs %}id="my-modal" x-data="{ open: true, close() { … } }"{% endblock %}
+    {% block panel_class %}max-w-md{% endblock %}
+    {% block title %}{% trans 'My Modal' %}{% endblock %}
+    {% block body %}<div class="p-4">…</div>{% endblock %}
+
+Convention: the Alpine ``x-data`` on the root MUST expose a ``close()``
+method — backdrop click and Esc both call it. Per-modal close logic
+(clear modal-root, history.replaceState, dispatch event, …) lives
+inside that method. ``open`` is also part of the contract for modals
+that need fade-out transitions (task-detail uses it; bulk-archive
+toggles the whole element with ``x-show``).
+
+Header actions slot (``header_actions``) sits to the left of the
+close button — task-detail puts its "expand to fullscreen" button
+there. Empty by default.
+{% endcomment %}
+<div class="acta-modal-backdrop"
+     @click.self="close()"
+     @keydown.escape.window="close()"
+     {% block root_attrs %}{% endblock %}>
+  <div class="acta-modal-panel {% block panel_class %}max-w-md{% endblock %}"
+       {% block panel_attrs %}{% endblock %}>
+    <header class="relative flex items-center justify-between px-4 py-3 border-b border-border {% block header_class %}{% endblock %}">
+      <div class="flex items-center gap-3 min-w-0 flex-1">
+        {% block title %}{% endblock %}
+      </div>
+      <div class="flex items-center gap-1 shrink-0">
+        {% block header_actions %}{% endblock %}
+        <button type="button"
+                @click="close()"
+                aria-label="{% trans 'Close' %}"
+                data-tooltip="{% trans 'Close' %}"
+                class="p-1.5 rounded-md text-placeholder-foreground hover:bg-muted hover:text-foreground transition">
+          {% lucide "x" "w-4 h-4" %}
+        </button>
+      </div>
+    </header>
+    {% block body %}{% endblock %}
+  </div>
+</div>

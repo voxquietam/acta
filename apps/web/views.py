@@ -1775,9 +1775,39 @@ def _create_task_get(request):
     pre_status = request.GET.get("status") or Task.STATUS_PLANNED
     if pre_status not in Task.STATUS_VALUES:
         pre_status = Task.STATUS_PLANNED
+    # Preserve user-entered fields across project-change re-renders. The
+    # project ``<select>`` fires ``hx-get`` with ``hx-include="closest
+    # form"`` so every typed value lands here as a querystring param;
+    # we feed it back into the template as ``pre_*`` so the input keeps
+    # its value when the modal HTML returns. Assignee / labels reset
+    # when they're not members of the newly-picked workspace — those
+    # values would 400 on submit otherwise.
+    pre_title = request.GET.get("title") or ""
+    pre_description = request.GET.get("description") or ""
+    try:
+        pre_priority = int(request.GET.get("priority") or 0)
+    except (TypeError, ValueError):
+        pre_priority = 0
+    pre_due_date = request.GET.get("due_date") or ""
+    requested_assignee = request.GET.get("assignee") or ""
     pre_assignee_id = None
-    if selected_project and any(m.pk == request.user.pk for m in members):
+    try:
+        requested_assignee_id = int(requested_assignee)
+    except (TypeError, ValueError):
+        requested_assignee_id = None
+    if requested_assignee_id and any(m.pk == requested_assignee_id for m in members):
+        pre_assignee_id = requested_assignee_id
+    elif not requested_assignee and selected_project and any(m.pk == request.user.pk for m in members):
+        # First open (no assignee querystring) — default to "me" when
+        # the user is a member of the selected workspace.
         pre_assignee_id = request.user.pk
+    requested_label_ids = set()
+    for raw in request.GET.getlist("labels"):
+        try:
+            requested_label_ids.add(int(raw))
+        except (TypeError, ValueError):
+            continue
+    pre_label_ids = {label.id for label in labels if label.id in requested_label_ids}
     return HttpResponse(
         render_to_string(
             "web/_create_task_modal.html",
@@ -1787,7 +1817,12 @@ def _create_task_get(request):
                 "members": members,
                 "labels": labels,
                 "pre_status": pre_status,
+                "pre_priority": pre_priority,
                 "pre_assignee_id": pre_assignee_id,
+                "pre_title": pre_title,
+                "pre_description": pre_description,
+                "pre_due_date": pre_due_date,
+                "pre_label_ids": pre_label_ids,
                 "status_labels": Task.STATUS_LABELS,
                 "priority_labels": dict(Task.PRIORITY_CHOICES),
             },

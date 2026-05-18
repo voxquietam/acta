@@ -1,0 +1,96 @@
+{% extends "web/_modal_shell.html" %}
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+Bulk-archive confirmation modal. Opens when the action-bar Archive
+button dispatches ``acta:bulk-archive-confirm``. Reads ids from the
+Alpine ``selection`` store and looks up slug / title from each row's
+``data-task-slug`` / ``data-task-title`` attributes in the DOM (no
+extra server round-trip — the rows are already rendered).
+
+Caps the visible list at 10 + "+N more" so a selection of 50 doesn't
+scroll the modal off the screen. Keyboard: ``Esc`` cancels (shell),
+``Enter`` confirms. On confirm the existing ``actaBulkArchive()``
+runs; on failure its built-in ``alert`` surfaces the error.
+
+Unlike the create / view modals this one lives permanently in the
+DOM (no HTMX swap into ``#modal-root``). It hides via Alpine
+``x-show`` on the inner panel — the outer ``<div>`` is also the
+event listener target for ``acta:bulk-archive-confirm`` so it must
+stay mounted at all times.
+{% endcomment %}
+
+{% block root_attrs %}
+id="bulk-archive-confirm"
+x-data="{
+  open: false,
+  items: [],
+  visible: 10,
+  remaining: 0,
+  busy: false,
+  build() {
+    const ids = [...$store.selection.ids];
+    const rows = ids.map(id => {
+      const node = document.querySelector(`[data-task-id='${id}']`);
+      return {
+        id,
+        slug: node ? (node.dataset.taskSlug || ('#' + id)) : ('#' + id),
+        title: node ? (node.dataset.taskTitle || '') : '',
+      };
+    });
+    this.items = rows.slice(0, this.visible);
+    this.remaining = Math.max(0, rows.length - this.visible);
+  },
+  openModal() { this.build(); this.open = true; },
+  close() { if (!this.busy) this.open = false; },
+  async confirm() {
+    if (this.busy) return;
+    this.busy = true;
+    try {
+      await window.actaBulkArchive();
+    } finally {
+      this.busy = false;
+      this.open = false;
+    }
+  },
+}"
+@acta:bulk-archive-confirm.window="openModal()"
+@keydown.enter.window="if (open && !busy) confirm()"
+x-show="open"
+x-cloak
+{% endblock %}
+
+{% block panel_class %}max-w-md{% endblock %}
+
+{% block title %}
+<h2 class="text-sm font-medium text-foreground">
+  <span x-text="$store.selection.size"></span>
+  {% trans "task(s) — archive?" %}
+</h2>
+{% endblock %}
+
+{% block body %}
+<ul class="px-4 py-3 space-y-1 text-sm max-h-72 overflow-y-auto">
+  <template x-for="item in items" :key="item.id">
+    <li class="flex items-center gap-2 text-muted-foreground">
+      <span class="font-mono text-xs text-placeholder-foreground shrink-0" x-text="item.slug"></span>
+      <span class="truncate" x-text="item.title"></span>
+    </li>
+  </template>
+  <li x-show="remaining > 0" class="text-xs text-placeholder-foreground italic pt-1">
+    {% trans "+ " %}<span x-text="remaining"></span> {% trans "more" %}
+  </li>
+</ul>
+
+<footer class="flex items-center justify-end gap-2 px-4 py-3 border-t border-border bg-subtle/60">
+  <button type="button" @click="close()" :disabled="busy"
+          class="px-3 py-1.5 text-sm rounded-md text-subtle-foreground hover:text-foreground hover:bg-muted disabled:opacity-50">
+    {% trans "Cancel" %}
+  </button>
+  <button type="button" @click="confirm()" :disabled="busy"
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50 disabled:cursor-not-allowed">
+    <span x-show="!busy">{% trans "Archive" %}</span>
+    <span x-show="busy" x-cloak>{% trans "Archiving…" %}</span>
+  </button>
+</footer>
+{% endblock %}

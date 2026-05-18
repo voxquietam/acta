@@ -1,3 +1,4 @@
+{% extends "web/_modal_shell.html" %}
 {% load i18n %}
 {% load lucide %}
 {% comment %}
@@ -8,71 +9,61 @@ swaps the result into ``#modal-root``. Full-page rendering still works
 on direct URL load (no ``?modal=1``) so shared links open as a page.
 
 The modal hosts the same body partial the full page uses
-(``_task_detail_body.html``) plus a compact header. The body's SSE +
-inline-edit wiring works unchanged: it relies on element ids /
+(``_task_detail_modal_body.html``) plus a compact header. The body's
+SSE + inline-edit wiring works unchanged: it relies on element ids /
 ``data-*`` attrs that are identical in either layout.
 
 Behaviour:
-* Backdrop click → close.
-* ``Esc`` → close.
+* Backdrop click + ``Esc`` → ``close()`` (via shell).
 * Expand button (top-right) → ``history.replaceState`` to the bare
-  task URL and reload, so the user lands on the full-page chrome.
-* Close pops one history entry, returning to whatever page hosted the
-  click (HTMX's ``hx-push-url`` on the trigger added that entry).
+  task URL and reload, landing the user on the full-page chrome.
+* Close pops the URL back to wherever the user came from (saved by
+  ``acta.js`` capture listener as ``_actaModalReturnTo``); falls back
+  to the project detail URL when missing.
 {% endcomment %}
-<div id="task-modal"
-     x-data="{
-       open: true,
-       close() {
-         this.open = false;
-         setTimeout(() => {
-           const root = document.getElementById('modal-root');
-           if (root) root.innerHTML = '';
-           const back = window._actaModalReturnTo || '{% url 'web:project_detail' slug_prefix=task.project.slug_prefix %}';
-           if (back !== window.location.href) {
-             history.replaceState({}, '', back);
-           }
-           window._actaModalReturnTo = null;
-         }, 80);
-       },
-       expand() {
-         window.location.assign('{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}');
-       },
-     }"
-     @keydown.escape.window="close()"
-     class="acta-modal-backdrop"
-     @click.self="close()"
-     x-show="open"
-     x-transition.opacity.duration.120ms>
 
-  <div class="acta-modal-panel max-w-4xl max-h-[85vh]">
+{% block root_attrs %}
+id="task-modal"
+x-data="{
+  open: true,
+  close() {
+    this.open = false;
+    setTimeout(() => {
+      const root = document.getElementById('modal-root');
+      if (root) root.innerHTML = '';
+      const back = window._actaModalReturnTo || '{% url 'web:project_detail' slug_prefix=task.project.slug_prefix %}';
+      if (back !== window.location.href) {
+        history.replaceState({}, '', back);
+      }
+      window._actaModalReturnTo = null;
+    }, 80);
+  },
+  expand() {
+    window.location.assign('{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}');
+  },
+}"
+x-show="open"
+x-transition.opacity.duration.120ms
+{% endblock %}
 
-    {# Header: breadcrumb + topbar content + expand + close #}
-    <header class="relative h-14 shrink-0 flex items-center gap-3 px-4 md:px-6 border-b border-border">
-      <div class="flex items-center gap-3 min-w-0 flex-1">
-        {% include "web/projects/_task_detail_topbar.html" %}
-      </div>
-      <div class="flex items-center gap-1 shrink-0">
-        <button type="button"
-                @click="expand()"
-                title="{% trans 'Open full page' %}"
-                aria-label="{% trans 'Open full page' %}"
-                class="p-1.5 rounded-md text-placeholder-foreground hover:bg-muted hover:text-foreground transition">
-          {% lucide "maximize-2" "w-4 h-4" %}
-        </button>
-        <button type="button"
-                @click="close()"
-                title="{% trans 'Close' %}"
-                aria-label="{% trans 'Close' %}"
-                class="p-1.5 rounded-md text-placeholder-foreground hover:bg-muted hover:text-foreground transition">
-          {% lucide "x" "w-4 h-4" %}
-        </button>
-      </div>
-    </header>
+{% block panel_class %}max-w-4xl max-h-[85vh]{% endblock %}
 
-    {# Scrollable body — modal layout (meta inline above title, no rail). #}
-    <div class="flex-1 overflow-y-auto px-4 md:px-8 py-5">
-      {% include "web/projects/_task_detail_modal_body.html" %}
-    </div>
-  </div>
+{% block header_class %}h-14 shrink-0 px-4 md:px-6{% endblock %}
+
+{% block title %}{% include "web/projects/_task_detail_topbar.html" %}{% endblock %}
+
+{% block header_actions %}
+<button type="button"
+        @click="expand()"
+        aria-label="{% trans 'Open full page' %}"
+        data-tooltip="{% trans 'Open full page' %}"
+        class="p-1.5 rounded-md text-placeholder-foreground hover:bg-muted hover:text-foreground transition">
+  {% lucide "maximize-2" "w-4 h-4" %}
+</button>
+{% endblock %}
+
+{% block body %}
+<div class="flex-1 overflow-y-auto px-4 md:px-8 py-5">
+  {% include "web/projects/_task_detail_modal_body.html" %}
 </div>
+{% endblock %}
