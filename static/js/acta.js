@@ -1127,18 +1127,35 @@
       },
     });
 
-    // Theme — dark / light. Initial value comes from the pre-paint
-    // script in ``base.html`` which already set ``<html class>``;
-    // we mirror it here so Alpine bindings (icon swap on the toggle
-    // button) stay in sync with reality. Persisted in ``localStorage``
-    // under ``acta:theme`` — read in the same pre-paint script on
-    // every page load so there's no light/dark flash.
+    // Theme — three-state cycle: light → dark → midnight → light.
+    // Midnight reuses the ``dark`` Tailwind variant (so ``dark:*``
+    // utilities keep firing) and layers a ``midnight`` class on top
+    // that overrides surface CSS vars in main.css.
+    const THEMES = ["light", "dark", "midnight"];
+    function currentThemeFromDom() {
+      const cls = document.documentElement.classList;
+      if (cls.contains("midnight")) return "midnight";
+      if (cls.contains("light")) return "light";
+      return "dark";
+    }
+    function applyTheme(theme) {
+      const cls = document.documentElement.classList;
+      cls.remove("light", "dark", "midnight");
+      if (theme === "light") {
+        cls.add("light");
+      } else if (theme === "midnight") {
+        cls.add("dark");
+        cls.add("midnight");
+      } else {
+        cls.add("dark");
+      }
+    }
     window.Alpine.store("theme", {
-      current: document.documentElement.classList.contains("light") ? "light" : "dark",
+      current: currentThemeFromDom(),
       toggle() {
-        this.current = this.current === "dark" ? "light" : "dark";
-        document.documentElement.classList.toggle("dark", this.current === "dark");
-        document.documentElement.classList.toggle("light", this.current === "light");
+        const idx = THEMES.indexOf(this.current);
+        this.current = THEMES[(idx + 1) % THEMES.length];
+        applyTheme(this.current);
         localStorage.setItem("acta:theme", this.current);
       },
     });

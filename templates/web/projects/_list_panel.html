@@ -53,7 +53,7 @@ updates ``activeAxis`` + ``history.pushState`` so URLs stay shareable.
             {% else %}text-placeholder-foreground{% endif %}">{{ section.label }}</h2>
           <span class="text-xs text-placeholder-foreground">{{ section.tasks|length }}</span>
         </div>
-        <ul class="bg-card border border-border rounded-lg overflow-hidden divide-y divide-zinc-200 dark:divide-zinc-800">
+        <ul class="bg-card border border-border rounded-lg overflow-hidden divide-y divide-border">
           {% for task in section.tasks %}
           <li>{% include "web/_task_row.html" with task=task %}</li>
           {% endfor %}
@@ -78,7 +78,7 @@ updates ``activeAxis`` + ``history.pushState`` so URLs stay shareable.
 
 </div>
 <div data-fade-top aria-hidden="true"
-     class="pointer-events-none absolute inset-x-0 top-0 h-6 bg-gradient-to-b from-white dark:from-zinc-950 to-transparent"></div>
+     class="pointer-events-none absolute inset-x-0 top-0 h-6 bg-gradient-to-b from-background to-transparent"></div>
 <div data-fade-bottom aria-hidden="true"
-     class="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-white dark:from-zinc-950 to-transparent"></div>
+     class="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-background to-transparent"></div>
 </div>

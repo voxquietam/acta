@@ -16,9 +16,21 @@
   <script>
     (function () {
       var saved = localStorage.getItem("acta:theme");
-      var theme = saved === "light" ? "light" : "dark";
-      document.documentElement.classList.toggle("dark", theme === "dark");
-      document.documentElement.classList.toggle("light", theme === "light");
+      var theme = (saved === "light" || saved === "midnight") ? saved : "dark";
+      var html = document.documentElement;
+      html.classList.remove("light", "dark", "midnight");
+      if (theme === "light") {
+        html.classList.add("light");
+      } else if (theme === "midnight") {
+        // Midnight = dark theme variant. Keep ``dark`` class on so all
+        // Tailwind ``dark:*`` utilities (badge bgs, fg colours, status
+        // pills) keep firing; ``midnight`` then overrides surface
+        // tokens via ``html.midnight`` in main.css.
+        html.classList.add("dark");
+        html.classList.add("midnight");
+      } else {
+        html.classList.add("dark");
+      }
     })();
   </script>
 

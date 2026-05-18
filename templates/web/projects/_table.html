@@ -111,7 +111,7 @@ clip overflowing text with an ellipsis instead of widening.
     very large number so it always lands last regardless of direction
     — same trick the server uses (_PRIORITY_NOPRIO_LAST in filters.py).
     {% endcomment %}
-    <tbody class="divide-y divide-zinc-200 dark:divide-zinc-800">
+    <tbody class="divide-y divide-border">
       {% for task in tasks %}{% include "web/projects/_table_row.html" %}{% empty %}
       <tr>
         <td colspan="{% if show_labels and show_project %}11{% elif show_labels or show_project %}10{% else %}9{% endif %}"
@@ -127,7 +127,7 @@ clip overflowing text with an ellipsis instead of widening.
 {# JS in acta.js (``initScrollFades``) tracks scroll position and    #}
 {# toggles ``data-overflow-*`` on the wrapper.                       #}
 <div data-fade-top aria-hidden="true"
-     class="pointer-events-none absolute inset-x-0 top-0 h-6 bg-gradient-to-b from-white dark:from-zinc-950 to-transparent rounded-t-lg"></div>
+     class="pointer-events-none absolute inset-x-0 top-0 h-6 bg-gradient-to-b from-background to-transparent rounded-t-lg"></div>
 <div data-fade-bottom aria-hidden="true"
-     class="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-white dark:from-zinc-950 to-transparent rounded-b-lg"></div>
+     class="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-background to-transparent rounded-b-lg"></div>
 </div>

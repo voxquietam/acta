@@ -25,6 +25,10 @@
    path enables per-workspace accent palettes from admin (planned). */
 @layer base {
   :root {
+    /* Light theme stays on the original neutral zinc / white stack —
+       tried the design system's warm beige paper on 2026-05-18 and
+       reverted because it read as "old document" rather than "fast,
+       crisp tool". Indigo dark theme below is the rebranded one. */
     /* Surfaces */
     --background: 255 255 255;      /* white — body */
     --card: 255 255 255;            /* white — panels and cards */
@@ -46,6 +50,7 @@
   }
 
   html.dark {
+    /* Dark theme — neutral zinc, the original stack. */
     --background: 9 9 11;           /* zinc-950 */
     --card: 24 24 27;               /* zinc-900 */
     --muted: 39 39 42;              /* zinc-800 */
@@ -59,7 +64,28 @@
     --border: 39 39 42;             /* zinc-800 */
     --border-strong: 63 63 70;      /* zinc-700 */
 
-    --ring: 66 90 245;              /* brand-500 — same accent in both themes */
+    --ring: 66 90 245;              /* brand-500 — same accent across themes */
+  }
+
+  html.midnight {
+    /* Third theme — indigo-undertoned dark from the design system
+       (acta-design-system/colors_and_type.css). Anchored to the brand
+       hue so panels feel cohesive with brand-coloured CTAs. Toggle
+       cycle: light → dark → midnight → light. */
+    --background: 12 13 23;         /* #0c0d17 — very dark, indigo undertone */
+    --card: 22 24 38;               /* #161826 */
+    --muted: 33 36 53;              /* #212435 */
+    --subtle: 18 20 32;             /* #141420 */
+
+    --foreground: 244 244 250;      /* #f4f4fa */
+    --muted-foreground: 212 214 226; /* #d4d6e2 */
+    --subtle-foreground: 161 165 184; /* #a1a5b8 */
+    --placeholder-foreground: 95 100 124; /* #5f647c */
+
+    --border: 36 39 56;             /* #242738 */
+    --border-strong: 59 64 88;      /* #3b4058 */
+
+    --ring: 66 90 245;              /* brand-500 — same accent across themes */
   }
 }
 
