@@ -18,7 +18,9 @@
       <div class="flex items-start justify-between gap-2">
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-1.5">
-            {% lucide project.icon|default:"folder" "w-3.5 h-3.5 text-placeholder-foreground shrink-0" %}
+            <span class="shrink-0 {{ project.icon_color_class }}">
+              {% lucide project.icon|default:"folder" "w-3.5 h-3.5" %}
+            </span>
             <span class="font-mono text-xs text-placeholder-foreground">{{ project.slug_prefix }}</span>
             {% if project.archived %}
             <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground px-1.5 py-0.5 rounded bg-muted">

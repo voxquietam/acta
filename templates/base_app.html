@@ -109,7 +109,9 @@ Pages extend this and override the `app_main` block.
                data-nav-prefix
                :class="!$store.sidebar.open && 'justify-center'"
                class="acta-rail-link group relative flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground">
-              {% lucide project.icon|default:"folder" "w-3.5 h-3.5 text-subtle-foreground shrink-0" %}
+              <span class="shrink-0 {{ project.icon_color_class }}" data-project-icon-for="{{ project.slug_prefix }}">
+                {% lucide project.icon|default:"folder" "w-3.5 h-3.5" %}
+              </span>
               <span x-show="$store.sidebar.open" x-cloak class="font-mono text-xs text-subtle-foreground">{{ project.slug_prefix }}</span>
               <span x-show="$store.sidebar.open" x-cloak class="truncate">{{ project.name }}</span>
               <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{{ project.slug_prefix }} · {{ project.name }}</span>

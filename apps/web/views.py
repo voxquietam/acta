@@ -579,12 +579,16 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         ctx["priority_labels"] = dict(Task.PRIORITY_CHOICES)
         ctx["today"] = timezone.localdate()
 
+        from apps.projects.icons import PROJECT_ICON_COLORS, PROJECT_ICONS
+
         project = self.object
         ctx["description_html"] = render_markdown(project.description) if project.description else ""
         ctx["members"] = list(
             project.members.order_by("first_name", "last_name", "username"),
         )
         ctx["workspace_members"] = _project_workspace_members(project, exclude_user=None)
+        ctx["picker_icons"] = PROJECT_ICONS
+        ctx["picker_icon_colors"] = PROJECT_ICON_COLORS
 
         base = (
             Task.objects.filter(project=project)
@@ -1460,6 +1464,66 @@ def set_task_due_date(request, slug_prefix, number):
         "web/projects/_due_date_cell.html",
         {"task": task},
     )
+
+
+@require_POST
+@login_required
+@require_POST
+@login_required
+def set_project_icon(request, slug_prefix):
+    """Set the project's Lucide icon name from the curated picker.
+
+    ``Project.icon`` is a free-text Lucide name (admin can set anything;
+    the renderer falls back to ``folder`` on unknowns). The user-facing
+    picker only exposes a curated subset listed in
+    ``apps.projects.icons.PROJECT_ICONS`` — submissions outside that
+    list are 400'd so an end-user can't paste in a custom Lucide name
+    that would render but break the visual catalog.
+
+    Empty value clears the icon (reverts to the ``folder`` default).
+    Response is the freshly-rendered icon thumb that the picker swaps
+    into ``#project-icon-thumb`` (the trigger element on the overview
+    header) so the change is visible without a full page reload.
+    """
+    from apps.projects.icons import is_curated, is_curated_color
+
+    project = _get_user_project_or_404(request.user, slug_prefix)
+    # Each field is updated only when present in the form so the
+    # colour-picker form (which omits ``icon``) doesn't accidentally
+    # blank the icon, and vice-versa for the icon grid (which omits
+    # ``icon_color``). Empty-string submissions are explicit clears.
+    update_fields = []
+    if "icon" in request.POST:
+        icon = request.POST.get("icon", "").strip()
+        if icon and not is_curated(icon):
+            return HttpResponseBadRequest("icon not in curated set")
+        if project.icon != icon:
+            project.icon = icon
+            update_fields.append("icon")
+    if "icon_color" in request.POST:
+        color = request.POST.get("icon_color", "").strip()
+        if color and not is_curated_color(color):
+            return HttpResponseBadRequest("icon_color not in curated palette")
+        if project.icon_color != color:
+            project.icon_color = color
+            update_fields.append("icon_color")
+    if update_fields:
+        project.save(update_fields=update_fields)
+    thumb_html = render_to_string(
+        "web/projects/_project_icon_thumb.html",
+        {"project": project},
+        request=request,
+    )
+    # OOB swap: the sidebar nav also renders this project's icon via
+    # ``[data-project-icon-for]``. Appending the OOB partial here means
+    # the rail icon refreshes the moment the picker fires — no need to
+    # navigate or hard-refresh.
+    sidebar_oob = render_to_string(
+        "web/projects/_project_icon_sidebar_oob.html",
+        {"project": project},
+        request=request,
+    )
+    return HttpResponse(thumb_html + sidebar_oob)
 
 
 @require_POST

@@ -35,6 +35,29 @@ class Project(models.Model):
         blank=True,
         help_text="Lucide icon name shown next to the project in the sidebar and lists. Optional",
     )
+    icon_color = models.CharField(
+        max_length=12,
+        blank=True,
+        help_text=(
+            "Accent colour token for the project icon. One of the curated palette keys "
+            "(``blue``, ``violet``, ``amber``, ``emerald``, ``rose``, ``sky``, ``orange``, ``zinc``). "
+            "Empty string falls back to the neutral subtle-foreground tint"
+        ),
+    )
+
+    @property
+    def icon_color_class(self) -> str:
+        """Return the Tailwind text-colour class for the picker token.
+
+        Falls back to ``text-subtle-foreground`` (the neutral tint) on
+        empty / unknown values. Keeps templates terse — ``{{
+        project.icon_color_class }}`` is the only thing they need to
+        render the icon's accent.
+        """
+        from apps.projects.icons import color_class
+
+        return color_class(self.icon_color)
+
     description = models.TextField(
         blank=True,
         help_text="Project description in Markdown. Optional",

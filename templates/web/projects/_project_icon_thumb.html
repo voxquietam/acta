@@ -1,0 +1,16 @@
+{% load lucide %}
+{% comment %}
+Big icon thumb rendered next to the project name in the Overview
+header. Standalone partial so the picker endpoint can swap it in
+place after a save (``hx-target="#project-icon-thumb"``).
+
+``project.icon_color_class`` resolves to a Tailwind text-colour
+utility (e.g. ``text-blue-500``). Lucide SVGs use ``currentColor``
+for both stroke and fill, so setting the colour on the wrapping
+span tints the icon without forcing every callsite to interpolate
+into the ``{% lucide %}`` tag's class string.
+{% endcomment %}
+<span id="project-icon-thumb"
+      class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-muted shrink-0 {{ project.icon_color_class }}">
+  {% lucide project.icon|default:"folder" "w-6 h-6" %}
+</span>

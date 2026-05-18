@@ -1,0 +1,134 @@
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+Icon picker popover. Wraps the icon thumb on the Overview header in a
+clickable button that opens a search-plus-grid dropdown of the
+curated Lucide subset (``apps.projects.icons.PROJECT_ICONS``). Click
+an icon → ``hx-post`` to ``set_project_icon`` with the chosen name →
+server swaps ``#project-icon-thumb`` with the freshly rendered thumb.
+Picker dropdown is teleported to ``<body>`` so it escapes any
+``overflow-hidden`` from the surrounding card chrome.
+
+Expects ``project`` + ``picker_icons`` (the curated list) in context.
+{% endcomment %}
+<div x-data="{
+       open: false,
+       q: '',
+       rect: { top: 0, left: 0, bottom: 0, right: 0 },
+       measure() {
+         const r = this.$refs.trigger.getBoundingClientRect();
+         this.rect = { top: r.top, left: r.left, bottom: r.bottom, right: r.right };
+       },
+       toggle() { if (!this.open) this.measure(); this.open = !this.open; },
+       matches(name) { return name.toLowerCase().includes(this.q.toLowerCase()); },
+     }"
+     x-init="
+       const onScroll = (e) => { if (open && !($refs.panel && $refs.panel.contains(e.target))) open = false; };
+       document.addEventListener('scroll', onScroll, true);
+       $cleanup(() => document.removeEventListener('scroll', onScroll, true));
+     "
+     @resize.window="if (open) open = false"
+     class="inline-block">
+
+  <button type="button"
+          x-ref="trigger"
+          @click="toggle()"
+          aria-label="{% trans 'Change project icon' %}"
+          data-tooltip="{% trans 'Change project icon' %}"
+          class="rounded-lg hover:ring-2 hover:ring-inset hover:ring-brand-500/50 transition cursor-pointer">
+    {% include "web/projects/_project_icon_thumb.html" %}
+  </button>
+
+  <template x-teleport="body">
+    <div x-ref="panel"
+         x-show="open"
+         @click.outside="open = false"
+         x-init="$nextTick(() => window.htmx && window.htmx.process($el))"
+         x-effect="if (open) $nextTick(() => $refs.search && $refs.search.focus())"
+         x-cloak
+         :style="`position:fixed; top:${rect.bottom + 6}px; left:${rect.left}px; width:18rem;`"
+         class="bg-card border border-border rounded-lg shadow-lg overflow-hidden z-50">
+
+      <div class="p-2 border-b border-border">
+        <input x-ref="search"
+               x-model="q"
+               @keydown.escape.prevent="open = false"
+               type="text"
+               placeholder="{% trans 'Search icons…' %}"
+               class="w-full bg-muted border border-border-strong rounded px-2 py-1 text-xs text-foreground placeholder-placeholder-foreground focus:outline-none focus:border-brand-500">
+      </div>
+
+      <div class="grid grid-cols-7 gap-0.5 p-2 max-h-64 overflow-y-auto">
+        {# Clear option — empty value resets to default ``folder``. #}
+        <form hx-post="{% url 'web:set_project_icon' slug_prefix=project.slug_prefix %}"
+              hx-target="#project-icon-thumb"
+              hx-swap="outerHTML"
+              @htmx:after-request="open = false">
+          {% csrf_token %}
+          <input type="hidden" name="icon" value="">
+          <button type="submit"
+                  aria-label="{% trans 'Reset to default' %}"
+                  data-tooltip="{% trans 'Reset' %}"
+                  class="w-full aspect-square grid place-items-center rounded hover:bg-muted text-placeholder-foreground hover:text-foreground">
+            {% lucide "x" "w-4 h-4" %}
+          </button>
+        </form>
+
+        {% for icon_name in picker_icons %}
+        <form hx-post="{% url 'web:set_project_icon' slug_prefix=project.slug_prefix %}"
+              hx-target="#project-icon-thumb"
+              hx-swap="outerHTML"
+              @htmx:after-request="open = false"
+              x-show="matches('{{ icon_name|escapejs }}')">
+          {% csrf_token %}
+          <input type="hidden" name="icon" value="{{ icon_name }}">
+          <button type="submit"
+                  :class="'{{ icon_name }}' === '{{ project.icon|escapejs }}' ? 'bg-brand-500/15 text-brand-400' : 'text-muted-foreground'"
+                  aria-label="{{ icon_name }}"
+                  data-tooltip="{{ icon_name }}"
+                  class="w-full aspect-square grid place-items-center rounded hover:bg-muted hover:text-foreground transition">
+            {% lucide icon_name "w-4 h-4" %}
+          </button>
+        </form>
+        {% endfor %}
+      </div>
+
+      {% comment %}
+      Colour swatches — each submits ``icon_color`` only; the view's
+      field-by-field update path leaves the icon untouched.
+      {% endcomment %}
+      <div class="border-t border-border p-2 flex flex-wrap items-center gap-1.5">
+        <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground w-full mb-1">{% trans "Colour" %}</span>
+        {% for color_key in picker_icon_colors %}
+        <form hx-post="{% url 'web:set_project_icon' slug_prefix=project.slug_prefix %}"
+              hx-target="#project-icon-thumb"
+              hx-swap="outerHTML"
+              @htmx:after-request="open = false">
+          {% csrf_token %}
+          <input type="hidden" name="icon_color" value="{{ color_key }}">
+          <button type="submit"
+                  aria-label="{{ color_key }}"
+                  data-tooltip="{{ color_key }}"
+                  :class="'{{ color_key }}' === '{{ project.icon_color|escapejs }}' ? 'ring-2 ring-offset-1 ring-offset-card ring-foreground' : ''"
+                  class="w-5 h-5 rounded-full transition bg-{{ color_key }}-500"></button>
+        </form>
+        {% endfor %}
+        {# Reset colour — empty value clears to neutral. #}
+        <form hx-post="{% url 'web:set_project_icon' slug_prefix=project.slug_prefix %}"
+              hx-target="#project-icon-thumb"
+              hx-swap="outerHTML"
+              @htmx:after-request="open = false">
+          {% csrf_token %}
+          <input type="hidden" name="icon_color" value="">
+          <button type="submit"
+                  aria-label="{% trans 'Default colour' %}"
+                  data-tooltip="{% trans 'Default' %}"
+                  :class="'' === '{{ project.icon_color|escapejs }}' ? 'ring-2 ring-offset-1 ring-offset-card ring-foreground' : ''"
+                  class="w-5 h-5 rounded-full border border-border-strong bg-muted text-placeholder-foreground grid place-items-center">
+            {% lucide "x" "w-3 h-3" %}
+          </button>
+        </form>
+      </div>
+    </div>
+  </template>
+</div>

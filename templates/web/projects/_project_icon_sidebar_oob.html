@@ -1,0 +1,16 @@
+{% load lucide %}
+{% comment %}
+Out-of-band swap target for the sidebar nav project icon. Appended to
+``set_project_icon`` responses so the rail-side icon refreshes
+live, without waiting for the user to navigate or hard-refresh.
+
+``hx-swap-oob="outerHTML:[data-project-icon-for='<slug>']"`` lets HTMX
+find the sidebar instance by attribute (it's a per-project marker, not
+an id) and replace the whole span — including its classes and the
+freshly rendered Lucide SVG.
+{% endcomment %}
+<span class="shrink-0 {{ project.icon_color_class }}"
+      data-project-icon-for="{{ project.slug_prefix }}"
+      hx-swap-oob="outerHTML:[data-project-icon-for='{{ project.slug_prefix }}']">
+  {% lucide project.icon|default:"folder" "w-3.5 h-3.5" %}
+</span>

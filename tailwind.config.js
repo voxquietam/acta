@@ -19,6 +19,16 @@ module.exports = {
     "./static_src/js/**/*.js",
     "./static/js/**/*.js",
   ],
+  safelist: [
+    // Project icon picker palette (apps/projects/icons.py). Class names
+    // are composed dynamically from a color key (``bg-{{ color }}-500``)
+    // so Tailwind's content scanner can't pick them up; the regex
+    // safelists every text-/bg-500 pair we ever render.
+    {
+      pattern:
+        /^(text|bg)-(red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|slate|gray|zinc|stone)-500$/,
+    },
+  ],
   theme: {
     extend: {
       colors: {

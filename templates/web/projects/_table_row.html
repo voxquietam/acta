@@ -125,7 +125,9 @@ in context.
   <td class="px-3 py-2 text-xs text-muted-foreground overflow-hidden"
       title="{{ task.project.workspace.name }} / {{ task.project.name }}">
     <div class="flex items-center gap-1.5 min-w-0">
-      {% lucide task.project.icon|default:"folder" "w-3.5 h-3.5 text-placeholder-foreground shrink-0" %}
+      <span class="shrink-0 {{ task.project.icon_color_class }}">
+        {% lucide task.project.icon|default:"folder" "w-3.5 h-3.5" %}
+      </span>
       <span class="truncate">{{ task.project.name }}</span>
     </div>
   </td>
