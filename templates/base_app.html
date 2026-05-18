@@ -145,14 +145,13 @@ Pages extend this and override the `app_main` block.
 
     <div class="px-3 py-3 border-t border-border text-xs text-placeholder-foreground space-y-2">
       {% comment %}
-      Manual ``htmx.ajax`` call rather than declarative ``hx-get``
-      because the surrounding ``<aside hx-boost="true"
-      hx-select="#app-content">`` attributes inherit onto children.
-      ``hx-select`` in particular tries to extract ``#app-content``
-      from the modal fragment (which has no such element) and ends up
-      swapping nothing. The imperative API call leaves ``select``
-      undefined so the entire response is used — same fix without
-      fighting inheritance rules.
+      Manual ``htmx.ajax`` call rather than ``hx-get`` because the
+      surrounding ``<aside hx-boost="true" hx-select="#app-content">``
+      attributes inherit onto children. ``hx-select`` in particular
+      tries to extract ``#app-content`` from the modal fragment (which
+      has no such element) and ends up swapping nothing. The imperative
+      API call sets ``select: undefined`` so the entire response is
+      used — same fix without fighting inheritance rules.
       {% endcomment %}
       <button type="button"
               @click="window.htmx && window.htmx.ajax('GET', '{% url 'web:create_workspace' %}', { target: '#modal-root', swap: 'innerHTML' })"
