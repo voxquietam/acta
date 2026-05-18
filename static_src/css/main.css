@@ -550,6 +550,29 @@ html.dark .acta-checkbox {
   opacity: 1;
 }
 
+/* Browser autofill paints native inputs with its own background (yellow
+   on Chrome, blue on Safari) that ignores ``bg-muted``. The standard
+   workaround is an inset ``box-shadow`` covering the autofilled cell
+   plus an explicit ``-webkit-text-fill-color`` for the text, both
+   marked ``!important`` because WebKit's user-agent style for autofill
+   is also ``!important`` and there's no other way to outrank it. The
+   long ``transition`` is the trick that keeps the override holding —
+   WebKit re-applies its style on focus / blur, the slow transition
+   delays our colour from being repainted until the autofill state is
+   gone. Applies app-wide so any future form renders consistently. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: rgb(var(--foreground)) !important;
+  -webkit-box-shadow: 0 0 0 1000px rgb(var(--muted)) inset !important;
+  caret-color: rgb(var(--foreground)) !important;
+  border-color: rgb(var(--border-strong)) !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
 /* Shared modal chrome — backdrop + panel. Used by Create Task,
    Task Detail (modal mode), and Bulk Archive Confirm so all three
    modals read as one family. Per-modal tweaks (max-w, max-h) layer
