@@ -1,4 +1,5 @@
 """Production settings."""
+
 import os
 
 from .base import *  # noqa: F401,F403
@@ -8,6 +9,13 @@ DEBUG = False
 SECRET_KEY = os.environ["DJANGO_SECRET_KEY"]
 
 ALLOWED_HOSTS = [h.strip() for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "").split(",") if h.strip()]
+
+# Origins trusted for unsafe (POST/PUT/PATCH/DELETE) requests behind the
+# Traefik edge proxy. Required because Django 4+ checks ``Origin`` /
+# ``Referer`` against this list when the request comes over HTTPS through
+# a reverse proxy. Configure via ``DJANGO_CSRF_TRUSTED_ORIGINS`` as a
+# comma-separated list of full scheme+host (e.g. ``https://actaspace.com``).
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if o.strip()]
 
 DATABASES = {
     "default": {
