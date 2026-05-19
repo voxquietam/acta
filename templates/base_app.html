@@ -172,14 +172,7 @@ Pages extend this and override the `app_main` block.
       </a>
       {% endwith %}
       {% endif %}
-      <a href="/admin/"
-         hx-boost="false"
-         :class="!$store.sidebar.open && 'justify-center'"
-         class="acta-rail-link group relative flex items-center gap-2 hover:text-foreground">
-        {% lucide "settings" "w-3.5 h-3.5 shrink-0" %}
-        <span x-show="$store.sidebar.open" x-cloak>{% trans "Admin" %}</span>
-        <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "Admin" %}</span>
-      </a>
+      {# Django admin is reachable from the profile dropdown ``shield`` icon. #}
     </div>
   </aside>
 
@@ -270,10 +263,12 @@ Pages extend this and override the `app_main` block.
               {% lucide "settings" "w-3.5 h-3.5" %}
               {% trans "Settings" %}
             </a>
+            {% if user.is_staff %}
             <a href="/admin/" class="flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted">
               {% lucide "shield" "w-3.5 h-3.5" %}
               {% trans "Admin" %}
             </a>
+            {% endif %}
             <form method="post" action="{% url 'account_logout' %}" class="border-t border-border">
               {% csrf_token %}
               <button class="w-full text-left flex items-center gap-2 px-3 py-2 text-sm text-rose-400 hover:bg-muted" type="submit">
