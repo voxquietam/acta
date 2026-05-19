@@ -177,6 +177,13 @@ SOCIALACCOUNT_PROVIDERS = {
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
+        # ``ApiTokenAuthentication`` runs first so ``Authorization: Token
+        # <secret>`` headers from programmatic clients (curl, scripts,
+        # the planned MCP server) authenticate via the ``ApiToken``
+        # model. SessionAuthentication remains the fallback for the
+        # web UI (cookie-based) since it ignores Authorization headers
+        # entirely.
+        "apps.accounts.auth.ApiTokenAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [

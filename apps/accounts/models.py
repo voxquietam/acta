@@ -1,4 +1,5 @@
 import hashlib
+import secrets
 
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
@@ -59,3 +60,122 @@ class User(AbstractUser):
         digest = hashlib.md5(self.username.encode("utf-8")).hexdigest()
         hue = int(digest[:6], 16) % 360
         return f"hsl({hue}, 60%, 40%)"
+
+
+class ApiToken(models.Model):
+    """A revocable per-user API token for non-browser clients.
+
+    Acta's web UI uses session auth. Programmatic clients (curl,
+    scripts, the planned MCP server) need a stable credential that
+    works without a browser session. Tokens are user-named so the
+    creator can recognise which integration owns them
+    (``"Claude Desktop"`` / ``"deploy script"`` / ``"INC-67 webhook"``)
+    and revoke just the one if compromised.
+
+    **Storage:** the plain-text secret is shown to the user ONCE at
+    creation time, never persisted. The DB stores ``token_hash`` (a
+    SHA-256 hex digest) and a short ``prefix`` (first 8 chars of the
+    plain secret) so the user can identify tokens in the management
+    UI without ever having to see the secret again. Lost-token
+    recovery is intentionally not supported — revoke and create a new
+    one.
+
+    Lookup is done by hashing the incoming credential and matching
+    ``token_hash`` directly; no per-row decryption pass, no leak of
+    plain-text comparison.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="api_tokens",
+        help_text="Owner of the token; the token authenticates as this user",
+    )
+    name = models.CharField(
+        max_length=80,
+        help_text="Human-readable label set by the user when minting the token",
+    )
+    token_hash = models.CharField(
+        max_length=64,
+        unique=True,
+        help_text="SHA-256 hex digest of the plain secret; the secret itself is never stored",
+    )
+    prefix = models.CharField(
+        max_length=8,
+        help_text="First 8 chars of the plain secret, kept so the user can identify tokens in the UI",
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When the token was generated",
+    )
+    last_used_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Last successful authentication with this token; null until first use",
+    )
+    revoked_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the user (or an admin) revoked the token; revoked tokens fail authentication",
+    )
+
+    class Meta:
+        verbose_name = _("API token")
+        verbose_name_plural = _("API tokens")
+        ordering = [
+            "-created_at",
+        ]
+        indexes = [
+            models.Index(
+                fields=[
+                    "token_hash",
+                ],
+            ),
+        ]
+
+    def __str__(self) -> str:
+        """Return the user-given name + prefix for admin / log readability."""
+        return f"{self.name} ({self.prefix}…)"
+
+    @classmethod
+    def hash_secret(cls, secret: str) -> str:
+        """Return the canonical SHA-256 hex digest used for lookup.
+
+        Args:
+            secret: Plain-text token as presented by the client.
+
+        Returns:
+            Lowercase 64-char hex digest. Matches ``token_hash`` storage.
+        """
+        return hashlib.sha256(secret.encode("utf-8")).hexdigest()
+
+    @classmethod
+    def generate(cls, *, user, name: str) -> tuple["ApiToken", str]:
+        """Mint a new token and return ``(instance, plain_secret)``.
+
+        The plain secret is shown to the user once at creation time
+        and never persisted; only its hash is stored. Callers must
+        surface ``plain_secret`` to the user in the response and warn
+        that it cannot be retrieved later.
+
+        Args:
+            user: Owner of the new token.
+            name: User-supplied label (e.g. ``"Claude Desktop"``).
+
+        Returns:
+            The persisted :class:`ApiToken` instance and the plain
+            secret string the user copies into their client config.
+        """
+        plain = secrets.token_urlsafe(32)
+        token = cls.objects.create(
+            user=user,
+            name=name,
+            token_hash=cls.hash_secret(plain),
+            prefix=plain[:8],
+        )
+        return token, plain
+
+    @property
+    def is_active(self) -> bool:
+        """True when the token can still authenticate (not revoked)."""
+        return self.revoked_at is None
