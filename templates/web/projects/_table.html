@@ -22,21 +22,20 @@ clip overflowing text with an ellipsis instead of widening.
          :class="$store.selection.size > 0 ? 'has-selection' : ''"
          class="acta-table w-full text-sm table-fixed">
     <colgroup>
-      <col style="width: 3%">                                   {# Select #}
-      <col style="width: 6%">                                   {# ID #}
+      <col style="width: 32px">                                 {# Select — checkbox-tight #}
+      <col style="width: 88px">                                 {# Slug + priority chevron — merged, sized for ACTA-NNN #}
       <col>                                                      {# Title — elastic, fills remaining #}
       <col style="width: 8%">                                   {# Status — fits the "IN-PROGRESS" badge #}
-      <col style="width: 6%">                                   {# Priority — header word width, icon-only cell #}
       <col style="width: 4%">                                   {# Size — single number #}
-      {% if show_labels %}<col style="width: 6%">{% endif %}    {# Labels — dots only #}
+      {% if show_labels %}<col style="width: 6%">{% endif %}    {# Labels — colored dots, hover surfaces full pills #}
       <col style="width: 12%">                                  {# Assignee #}
       {% if show_project %}<col style="width: 9%">{% endif %}   {# Project #}
       <col style="width: 5%">                                   {# Due #}
       <col style="width: 6%">                                   {# Updated — header word needs the room #}
     </colgroup>
-    <thead class="bg-subtle/60 text-subtle-foreground text-xs uppercase tracking-wider">
+    <thead class="text-subtle-foreground text-xs uppercase tracking-wider">
       <tr>
-        <th class="px-3 py-2 text-center">
+        <th class="sticky top-0 z-10 bg-subtle/95 backdrop-blur-sm px-2 py-2 text-center">
           {% comment %}
           Master checkbox — toggles every visible row. State derived
           from the selection store: ``size > 0`` ticks the box.
@@ -46,52 +45,47 @@ clip overflowing text with an ellipsis instead of widening.
                  @click="$store.selection.toggleAll($refs.taskTable)"
                  class="acta-checkbox">
         </th>
-        <th class="text-left px-3 py-2 font-medium">
+        <th class="sticky top-0 z-10 bg-subtle/95 backdrop-blur-sm text-left px-2 py-2 font-medium">
           <a href="{% sort_url request 'id' %}" data-sort data-sort-key="id" class="hover:text-foreground inline-flex items-center gap-1">
             {% trans "ID" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'id' %}</span>
           </a>
         </th>
-        <th class="text-left px-3 py-2 font-medium">
+        <th class="sticky top-0 z-10 bg-subtle/95 backdrop-blur-sm text-left px-3 py-2 font-medium">
           <a href="{% sort_url request 'title' %}" data-sort data-sort-key="title" class="hover:text-foreground inline-flex items-center gap-1">
             {% trans "Title" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'title' %}</span>
           </a>
         </th>
-        <th class="text-left px-3 py-2 font-medium">
+        <th class="sticky top-0 z-10 bg-subtle/95 backdrop-blur-sm text-left px-3 py-2 font-medium">
           <a href="{% sort_url request 'status' %}" data-sort data-sort-key="status" class="hover:text-foreground inline-flex items-center gap-1">
             {% trans "Status" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'status' %}</span>
           </a>
         </th>
-        <th class="text-left px-3 py-2 font-medium">
-          <a href="{% sort_url request 'priority' %}" data-sort data-sort-key="priority" class="hover:text-foreground inline-flex items-center gap-1">
-            {% trans "Priority" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'priority' %}</span>
-          </a>
-        </th>
-        <th class="text-left px-3 py-2 font-medium">
+        <th class="sticky top-0 z-10 bg-subtle/95 backdrop-blur-sm text-left px-3 py-2 font-medium">
           <a href="{% sort_url request 'size' %}" data-sort data-sort-key="size" class="hover:text-foreground inline-flex items-center gap-1">
             {% trans "Size" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'size' %}</span>
           </a>
         </th>
         {% if show_labels %}
-        <th class="text-left px-3 py-2 font-medium">{% trans "Labels" %}</th>
+        <th class="sticky top-0 z-10 bg-subtle/95 backdrop-blur-sm text-left px-3 py-2 font-medium">{% trans "Labels" %}</th>
         {% endif %}
-        <th class="text-left px-3 py-2 font-medium">
+        <th class="sticky top-0 z-10 bg-subtle/95 backdrop-blur-sm text-left px-3 py-2 font-medium">
           <a href="{% sort_url request 'assignee' %}" data-sort data-sort-key="assignee" class="hover:text-foreground inline-flex items-center gap-1">
             {% trans "Assignee" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'assignee' %}</span>
           </a>
         </th>
         {% if show_project %}
-        <th class="text-left px-3 py-2 font-medium">
+        <th class="sticky top-0 z-10 bg-subtle/95 backdrop-blur-sm text-left px-3 py-2 font-medium">
           <a href="{% sort_url request 'project' %}" data-sort data-sort-key="project" class="hover:text-foreground inline-flex items-center gap-1">
             {% trans "Project" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'project' %}</span>
           </a>
         </th>
         {% endif %}
-        <th class="text-left px-3 py-2 font-medium">
+        <th class="sticky top-0 z-10 bg-subtle/95 backdrop-blur-sm text-left px-3 py-2 font-medium">
           <a href="{% sort_url request 'due' %}" data-sort data-sort-key="due" class="hover:text-foreground inline-flex items-center gap-1">
             {% trans "Due" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'due' %}</span>
           </a>
         </th>
-        <th class="text-left px-3 py-2 font-medium">
+        <th class="sticky top-0 z-10 bg-subtle/95 backdrop-blur-sm text-left px-3 py-2 font-medium">
           <a href="{% sort_url request 'updated' %}" data-sort data-sort-key="updated"
              title="{% trans 'Updated' %}"
              class="hover:text-foreground inline-flex items-center gap-1">
@@ -114,7 +108,7 @@ clip overflowing text with an ellipsis instead of widening.
     <tbody class="divide-y divide-border">
       {% for task in tasks %}{% include "web/projects/_table_row.html" %}{% empty %}
       <tr>
-        <td colspan="{% if show_labels and show_project %}11{% elif show_labels or show_project %}10{% else %}9{% endif %}"
+        <td colspan="{% if show_labels and show_project %}10{% elif show_labels or show_project %}9{% else %}8{% endif %}"
             class="px-3 py-8 text-center text-sm text-placeholder-foreground italic">
           {% trans "No tasks." %}
         </td>
