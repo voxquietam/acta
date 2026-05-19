@@ -13,7 +13,7 @@ NODE_RUN      := docker run --rm -v "$(PWD):/work" -w /work node:20-alpine
 
 .PHONY: help up down restart logs build rebuild ps shell dbshell migrate \
 	makemigrations createsuperuser test test-fast format lint pre-commit \
-	i18n-extract i18n-compile build-js watch-js install-js
+	i18n-extract i18n-compile build-js watch-js install-js ci-check deploy
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -129,3 +129,26 @@ build-front: build-js build-css ## compile both bundles in one go
 extract-icons: ## rebuild apps/web/lucide_icons.json from node_modules/lucide-static
 	$(NODE_RUN) node -e "process.exit(0)" >/dev/null  # ensure docker is warm
 	python3 scripts/extract_lucide.py
+
+# ---- CI-equivalent shortcuts ---------------------------------------
+# One-command analogues of what a CI runner would do. Cheaper than
+# spinning up Woodpecker / GitHub Actions for a self-hosted single-
+# admin project. Run ``make ci-check`` before pushing, ``make deploy``
+# on the prod VM after the push lands. See docs/deployment.md.
+
+ci-check: ## lint + tests + frontend build + django check --deploy
+	pre-commit run --all-files
+	$(EXEC) pytest --create-db --tb=short -q
+	$(NODE_RUN) npm ci --no-audit --no-fund
+	$(NODE_RUN) npm run build:css
+	$(NODE_RUN) npm run build:js
+	$(EXEC) env DJANGO_SETTINGS_MODULE=acta.settings.prod \
+		DJANGO_ALLOWED_HOSTS=actaspace.com \
+		DJANGO_CSRF_TRUSTED_ORIGINS=https://actaspace.com \
+		python manage.py check --deploy
+
+deploy: ## (on prod VM) fetch master + rebuild + restart
+	git fetch --tags origin master
+	git reset --hard origin/master
+	$(COMPOSE) up -d --build
+	$(COMPOSE) ps
