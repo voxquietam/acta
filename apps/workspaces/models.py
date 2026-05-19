@@ -1,5 +1,10 @@
+import datetime
+import secrets
+
 from django.conf import settings
 from django.db import models
+from django.urls import reverse
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 
@@ -111,3 +116,144 @@ class WorkspaceMember(models.Model):
     def __str__(self) -> str:
         """Return a human-readable summary of the membership."""
         return f"{self.user} in {self.workspace} ({self.role})"
+
+
+INVITE_DEFAULT_TTL_DAYS = 7
+
+
+def _default_invite_expiry():
+    """Return the default ``expires_at`` for new invites.
+
+    Defined as a module-level function (not a lambda) so Django's
+    migration autodetector can serialise it without freezing the
+    current ``timezone.now()`` into the migration file.
+    """
+    return timezone.now() + datetime.timedelta(days=INVITE_DEFAULT_TTL_DAYS)
+
+
+class WorkspaceInvite(models.Model):
+    """One-use email invitation to join a workspace.
+
+    Signup is otherwise closed (``NoSignupAccountAdapter``) — an
+    invite is the *only* path for a new account to land in a
+    workspace. The token is a capability-style credential: anyone
+    holding the URL ``/accounts/signup/?invite=<token>`` can complete
+    signup as the invited email, get a membership row with the
+    pre-baked role, and start using Acta.
+
+    Tokens are single-use (``accepted_at`` flips at signup) and time-
+    boxed (default 7-day TTL). Admins can revoke a pending invite at
+    any time by deleting the row, or re-send by minting a new one.
+    """
+
+    email = models.EmailField(
+        help_text="Email address of the invitee; pre-filled and locked at signup",
+    )
+    workspace = models.ForeignKey(
+        Workspace,
+        on_delete=models.CASCADE,
+        related_name="invites",
+        help_text="Workspace the invitee joins on accepting",
+    )
+    role = models.CharField(
+        max_length=10,
+        choices=[
+            (WorkspaceMember.ADMIN, _("Admin")),
+            (WorkspaceMember.MEMBER, _("Member")),
+        ],
+        default=WorkspaceMember.MEMBER,
+        help_text="Workspace role granted to the new member; never grants Owner",
+    )
+    token = models.CharField(
+        max_length=64,
+        unique=True,
+        help_text="URL-safe one-use token included in the invite link",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="sent_workspace_invites",
+        help_text="Admin who sent the invite; SET_NULL preserves the audit trail if they leave",
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When the invite was generated",
+    )
+    expires_at = models.DateTimeField(
+        default=_default_invite_expiry,
+        help_text="When the token stops accepting signups; defaults to created_at + 7 days",
+    )
+    accepted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the invite was consumed; non-null means the token can no longer be used",
+    )
+
+    class Meta:
+        verbose_name = _("Workspace invite")
+        verbose_name_plural = _("Workspace invites")
+        ordering = [
+            "-created_at",
+        ]
+
+    def __str__(self) -> str:
+        """Return a compact summary for the admin list view."""
+        return f"{self.email} → {self.workspace} ({self.role})"
+
+    @classmethod
+    def generate(cls, *, workspace, email: str, role: str, created_by=None) -> "WorkspaceInvite":
+        """Mint a fresh invite with a random token and the default TTL.
+
+        The admin-facing UI calls this; ``email`` is normalised lower-
+        case so case differences don't let the same address eat two
+        tokens. ``role`` must be ``admin`` or ``member`` — Owner is
+        reserved for the workspace creator.
+
+        Args:
+            workspace: The :class:`Workspace` the invitee will join.
+            email: Invitee's email address.
+            role: One of ``admin`` / ``member``.
+            created_by: Admin issuing the invite (optional but
+                strongly recommended for audit).
+
+        Returns:
+            The persisted :class:`WorkspaceInvite` row, ready to be
+            embedded into an outgoing email.
+        """
+        return cls.objects.create(
+            workspace=workspace,
+            email=email.strip().lower(),
+            role=role,
+            created_by=created_by,
+            token=secrets.token_urlsafe(32),
+        )
+
+    @property
+    def is_expired(self) -> bool:
+        """``True`` if the invite's TTL has lapsed."""
+        return timezone.now() >= self.expires_at
+
+    @property
+    def is_consumed(self) -> bool:
+        """``True`` once the invite has been used to complete a signup."""
+        return self.accepted_at is not None
+
+    @property
+    def is_active(self) -> bool:
+        """``True`` while the invite still accepts a signup."""
+        return not self.is_expired and not self.is_consumed
+
+    @property
+    def signup_url(self) -> str:
+        """Relative URL pointing at the invite landing view.
+
+        The admin pastes this into the outgoing email. The landing
+        view validates the token, stashes it in the session, then
+        forwards to the allauth signup form — that two-hop dance is
+        what survives allauth's POST-without-querystring quirk. Use
+        ``request.build_absolute_uri(invite.signup_url)`` to render
+        the full ``https://acta.../...`` form for the email body.
+        """
+        return reverse("accounts:invite_accept", args=[self.token])

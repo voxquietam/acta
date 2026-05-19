@@ -4,7 +4,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseBadRequest, HttpResponseRedirect
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone, translation
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -12,6 +12,7 @@ from django.utils.translation import gettext
 from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_POST
 
+from apps.accounts.adapters import INVITE_SESSION_KEY
 from apps.accounts.models import ApiToken
 
 
@@ -198,3 +199,52 @@ def revoke_api_token(request, token_id: int):
         token.save(update_fields=["revoked_at"])
         messages.success(request, _("Token “%(name)s” revoked.") % {"name": token.name})
     return HttpResponseRedirect(reverse("accounts:settings"))
+
+
+def invite_accept(request, token: str):
+    """Landing page for an invite URL.
+
+    The recipient clicks the link in their email; this view verifies
+    the token is still active and stashes it in the session so the
+    ``NoSignupAccountAdapter`` recognises the invite on every step of
+    the allauth signup flow — even the POST that submits the form,
+    where the querystring would otherwise have been dropped.
+
+    Failure paths:
+      - Unknown / consumed / expired token → redirect to login with a
+        flash explaining the link is no longer valid.
+      - Already-authenticated user → redirect to the home page; they
+        don't need to sign up again.
+
+    The success redirect points at allauth's signup view with the
+    token both in the session *and* the querystring for defence in
+    depth.
+    """
+    from apps.workspaces.models import WorkspaceInvite
+
+    if request.user.is_authenticated:
+        messages.info(
+            request,
+            _("You're already signed in — share the invite link with someone who needs an account."),
+        )
+        return redirect("/")
+
+    try:
+        invite = WorkspaceInvite.objects.select_related("workspace").get(token=token)
+    except WorkspaceInvite.DoesNotExist:
+        messages.error(request, _("That invite link is not valid."))
+        return redirect("account_login")
+
+    if not invite.is_active:
+        if invite.is_consumed:
+            messages.error(request, _("That invite link has already been used."))
+        else:
+            messages.error(request, _("That invite link has expired — ask the admin to resend it."))
+        return redirect("account_login")
+
+    request.session[INVITE_SESSION_KEY] = invite.token
+    # Keep the querystring as well so allauth's signup template can
+    # show ``invite.workspace.name`` in the page header without us
+    # having to override the template.
+    signup_url = reverse("account_signup")
+    return HttpResponseRedirect(f"{signup_url}?invite={invite.token}")
