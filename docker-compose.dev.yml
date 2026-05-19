@@ -1,4 +1,13 @@
 services:
+  db:
+    # Dev-only host-port mapping so PyCharm Database tool, ``psql -h
+    # localhost``, and other IDE integrations can reach the local
+    # Postgres without going through ``docker compose exec``. Defaults
+    # to 5433 to avoid colliding with ksu24.back's Postgres on 5432.
+    # Override via POSTGRES_HOST_PORT in .env when needed.
+    ports:
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
+
   web:
     build:
       context: .

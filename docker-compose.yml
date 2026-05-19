@@ -10,11 +10,11 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    # Host port 5433 — avoids collision with ksu24.back's Postgres on 5432.
-    # The container still listens on 5432 internally; the web service talks to
-    # `db:5432` over the compose network.
-    ports:
-      - "${POSTGRES_HOST_PORT:-5433}:5432"
+    # No host-port mapping in prod: ``web`` reaches the DB through the
+    # internal compose network at ``db:5432``, and exposing Postgres to
+    # the LAN would let anything in the admin's VPN connect directly,
+    # bypassing every Django auth layer. ``docker-compose.dev.yml``
+    # adds the mapping back so local IDE / psql tooling still works.
     volumes:
       - acta-pgdata:/var/lib/postgresql/data
     healthcheck:
