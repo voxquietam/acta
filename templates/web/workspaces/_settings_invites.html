@@ -1,0 +1,125 @@
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+Invites panel — mint a workspace invite, see pending ones, revoke or
+resend. Mirrors the members-panel pattern: every mutation hits a
+dedicated POST view that returns THIS partial and swaps outer-HTML.
+
+Only admins (owner / admin) see the form + revoke / resend controls.
+Plain members see the pending list read-only.
+{% endcomment %}
+<div id="workspace-invites">
+
+  {# Send invite form — admin only. #}
+  {% if viewer_is_admin %}
+  <form hx-post="{% url 'web:create_workspace_invite' slug=workspace.slug %}"
+        hx-target="#workspace-invites"
+        hx-swap="outerHTML"
+        class="flex items-end gap-2 pb-4 mb-4 border-b border-border">
+    {% csrf_token %}
+    <div class="flex-1 min-w-0">
+      <label for="invite-email" class="text-[10px] uppercase tracking-wider text-placeholder-foreground">
+        {% trans "Invite by email" %}
+      </label>
+      <input type="email" name="email" id="invite-email" required autocomplete="off"
+             placeholder="name@example.com"
+             class="mt-1 acta-input">
+    </div>
+    <div>
+      <label for="invite-role" class="text-[10px] uppercase tracking-wider text-placeholder-foreground">
+        {% trans "Role" %}
+      </label>
+      <select name="role" id="invite-role"
+              class="mt-1 acta-input">
+        {% for value, label in invite_role_choices %}
+        <option value="{{ value }}" {% if value == 'member' %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="acta-btn-primary">
+      {% lucide "mail" "w-4 h-4" %}
+      {% trans "Send invite" %}
+    </button>
+  </form>
+  {% endif %}
+
+  {# Pending invites list — visible to everyone in the workspace. #}
+  {% if pending_invites %}
+  <ul class="space-y-2">
+    {% for invite in pending_invites %}
+    <li class="flex items-center justify-between gap-3 py-1.5">
+      <div class="flex items-center gap-3 min-w-0">
+        <span class="w-9 h-9 rounded-full bg-muted grid place-items-center text-placeholder-foreground shrink-0">
+          {% lucide "mail" "w-4 h-4" %}
+        </span>
+        <div class="min-w-0">
+          <div class="text-sm text-foreground truncate">{{ invite.email }}</div>
+          <div class="text-xs text-placeholder-foreground truncate">
+            {{ invite.get_role_display }} ·
+            {% if invite.expires_at < now %}
+              <span class="text-rose-400">{% trans "expired" %}</span>
+            {% else %}
+              {% blocktrans with d=invite.expires_at|date:"M j, H:i" %}expires {{ d }}{% endblocktrans %}
+            {% endif %}
+            {% if invite.created_by %}
+              · {% blocktrans with name=invite.created_by.display_name %}sent by {{ name }}{% endblocktrans %}
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      {% if viewer_is_admin %}
+      <div class="flex items-center gap-1 shrink-0">
+        <form hx-post="{% url 'web:resend_workspace_invite' slug=workspace.slug invite_id=invite.id %}"
+              hx-target="#workspace-invites"
+              hx-swap="outerHTML"
+              class="inline">
+          {% csrf_token %}
+          <button type="submit"
+                  class="text-placeholder-foreground hover:text-foreground p-1 rounded-md hover:bg-muted"
+                  data-tooltip="{% trans 'Resend email' %}">
+            {% lucide "send" "w-4 h-4" %}
+          </button>
+        </form>
+
+        <div x-data="{ confirming: false }" class="inline-flex items-center gap-1">
+          <button type="button"
+                  x-show="!confirming"
+                  @click="confirming = true"
+                  class="text-placeholder-foreground hover:text-rose-400 p-1 rounded-md hover:bg-muted"
+                  data-tooltip="{% trans 'Revoke invite' %}">
+            {% lucide "x" "w-4 h-4" %}
+          </button>
+          <form x-show="confirming"
+                x-cloak
+                hx-post="{% url 'web:revoke_workspace_invite' slug=workspace.slug invite_id=invite.id %}"
+                hx-target="#workspace-invites"
+                hx-swap="outerHTML"
+                class="inline-flex items-center gap-1">
+            {% csrf_token %}
+            <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Revoke?" %}</span>
+            <button type="submit"
+                    class="p-1 rounded-md text-rose-400 hover:bg-rose-950/40"
+                    data-tooltip="{% trans 'Confirm revoke' %}">
+              {% lucide "check" "w-4 h-4" %}
+            </button>
+            <button type="button"
+                    @click="confirming = false"
+                    class="p-1 rounded-md text-placeholder-foreground hover:bg-muted"
+                    data-tooltip="{% trans 'Cancel' %}">
+              {% lucide "x" "w-4 h-4" %}
+            </button>
+          </form>
+        </div>
+      </div>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="text-xs text-placeholder-foreground italic">
+    {% trans "No pending invites." %}
+  </p>
+  {% endif %}
+
+</div>

@@ -320,3 +320,92 @@ class TestSignupRejectsMismatchedEmail:
         assert invite.accepted_at is None
         assert not User.objects.filter(username="imposter").exists()
         assert response.status_code in (200, 302)
+
+
+@pytest.fixture
+def workspace_admin_setup(db):
+    """Workspace + admin user logged into the test client."""
+    workspace = WorkspaceFactory(name="Acme")
+    admin = UserFactory(username="admin-user")
+    WorkspaceMember.objects.create(workspace=workspace, user=admin, role=WorkspaceMember.ADMIN)
+    return workspace, admin
+
+
+@pytest.mark.django_db
+class TestWorkspaceInviteWebUI:
+    """The settings page invite panel — create / revoke / resend via HTMX."""
+
+    def test_create_invite_via_settings_form(self, client, locmem_email, workspace_admin_setup):
+        workspace, admin = workspace_admin_setup
+        client.force_login(admin)
+
+        response = client.post(
+            reverse("web:create_workspace_invite", args=[workspace.slug]),
+            data={"email": "newbie@team.test", "role": WorkspaceMember.MEMBER},
+        )
+        assert response.status_code == 200
+        # Partial HTML re-rendered with the new invite present.
+        assert b"newbie@team.test" in response.content
+        # DB row + email side-effects.
+        invite = WorkspaceInvite.objects.get(workspace=workspace, email="newbie@team.test")
+        assert invite.role == WorkspaceMember.MEMBER
+        assert invite.created_by == admin
+        assert len(locmem_email) == 1
+        assert locmem_email[0].to == ["newbie@team.test"]
+
+    def test_create_invite_rejects_non_admin(self, client, workspace_admin_setup):
+        workspace, admin = workspace_admin_setup
+        plain = UserFactory()
+        WorkspaceMember.objects.create(workspace=workspace, user=plain, role=WorkspaceMember.MEMBER)
+        client.force_login(plain)
+
+        response = client.post(
+            reverse("web:create_workspace_invite", args=[workspace.slug]),
+            data={"email": "anyone@team.test", "role": WorkspaceMember.MEMBER},
+        )
+        assert response.status_code == 400
+        assert not WorkspaceInvite.objects.filter(email="anyone@team.test").exists()
+
+    def test_revoke_invite_deletes_row(self, client, workspace_admin_setup):
+        workspace, admin = workspace_admin_setup
+        client.force_login(admin)
+        invite = WorkspaceInvite.generate(
+            workspace=workspace, email="goner@team.test", role=WorkspaceMember.MEMBER, created_by=admin
+        )
+
+        response = client.post(
+            reverse("web:revoke_workspace_invite", args=[workspace.slug, invite.id]),
+        )
+        assert response.status_code == 200
+        assert not WorkspaceInvite.objects.filter(pk=invite.pk).exists()
+        # Partial no longer contains the email.
+        assert b"goner@team.test" not in response.content
+
+    def test_resend_invite_re_dispatches_email(self, client, locmem_email, workspace_admin_setup):
+        workspace, admin = workspace_admin_setup
+        client.force_login(admin)
+        invite = WorkspaceInvite.generate(
+            workspace=workspace, email="bouncer@team.test", role=WorkspaceMember.MEMBER, created_by=admin
+        )
+        assert len(locmem_email) == 0  # ``generate`` doesn't send
+
+        response = client.post(
+            reverse("web:resend_workspace_invite", args=[workspace.slug, invite.id]),
+        )
+        assert response.status_code == 200
+        assert len(locmem_email) == 1
+        assert locmem_email[0].to == ["bouncer@team.test"]
+
+    def test_resend_skips_consumed_invite(self, client, workspace_admin_setup):
+        workspace, admin = workspace_admin_setup
+        client.force_login(admin)
+        invite = WorkspaceInvite.generate(
+            workspace=workspace, email="x@x.x", role=WorkspaceMember.MEMBER, created_by=admin
+        )
+        invite.accepted_at = timezone.now()
+        invite.save(update_fields=["accepted_at"])
+
+        response = client.post(
+            reverse("web:resend_workspace_invite", args=[workspace.slug, invite.id]),
+        )
+        assert response.status_code == 400

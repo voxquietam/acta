@@ -1256,6 +1256,17 @@
     window.actaToast("Network error — check your connection.", "error");
   });
 
+  // Server-side success toasts ride the ``HX-Trigger`` header on HTMX
+  // responses. The view returns ``HX-Trigger: {"acta:toast": {"message":
+  // "...", "level": "success"}}``; HTMX dispatches an ``acta:toast``
+  // event on ``<body>`` and we pipe it through ``window.actaToast``.
+  document.body.addEventListener("acta:toast", (evt) => {
+    const detail = evt.detail || {};
+    const message = detail.message || "";
+    const level = detail.level || "success";
+    if (message) window.actaToast(message, level);
+  });
+
   document.addEventListener("alpine:init", () => {
     window.Alpine.store("toasts", {
       items: [],

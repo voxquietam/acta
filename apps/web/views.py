@@ -2248,6 +2248,149 @@ def _user_is_workspace_admin(user, workspace):
     return m is not None and m.role in (WorkspaceMember.OWNER, WorkspaceMember.ADMIN)
 
 
+def _render_workspace_invites(workspace, *, viewer):
+    """Build context for the invites panel — pending only, freshest first.
+
+    Consumed invites stay in the DB for the audit trail but don't
+    show up here; expired ones still surface so the admin sees them
+    sitting in the list and either deletes them or mints a fresh one.
+    """
+    from django.utils import timezone
+
+    invites = list(
+        workspace.invites.filter(accepted_at__isnull=True).select_related("created_by").order_by("-created_at")
+    )
+    viewer_membership = _workspace_member_or_none(viewer, workspace)
+    viewer_is_admin = viewer_membership is not None and viewer_membership.role in (
+        WorkspaceMember.OWNER,
+        WorkspaceMember.ADMIN,
+    )
+    return {
+        "workspace": workspace,
+        "pending_invites": invites,
+        "invite_role_choices": [
+            (WorkspaceMember.ADMIN, WorkspaceMember.ROLE_CHOICES[1][1]),
+            (WorkspaceMember.MEMBER, WorkspaceMember.ROLE_CHOICES[2][1]),
+        ],
+        "now": timezone.now(),
+        "viewer_is_admin": viewer_is_admin,
+    }
+
+
+def _invites_partial_response(request, workspace, *, toast=None):
+    """Render just the invites panel — used after every mutation.
+
+    Optional ``toast`` (``{"message": ..., "level": "success"|"error"}``)
+    rides on a ``HX-Trigger: {"acta:toast": ...}`` response header so
+    the client-side ``acta:toast`` listener can surface a confirmation
+    or error message without us having to embed it in the partial.
+    """
+    response = HttpResponse(
+        render_to_string(
+            "web/workspaces/_settings_invites.html",
+            _render_workspace_invites(workspace, viewer=request.user),
+            request=request,
+        ),
+    )
+    if toast is not None:
+        import json
+
+        response["HX-Trigger"] = json.dumps({"acta:toast": toast})
+    return response
+
+
+@require_POST
+@login_required
+def create_workspace_invite(request, slug):
+    """Mint a workspace invite + send the email.
+
+    Admin-only. Form fields: ``email`` (required) and ``role``
+    (admin|member). Owner is never grantable through invite (the
+    workspace already has one). Re-rendering the invites partial on
+    success so HTMX swaps it in place.
+    """
+    from apps.workspaces.models import WorkspaceInvite
+    from apps.workspaces.services import send_invite_email
+
+    workspace = _get_user_workspace_or_404(request.user, slug)
+    if not _user_is_workspace_admin(request.user, workspace):
+        return HttpResponseBadRequest(_("Admin or owner only"))
+    email = (request.POST.get("email") or "").strip()
+    if not email or "@" not in email:
+        return HttpResponseBadRequest(_("Email is required"))
+    role = request.POST.get("role") or WorkspaceMember.MEMBER
+    if role not in {WorkspaceMember.ADMIN, WorkspaceMember.MEMBER}:
+        return HttpResponseBadRequest(_("Invalid role"))
+    invite = WorkspaceInvite.generate(
+        workspace=workspace,
+        email=email,
+        role=role,
+        created_by=request.user,
+    )
+    sent = send_invite_email(invite, request=request)
+    if sent:
+        toast = {"message": _("Invite sent to %(email)s.") % {"email": email}, "level": "success"}
+    else:
+        toast = {
+            "message": _("Invite created but email failed — copy the link from the list."),
+            "level": "warning",
+        }
+    return _invites_partial_response(request, workspace, toast=toast)
+
+
+@require_POST
+@login_required
+def revoke_workspace_invite(request, slug, invite_id):
+    """Revoke (delete) a pending invite.
+
+    Admin-only. A revoked invite stops working immediately — the
+    landing view's ``WorkspaceInvite.DoesNotExist`` branch covers the
+    case. Consumed invites can't reach this endpoint (the partial
+    only renders ``accepted_at__isnull=True`` rows).
+    """
+    from apps.workspaces.models import WorkspaceInvite
+
+    workspace = _get_user_workspace_or_404(request.user, slug)
+    if not _user_is_workspace_admin(request.user, workspace):
+        return HttpResponseBadRequest(_("Admin or owner only"))
+    invite = WorkspaceInvite.objects.filter(workspace=workspace, pk=invite_id).first()
+    if invite is None:
+        return HttpResponseBadRequest(_("Invite not found"))
+    revoked_email = invite.email
+    invite.delete()
+    return _invites_partial_response(
+        request,
+        workspace,
+        toast={"message": _("Invite to %(email)s revoked.") % {"email": revoked_email}, "level": "success"},
+    )
+
+
+@require_POST
+@login_required
+def resend_workspace_invite(request, slug, invite_id):
+    """Re-send the invite email without rotating the token.
+
+    Useful when the recipient's mailbox bounced or they lost the
+    original. Admin-only. The same partial swap as create/revoke
+    keeps the panel in sync.
+    """
+    from apps.workspaces.models import WorkspaceInvite
+    from apps.workspaces.services import send_invite_email
+
+    workspace = _get_user_workspace_or_404(request.user, slug)
+    if not _user_is_workspace_admin(request.user, workspace):
+        return HttpResponseBadRequest(_("Admin or owner only"))
+    invite = WorkspaceInvite.objects.filter(workspace=workspace, pk=invite_id, accepted_at__isnull=True).first()
+    if invite is None:
+        return HttpResponseBadRequest(_("Invite not found or already accepted"))
+    sent = send_invite_email(invite, request=request)
+    if sent:
+        toast = {"message": _("Invite re-sent to %(email)s.") % {"email": invite.email}, "level": "success"}
+    else:
+        toast = {"message": _("Resend failed — try again later."), "level": "error"}
+    return _invites_partial_response(request, workspace, toast=toast)
+
+
 def _render_workspace_members(workspace, *, viewer):
     """Build the context payload shared by full-page + HTMX fragment.
 
@@ -2296,10 +2439,18 @@ class WorkspaceSettingsView(LoginRequiredMixin, TemplateView):
     template_name = "web/workspaces/settings.html"
 
     def get_context_data(self, **kwargs):
-        """Return workspace + member roster + add-form candidates."""
+        """Return workspace + member roster + pending invites."""
         ctx = super().get_context_data(**kwargs)
         workspace = _get_user_workspace_or_404(self.request.user, self.kwargs["slug"])
         ctx.update(_render_workspace_members(workspace, viewer=self.request.user))
+        # Invites panel sits next to members on the same page — share
+        # the same workspace + viewer lookup so the two panels stay
+        # consistent (admin-gated mutations on both).
+        invites_ctx = _render_workspace_invites(workspace, viewer=self.request.user)
+        # ``viewer_is_admin`` is computed by both helpers — last one
+        # wins on merge, but the value is the same. Keep the explicit
+        # update so the template gets every key it expects.
+        ctx.update(invites_ctx)
         return ctx
 
 

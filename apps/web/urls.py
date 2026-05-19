@@ -13,8 +13,11 @@ from .views import (
     create_project,
     create_task,
     create_workspace,
+    create_workspace_invite,
     post_comment,
     remove_workspace_member,
+    resend_workspace_invite,
+    revoke_workspace_invite,
     set_project_description,
     set_project_icon,
     set_project_lead,
@@ -57,6 +60,21 @@ urlpatterns = [
         "workspaces/<slug:slug>/members/",
         add_workspace_member,
         name="add_workspace_member",
+    ),
+    path(
+        "workspaces/<slug:slug>/invites/",
+        create_workspace_invite,
+        name="create_workspace_invite",
+    ),
+    path(
+        "workspaces/<slug:slug>/invites/<int:invite_id>/revoke/",
+        revoke_workspace_invite,
+        name="revoke_workspace_invite",
+    ),
+    path(
+        "workspaces/<slug:slug>/invites/<int:invite_id>/resend/",
+        resend_workspace_invite,
+        name="resend_workspace_invite",
     ),
     path(
         "workspaces/<slug:slug>/members/<int:user_id>/role/",
