@@ -290,6 +290,11 @@ UNFOLD = {
                         "icon": "group",
                         "link": reverse_lazy("admin:workspaces_workspacemember_changelist"),
                     },
+                    {
+                        "title": _("Invites"),
+                        "icon": "mail",
+                        "link": reverse_lazy("admin:workspaces_workspaceinvite_changelist"),
+                    },
                 ],
             },
             {
