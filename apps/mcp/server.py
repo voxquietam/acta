@@ -4,10 +4,9 @@ Builds the :class:`mcp.server.Server` instance and registers all
 tools. Wired up by ``manage.py mcp_serve`` so Django settings are
 loaded before any model import.
 
-Tool registry currently has one entry — ``acta_ping`` — which lets a
-client verify their token works and confirms which Acta user the MCP
-session runs as. Real CRUD tools land in the next phase
-([[project-todo-mcp-server]] section "Stage 2 — Read-only tools").
+Tool catalogue lives in :mod:`apps.mcp.tools`. ``acta_ping`` here is
+the connectivity / auth-check tool that doesn't fit the data-tool
+pattern (no DB read) so it stays inline.
 """
 
 from __future__ import annotations
@@ -20,8 +19,23 @@ from mcp.server import Server
 from mcp.types import TextContent, Tool
 
 from apps.mcp.auth import AuthenticationError, authenticate_from_env
+from apps.mcp.tools import CALLABLES, TOOLS
 
 ACTA_MCP_VERSION = "0.1.0"
+
+
+_PING_TOOL = Tool(
+    name="acta_ping",
+    description=(
+        "Verify the MCP connection. Returns the Acta server version "
+        "and the username the session is authenticated as."
+    ),
+    inputSchema={
+        "type": "object",
+        "properties": {},
+        "additionalProperties": False,
+    },
+)
 
 
 def build_server() -> Server:
@@ -39,20 +53,7 @@ def build_server() -> Server:
     @server.list_tools()
     async def list_tools() -> list[Tool]:
         """Return the catalogue of MCP tools Acta exposes."""
-        return [
-            Tool(
-                name="acta_ping",
-                description=(
-                    "Verify the MCP connection. Returns the Acta server version "
-                    "and the username the session is authenticated as."
-                ),
-                inputSchema={
-                    "type": "object",
-                    "properties": {},
-                    "additionalProperties": False,
-                },
-            ),
-        ]
+        return [_PING_TOOL, *TOOLS]
 
     @server.call_tool()
     async def call_tool(name: str, arguments: dict[str, Any] | None) -> list[TextContent]:
@@ -65,8 +66,7 @@ def build_server() -> Server:
 
         Returns:
             A list of :class:`TextContent` items — currently a single
-            JSON-encoded response. Multi-content responses (e.g.
-            embedded resources) are a future extension.
+            JSON-encoded response per call.
 
         Raises:
             Exception: Re-raised with a user-friendly message when
@@ -74,6 +74,7 @@ def build_server() -> Server:
                 MCP clients surface this as the tool-call error.
         """
         session = await sync_to_async(_safe_authenticate)()
+        args = arguments or {}
 
         if name == "acta_ping":
             payload = {
@@ -83,7 +84,15 @@ def build_server() -> Server:
             }
             return [TextContent(type="text", text=json.dumps(payload, ensure_ascii=False))]
 
-        raise ValueError(f"Unknown tool: {name!r}")
+        handler = CALLABLES.get(name)
+        if handler is None:
+            raise ValueError(f"Unknown tool: {name!r}")
+
+        # Tool callables hit Django ORM (sync), so jump out of the
+        # async loop for the DB pass. The result is JSON-serialisable
+        # (list of dicts) and serialised back in this coroutine.
+        payload = await sync_to_async(handler)(session.user, args)
+        return [TextContent(type="text", text=json.dumps(payload, ensure_ascii=False, default=str))]
 
     return server
 
