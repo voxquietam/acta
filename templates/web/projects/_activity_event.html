@@ -15,28 +15,22 @@ with ``truncate`` so the row never wraps.
   {% if event.event_type == "task.status_changed" %}
     <span class="text-placeholder-foreground shrink-0">{% trans "changed status" %}</span>
     <span class="text-placeholder-foreground truncate">
-      {{ status_labels|get_item:event.payload.from|default:event.payload.from|default:"—" }}
-      →
-      {{ status_labels|get_item:event.payload.to|default:event.payload.to|default:"—" }}
+      {% if event.payload.from %}{{ status_labels|get_item:event.payload.from|default:event.payload.from }} {% endif %}→ {% if event.payload.to %}{{ status_labels|get_item:event.payload.to|default:event.payload.to }}{% endif %}
     </span>
   {% elif event.event_type == "task.priority_changed" %}
     <span class="text-placeholder-foreground shrink-0">{% trans "changed priority" %}</span>
     <span class="text-placeholder-foreground truncate">
-      {{ priority_labels|get_item:event.payload.from|default:"—" }}
-      →
-      {{ priority_labels|get_item:event.payload.to|default:"—" }}
+      {% if event.payload.from %}{{ priority_labels|get_item:event.payload.from }} {% endif %}→ {% if event.payload.to %}{{ priority_labels|get_item:event.payload.to }}{% endif %}
     </span>
   {% elif event.event_type == "task.due_changed" %}
     <span class="text-placeholder-foreground shrink-0">{% trans "changed due date" %}</span>
     <span class="text-placeholder-foreground truncate">
-      {{ event.payload.from|default:"—" }} → {{ event.payload.to|default:"—" }}
+      {% if event.payload.from %}{{ event.payload.from }} {% endif %}→ {% if event.payload.to %}{{ event.payload.to }}{% else %}{% trans "cleared" %}{% endif %}
     </span>
   {% elif event.event_type == "task.assigned" %}
     <span class="text-placeholder-foreground shrink-0">{% trans "changed assignee" %}</span>
     <span class="text-placeholder-foreground truncate">
-      {{ event.assigned_from_name|default:"—" }}
-      →
-      {{ event.assigned_to_name|default:"unassigned" }}
+      {% if event.assigned_from_name %}{{ event.assigned_from_name }} {% endif %}→ {% if event.assigned_to_name %}{{ event.assigned_to_name }}{% else %}{% trans "unassigned" %}{% endif %}
     </span>
   {% elif event.event_type == "task.labels_changed" %}
     <span class="text-placeholder-foreground shrink-0">{% trans "changed labels" %}</span>
@@ -49,9 +43,7 @@ with ``truncate`` so the row never wraps.
     {% if event.payload.changes.size %}
       <span class="text-placeholder-foreground shrink-0">{% trans "changed size" %}</span>
       <span class="text-placeholder-foreground truncate">
-        {{ event.payload.changes.size.old|default:"—" }}
-        →
-        {{ event.payload.changes.size.new|default:"—" }}
+        {% if event.payload.changes.size.old %}{{ event.payload.changes.size.old }} {% endif %}→ {% if event.payload.changes.size.new %}{{ event.payload.changes.size.new }}{% else %}{% trans "cleared" %}{% endif %}
       </span>
     {% else %}
       <span class="text-placeholder-foreground truncate">{{ event.event_type|event_label }}</span>
