@@ -38,6 +38,18 @@ That's it. Behind the target:
 Downtime: ~10–30 seconds while the container restarts. For 20 users
 that's fine.
 
+### Deploying a non-master branch
+
+To gate a feature on the prod VM before merging it to `master`, pass
+the branch name via `BRANCH=`:
+
+```bash
+make deploy BRANCH=dev
+```
+
+Same flow, just resets to `origin/dev` instead. Run `make deploy` (no
+override) once the branch is merged back to bring prod onto master.
+
 ## Pre-push gate (optional but recommended)
 
 Before pushing to `master`, run the full check matrix locally:

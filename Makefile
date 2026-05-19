@@ -147,8 +147,14 @@ ci-check: ## lint + tests + frontend build + django check --deploy
 		DJANGO_CSRF_TRUSTED_ORIGINS=https://actaspace.com \
 		python manage.py check --deploy
 
-deploy: ## (on prod VM) fetch master + rebuild + restart
-	git fetch --tags origin master
-	git reset --hard origin/master
+# Branch to deploy. Defaults to ``master`` (the prod release branch);
+# override with ``make deploy BRANCH=dev`` while gating a feature on
+# the prod VM before it's merged. ``git reset --hard`` makes the call
+# idempotent and tolerant of force-pushes.
+BRANCH ?= master
+
+deploy: ## (on prod VM) fetch + reset to BRANCH (default master) + rebuild
+	git fetch --tags origin $(BRANCH)
+	git reset --hard origin/$(BRANCH)
 	$(COMPOSE) up -d --build
 	$(COMPOSE) ps
