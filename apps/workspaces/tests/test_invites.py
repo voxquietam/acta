@@ -276,3 +276,47 @@ class TestInviteEmail:
         req = rf.get("/admin/")
         send_invite_email(invite, request=req)
         assert "http://testserver" in locmem_email[0].body
+
+
+@pytest.mark.django_db
+class TestSignupFormPrefill:
+    """``InviteAwareSignupView.get_initial`` pre-fills email from the invite."""
+
+    def test_email_prefilled_on_get(self, client):
+        ws = WorkspaceFactory()
+        invite = WorkspaceInvite.generate(workspace=ws, email="prefill@team.test", role=WorkspaceMember.MEMBER)
+        # Land via the invite endpoint so the session is primed.
+        client.get(invite.signup_url)
+        response = client.get(reverse("account_signup") + f"?invite={invite.token}")
+        assert response.status_code == 200
+        # The email input on the form must carry the invite's address
+        # as ``value=`` so the recipient doesn't re-type it.
+        assert b'value="prefill@team.test"' in response.content
+
+
+@pytest.mark.django_db
+class TestSignupRejectsMismatchedEmail:
+    """Adapter's save_user refuses a POST whose email diverges from the invite."""
+
+    def test_mismatched_email_rejected(self, client):
+        ws = WorkspaceFactory()
+        invite = WorkspaceInvite.generate(workspace=ws, email="bound@team.test", role=WorkspaceMember.MEMBER)
+        # Stash invite in session first.
+        client.get(invite.signup_url)
+        # Submit with a different email — should fail.
+        signup_url = reverse("account_signup") + f"?invite={invite.token}"
+        payload = {
+            "username": "imposter",
+            "email": "different@elsewhere.test",
+            "password1": "verysecret-passw0rd",
+            "password2": "verysecret-passw0rd",
+        }
+        response = client.post(signup_url, payload, follow=False)
+        # Form re-renders (200) with the validation error attached;
+        # invite must remain unconsumed and no User row should appear.
+        from apps.accounts.models import User
+
+        invite.refresh_from_db()
+        assert invite.accepted_at is None
+        assert not User.objects.filter(username="imposter").exists()
+        assert response.status_code in (200, 302)

@@ -83,7 +83,8 @@ class NoSignupAccountAdapter(DefaultAccountAdapter):
             # Defence in depth: ``is_open_for_signup`` would have to
             # have returned True for execution to reach here, but if
             # the invite expired between the two calls we abort
-            # without granting workspace access.
+            # without granting workspace access. Email-vs-invite
+            # mismatch is caught earlier in ``InviteAwareSignupView``.
             return user
 
         with transaction.atomic():

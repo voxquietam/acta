@@ -7,6 +7,8 @@ from django.urls import include, path, re_path
 
 import django_eventstream
 
+from apps.accounts.views import InviteAwareSignupView
+
 api_v1_patterns = [
     path("", include("apps.workspaces.urls")),
     path("", include("apps.projects.urls")),
@@ -19,8 +21,11 @@ api_v1_patterns = [
 urlpatterns = [
     path("admin/", admin.site.urls),
     # Custom account routes (language switcher) come before allauth so
-    # /accounts/set-language/ is owned by us.
+    # /accounts/set-language/ is owned by us. The signup view override
+    # also lands here so the invite email pre-fills the form on GET
+    # before allauth's plain SignupView would.
     path("accounts/", include("apps.accounts.urls", namespace="accounts")),
+    path("accounts/signup/", InviteAwareSignupView.as_view(), name="account_signup"),
     path("accounts/", include("allauth.urls")),
     path("api/v1/", include((api_v1_patterns, "api_v1"))),
     # MCP HTTP transport — single endpoint, JSON-RPC over POST. See

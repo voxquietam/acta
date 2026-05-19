@@ -12,8 +12,68 @@ from django.utils.translation import gettext
 from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_POST
 
-from apps.accounts.adapters import INVITE_SESSION_KEY
+from allauth.account.views import SignupView
+
+from apps.accounts.adapters import INVITE_SESSION_KEY, resolve_invite_from_request
 from apps.accounts.models import ApiToken
+
+
+class InviteAwareSignupView(SignupView):
+    """Override allauth's SignupView to pre-fill + lock the invite email.
+
+    The recipient already proved they own the address by clicking the
+    invite link in their inbox — typing it a second time is friction
+    and a divergence risk (an LLM-pasted typo would land them in the
+    DB under a different email than the invite was issued to).
+
+    Two enforcement points:
+      - :meth:`get_form_kwargs` injects ``initial={"email": invite.email}``
+        so the GET-rendered form shows the right address.
+      - :meth:`form_valid` rechecks the submitted email server-side so
+        a determined user editing the read-only input gets a clean
+        form error instead of a 500 from a downstream raise.
+    """
+
+    def get_form_kwargs(self):
+        """Inject the invite email into the form's ``initial`` dict.
+
+        ``get_initial`` alone wasn't enough — allauth's BaseSignupView
+        overrides ``get_form_kwargs`` and discards the parent's
+        initial in some paths. Setting it directly here makes sure it
+        survives to the BoundField rendering.
+        """
+        kwargs = super().get_form_kwargs()
+        invite = resolve_invite_from_request(self.request)
+        if invite is not None:
+            initial = dict(kwargs.get("initial") or {})
+            initial["email"] = invite.email
+            kwargs["initial"] = initial
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        """Expose ``invite`` to the template so it can show workspace + role hint."""
+        context = super().get_context_data(**kwargs)
+        context["invite"] = resolve_invite_from_request(self.request)
+        return context
+
+    def form_valid(self, form):
+        """Reject submission if email diverges from the invite, then delegate.
+
+        Allauth's ``save_user`` runs deep inside ``form.save()`` and a
+        ``ValidationError`` from there bubbles up as a 500. We catch
+        the mismatch earlier and add a form error so the user sees a
+        normal validation message and the form re-renders.
+        """
+        invite = resolve_invite_from_request(self.request)
+        if invite is not None:
+            submitted = (form.cleaned_data.get("email") or "").strip().lower()
+            if submitted and submitted != invite.email:
+                form.add_error(
+                    "email",
+                    _("Email does not match the invite — it was issued to %(expected)s.") % {"expected": invite.email},
+                )
+                return self.form_invalid(form)
+        return super().form_valid(form)
 
 
 @require_POST

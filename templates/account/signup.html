@@ -1,0 +1,103 @@
+{% extends "base_auth.html" %}
+{% load i18n %}
+
+{% comment %}
+Custom allauth signup template — overrides ``allauth/templates/account/signup.html``.
+Renders the Acta-themed form for the invite flow:
+- ``email`` is pre-filled from the invite (server-side via
+  ``InviteAwareSignupView.get_initial``) and rendered read-only so
+  the user can't divert the new account to a different address.
+- ``invite`` context var (set by the view) drives the workspace +
+  role hint at the top of the page so the recipient understands
+  what they're joining.
+{% endcomment %}
+
+{% block title %}{% trans "Create account" %} · Acta{% endblock %}
+
+{% block auth_main %}
+<h1 class="text-base font-medium text-foreground mb-1">{% trans "Create your account" %}</h1>
+{% if invite %}
+  <p class="text-xs text-placeholder-foreground mb-4">
+    {% blocktrans with workspace=invite.workspace.name role=invite.get_role_display %}
+    You're joining <span class="text-foreground">{{ workspace }}</span> as <span class="text-foreground">{{ role }}</span>.
+    {% endblocktrans %}
+  </p>
+{% else %}
+  <p class="text-xs text-placeholder-foreground mb-4">{% trans "Sign up for an Acta account." %}</p>
+{% endif %}
+
+<form method="post" action="{% url 'account_signup' %}{% if invite %}?invite={{ invite.token }}{% endif %}" class="space-y-3">
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+  <div class="text-xs text-rose-400 bg-rose-950/40 border border-rose-900 rounded-md px-2 py-1.5">
+    {{ form.non_field_errors|join:" " }}
+  </div>
+  {% endif %}
+
+  <div>
+    <label for="id_email" class="text-[10px] uppercase tracking-wider text-placeholder-foreground">
+      {% trans "Email" %}
+    </label>
+    {# Read-only when an invite is in flight; editable when none. #}
+    <input type="email" name="email" id="id_email" required autocomplete="email"
+           value="{{ form.email.value|default_if_none:'' }}"
+           {% if invite %}readonly tabindex="-1" aria-readonly="true"{% endif %}
+           class="mt-1 acta-input{% if invite %} opacity-70 cursor-not-allowed{% endif %}">
+    {% if form.email.errors %}
+    <p class="mt-1 text-xs text-rose-400">{{ form.email.errors|join:" " }}</p>
+    {% endif %}
+  </div>
+
+  <div>
+    <label for="id_username" class="text-[10px] uppercase tracking-wider text-placeholder-foreground">
+      {% trans "Username" %}
+    </label>
+    <input type="text" name="username" id="id_username" autofocus required autocomplete="username"
+           value="{{ form.username.value|default_if_none:'' }}"
+           class="mt-1 acta-input">
+    {% if form.username.errors %}
+    <p class="mt-1 text-xs text-rose-400">{{ form.username.errors|join:" " }}</p>
+    {% endif %}
+  </div>
+
+  <div>
+    <label for="id_password1" class="text-[10px] uppercase tracking-wider text-placeholder-foreground">
+      {% trans "Password" %}
+    </label>
+    <input type="password" name="password1" id="id_password1" required autocomplete="new-password"
+           class="mt-1 acta-input">
+    {% if form.password1.errors %}
+    <p class="mt-1 text-xs text-rose-400">{{ form.password1.errors|join:" " }}</p>
+    {% endif %}
+  </div>
+
+  <div>
+    <label for="id_password2" class="text-[10px] uppercase tracking-wider text-placeholder-foreground">
+      {% trans "Confirm password" %}
+    </label>
+    <input type="password" name="password2" id="id_password2" required autocomplete="new-password"
+           class="mt-1 acta-input">
+    {% if form.password2.errors %}
+    <p class="mt-1 text-xs text-rose-400">{{ form.password2.errors|join:" " }}</p>
+    {% endif %}
+  </div>
+
+  {% if redirect_field_value %}
+  <input type="hidden" name="{{ redirect_field_name }}" value="{{ redirect_field_value }}">
+  {% endif %}
+
+  <div class="flex items-center justify-end pt-2">
+    <button type="submit" class="acta-btn-primary">
+      {% trans "Create account" %}
+    </button>
+  </div>
+</form>
+{% endblock %}
+
+{% block auth_footer %}
+<p class="mt-4 text-center text-[11px] text-placeholder-foreground">
+  {% trans "Already have an account?" %}
+  <a href="{% url 'account_login' %}" class="text-brand-400 hover:text-brand-300">{% trans "Log in" %}</a>.
+</p>
+{% endblock %}
