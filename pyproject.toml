@@ -15,7 +15,13 @@ dependencies = []
 [tool.black]
 line-length = 120
 target-version = ["py313"]
-extend-exclude = '''
+# ``force-exclude`` (not ``extend-exclude``) is required when pre-commit
+# passes file paths explicitly via the CLI. With plain ``extend-exclude``
+# black honors the rule only when scanning a directory; with ``--all-files``
+# pre-commit hands black each path individually and reformats anything not
+# matched here. Auto-generated migrations + collected static must stay
+# untouched, so they live in this stronger filter.
+force-exclude = '''
 /(
     \.git
   | \.github
