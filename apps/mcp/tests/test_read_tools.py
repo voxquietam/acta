@@ -189,14 +189,17 @@ class TestTasksList:
         ws = WorkspaceFactory()
         WorkspaceMember.objects.create(user=user, workspace=ws)
         p = ProjectFactory(workspace=ws)
-        backend = LabelFactory(workspace=ws, name="backend")
-        bug = LabelFactory(workspace=ws, name="bug")
+        backend = LabelFactory(workspace=ws, name="backend", color="#10b981")
+        bug = LabelFactory(workspace=ws, name="bug", color="#f43f5e")
         task = TaskFactory(project=p, reporter=user)
         task.labels.add(backend, bug)
 
         result = CALLABLES["acta_tasks_list"](user, {})
         row = next(r for r in result if r["slug"] == task.slug)
-        assert set(row["labels"]) == {"backend", "bug"}
+        names = {lab["name"] for lab in row["labels"]}
+        assert names == {"backend", "bug"}
+        colors = {lab["color"] for lab in row["labels"]}
+        assert colors == {"#10b981", "#f43f5e"}
 
     def test_limit_caps_at_200(self):
         user = UserFactory()
