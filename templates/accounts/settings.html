@@ -201,6 +201,43 @@
     {% else %}
     <p class="text-[11px] text-placeholder-foreground italic">{% trans "No API tokens yet." %}</p>
     {% endif %}
+
+    <details class="mt-6 group" x-data="{ copied: false }">
+      <summary class="cursor-pointer text-xs text-placeholder-foreground hover:text-foreground transition select-none flex items-center gap-1.5">
+        {% lucide "chevron-right" "w-3.5 h-3.5 transition group-open:rotate-90" %}
+        {% trans "How to wire the token into Claude Desktop / Cursor" %}
+      </summary>
+      <div class="mt-3 space-y-3 text-xs text-subtle-foreground">
+        <p>
+          {% blocktrans %}Acta speaks <strong>HTTP MCP</strong>. One endpoint, one token, no SSH or wrapper scripts. Paste the snippet below into your MCP client's config — for Claude Desktop on macOS that's <code class="text-foreground">~/Library/Application Support/Claude/claude_desktop_config.json</code> — replace the placeholder with the token you copied above, fully quit and reopen the client.{% endblocktrans %}
+        </p>
+        <div class="relative">
+          <pre class="rounded-md bg-zinc-900 border border-border p-3 text-[11px] leading-snug text-zinc-200 overflow-x-auto font-mono"
+               x-ref="snippet">{
+  "mcpServers": {
+    "acta": {
+      "transport": "http",
+      "url": "{{ request.scheme }}://{{ request.get_host }}/mcp/",
+      "headers": {
+        "Authorization": "Token &lt;paste-token-here&gt;"
+      }
+    }
+  }
+}</pre>
+          <button type="button"
+                  @click="navigator.clipboard.writeText($refs.snippet.innerText).then(() => { copied = true; setTimeout(() => copied = false, 1500); })"
+                  class="absolute top-2 right-2 acta-btn-icon"
+                  :data-tooltip="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy snippet' %}'"
+                  :aria-label="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy snippet' %}'">
+            <span x-show="!copied">{% lucide "copy" "w-4 h-4" %}</span>
+            <span x-show="copied" x-cloak class="text-emerald-400">{% lucide "check" "w-4 h-4" %}</span>
+          </button>
+        </div>
+        <p>
+          {% blocktrans %}For Cursor / Cline use the same URL and header in their MCP settings panel. Rate limit is 60 requests per minute per token. Revoke any token above to cut access immediately.{% endblocktrans %}
+        </p>
+      </div>
+    </details>
   </section>
 
   {# ----- Session section ----- #}
