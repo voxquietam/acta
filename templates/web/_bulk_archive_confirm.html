@@ -62,35 +62,54 @@ x-cloak
 
 {% block panel_class %}max-w-md{% endblock %}
 
+{% block header_class %}gap-2.5 px-4 py-3{% endblock %}
+
 {% block title %}
-<h2 class="text-sm font-medium text-foreground">
+<span class="w-8 h-8 rounded-lg bg-amber-500/15 text-amber-300 grid place-items-center shrink-0"
+      aria-hidden="true">
+  {% lucide "archive" "w-4 h-4" %}
+</span>
+<h2 class="font-mono text-[15px] font-semibold text-foreground leading-tight">
+  {% trans "Archive" %}
   <span x-text="$store.selection.size"></span>
-  {% trans "task(s) — archive?" %}
+  {% trans "task(s)?" %}
 </h2>
 {% endblock %}
 
 {% block body %}
-<ul class="px-4 py-3 space-y-1 text-sm max-h-72 overflow-y-auto">
-  <template x-for="item in items" :key="item.id">
-    <li class="flex items-center gap-2 text-muted-foreground">
-      <span class="font-mono text-xs text-placeholder-foreground shrink-0" x-text="item.slug"></span>
-      <span class="truncate" x-text="item.title"></span>
-    </li>
-  </template>
-  <li x-show="remaining > 0" class="text-xs text-placeholder-foreground italic pt-1">
-    {% trans "+ " %}<span x-text="remaining"></span> {% trans "more" %}
-  </li>
-</ul>
+<div class="px-4 py-3 text-[13px] leading-relaxed text-subtle-foreground">
+  <p>
+    {% blocktrans trimmed %}Selected tasks will be moved out of My Work and the kanban. They stay in the database and can be restored from the admin.{% endblocktrans %}
+  </p>
+  <div class="mt-3 flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+    <template x-for="item in items" :key="item.id">
+      <span class="inline-block font-mono text-[11px] px-1.5 py-0.5 rounded bg-muted text-subtle-foreground border border-border"
+            :title="item.title"
+            x-text="item.slug"></span>
+    </template>
+    <span x-show="remaining > 0"
+          class="inline-block font-mono text-[11px] px-1.5 py-0.5 rounded text-placeholder-foreground italic">
+      +<span x-text="remaining"></span> {% trans "more" %}
+    </span>
+  </div>
+</div>
 
-<footer class="flex items-center justify-end gap-2 px-4 py-3 border-t border-border bg-subtle/60">
-  <button type="button" @click="close()" :disabled="busy"
-          class="acta-btn-ghost disabled:opacity-50">
-    {% trans "Cancel" %}
-  </button>
-  <button type="button" @click="confirm()" :disabled="busy"
-          class="acta-btn-primary">
-    <span x-show="!busy">{% trans "Archive" %}</span>
-    <span x-show="busy" x-cloak>{% trans "Archiving…" %}</span>
-  </button>
+<footer class="flex items-center justify-between gap-2 px-4 py-3 border-t border-border bg-subtle/40">
+  <span class="font-mono text-[10.5px] text-placeholder-foreground inline-flex items-center gap-1">
+    <kbd class="px-1.5 py-0.5 rounded bg-muted border border-border text-subtle-foreground">esc</kbd>
+    {% trans "to cancel" %}
+  </span>
+  <div class="flex items-center gap-2">
+    <button type="button" @click="close()" :disabled="busy"
+            class="acta-btn-ghost disabled:opacity-50">
+      {% trans "Cancel" %}
+    </button>
+    <button type="button" @click="confirm()" :disabled="busy"
+            class="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 text-sm rounded-md bg-amber-500 hover:bg-amber-400 text-amber-950 font-medium transition disabled:opacity-50">
+      {% lucide "archive" "w-3.5 h-3.5" %}
+      <span x-show="!busy">{% trans "Archive" %}</span>
+      <span x-show="busy" x-cloak>{% trans "Archiving…" %}</span>
+    </button>
+  </div>
 </footer>
 {% endblock %}
