@@ -152,6 +152,23 @@ SITE_ID = 1
 LOGIN_REDIRECT_URL = "/"
 ACCOUNT_LOGOUT_REDIRECT_URL = "/"
 
+# Email — SMTP credentials supplied via env vars in prod (Gmail SMTP by
+# default; swap for any provider by setting the four EMAIL_HOST_*
+# variables). The dev settings module overrides to a console backend so
+# local invite emails land in ``docker compose logs web`` instead of
+# requiring SMTP credentials for every developer.
+EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.gmail.com")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "true").lower() in {"1", "true", "yes"}
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+DEFAULT_FROM_EMAIL = os.environ.get(
+    "DEFAULT_FROM_EMAIL",
+    EMAIL_HOST_USER or "no-reply@actaspace.com",
+)
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
+
 # allauth
 ACCOUNT_LOGIN_METHODS = {"email", "username"}
 # ``password1*`` is required — allauth 65 derives the LoginForm's

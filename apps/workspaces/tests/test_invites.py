@@ -2,6 +2,7 @@
 
 import datetime
 
+from django.core import mail
 from django.test import Client
 from django.urls import reverse
 from django.utils import timezone
@@ -11,6 +12,7 @@ import pytest
 from apps.accounts.adapters import INVITE_SESSION_KEY, resolve_invite_from_request
 from apps.accounts.tests.factories import UserFactory
 from apps.workspaces.models import WorkspaceInvite, WorkspaceMember
+from apps.workspaces.services import send_invite_email
 from apps.workspaces.tests.factories import WorkspaceFactory
 
 
@@ -230,3 +232,47 @@ class TestSignupConsumesInvite:
         # 4. New user is a WorkspaceMember with the invite's role.
         membership = WorkspaceMember.objects.get(workspace=ws, user__username="newbie")
         assert membership.role == WorkspaceMember.ADMIN
+
+
+@pytest.fixture
+def locmem_email(settings):
+    """Route mail to ``mail.outbox`` for assertions instead of the console."""
+    settings.EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
+    mail.outbox = []
+    return mail.outbox
+
+
+@pytest.mark.django_db
+class TestInviteEmail:
+    """``send_invite_email`` renders the invite + dispatches to the configured backend."""
+
+    def test_send_invite_email_dispatches_with_link(self, locmem_email):
+        ws = WorkspaceFactory(name="Marketing")
+        invite = WorkspaceInvite.generate(
+            workspace=ws,
+            email="newbie@team.test",
+            role=WorkspaceMember.MEMBER,
+        )
+        ok = send_invite_email(invite, request=None)
+        assert ok is True
+        assert len(locmem_email) == 1
+        msg = locmem_email[0]
+        assert msg.to == ["newbie@team.test"]
+        assert "Marketing" in msg.subject
+        # Plain-text body carries the absolute URL + workspace name
+        assert invite.token in msg.body
+        assert "Marketing" in msg.body
+        # The HTML alternative was attached too
+        assert any(content_type == "text/html" for _, content_type in msg.alternatives)
+
+    def test_send_invite_email_uses_request_host_when_provided(self, locmem_email):
+        from django.test import RequestFactory
+
+        ws = WorkspaceFactory(name="Eng")
+        invite = WorkspaceInvite.generate(workspace=ws, email="x@x.x", role=WorkspaceMember.MEMBER)
+        rf = RequestFactory()
+        # ``testserver`` is the default RequestFactory host and is
+        # always in ALLOWED_HOSTS during pytest-django runs.
+        req = rf.get("/admin/")
+        send_invite_email(invite, request=req)
+        assert "http://testserver" in locmem_email[0].body

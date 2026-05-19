@@ -129,14 +129,22 @@ class WorkspaceInviteAdmin(ModelAdmin):
         return format_html('<a href="{0}">{0}</a>', url)
 
     def save_model(self, request, obj, form, change):
-        """Mint a token + record the inviting admin on first save.
+        """Mint a token, record the inviting admin, send the invite email.
 
-        ``WorkspaceInvite.generate`` does this for the public API; we
-        replay it inside the admin so the admin form doesn't need to
-        expose ``token`` as an editable field. Re-saving an existing
-        row never rotates the token — that's a separate "resend"
-        action surfaced once the workspace-settings UI lands.
+        ``WorkspaceInvite.generate`` does the token + email-normalising
+        work for the public API; we replay it inside the admin so the
+        admin form doesn't need to expose ``token`` as an editable
+        field. Re-saving an existing row never rotates the token —
+        that's a separate "resend" action surfaced once the workspace-
+        settings UI lands.
+
+        After save we fire ``send_invite_email``. The send is best-
+        effort — a flash tells the admin whether it actually went out,
+        and either way the invite link is still copyable from the list
+        view so the admin can resend or hand-deliver as needed.
         """
+        from apps.workspaces.services import send_invite_email
+
         if not change:
             if not obj.token:
                 from secrets import token_urlsafe
@@ -148,7 +156,14 @@ class WorkspaceInviteAdmin(ModelAdmin):
                 obj.email = obj.email.strip().lower()
         super().save_model(request, obj, form, change)
         if not change:
-            messages.success(
-                request,
-                f"Invite link: {reverse('accounts:invite_accept', args=[obj.token])}",
-            )
+            invite_url = reverse("accounts:invite_accept", args=[obj.token])
+            if send_invite_email(obj, request=request):
+                messages.success(
+                    request,
+                    f"Invite emailed to {obj.email}. Link: {invite_url}",
+                )
+            else:
+                messages.warning(
+                    request,
+                    f"Invite created but email failed — copy the link manually: {invite_url}",
+                )
