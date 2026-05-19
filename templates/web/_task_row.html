@@ -69,7 +69,6 @@ status dot · slug + priority chevron · title (flex-1) · size · labels
                    group-hover/labels:ml-1 group-hover/labels:first:ml-0 transition-[margin] duration-200
                    hover:ring-1 hover:ring-offset-1 hover:ring-offset-card"
             style="--label-color: {{ label.color }};"
-            title="{% trans 'Filter by label' %}: {{ label.name }}"
             @click.prevent.stop="window.acta.toggleFilter('label', '{{ label.id }}')">
         <span class="acta-label-pill-dot" style="background-color: {{ label.color }};"></span>
         <span>{{ label.name }}</span>
