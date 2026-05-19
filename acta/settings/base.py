@@ -157,16 +157,20 @@ ACCOUNT_LOGOUT_REDIRECT_URL = "/"
 # variables). The dev settings module overrides to a console backend so
 # local invite emails land in ``docker compose logs web`` instead of
 # requiring SMTP credentials for every developer.
-EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
-EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.gmail.com")
-EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
-EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "true").lower() in {"1", "true", "yes"}
-EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
-EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
-DEFAULT_FROM_EMAIL = os.environ.get(
-    "DEFAULT_FROM_EMAIL",
-    EMAIL_HOST_USER or "no-reply@actaspace.com",
-)
+#
+# Note the ``or`` pattern: ``os.environ.get("X", default)`` only honours
+# the default when the var is *absent*, not when it's set to an empty
+# string. Docker Compose's ``${EMAIL_PORT:-}`` pass-through passes ``""``
+# when the .env doesn't define the var, so ``int("")`` would explode at
+# import time. ``... or default`` collapses both cases into the same
+# fallback.
+EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND") or "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = os.environ.get("EMAIL_HOST") or "smtp.gmail.com"
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT") or "587")
+EMAIL_USE_TLS = (os.environ.get("EMAIL_USE_TLS") or "true").lower() in {"1", "true", "yes"}
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER") or ""
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD") or ""
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL") or (EMAIL_HOST_USER or "no-reply@actaspace.com")
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
 # allauth
