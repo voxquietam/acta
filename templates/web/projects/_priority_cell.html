@@ -34,10 +34,10 @@ to the equally-colored status badge).
           x-ref="trigger"
           @click="toggle()"
           class="text-xs cursor-pointer hover:text-foreground inline-flex items-center gap-1.5
-            {% if task.priority == 1 %}text-rose-400
+            {% if task.priority == 1 %}text-red-400
             {% elif task.priority == 2 %}text-orange-400
             {% elif task.priority == 3 %}text-amber-400
-            {% elif task.priority == 4 %}text-sky-400
+            {% elif task.priority == 4 %}text-[#a5b4d9]
             {% else %}text-placeholder-foreground{% endif %}">
     {% if task.priority == 1 %}{% lucide "chevrons-up" "w-3.5 h-3.5" %}
     {% elif task.priority == 2 %}{% lucide "chevron-up" "w-3.5 h-3.5" %}
@@ -67,10 +67,10 @@ to the equally-colored status badge).
               class="w-full text-left px-3 py-1.5 text-xs hover:bg-muted flex items-center gap-1.5
                 {% if priority_key == task.priority %}text-brand-500{% else %}text-muted-foreground{% endif %}">
         <span class="
-          {% if priority_key == 1 %}text-rose-400
+          {% if priority_key == 1 %}text-red-400
           {% elif priority_key == 2 %}text-orange-400
           {% elif priority_key == 3 %}text-amber-400
-          {% elif priority_key == 4 %}text-sky-400
+          {% elif priority_key == 4 %}text-[#a5b4d9]
           {% else %}text-placeholder-foreground{% endif %}">
           {% if priority_key == 1 %}{% lucide "chevrons-up" "w-3.5 h-3.5" %}
           {% elif priority_key == 2 %}{% lucide "chevron-up" "w-3.5 h-3.5" %}

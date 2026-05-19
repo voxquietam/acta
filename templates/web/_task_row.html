@@ -20,22 +20,32 @@ status dot · slug + priority chevron · title (flex-1) · size · labels
    {% task_filter_attrs task %}
    class="flex items-center gap-2.5 px-3.5 py-2 hover:bg-muted/55 text-[13px]">
 
-  <span class="w-[7px] h-[7px] rounded-full shrink-0
-    {% if task.status == 'planned' %}bg-zinc-500
-    {% elif task.status == 'to-do' %}bg-blue-500
-    {% elif task.status == 'in-progress' %}bg-violet-500
-    {% elif task.status == 'in-review' %}bg-amber-500
-    {% elif task.status == 'done' %}bg-emerald-500
-    {% else %}bg-zinc-700{% endif %}"
-    title="{{ status_labels|get_item:task.status|default:task.status }}"></span>
+  <span class="w-[7px] h-[7px] rounded-full shrink-0 cursor-pointer hover:ring-2 hover:ring-offset-1 hover:ring-offset-card transition
+    {% if task.status == 'planned' %}bg-zinc-500 hover:ring-zinc-500/40
+    {% elif task.status == 'to-do' %}bg-blue-500 hover:ring-blue-500/40
+    {% elif task.status == 'in-progress' %}bg-violet-500 hover:ring-violet-500/40
+    {% elif task.status == 'in-review' %}bg-amber-500 hover:ring-amber-500/40
+    {% elif task.status == 'done' %}bg-emerald-500 hover:ring-emerald-500/40
+    {% else %}bg-zinc-700 hover:ring-zinc-700/40{% endif %}"
+    title="{% trans 'Filter by status' %}: {{ status_labels|get_item:task.status|default:task.status }}"
+    @click.prevent.stop="window.acta.toggleFilter('status', '{{ task.status }}')"></span>
 
-  <span class="font-mono text-[11px] text-placeholder-foreground shrink-0 inline-flex items-center gap-1"
-        {% if task.priority %}title="{{ priority_labels|get_item:task.priority }}"{% endif %}>
+  <span class="font-mono text-[11px] text-placeholder-foreground shrink-0 inline-flex items-center gap-1">
     {{ task.slug }}
-    {% if task.priority == 1 %}<span class="text-rose-400">{% lucide "chevrons-up" "w-3 h-3" %}</span>
-    {% elif task.priority == 2 %}<span class="text-orange-400">{% lucide "chevron-up" "w-3 h-3" %}</span>
-    {% elif task.priority == 3 %}<span class="text-amber-400">{% lucide "minus" "w-3 h-3" %}</span>
-    {% elif task.priority == 4 %}<span class="text-sky-400">{% lucide "chevron-down" "w-3 h-3" %}</span>
+    {% if task.priority %}
+    <span class="cursor-pointer hover:ring-1 hover:ring-offset-1 hover:ring-offset-card rounded transition
+      {% if task.priority == 1 %}text-red-400 hover:ring-red-400/40
+      {% elif task.priority == 2 %}text-orange-400 hover:ring-orange-400/40
+      {% elif task.priority == 3 %}text-amber-400 hover:ring-amber-400/40
+      {% elif task.priority == 4 %}text-[#a5b4d9] hover:ring-[#a5b4d9]/40
+      {% endif %}"
+      title="{% trans 'Filter by priority' %}: {{ priority_labels|get_item:task.priority }}"
+      @click.prevent.stop="window.acta.toggleFilter('priority', '{{ task.priority }}')">
+      {% if task.priority == 1 %}{% lucide "chevrons-up" "w-3 h-3" %}
+      {% elif task.priority == 2 %}{% lucide "chevron-up" "w-3 h-3" %}
+      {% elif task.priority == 3 %}{% lucide "minus" "w-3 h-3" %}
+      {% elif task.priority == 4 %}{% lucide "chevron-down" "w-3 h-3" %}{% endif %}
+    </span>
     {% endif %}
   </span>
 
@@ -55,9 +65,12 @@ status dot · slug + priority chevron · title (flex-1) · size · labels
     {% if task.labels.all %}
     <div class="group/labels flex items-center max-w-[240px] min-w-0 pl-1.5">
       {% for label in task.labels.all|slice:":3" %}
-      <span class="acta-label-pill -ml-2 first:ml-0
-                   group-hover/labels:ml-1 group-hover/labels:first:ml-0 transition-[margin] duration-200"
-            style="--label-color: {{ label.color }};">
+      <span class="acta-label-pill -ml-2 first:ml-0 cursor-pointer
+                   group-hover/labels:ml-1 group-hover/labels:first:ml-0 transition-[margin] duration-200
+                   hover:ring-1 hover:ring-offset-1 hover:ring-offset-card"
+            style="--label-color: {{ label.color }};"
+            title="{% trans 'Filter by label' %}: {{ label.name }}"
+            @click.prevent.stop="window.acta.toggleFilter('label', '{{ label.id }}')">
         <span class="acta-label-pill-dot" style="background-color: {{ label.color }};"></span>
         <span>{{ label.name }}</span>
       </span>
@@ -68,8 +81,9 @@ status dot · slug + priority chevron · title (flex-1) · size · labels
     </div>
     {% endif %}
 
-    <span class="text-placeholder-foreground truncate max-w-[140px]"
-          title="{{ task.project.workspace.name }} / {{ task.project.name }}">
+    <span class="text-placeholder-foreground truncate max-w-[140px] cursor-pointer hover:text-foreground hover:underline transition"
+          title="{% trans 'Filter by project' %}: {{ task.project.workspace.name }} / {{ task.project.name }}"
+          @click.prevent.stop="window.acta.toggleFilter('project', '{{ task.project.id }}')">
       {{ task.project.name }}
     </span>
 
@@ -81,14 +95,23 @@ status dot · slug + priority chevron · title (flex-1) · size · labels
     {% endif %}
 
     {% if task.assignee %}
-    <span class="w-[22px] h-[22px] rounded-full text-white grid place-items-center font-medium text-[11px] shrink-0"
+    {% comment %}
+    Filter value: the request user is pinned as a separate ``me`` chip
+    in the strip (filters.py excludes them from ``available_assignees``),
+    so clicking your own avatar must pass ``me`` instead of your numeric
+    id — otherwise the lookup in ``window.acta.toggleFilter`` finds no
+    matching label and silently no-ops.
+    {% endcomment %}
+    <span class="w-[22px] h-[22px] rounded-full text-white grid place-items-center font-medium text-[11px] shrink-0 cursor-pointer transition hover:ring-2 hover:ring-offset-1 hover:ring-offset-card hover:ring-brand-400/40"
           style="background-color: {{ task.assignee.avatar_color }};"
-          title="{{ task.assignee.display_name }}">
+          title="{% trans 'Filter by assignee' %}: {{ task.assignee.display_name }}"
+          @click.prevent.stop="window.acta.toggleFilter('assignee', '{% if task.assignee == request.user %}me{% else %}{{ task.assignee.id }}{% endif %}')">
       {{ task.assignee.display_name|slice:":1"|upper }}
     </span>
     {% else %}
-    <span class="w-[22px] h-[22px] rounded-full border border-dashed border-border-strong grid place-items-center text-placeholder-foreground text-[10px] shrink-0"
-          title="{% trans 'Unassigned' %}">?</span>
+    <span class="w-[22px] h-[22px] rounded-full border border-dashed border-border-strong grid place-items-center text-placeholder-foreground text-[10px] shrink-0 cursor-pointer transition hover:ring-2 hover:ring-offset-1 hover:ring-offset-card hover:ring-zinc-500/40"
+          title="{% trans 'Filter by assignee' %}: {% trans 'Unassigned' %}"
+          @click.prevent.stop="window.acta.toggleFilter('assignee', 'unassigned')">?</span>
     {% endif %}
   </div>
 </a>

@@ -137,6 +137,78 @@ class TestTaskFilterAttrs:
         assert '"' not in value
         assert "&quot;" in value or "&#x27;" in value or "fix" in value
 
+    def test_overdue_flag_past_due_not_done(self):
+        """``data-overdue="1"`` when due_date < today and status != done."""
+        import datetime
+
+        from django.utils import timezone as tz
+
+        task = TaskFactory(
+            status=Task.STATUS_TODO,
+            due_date=tz.localdate() - datetime.timedelta(days=2),
+        )
+        html = _render(task, user=task.reporter)
+        assert 'data-overdue="1"' in html
+
+    def test_overdue_flag_done_task_is_not_overdue(self):
+        """A done task with past due_date is NOT flagged overdue —
+        matches the kanban substatus and the row colouring."""
+        import datetime
+
+        from django.utils import timezone as tz
+
+        task = TaskFactory(
+            status=Task.STATUS_DONE,
+            due_date=tz.localdate() - datetime.timedelta(days=2),
+        )
+        html = _render(task, user=task.reporter)
+        assert 'data-overdue="0"' in html
+
+    def test_overdue_flag_future_due_is_not_overdue(self):
+        import datetime
+
+        from django.utils import timezone as tz
+
+        task = TaskFactory(
+            status=Task.STATUS_TODO,
+            due_date=tz.localdate() + datetime.timedelta(days=2),
+        )
+        html = _render(task, user=task.reporter)
+        assert 'data-overdue="0"' in html
+
+    def test_overdue_flag_no_due_date(self):
+        task = TaskFactory(due_date=None)
+        html = _render(task, user=task.reporter)
+        assert 'data-overdue="0"' in html
+
+    def test_done_this_week_flag_recent_done(self):
+        """``data-done-this-week="1"`` when status=done and updated_at
+        is within the last 7 days. Drives the Done column's
+        "++ N this week" substatus recompute on client-side filter."""
+        task = TaskFactory(status=Task.STATUS_DONE)
+        # updated_at is auto_now — task just saved, well within 7d.
+        html = _render(task, user=task.reporter)
+        assert 'data-done-this-week="1"' in html
+
+    def test_done_this_week_flag_not_done(self):
+        task = TaskFactory(status=Task.STATUS_IN_PROGRESS)
+        html = _render(task, user=task.reporter)
+        assert 'data-done-this-week="0"' in html
+
+    def test_done_this_week_flag_old_done(self):
+        """A done task updated more than 7 days ago — flag is 0."""
+        import datetime
+
+        from django.utils import timezone as tz
+
+        task = TaskFactory(status=Task.STATUS_DONE)
+        # ``auto_now`` blocks direct assignment via .save(); bypass via
+        # queryset .update() which doesn't trigger auto_now.
+        Task.objects.filter(pk=task.pk).update(updated_at=tz.now() - datetime.timedelta(days=10))
+        task.refresh_from_db()
+        html = _render(task, user=task.reporter)
+        assert 'data-done-this-week="0"' in html
+
 
 @pytest.mark.django_db
 class TestServerSideFilterFallback:

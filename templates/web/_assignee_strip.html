@@ -14,7 +14,16 @@ via ``form=`` and submits through the existing HTMX pipeline.
   </span>
 
   <div class="relative flex-1 min-w-0" data-strip-wrap>
-    <div class="flex gap-1 overflow-x-auto py-0.5 -my-0.5 scrollbar-none" data-strip>
+    {% comment %}
+    Inner wrapper is ``w-max`` so the scroll-content extent equals the
+    sum of chip widths + gaps. The bare ``data-strip`` (overflow-x:
+    auto + scrollbar-none) was reporting ``scrollWidth`` ~280px wider
+    than the chips on some browsers (phantom space at the right edge),
+    which let the user scroll past the last chip into emptiness. With
+    the wrapper, ``scrollWidth`` tracks the wrapper's width exactly.
+    {% endcomment %}
+    <div class="overflow-x-auto py-0.5 -my-0.5 scrollbar-none" data-strip>
+    <div class="flex gap-1 w-max">
 
       {% comment %}
       "You" chip — always the leftmost, always slightly highlighted
@@ -31,6 +40,8 @@ via ``form=`` and submits through the existing HTMX pipeline.
              class="strip-chip group inline-flex items-center gap-1.5 px-1 py-0.5 rounded-full cursor-pointer shrink-0 bg-muted/60 hover:bg-muted transition"
              title="{{ request.user.display_name }} ({% trans 'you' %}) — {% trans 'click to include, right-click to exclude.' %}"
              data-strip-chip
+             data-filter-name="assignee"
+             data-filter-value="me"
              @acta:filter-reset.window="state = 'none'"
              @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $nextTick(() => document.getElementById('filter-form').requestSubmit())">
         <input type="checkbox"
@@ -63,6 +74,8 @@ via ``form=`` and submits through the existing HTMX pipeline.
              class="strip-chip group inline-flex items-center gap-1.5 px-1 py-0.5 rounded-full cursor-pointer shrink-0 hover:bg-muted/60 transition"
              title="{% trans 'Click to include, right-click to exclude.' %}"
              data-strip-chip
+             data-filter-name="assignee"
+             data-filter-value="unassigned"
              @acta:filter-reset.window="state = 'none'"
              @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $nextTick(() => document.getElementById('filter-form').requestSubmit())">
         <input type="checkbox"
@@ -88,9 +101,11 @@ via ``form=`` and submits through the existing HTMX pipeline.
                'bg-brand-500/15': state === 'included',
                'bg-rose-500/15 dark:bg-rose-500/15': state === 'excluded',
              }"
-             class="strip-chip group inline-flex items-center gap-1.5 px-1 py-0.5 rounded-full cursor-pointer shrink-0 hover:bg-muted/60 transition"
+             class="strip-chip group inline-flex items-center gap-1.5 px-1 py-0.5 rounded-full cursor-pointer shrink-0 hover:bg-muted/60 transition{% if u.is_former %} opacity-70{% endif %}"
              data-strip-chip
-             title="{{ u.display_name }} — {% trans 'click to include, right-click to exclude.' %}"
+             data-filter-name="assignee"
+             data-filter-value="{{ u.id }}"
+             title="{{ u.display_name }}{% if u.is_former %} ({% trans 'former member — still appears as assignee on legacy tasks' %}){% endif %} — {% trans 'click to include, right-click to exclude.' %}"
              @acta:filter-reset.window="state = 'none'"
              @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $nextTick(() => document.getElementById('filter-form').requestSubmit())">
         <input type="checkbox"
@@ -100,6 +115,21 @@ via ``form=`` and submits through the existing HTMX pipeline.
                :checked="state !== 'none'"
                class="sr-only"
                @change.stop="state = $event.target.checked ? 'included' : 'none'; $event.target.form.requestSubmit()">
+        {% comment %}
+        Former members get a dashed-border avatar (no fill colour) so
+        the strip visually flags them as "still has assignments but
+        not an active member of any shared workspace". Active members
+        keep the solid coloured avatar.
+        {% endcomment %}
+        {% if u.is_former %}
+        <span class="w-6 h-6 rounded-full border border-dashed border-border-strong grid place-items-center text-placeholder-foreground font-medium text-[10px] shrink-0 transition"
+              :class="{
+                'ring-2 ring-brand-400': state === 'included',
+                'ring-2 ring-rose-400': state === 'excluded',
+              }">
+          {{ u.display_name|slice:":1"|upper }}
+        </span>
+        {% else %}
         <span class="w-6 h-6 rounded-full text-white grid place-items-center font-medium text-[10px] shrink-0 transition"
               style="background-color: {{ u.avatar_color }};"
               :class="{
@@ -108,13 +138,15 @@ via ``form=`` and submits through the existing HTMX pipeline.
               }">
           {{ u.display_name|slice:":1"|upper }}
         </span>
+        {% endif %}
         <span class="text-xs whitespace-nowrap pr-1"
               :class="state === 'excluded' ? 'text-rose-700 dark:text-rose-300 line-through' : 'text-muted-foreground'">
-          {{ u.display_name }}{% if u == request.user %} <span class="text-placeholder-foreground">({% trans "you" %})</span>{% endif %}
+          {{ u.display_name }}
         </span>
       </label>
       {% endwith %}
       {% endfor %}
+    </div>
     </div>
 
     {# Fade gradient + counter overlays — absolute, no layout impact. #}

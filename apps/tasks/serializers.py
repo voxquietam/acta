@@ -111,6 +111,11 @@ class TaskSerializer(serializers.ModelSerializer):
             * Subtask depth is limited to one level.
             * Labels (if any) must belong to the same workspace as the
               task's project.
+            * Assignee (if set on this write) must be an active member
+              of the project's workspace — prevents new "orphan"
+              assignments to users who left or were removed. Existing
+              orphan assignments stay untouched (writes that don't
+              change ``assignee`` skip the check).
 
         Args:
             attrs: Pre-validated field values from the serializer.
@@ -139,6 +144,21 @@ class TaskSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {
                         "labels": _("Labels %(ids)s are not in this project's workspace.") % {"ids": wrong},
+                    },
+                )
+        # Only validate ``assignee`` when this write actually touches
+        # the field. Otherwise unrelated writes to existing tasks
+        # whose assignees were orphaned years ago would start failing.
+        if "assignee" in attrs and project:
+            assignee = attrs.get("assignee")
+            if (
+                assignee is not None
+                and not WorkspaceMember.objects.filter(user=assignee, workspace=project.workspace).exists()
+            ):
+                raise serializers.ValidationError(
+                    {
+                        "assignee": _("User %(user)s is not a member of this project's workspace.")
+                        % {"user": assignee.display_name or assignee.username},
                     },
                 )
         return attrs

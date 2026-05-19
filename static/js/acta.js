@@ -29,6 +29,31 @@
       inp.dispatchEvent(new Event("change", { bubbles: true }));
     },
 
+    // Click-cell-to-filter helper. Each filterable cell in the task
+    // table / list rows calls this with the filter ``name`` and value;
+    // we find the matching label by stable ``data-filter-name`` /
+    // ``data-filter-value`` attrs and dispatch a click. The input's
+    // own ``name`` attribute is reactive on the chip's tri-state
+    // Alpine, so a direct ``name=`` selector is fragile.
+    //
+    // Search is document-wide on purpose: status / priority / project
+    // / label chips live inside ``#filter-form``, but the assignee
+    // strip sits ABOVE the form (its inputs are associated via
+    // ``form="filter-form"`` instead of nesting). One helper covers
+    // both surfaces.
+    //
+    // Native ``<label>`` click → checkbox toggle → existing
+    // ``@change`` handler runs and submits the form. Toggling an
+    // already-active value clicks the label a second time, flipping
+    // it off — same UX as clicking the sidebar chip twice.
+    toggleFilter(name, value) {
+      const label = document.querySelector(
+        `label[data-filter-name="${name}"][data-filter-value="${CSS.escape(String(value))}"]`,
+      );
+      if (!label) return;
+      label.click();
+    },
+
     // Clear a non-value filter input (search ``q`` or the lone
     // ``show_done`` toggle) and re-submit.
     clearFilter(name) {
@@ -754,6 +779,51 @@
       if (strip.dataset.stripBound === "true") return;
       strip.dataset.stripBound = "true";
       updateStripCounters(strip);
+      // Clamp scrollLeft to the actual content extent after every
+      // scroll event. Belt-and-braces against browsers that allow
+      // a strip to settle past ``scrollWidth - clientWidth`` (touchpad
+      // inertia / elastic-overscroll on macOS); without this the strip
+      // would park itself with visible empty space to the right of the
+      // last chip, which read as a layout bug to the user.
+      // Hard scroll limit via wheel intercept. ``scrollWidth`` on this
+      // strip overshoots the actual content extent by ~280px (browser
+      // quirk on ``flex`` + ``scrollbar-width: none``), so the
+      // browser's native scroll allows parking past the last chip
+      // into empty space. Earlier debounced snap-back caused either a
+      // jerk (during scroll) or a delayed animation (after release)
+      // — both irritating. The wheel handler computes the real chip
+      // max and clamps deltaX *before* the browser applies it, so the
+      // strip simply never scrolls past the last chip in the first
+      // place. ``preventDefault`` is needed for the clamp to win over
+      // native scroll, hence ``passive: false``.
+      const chipMax = () => {
+        const chips = strip.querySelectorAll("[data-strip-chip]");
+        const lastChip = chips[chips.length - 1];
+        if (!lastChip) return Infinity;
+        return Math.max(0, lastChip.offsetLeft + lastChip.offsetWidth - strip.clientWidth);
+      };
+      strip.addEventListener(
+        "wheel",
+        (e) => {
+          // Treat trackpad horizontal swipe (deltaX) and shift+wheel
+          // (deltaY with shift) as horizontal intent. Plain vertical
+          // wheel falls through so the page can scroll.
+          const dx = e.deltaX !== 0 ? e.deltaX : e.shiftKey ? e.deltaY : 0;
+          if (dx === 0) return;
+          const max = chipMax();
+          const next = Math.max(0, Math.min(max, strip.scrollLeft + dx));
+          if (next === strip.scrollLeft) {
+            // Already at edge in the intended direction — let the
+            // browser do nothing too (preventDefault stops page scroll
+            // from also reacting to the gesture).
+            e.preventDefault();
+            return;
+          }
+          e.preventDefault();
+          strip.scrollLeft = next;
+        },
+        { passive: false },
+      );
       strip.addEventListener("scroll", () => updateStripCounters(strip), {
         passive: true,
       });

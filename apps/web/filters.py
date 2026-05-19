@@ -351,17 +351,47 @@ def filter_sidebar_context(
         )
     if available_assignees is None:
         User = get_user_model()
-        # Exclude the request user — the strip pins them as a separate
-        # "you" chip on the leftmost slot, so listing them again here
-        # would render two chips for the same person.
-        available_assignees = list(
+        # The strip shows two groups: current members of any shared
+        # workspace AND any user who shows up as ``assignee`` on a
+        # task in a shared workspace. The second group catches "former
+        # members" — users who were removed from the workspace but
+        # still carry orphan task assignments. Without them, those
+        # tasks were impossible to filter to from the UI (the assignee
+        # avatar rendered fine but the strip didn't know about them).
+        #
+        # Two queries on purpose: we need to remember which group each
+        # user came from so the template can paint the ``(former)``
+        # marker on the second group. ``is_former`` is set on the
+        # Python objects below; the request user is always pinned as
+        # the leftmost "you" chip in the strip and excluded from both
+        # queries here.
+        active_member_ids = set(
             User.objects.filter(
                 workspace_memberships__workspace__memberships__user=user,
             )
             .exclude(pk=user.pk)
-            .order_by("first_name", "last_name", "username")
-            .distinct(),
+            .values_list("pk", flat=True)
+            .distinct()
         )
+        former_assignee_ids = set(
+            User.objects.filter(
+                assigned_tasks__project__workspace__memberships__user=user,
+            )
+            .exclude(pk=user.pk)
+            .exclude(pk__in=active_member_ids)
+            .values_list("pk", flat=True)
+            .distinct()
+        )
+        all_ids = active_member_ids | former_assignee_ids
+        available_assignees = list(
+            User.objects.filter(pk__in=all_ids).order_by("first_name", "last_name", "username"),
+        )
+        for u in available_assignees:
+            u.is_former = u.pk in former_assignee_ids
+        # Former members go to the END of the strip — they're still
+        # filterable but visually de-prioritised so the active roster
+        # reads first. Within each group keep alphabetical order.
+        available_assignees.sort(key=lambda u: (u.is_former, (u.first_name or u.username or "").lower()))
 
     selected_statuses = set(params.getlist("status"))
     selected_priorities = {int(p) for p in params.getlist("priority") if p.isdigit()}

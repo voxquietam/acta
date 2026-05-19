@@ -9,10 +9,10 @@ shell, so the same content shows up in either layout without
 duplication.
 {% endcomment %}
 <h1 class="inline-flex items-center gap-1 text-sm font-medium font-mono shrink-0
-  {% if task.priority == 1 %}text-rose-400
+  {% if task.priority == 1 %}text-red-400
   {% elif task.priority == 2 %}text-orange-400
   {% elif task.priority == 3 %}text-amber-400
-  {% elif task.priority == 4 %}text-sky-400
+  {% elif task.priority == 4 %}text-[#a5b4d9]
   {% else %}text-muted-foreground{% endif %}"
   {% if task.priority %}data-tooltip="{{ priority_labels|get_item:task.priority }}" aria-label="{{ priority_labels|get_item:task.priority }}"{% endif %}>
   {{ task.slug }}

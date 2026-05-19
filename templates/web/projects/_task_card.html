@@ -23,10 +23,10 @@ Acta doesn't have data for yet.
     <span class="font-mono">{{ task.slug }}</span>
     {% if task.priority %}
     <span class="inline-flex items-center
-      {% if task.priority == 1 %}text-rose-400
+      {% if task.priority == 1 %}text-red-400
       {% elif task.priority == 2 %}text-orange-400
       {% elif task.priority == 3 %}text-amber-400
-      {% elif task.priority == 4 %}text-sky-400
+      {% elif task.priority == 4 %}text-[#a5b4d9]
       {% else %}text-placeholder-foreground{% endif %}"
           title="{{ priority_labels|get_item:task.priority }}">
       {% if task.priority == 1 %}{% lucide "chevrons-up" "w-3.5 h-3.5" %}

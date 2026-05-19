@@ -144,6 +144,16 @@ html {
   display: none;
 }
 
+/* Horizontal-scrolling chip strip — assignee strip (top of My Work /
+   All Tasks) and the project strip (top of project lists). Browser
+   default lets a touchpad / trackpad gesture overscroll past the
+   content bounds (elastic rubber-band), which on Safari leaves the
+   strip parked with empty space past the last chip. ``contain`` keeps
+   the gesture inside the strip and prevents that drift. */
+[data-strip] {
+  overscroll-behavior-x: contain;
+}
+
 /* Edge overlays are hidden by default. JS sets ``data-overflow-left``
    / ``data-overflow-right`` on the wrapper when the corresponding
    side has off-screen content, and the fade + counter pop in. The
