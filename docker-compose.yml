@@ -42,6 +42,19 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_HOST: db
+      # Email — passed through so prod SMTP credentials in .env reach
+      # the Django process. Each variable falls back to a sensible
+      # default in ``acta/settings/base.py``; the four HOST_USER /
+      # HOST_PASSWORD / DEFAULT_FROM_EMAIL ones need to be set in
+      # .env on the prod VM for invite emails to actually go out.
+      EMAIL_BACKEND: ${EMAIL_BACKEND:-}
+      EMAIL_HOST: ${EMAIL_HOST:-}
+      EMAIL_PORT: ${EMAIL_PORT:-}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-}
+      ACTA_PUBLIC_BASE_URL: ${ACTA_PUBLIC_BASE_URL:-}
     # Host port 8001 by default — ksu24.back's runserver lives on 8000.
     # Override via WEB_HOST_PORT in .env when needed.
     ports:
