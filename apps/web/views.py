@@ -633,6 +633,45 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         ctx["picker_icons"] = PROJECT_ICONS
         ctx["picker_icon_colors"] = PROJECT_ICON_COLORS
 
+        now = timezone.now()
+        today = ctx["today"]
+        velocity_cutoff = now - datetime.timedelta(days=7)
+        stats_raw = (
+            Task.objects.filter(project=project, archived_at__isnull=True).values("status").annotate(c=Count("id"))
+        )
+        counts_by_status = {row["status"]: row["c"] for row in stats_raw}
+        ctx["overview_status_counts"] = {
+            Task.STATUS_PLANNED: counts_by_status.get(Task.STATUS_PLANNED, 0),
+            Task.STATUS_TODO: counts_by_status.get(Task.STATUS_TODO, 0),
+            Task.STATUS_IN_PROGRESS: counts_by_status.get(Task.STATUS_IN_PROGRESS, 0),
+            Task.STATUS_IN_REVIEW: counts_by_status.get(Task.STATUS_IN_REVIEW, 0),
+            Task.STATUS_DONE: counts_by_status.get(Task.STATUS_DONE, 0),
+        }
+        ctx["overview_total"] = sum(ctx["overview_status_counts"].values())
+        ctx["overview_done"] = ctx["overview_status_counts"][Task.STATUS_DONE]
+        ctx["overview_overdue"] = (
+            Task.objects.filter(
+                project=project,
+                archived_at__isnull=True,
+                due_date__lt=today,
+            )
+            .exclude(status=Task.STATUS_DONE)
+            .count()
+        )
+        ctx["overview_velocity_7d"] = Task.objects.filter(
+            project=project,
+            status=Task.STATUS_DONE,
+            updated_at__gte=velocity_cutoff,
+        ).count()
+        ctx["overview_last_activity_at"] = Task.objects.filter(project=project).aggregate(latest=Max("updated_at"))[
+            "latest"
+        ]
+        ctx["overview_latest_updates"] = list(project.updates.select_related("author").order_by("-created_at")[:3])
+        ctx["overview_updates_total"] = project.updates.count()
+        ctx["overview_project_age_days"] = (today - project.created_at.date()).days
+        ctx["health_labels"] = dict(ProjectUpdate.HEALTH_CHOICES)
+        ctx["latest_health"] = ctx["overview_latest_updates"][0].health if ctx["overview_latest_updates"] else None
+
         base = (
             Task.objects.filter(project=project)
             .select_related("assignee", "reporter", "parent", "project__workspace")

@@ -1,34 +1,56 @@
 {% load i18n %}
+{% load lucide %}
 {% load static %}
 {% load web_extras %}
 {% comment %}
-Project description editor — reuses the TipTap setup from the task
-description cell. The JS module (``description_editor.bundle.js``)
-attaches to any element with ``data-description-editor``, so the
-same editor logic, toolbar, autosave-on-blur, and pagehide beacon
-all work here without changes.
+Project description editor — TipTap setup with the toolbar lifted ABOVE
+the editor card. The toolbar is its own row of controls; the card
+chrome wraps the editor body only, so the prose area reads as a
+contained surface and the formatting buttons read as inspector-style
+controls hovering above it.
+
+* ``[data-description-editor]`` is what TipTap binds to; toolbar +
+  card chrome both sit inside this wrapper so JS can find them.
+* The toolbar partial uses ``closest('[data-description-editor]')``
+  to reach the editor — position within the wrapper doesn't matter.
+* ``@click.self`` on the card surface focuses ProseMirror when the
+  user clicks the padding or the dashed empty area.
 {% endcomment %}
 <div id="project-description-cell"
      data-description-editor
      data-baseline="{{ project.description|default:'' }}"
      data-placeholder="{% trans 'Write a description…' %}">
-  <form action="{% url 'web:set_project_description' slug_prefix=project.slug_prefix %}"
-        hx-post="{% url 'web:set_project_description' slug_prefix=project.slug_prefix %}"
-        hx-swap="none">
-    {% csrf_token %}
-    <input type="hidden" name="description" value="{{ project.description|default:'' }}" data-editor-output>
-    <textarea class="description-editor-source hidden" readonly>{{ project.description|default:'' }}</textarea>
 
-    <div class="description-editor-fallback prose dark:prose-invert prose-sm max-w-none min-h-[6rem] text-foreground">
-      {% if project.description %}
-        {{ project.description|markdown }}
-      {% else %}
-        <p class="text-placeholder-foreground italic">{% trans 'Write a description…' %}</p>
-      {% endif %}
-    </div>
+  {% include "web/projects/_editor_toolbar.html" %}
 
-    {% include "web/projects/_editor_toolbar.html" %}
+  <div class="group relative mt-2 bg-background rounded-lg cursor-text border transition
+              {% if project.description %}border-border hover:border-border-strong{% else %}border-border-strong border-dashed{% endif %}"
+       @click.self="
+         const pm = $el.querySelector('.description-editor-mount .ProseMirror');
+         if (pm) { pm.focus(); }
+       ">
+    <span class="pointer-events-none absolute top-2 right-2 inline-flex items-center gap-1 text-[10px] text-placeholder-foreground bg-card border border-border px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition">
+      {% lucide "pencil" "w-2.5 h-2.5" %}
+      {% trans "click to edit" %}
+    </span>
 
-    <div class="description-editor-mount hidden"></div>
-  </form>
+    <form action="{% url 'web:set_project_description' slug_prefix=project.slug_prefix %}"
+          hx-post="{% url 'web:set_project_description' slug_prefix=project.slug_prefix %}"
+          hx-swap="none"
+          class="p-4">
+      {% csrf_token %}
+      <input type="hidden" name="description" value="{{ project.description|default:'' }}" data-editor-output>
+      <textarea class="description-editor-source hidden" readonly>{{ project.description|default:'' }}</textarea>
+
+      <div class="description-editor-fallback prose dark:prose-invert prose-sm max-w-none min-h-[6rem] text-foreground">
+        {% if project.description %}
+          {{ project.description|markdown }}
+        {% else %}
+          <p class="text-placeholder-foreground italic">{% trans 'Write a description…' %}</p>
+        {% endif %}
+      </div>
+
+      <div class="description-editor-mount hidden"></div>
+    </form>
+  </div>
 </div>

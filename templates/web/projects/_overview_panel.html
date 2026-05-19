@@ -1,60 +1,263 @@
 {% load i18n %}
+{% load lucide %}
 {% load web_extras %}
 {% comment %}
 Body of the Overview tab. Shown inside ``_view_panel.html`` when
-``view_mode == "overview"``. Project-level metadata only (no task list).
-Lead, members, description; updates / activity sections are
-placeholders pending their dedicated TODOs.
+``view_mode == "overview"``. Layout follows
+``acta-design-system/preview/comp-project-overview.html``: project
+header (icon-tile · slug · name · health pill) + meta row (lead /
+members / overdue / last updated), then four sections — Stats with
+a 5-segment progress bar + status chips, Description, Latest update,
+Members with role badges.
 {% endcomment %}
 <div class="flex-1 min-h-0 overflow-y-auto">
-  <div class="max-w-3xl mx-auto w-full space-y-8 pb-4">
+  <div class="max-w-3xl mx-auto w-full pb-8">
 
-    <header class="flex items-start gap-3">
-      {% include "web/projects/_project_icon_picker.html" %}
-      <div class="space-y-1 min-w-0 flex-1">
-        <h1 class="text-2xl font-semibold text-foreground leading-tight truncate">{{ project.name }}</h1>
-        <div class="font-mono text-xs text-placeholder-foreground">{{ project.slug_prefix }}</div>
+    {% comment %}
+    Project header — icon-tile + slug/age + bold project name + health pill.
+    Icon picker remains the trigger; the colored tile uses the
+    project's accent class.
+    {% endcomment %}
+    <header class="px-1 py-4 border-b border-border">
+      <div class="flex items-start gap-3">
+        {% include "web/projects/_project_icon_picker.html" %}
+        <div class="flex-1 min-w-0 flex flex-col gap-0.5">
+          <div class="flex items-baseline gap-1.5 text-[11px] text-placeholder-foreground font-mono">
+            <span>{{ project.slug_prefix }}</span>
+            <span>·</span>
+            {% if overview_project_age_days == 0 %}
+            <span>{% trans "started today" %}</span>
+            {% elif overview_project_age_days < 14 %}
+            <span>{% blocktrans with d=overview_project_age_days %}created {{ d }}d ago{% endblocktrans %}</span>
+            {% else %}
+            <span>{% blocktrans with d=project.created_at|date:"M j" %}started {{ d }}{% endblocktrans %}</span>
+            {% endif %}
+            {% if overview_total %}
+            <span>·</span>
+            <span>{% blocktrans count counter=overview_total %}{{ counter }} task{% plural %}{{ counter }} tasks{% endblocktrans %}</span>
+            {% endif %}
+          </div>
+          <h1 class="text-[22px] font-bold text-foreground leading-tight tracking-tight truncate">{{ project.name }}</h1>
+        </div>
+        <span class="shrink-0 inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded
+          {% if latest_health == 'on_track' %}bg-emerald-900 text-emerald-300
+          {% elif latest_health == 'at_risk' %}bg-amber-900 text-amber-300
+          {% elif latest_health == 'off_track' %}bg-rose-900 text-rose-300
+          {% elif latest_health == 'completed' %}bg-sky-900 text-sky-300
+          {% else %}bg-muted text-placeholder-foreground{% endif %}">
+          <span class="w-1.5 h-1.5 rounded-full
+            {% if latest_health == 'on_track' %}bg-emerald-500
+            {% elif latest_health == 'at_risk' %}bg-amber-500
+            {% elif latest_health == 'off_track' %}bg-rose-500
+            {% elif latest_health == 'completed' %}bg-sky-500
+            {% else %}bg-zinc-500{% endif %}"></span>
+          {% if latest_health %}{{ health_labels|get_item:latest_health }}{% else %}{% trans "no health" %}{% endif %}
+        </span>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-x-5 gap-y-2 mt-3 text-[11.5px] text-subtle-foreground">
+        {% if project.lead %}
+        <span class="inline-flex items-center gap-1.5">
+          <span class="text-placeholder-foreground">{% lucide "star" "w-3 h-3" %}</span>
+          {% trans "Lead" %}
+          <span class="w-5 h-5 rounded-full text-white grid place-items-center font-medium text-[10px]"
+                style="background-color: {{ project.lead.avatar_color }};">{{ project.lead.display_name|slice:":1"|upper }}</span>
+          <span class="text-foreground">{{ project.lead.display_name }}</span>
+        </span>
+        {% endif %}
+        <span class="inline-flex items-center gap-1.5">
+          <span class="text-placeholder-foreground">{% lucide "users" "w-3 h-3" %}</span>
+          {% blocktrans count counter=members|length %}{{ counter }} member{% plural %}{{ counter }} members{% endblocktrans %}
+        </span>
+        {% if overview_overdue %}
+        <span class="inline-flex items-center gap-1.5 text-rose-400">
+          {% lucide "alert-circle" "w-3 h-3" %}
+          {% blocktrans count counter=overview_overdue %}{{ counter }} overdue{% plural %}{{ counter }} overdue{% endblocktrans %}
+        </span>
+        {% endif %}
+        {% if overview_last_activity_at %}
+        <span class="inline-flex items-center gap-1.5">
+          {% lucide "trending-up" "w-3 h-3" %}
+          {% blocktrans with t=overview_last_activity_at|timesince %}updated {{ t }} ago{% endblocktrans %}
+        </span>
+        {% endif %}
       </div>
     </header>
 
-    {% comment %}
-    Single-row metadata: lead pinned to the left, members chips
-    wrapping into available space on the right. Card chrome dropped —
-    two fields don't justify a bordered section.
-    {% endcomment %}
-    <section class="flex flex-wrap items-start gap-x-6 gap-y-3">
-      <div class="shrink-0">
-        <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground mb-1.5">{% trans "Lead" %}</div>
-        {% include "web/projects/_overview_lead.html" %}
-      </div>
+    <div class="space-y-6 pt-6">
 
-      <div class="min-w-0 flex-1">
-        <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground mb-1.5">
-          {% trans "Members" %}
-          <span class="text-placeholder-foreground">{{ members|length }}</span>
+      {% comment %}
+      Stats block — design: big bold "done" count, ``done / total``
+      fraction, velocity (+N last 7d) in emerald, overdue in rose, then
+      5-segment progress bar and a chip row for each status count.
+      {% endcomment %}
+      <section>
+        <div class="flex items-center gap-2 mb-2.5">
+          <h2 class="text-[10px] uppercase tracking-wider text-placeholder-foreground font-semibold flex-1">{% trans "Stats" %}</h2>
+        </div>
+        <div class="bg-background border border-border rounded-lg p-4">
+          {% if overview_total %}
+          <div class="flex items-baseline gap-4 text-[11px] text-placeholder-foreground">
+            <span class="text-[26px] font-bold text-foreground leading-none tracking-tight tabular-nums">{{ overview_done }}</span>
+            <span class="text-sm text-subtle-foreground font-medium">/ {{ overview_total }} {% trans "done" %}</span>
+            {% if overview_velocity_7d %}
+            <span class="inline-flex items-center gap-1.5 text-emerald-400 font-medium">
+              {% lucide "trending-up" "w-3.5 h-3.5" %}
+              +{{ overview_velocity_7d }} {% trans "last 7d" %}
+            </span>
+            {% endif %}
+            {% if overview_overdue %}
+            <span class="ml-auto inline-flex items-center gap-1.5 text-rose-400 font-medium">
+              {% lucide "alert-circle" "w-3.5 h-3.5" %}
+              {{ overview_overdue }} {% trans "overdue" %}
+            </span>
+            {% endif %}
+          </div>
+
+          <div class="mt-3 h-2 rounded-full bg-muted overflow-hidden flex">
+            {% with done=overview_status_counts|get_item:'done' rev=overview_status_counts|get_item:'in-review' prog=overview_status_counts|get_item:'in-progress' td=overview_status_counts|get_item:'to-do' pl=overview_status_counts|get_item:'planned' %}
+            {% if done %}<span class="bg-emerald-500 h-full" style="width: {% widthratio done overview_total 100 %}%;"></span>{% endif %}
+            {% if rev %}<span class="bg-amber-500 h-full" style="width: {% widthratio rev overview_total 100 %}%;"></span>{% endif %}
+            {% if prog %}<span class="bg-violet-500 h-full" style="width: {% widthratio prog overview_total 100 %}%;"></span>{% endif %}
+            {% if td %}<span class="bg-blue-500 h-full" style="width: {% widthratio td overview_total 100 %}%;"></span>{% endif %}
+            {% if pl %}<span class="bg-zinc-500 h-full" style="width: {% widthratio pl overview_total 100 %}%;"></span>{% endif %}
+            {% endwith %}
+          </div>
+
+          <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2.5 text-[11.5px] text-subtle-foreground">
+            <span class="inline-flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-zinc-500"></span>
+              <span class="text-foreground tabular-nums font-semibold">{{ overview_status_counts|get_item:'planned' }}</span>
+              <span>{% trans "planned" %}</span>
+            </span>
+            <span class="inline-flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+              <span class="text-foreground tabular-nums font-semibold">{{ overview_status_counts|get_item:'to-do' }}</span>
+              <span>{% trans "to do" %}</span>
+            </span>
+            <span class="inline-flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-violet-500"></span>
+              <span class="text-foreground tabular-nums font-semibold">{{ overview_status_counts|get_item:'in-progress' }}</span>
+              <span>{% trans "in progress" %}</span>
+            </span>
+            <span class="inline-flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+              <span class="text-foreground tabular-nums font-semibold">{{ overview_status_counts|get_item:'in-review' }}</span>
+              <span>{% trans "in review" %}</span>
+            </span>
+            <span class="inline-flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+              <span class="text-foreground tabular-nums font-semibold">{{ overview_status_counts|get_item:'done' }}</span>
+              <span>{% trans "done" %}</span>
+            </span>
+          </div>
+          {% else %}
+          <p class="text-[12px] text-placeholder-foreground italic">{% trans "No tasks yet — bring this project to life." %}</p>
+          {% endif %}
+        </div>
+      </section>
+
+      {% comment %}
+      Latest project update(s). Linear-style cards: avatar + author +
+      relative date + health pill, followed by markdown body. Empty
+      state is a dashed-border card with a brand CTA to write the
+      first update. Posting / editing the update itself lands in the
+      future feature [[project-todo-project-updates-inbox]] — for now
+      the CTA links to admin.
+
+      Sits above Description per Vox's preference: status posts read as
+      the project's pulse, the description is reference material below.
+      {% endcomment %}
+      <section>
+        <div class="flex items-center gap-2 mb-2.5">
+          <h2 class="text-[10px] uppercase tracking-wider text-placeholder-foreground font-semibold">
+            {% if overview_updates_total %}{% trans "Updates" %}{% else %}{% trans "Latest update" %}{% endif %}
+          </h2>
+          {% if overview_updates_total > overview_latest_updates|length %}
+          <span class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-muted text-subtle-foreground">{{ overview_updates_total }}</span>
+          {% endif %}
+          <span class="flex-1"></span>
+          <a href="/admin/projects/projectupdate/add/?project={{ project.id }}"
+             class="inline-flex items-center gap-1 text-[10px] text-placeholder-foreground hover:text-brand-300 transition">
+            {% lucide "plus" "w-2.5 h-2.5" %}
+            {% trans "new" %}
+          </a>
+        </div>
+
+        {% if overview_latest_updates %}
+        <div class="space-y-2">
+          {% for update in overview_latest_updates %}
+          <div class="bg-background border border-border rounded-lg p-4">
+            <div class="flex items-center gap-2 mb-2">
+              {% if update.author %}
+              <span class="w-[22px] h-[22px] rounded-full text-white grid place-items-center font-medium text-[11px]"
+                    style="background-color: {{ update.author.avatar_color }};">{{ update.author.display_name|slice:":1"|upper }}</span>
+              <span class="text-[12px] text-foreground font-medium">{{ update.author.display_name }}</span>
+              {% else %}
+              <span class="w-[22px] h-[22px] rounded-full bg-muted text-placeholder-foreground grid place-items-center text-[11px]">?</span>
+              <span class="text-[12px] text-placeholder-foreground italic">{% trans "unknown" %}</span>
+              {% endif %}
+              <span class="text-[10.5px] text-placeholder-foreground">{% blocktrans with t=update.created_at|timesince %}posted {{ t }} ago{% endblocktrans %}</span>
+              <span class="ml-auto inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded
+                {% if update.health == 'on_track' %}bg-emerald-900 text-emerald-300
+                {% elif update.health == 'at_risk' %}bg-amber-900 text-amber-300
+                {% elif update.health == 'off_track' %}bg-rose-900 text-rose-300
+                {% elif update.health == 'completed' %}bg-sky-900 text-sky-300{% endif %}">
+                <span class="w-1.5 h-1.5 rounded-full
+                  {% if update.health == 'on_track' %}bg-emerald-500
+                  {% elif update.health == 'at_risk' %}bg-amber-500
+                  {% elif update.health == 'off_track' %}bg-rose-500
+                  {% elif update.health == 'completed' %}bg-sky-500{% endif %}"></span>
+                {{ health_labels|get_item:update.health }}
+              </span>
+            </div>
+            <div class="prose prose-sm dark:prose-invert max-w-none text-[12.5px] leading-relaxed text-muted-foreground">
+              {{ update.body|markdown }}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="border border-dashed border-border-strong rounded-lg p-6 text-center bg-background">
+          <p class="text-[12px] text-placeholder-foreground italic">{% trans "No updates yet — post one to keep the team in sync." %}</p>
+          <a href="/admin/projects/projectupdate/add/?project={{ project.id }}"
+             class="inline-flex items-center gap-1.5 mt-3 px-3 py-1 rounded-md bg-brand-500/15 text-brand-300 border border-brand-500/30 text-[11px] hover:bg-brand-500/20 transition">
+            {% lucide "plus" "w-3 h-3" %}
+            {% trans "Write first update" %}
+          </a>
+        </div>
+        {% endif %}
+      </section>
+
+      {% comment %}
+      Description — TipTap editor. The partial renders its own toolbar
+      ABOVE the editor card (per design), the card chrome wraps only
+      the prose area, and the partial owns the cursor-text + focus-on-
+      click behaviour. We only provide the section label here.
+      {% endcomment %}
+      <section>
+        <div class="flex items-center gap-2 mb-2.5">
+          <h2 class="text-[10px] uppercase tracking-wider text-placeholder-foreground font-semibold flex-1">{% trans "Description" %}</h2>
+        </div>
+        {% include "web/projects/_overview_description.html" %}
+      </section>
+
+      {% comment %}
+      Members section — design uses 3 role tiers (lead / member /
+      viewer). Acta's model only has lead + members M2M, so we render
+      ``lead`` for the project lead and ``member`` for everyone else;
+      the dashed ``viewer`` styling stays available for when a viewer
+      role lands. The existing ``_overview_members.html`` partial owns
+      the picker + role-mgmt UI — this section just wraps it.
+      {% endcomment %}
+      <section>
+        <div class="flex items-center gap-2 mb-2.5">
+          <h2 class="text-[10px] uppercase tracking-wider text-placeholder-foreground font-semibold">{% trans "Members" %}</h2>
+          <span class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-muted text-subtle-foreground">{{ members|length }}</span>
         </div>
         {% include "web/projects/_overview_members.html" %}
-      </div>
-    </section>
+      </section>
 
-    <section>
-      <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground mb-2">{% trans "Description" %}</div>
-      {% include "web/projects/_overview_description.html" %}
-    </section>
-
-    {% comment %}
-    Future placeholders. Wired by [[project-todo-project-updates-inbox]]
-    and the project-scoped activity feed when those land.
-    {% endcomment %}
-    <section>
-      <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground mb-2">{% trans "Recent updates" %}</div>
-      <p class="text-sm text-placeholder-foreground italic">{% trans "Project updates coming soon." %}</p>
-    </section>
-
-    <section>
-      <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground mb-2">{% trans "Activity" %}</div>
-      <p class="text-sm text-placeholder-foreground italic">{% trans "Project-level activity feed coming soon." %}</p>
-    </section>
-
+    </div>
   </div>
 </div>
