@@ -8,18 +8,25 @@ title + copy buttons. Hosted by both the full-page ``task_detail.html``
 shell, so the same content shows up in either layout without
 duplication.
 {% endcomment %}
-<a href="{% url 'web:project_list' %}" class="text-placeholder-foreground hover:text-foreground text-sm shrink-0">{% trans "Projects" %}</a>
-<span class="text-border-strong shrink-0">/</span>
-<a href="{% url 'web:project_detail' slug_prefix=task.project.slug_prefix %}"
-   class="text-placeholder-foreground hover:text-foreground text-sm shrink-0">{{ task.project.slug_prefix }}</a>
-<span class="text-border-strong shrink-0">/</span>
-<h1 class="text-base font-medium font-mono shrink-0
+<h1 class="inline-flex items-center gap-1 text-sm font-medium font-mono shrink-0
   {% if task.priority == 1 %}text-rose-400
   {% elif task.priority == 2 %}text-orange-400
   {% elif task.priority == 3 %}text-amber-400
   {% elif task.priority == 4 %}text-sky-400
   {% else %}text-muted-foreground{% endif %}"
-  {% if task.priority %}data-tooltip="{{ priority_labels|get_item:task.priority }}" aria-label="{{ priority_labels|get_item:task.priority }}"{% endif %}>{{ task.slug }}</h1>
+  {% if task.priority %}data-tooltip="{{ priority_labels|get_item:task.priority }}" aria-label="{{ priority_labels|get_item:task.priority }}"{% endif %}>
+  {{ task.slug }}
+  {% if task.priority == 1 %}{% lucide "chevrons-up" "w-3.5 h-3.5" %}
+  {% elif task.priority == 2 %}{% lucide "chevron-up" "w-3.5 h-3.5" %}
+  {% elif task.priority == 3 %}{% lucide "minus" "w-3.5 h-3.5" %}
+  {% elif task.priority == 4 %}{% lucide "chevron-down" "w-3.5 h-3.5" %}
+  {% endif %}
+</h1>
+<span class="text-border-strong shrink-0" aria-hidden="true">·</span>
+<a href="{% url 'web:project_list' %}" class="text-placeholder-foreground hover:text-foreground text-xs shrink-0">{{ task.project.workspace.name }}</a>
+<span class="text-border-strong shrink-0">/</span>
+<a href="{% url 'web:project_detail' slug_prefix=task.project.slug_prefix %}"
+   class="text-subtle-foreground hover:text-foreground text-xs shrink-0">{{ task.project.name }}</a>
 
 {% include "web/projects/_topbar_task_title.html" %}
 
