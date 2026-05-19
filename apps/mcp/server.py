@@ -18,7 +18,7 @@ from asgiref.sync import sync_to_async
 from mcp.server import Server
 from mcp.types import TextContent, Tool
 
-from apps.mcp.auth import AuthenticationError, authenticate_from_env
+from apps.mcp.auth import AuthenticationError, RateLimitExceeded, authenticate_from_env, enforce_rate_limit
 from apps.mcp.tools import CALLABLES, TOOLS
 
 ACTA_MCP_VERSION = "0.1.0"
@@ -98,15 +98,20 @@ def build_server() -> Server:
 
 
 def _safe_authenticate():
-    """Wrap ``authenticate_from_env`` so failure reads as a tool error.
+    """Wrap auth + rate-limit so failures read as actionable tool errors.
 
-    The MCP framework surfaces uncaught exceptions to the client; a
-    bare :class:`AuthenticationError` would still work, but
-    re-raising as a generic ``Exception`` with a message that names
-    the env var and links to the settings page makes the client log
-    actionable.
+    Both errors get a distinct prefix so the LLM (or the client log
+    user) can tell auth-misconfig apart from quota-exhaustion. The
+    rate-limit pass runs ONLY when auth succeeds — otherwise we'd
+    rate-limit nameless attackers, which doesn't add security since
+    the auth check itself is the bottleneck.
     """
     try:
-        return authenticate_from_env()
+        session = authenticate_from_env()
     except AuthenticationError as exc:
         raise RuntimeError(f"Acta MCP authentication failed: {exc}") from exc
+    try:
+        enforce_rate_limit(session.token)
+    except RateLimitExceeded as exc:
+        raise RuntimeError(f"Acta MCP rate limit: {exc}") from exc
+    return session

@@ -501,6 +501,22 @@ TOOLS: list[Tool] = [
         },
     ),
     Tool(
+        name="acta_labels_list",
+        description=(
+            "List labels the user can see. Optional ``workspace`` slug to "
+            "scope to one workspace; omit for all accessible workspaces. "
+            "Returns ``[{id, name, color, workspace_slug, group_name}, …]`` "
+            "sorted by workspace name then label name."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "workspace": {"type": "string", "description": "Workspace slug to scope to."},
+            },
+            "additionalProperties": False,
+        },
+    ),
+    Tool(
         name="acta_tasks_list",
         description=(
             "List Acta tasks the user can access, with optional filters. "
@@ -549,6 +565,27 @@ TOOLS: list[Tool] = [
 ]
 
 
+def labels_list(user: User, arguments: dict[str, Any]) -> Any:
+    """List labels the user can see (across or within one workspace)."""
+    from apps.labels.models import Label
+
+    args = arguments or {}
+    qs = Label.objects.filter(workspace_id__in=user_workspace_ids(user)).select_related("workspace", "group")
+    ws = args.get("workspace")
+    if ws:
+        qs = qs.filter(workspace__slug=ws)
+    return [
+        {
+            "id": label.id,
+            "name": label.name,
+            "color": label.color,
+            "workspace_slug": label.workspace.slug,
+            "group_name": label.group.name if label.group_id else None,
+        }
+        for label in qs.order_by("workspace__name", "name")
+    ]
+
+
 CALLABLES: dict[str, Callable[[User, dict[str, Any]], Any]] = {
     "acta_workspaces_list": workspaces_list,
     "acta_projects_list": projects_list,
@@ -556,6 +593,7 @@ CALLABLES: dict[str, Callable[[User, dict[str, Any]], Any]] = {
     "acta_task_get": task_get,
     "acta_activity_list": activity_list,
     "acta_comments_list": comments_list,
+    "acta_labels_list": labels_list,
 }
 
 

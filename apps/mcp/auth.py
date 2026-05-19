@@ -16,12 +16,26 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import os
+import time
+
+from django.core.cache import cache
 
 from apps.accounts.models import ApiToken, User
 
 
 class AuthenticationError(Exception):
     """Raised when the supplied token is missing, invalid, or revoked."""
+
+
+class RateLimitExceeded(Exception):
+    """Raised when a token exceeds its per-minute request quota."""
+
+
+# Per-token requests-per-minute ceiling. Conservative default —
+# enough headroom for normal LLM-driven flows (~10-30 tool calls per
+# agent turn) but blocks runaway loops / accidental DDoS. Override
+# via the ``ACTA_MCP_RATE_LIMIT_PER_MINUTE`` env var if needed.
+DEFAULT_RATE_LIMIT_PER_MINUTE = 60
 
 
 @dataclass(frozen=True)
@@ -84,3 +98,56 @@ def authenticate_secret(secret: str) -> AuthenticatedSession:
     if not token.user.is_active:
         raise AuthenticationError("User account is inactive.")
     return AuthenticatedSession(user=token.user, token=token)
+
+
+def _rate_limit_per_minute() -> int:
+    """Resolve the per-minute quota at call time.
+
+    Reads ``ACTA_MCP_RATE_LIMIT_PER_MINUTE`` from the env each time so
+    operators can bump the ceiling without redeploying. Falls back to
+    the conservative ``DEFAULT_RATE_LIMIT_PER_MINUTE`` if the env var
+    is missing or unparseable.
+    """
+    raw = os.environ.get("ACTA_MCP_RATE_LIMIT_PER_MINUTE", "").strip()
+    if not raw:
+        return DEFAULT_RATE_LIMIT_PER_MINUTE
+    try:
+        n = int(raw)
+        return n if n > 0 else DEFAULT_RATE_LIMIT_PER_MINUTE
+    except ValueError:
+        return DEFAULT_RATE_LIMIT_PER_MINUTE
+
+
+def enforce_rate_limit(token: ApiToken) -> None:
+    """Bump the per-token, per-minute counter and reject if over quota.
+
+    Implementation: a Django cache key keyed by ``token_hash`` and the
+    current minute bucket. Cheap to read (LocMem cache for single-
+    worker setups, Redis for multi-worker — same API). The counter is
+    incremented atomically via ``cache.incr`` with a one-time
+    initialiser fallback in case the key just expired.
+
+    Args:
+        token: The authenticated :class:`ApiToken` row.
+
+    Raises:
+        RateLimitExceeded: When the token has issued more than the
+            quota within the current 60-second window.
+    """
+    limit = _rate_limit_per_minute()
+    bucket = int(time.time() // 60)
+    key = f"mcp:rl:{token.token_hash}:{bucket}"
+    try:
+        count = cache.incr(key)
+    except ValueError:
+        # Key didn't exist yet — initialise to 1 with a 2-minute TTL
+        # so the bucket survives slight clock skew without leaking
+        # entries forever.
+        cache.set(key, 1, timeout=120)
+        count = 1
+    if count > limit:
+        raise RateLimitExceeded(
+            f"Rate limit exceeded: {limit} requests per minute. "
+            "Wait a moment, then retry. Override the cap via the "
+            "ACTA_MCP_RATE_LIMIT_PER_MINUTE env var on the server.",
+        )

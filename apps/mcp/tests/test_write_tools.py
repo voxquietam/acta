@@ -204,6 +204,206 @@ class TestCommentCreate:
 
 
 @pytest.mark.django_db
+class TestBulkCreate:
+    def test_creates_all_in_one_transaction(self, project_setup):
+        user, _, project = project_setup
+        result = CALLABLES["acta_tasks_bulk_create"](
+            user,
+            {
+                "tasks": [
+                    {"project": "ACTA", "title": "first"},
+                    {"project": "ACTA", "title": "second"},
+                    {"project": "ACTA", "title": "third"},
+                ],
+            },
+        )
+        assert result["count"] == 3
+        titles = {row["title"] for row in result["created"]}
+        assert titles == {"first", "second", "third"}
+        assert Task.objects.filter(project=project, title__in=titles).count() == 3
+
+    def test_rollback_on_validation_failure(self, project_setup):
+        user, _, project = project_setup
+        outsider = UserFactory()
+        before = Task.objects.filter(project=project).count()
+        # Second task has an invalid assignee — whole batch should roll back.
+        with pytest.raises(ValueError, match="index 1"):
+            CALLABLES["acta_tasks_bulk_create"](
+                user,
+                {
+                    "tasks": [
+                        {"project": "ACTA", "title": "ok"},
+                        {"project": "ACTA", "title": "bad", "assignee_username": outsider.username},
+                    ],
+                },
+            )
+        after = Task.objects.filter(project=project).count()
+        assert after == before  # nothing persisted
+
+    def test_empty_list_rejected(self, project_setup):
+        user, _, _ = project_setup
+        with pytest.raises(ValueError, match="non-empty list"):
+            CALLABLES["acta_tasks_bulk_create"](user, {"tasks": []})
+
+
+@pytest.mark.django_db
+class TestBulkUpdate:
+    def test_updates_all_in_one_transaction(self, project_setup):
+        user, _, project = project_setup
+        t1 = TaskFactory(project=project, reporter=user, status=Task.STATUS_TODO)
+        t2 = TaskFactory(project=project, reporter=user, status=Task.STATUS_TODO)
+        result = CALLABLES["acta_tasks_bulk_update"](
+            user,
+            {
+                "updates": [
+                    {"slug": t1.slug, "status": Task.STATUS_IN_PROGRESS},
+                    {"slug": t2.slug, "status": Task.STATUS_DONE},
+                ],
+            },
+        )
+        assert result["count"] == 2
+        t1.refresh_from_db()
+        t2.refresh_from_db()
+        assert t1.status == Task.STATUS_IN_PROGRESS
+        assert t2.status == Task.STATUS_DONE
+
+    def test_rollback_on_failure(self, project_setup):
+        user, _, project = project_setup
+        t1 = TaskFactory(project=project, reporter=user, status=Task.STATUS_TODO)
+        with pytest.raises(ValueError, match="not found or not accessible"):
+            CALLABLES["acta_tasks_bulk_update"](
+                user,
+                {
+                    "updates": [
+                        {"slug": t1.slug, "status": Task.STATUS_IN_PROGRESS},
+                        {"slug": "DOES-9999", "status": Task.STATUS_DONE},
+                    ],
+                },
+            )
+        t1.refresh_from_db()
+        # First update was rolled back too.
+        assert t1.status == Task.STATUS_TODO
+
+
+@pytest.mark.django_db
+class TestBulkArchive:
+    def test_archives_all(self, project_setup):
+        user, _, project = project_setup
+        t1 = TaskFactory(project=project, reporter=user)
+        t2 = TaskFactory(project=project, reporter=user)
+        result = CALLABLES["acta_tasks_bulk_archive"](user, {"slugs": [t1.slug, t2.slug]})
+        assert result["count"] == 2
+        t1.refresh_from_db()
+        t2.refresh_from_db()
+        assert t1.archived_at is not None
+        assert t2.archived_at is not None
+
+    def test_already_archived_unchanged_in_batch(self, project_setup):
+        from django.utils import timezone
+
+        user, _, project = project_setup
+        t = TaskFactory(project=project, reporter=user)
+        t.archived_at = timezone.now()
+        t.save(update_fields=["archived_at"])
+        original = t.archived_at
+        # Should not raise and not touch the existing timestamp.
+        CALLABLES["acta_tasks_bulk_archive"](user, {"slugs": [t.slug]})
+        t.refresh_from_db()
+        assert t.archived_at == original
+
+
+@pytest.mark.django_db
+class TestTaskDelete:
+    def test_delete_drops_row_and_emits_event(self, project_setup):
+        from apps.activity.models import ActivityLog
+
+        user, _, project = project_setup
+        task = TaskFactory(project=project, reporter=user, title="goner")
+        task_id = task.id
+        result = CALLABLES["acta_task_delete"](user, {"slug": task.slug})
+        assert not Task.objects.filter(pk=task_id).exists()
+        assert result["snapshot"]["title"] == "goner"
+        event = ActivityLog.objects.filter(event_type="task.deleted", target_id=task_id).first()
+        assert event is not None
+        assert event.actor == user
+        assert event.payload["snapshot"]["title"] == "goner"
+
+    def test_other_users_task_raises(self, project_setup):
+        user, _, project = project_setup
+        intruder = UserFactory()
+        task = TaskFactory(project=project, reporter=user)
+        with pytest.raises(ValueError, match="not found or not accessible"):
+            CALLABLES["acta_task_delete"](intruder, {"slug": task.slug})
+
+
+@pytest.mark.django_db
+class TestBulkDelete:
+    def test_deletes_all_in_one_transaction(self, project_setup):
+        user, _, project = project_setup
+        t1 = TaskFactory(project=project, reporter=user)
+        t2 = TaskFactory(project=project, reporter=user)
+        result = CALLABLES["acta_tasks_bulk_delete"](user, {"slugs": [t1.slug, t2.slug]})
+        assert result["count"] == 2
+        assert not Task.objects.filter(pk__in=[t1.pk, t2.pk]).exists()
+
+    def test_rollback_on_failure(self, project_setup):
+        user, _, project = project_setup
+        t1 = TaskFactory(project=project, reporter=user)
+        with pytest.raises(ValueError, match="not found or not accessible"):
+            CALLABLES["acta_tasks_bulk_delete"](user, {"slugs": [t1.slug, "DOES-9999"]})
+        # First slug shouldn't have been deleted — atomic rollback.
+        assert Task.objects.filter(pk=t1.pk).exists()
+
+
+@pytest.mark.django_db
+class TestLabelCrud:
+    def test_create_label(self, project_setup):
+        from apps.labels.models import Label
+
+        user, ws, _ = project_setup
+        result = CALLABLES["acta_label_create"](user, {"workspace": ws.slug, "name": "backend", "color": "#10b981"})
+        assert result["name"] == "backend"
+        assert result["color"] == "#10b981"
+        assert Label.objects.filter(workspace=ws, name="backend").exists()
+
+    def test_create_in_foreign_workspace_rejected(self, project_setup):
+        user, _, _ = project_setup
+        other_ws = WorkspaceFactory()
+        with pytest.raises(ValueError, match="not found or not accessible"):
+            CALLABLES["acta_label_create"](user, {"workspace": other_ws.slug, "name": "x"})
+
+    def test_update_label(self, project_setup):
+        user, ws, _ = project_setup
+        label = LabelFactory(workspace=ws, name="old", color="#000000")
+        result = CALLABLES["acta_label_update"](user, {"id": label.id, "name": "new", "color": "#ffffff"})
+        assert result["name"] == "new"
+        assert result["color"] == "#ffffff"
+        label.refresh_from_db()
+        assert label.name == "new"
+
+    def test_delete_label_cascades_associations(self, project_setup):
+        from apps.labels.models import Label
+
+        user, ws, project = project_setup
+        label = LabelFactory(workspace=ws, name="dropme")
+        task = TaskFactory(project=project, reporter=user)
+        task.labels.add(label)
+        result = CALLABLES["acta_label_delete"](user, {"id": label.id})
+        assert result["deleted_id"] == label.id
+        assert not Label.objects.filter(pk=label.id).exists()
+        # Task survives, association is gone.
+        task.refresh_from_db()
+        assert task.labels.count() == 0
+
+    def test_delete_other_workspace_label_rejected(self, project_setup):
+        user, _, _ = project_setup
+        other_ws = WorkspaceFactory()
+        label = LabelFactory(workspace=other_ws, name="not yours")
+        with pytest.raises(ValueError, match="not found or not accessible"):
+            CALLABLES["acta_label_delete"](user, {"id": label.id})
+
+
+@pytest.mark.django_db
 class TestActivityLogIntegration:
     """MCP write-tools must emit the same activity events the web does.
 
