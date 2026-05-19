@@ -3,8 +3,9 @@
 ``acta_task_create``, ``acta_task_update``, ``acta_task_archive``,
 ``acta_comment_create``. Each tool routes writes through the same
 ``TaskSerializer`` / Django models the web UI uses so validation
-gates (workspace membership, labels-in-workspace, assignee-must-be-
-member, subtask-depth-1) come for free.
+gates (workspace membership, assignee-must-be-member, subtask-depth-1)
+come for free. Labels are the one place the MCP path is more lenient
+than the UI — missing names are auto-created instead of rejected.
 """
 
 import pytest
@@ -75,15 +76,32 @@ class TestTaskCreate:
         names = {lab["name"] for lab in result["labels"]}
         assert names == {"backend", "bug"}
 
-    def test_label_outside_workspace_rejected(self, project_setup):
-        user, _, _ = project_setup
+    def test_missing_label_auto_created_in_workspace(self, project_setup):
+        """A name that doesn't exist gets a fresh Label in this workspace.
+
+        A same-named label can already exist in another workspace — the
+        auto-create still happens because label uniqueness is
+        workspace-scoped, so the LLM doesn't accidentally borrow
+        someone else's label just because the name collides.
+        """
+        from apps.labels.models import Label
+
+        user, _, project = project_setup
         other_ws = WorkspaceFactory()
-        LabelFactory(workspace=other_ws, name="other-ws-label")
-        with pytest.raises(ValueError, match="Labels not found"):
-            CALLABLES["acta_task_create"](
-                user,
-                {"project": "ACTA", "title": "t", "label_names": ["other-ws-label"]},
-            )
+        other_label = LabelFactory(workspace=other_ws, name="auto-me")
+
+        result = CALLABLES["acta_task_create"](
+            user,
+            {"project": "ACTA", "title": "t", "label_names": ["auto-me"]},
+        )
+        names = [lab["name"] for lab in result["labels"]]
+        assert names == ["auto-me"]
+
+        # Workspace-scoped uniqueness: our workspace now has its own
+        # ``auto-me`` row, separate from the one in ``other_ws``.
+        our_label = Label.objects.get(workspace=project.workspace, name="auto-me")
+        assert our_label.pk != other_label.pk
+        assert our_label.color.startswith("#")
 
     def test_non_member_project_rejected(self, project_setup):
         user, _, _ = project_setup

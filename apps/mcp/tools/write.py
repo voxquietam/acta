@@ -2,8 +2,11 @@
 
 Every mutation routes through Django models (and :class:`TaskSerializer`
 where applicable) so MCP-driven writes obey the exact same validation
-gates the web UI does — workspace membership, label-in-workspace,
-assignee-must-be-an-active-member, subtask-depth-1.
+gates the web UI does — workspace membership, assignee-must-be-an-active-
+member, subtask-depth-1. The one deliberate divergence: missing labels
+in ``label_names`` are auto-created (workspace-scoped, deterministic
+palette colour) instead of rejected, so the LLM doesn't get stuck in a
+"call acta_label_create then retry" loop.
 """
 
 from __future__ import annotations
@@ -22,13 +25,73 @@ from apps.mcp.tools._shared import (
     user_workspace_ids,
 )
 
+# Palette LLM-driven label auto-creation picks from. Hash-of-name keeps
+# the same name landing on the same colour across runs (deterministic
+# colouring beats a random walk that varies per call). Sourced from the
+# design tokens but kept inline so labels stay visually distinct from
+# the status/priority dot palette.
+_LABEL_AUTO_PALETTE = [
+    "#a855f7",
+    "#3b82f6",
+    "#10b981",
+    "#f59e0b",
+    "#ef4444",
+    "#ec4899",
+    "#06b6d4",
+    "#84cc16",
+]
+
+
+def _auto_label_color(name: str) -> str:
+    """Pick a stable palette colour for an auto-created label.
+
+    ``hash(name) % len(palette)`` would do, but Python's ``hash()`` is
+    randomised between processes — labels created in one server run
+    would change colour after a restart. ``sum(ord(c))`` is stable
+    across processes and cheap.
+    """
+    return _LABEL_AUTO_PALETTE[sum(ord(c) for c in name) % len(_LABEL_AUTO_PALETTE)]
+
+
+def _resolve_or_create_labels(workspace, names):
+    """Find labels by name in ``workspace``; create any that don't exist.
+
+    Returns the list of ``Label`` rows (existing + newly minted). Uses
+    ``get_or_create`` so two concurrent MCP calls naming the same new
+    label can't race past the ``UniqueConstraint(workspace, name)``.
+
+    Args:
+        workspace: The :class:`Workspace` that owns the labels.
+        names: A list of label name strings as given by the LLM.
+
+    Returns:
+        list[Label]: All resolved labels, in the order ``names`` was given.
+    """
+    from apps.labels.models import Label
+
+    resolved: list = []
+    for raw in names:
+        name = (raw or "").strip()
+        if not name:
+            continue
+        label, _created = Label.objects.get_or_create(
+            workspace=workspace,
+            name=name,
+            defaults={"color": _auto_label_color(name)},
+        )
+        resolved.append(label)
+    return resolved
+
 
 def task_create(user: User, arguments: dict[str, Any]) -> Any:
     """Create a new task in one of the user's projects.
 
     Validation flows through :class:`TaskSerializer` so MCP-driven
     creates obey every rule the web UI does — workspace membership,
-    label-in-workspace, assignee-must-be-member, subtask-depth-1.
+    assignee-must-be-member, subtask-depth-1. Unlike the UI, missing
+    labels in ``label_names`` are auto-created in the project's
+    workspace with a deterministic palette colour (use
+    :func:`acta_label_create` first to pin a specific hex).
 
     Emits the same ``task.created`` activity event as the web's DRF
     ``perform_create`` so the audit log records who created what,
@@ -36,7 +99,6 @@ def task_create(user: User, arguments: dict[str, Any]) -> Any:
     """
     from apps.activity.models import ActivityLog
     from apps.activity.services import log_event
-    from apps.labels.models import Label
     from apps.tasks.serializers import TaskSerializer
 
     args = arguments or {}
@@ -67,14 +129,7 @@ def task_create(user: User, arguments: dict[str, Any]) -> Any:
 
     label_names = args.get("label_names") or []
     if label_names:
-        labels = list(Label.objects.filter(workspace=project.workspace, name__in=label_names))
-        found_names = {lab.name for lab in labels}
-        missing = [n for n in label_names if n not in found_names]
-        if missing:
-            raise ValueError(
-                f"Labels not found in workspace {project.workspace.slug!r}: {missing}. "
-                "Create them in admin or attach via acta_task_update after creation.",
-            )
+        labels = _resolve_or_create_labels(project.workspace, label_names)
         data["labels"] = [lab.id for lab in labels]
 
     serializer = TaskSerializer(data=data, context={"request": FakeRequest(user)})
@@ -109,7 +164,6 @@ def task_update(user: User, arguments: dict[str, Any]) -> Any:
     produces its own ``ActivityLog`` row — matches the granular event
     emission the web UI's DRF ``perform_update`` does.
     """
-    from apps.labels.models import Label
     from apps.tasks.events import emit_task_diff_events, snapshot_task
     from apps.tasks.serializers import TaskSerializer
 
@@ -134,11 +188,7 @@ def task_update(user: User, arguments: dict[str, Any]) -> Any:
 
     if "label_names" in args:
         names = args["label_names"] or []
-        labels = list(Label.objects.filter(workspace=task.project.workspace, name__in=names))
-        found = {lab.name for lab in labels}
-        missing = [n for n in names if n not in found]
-        if missing:
-            raise ValueError(f"Labels not found in workspace: {missing}.")
+        labels = _resolve_or_create_labels(task.project.workspace, names)
         data["labels"] = [lab.id for lab in labels]
 
     old_state = snapshot_task(task)
@@ -366,9 +416,11 @@ TOOLS: list[Tool] = [
             "``size`` (Fibonacci integer 1/2/3/5/8/13), ``due_date`` (ISO date), "
             "``assignee_username`` (must be a member of the project's workspace), "
             "``parent_slug`` (make this a subtask of an existing task — depth-1 limit), "
-            "``label_names`` (list of label names; must exist in the workspace). "
-            "Validation matches the web UI exactly: workspace membership, "
-            "label-in-workspace, assignee-must-be-active-member, subtask-depth-1. "
+            "``label_names`` (list of label names; any name that doesn't already "
+            "exist in the workspace is auto-created with a deterministic palette "
+            "colour — use ``acta_label_create`` first if you need a specific hex). "
+            "Validation matches the web UI: workspace membership, "
+            "assignee-must-be-active-member, subtask-depth-1. "
             "Returns the same compact task object ``acta_tasks_list`` rows use."
         ),
         inputSchema={
@@ -400,7 +452,8 @@ TOOLS: list[Tool] = [
             "``title``, ``description``, ``status``, ``priority``, ``size`` "
             "(Fibonacci 1/2/3/5/8/13), ``due_date``, ``assignee_username`` "
             "(pass ``null`` to clear), ``label_names`` (replaces the full "
-            "label set). Same validation as create. Returns the updated task summary."
+            "label set; missing labels are auto-created — see ``acta_task_create``). "
+            "Same validation as create. Returns the updated task summary."
         ),
         inputSchema={
             "type": "object",
