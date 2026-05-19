@@ -23,6 +23,9 @@ urlpatterns = [
     path("accounts/", include("apps.accounts.urls", namespace="accounts")),
     path("accounts/", include("allauth.urls")),
     path("api/v1/", include((api_v1_patterns, "api_v1"))),
+    # MCP HTTP transport — single endpoint, JSON-RPC over POST. See
+    # apps/mcp/views.py for protocol notes; docs/mcp.md for client setup.
+    path("mcp/", include("apps.mcp.urls", namespace="mcp")),
     # Real-time SSE — one stream per workspace. See ADR 0015. The
     # channel name is templated from the URL kwarg so a client
     # connecting to ``/events/workspace/3`` subscribes to the
