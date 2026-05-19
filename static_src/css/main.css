@@ -409,8 +409,9 @@ main {
    navigation — server-side conditional rendering can't pick up the
    change because the sidebar element survives the swap. */
 .acta-rail-active {
-  background-color: rgb(66 90 245 / 0.15);   /* brand-500/15 */
+  background-color: rgb(66 90 245 / 0.13);   /* brand-500/13 */
   color: rgb(36 53 173);                     /* brand-700 */
+  box-shadow: inset 3px 0 0 0 rgb(66 90 245); /* 3px brand-500 left stripe */
 }
 html.dark .acta-rail-active {
   color: rgb(148 163 255);                   /* brand-300 */

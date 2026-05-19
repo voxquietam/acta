@@ -56,14 +56,21 @@ Pages extend this and override the `app_main` block.
        class="flex items-center">
       <img src="{% static 'img/brand/logo-mark.svg' %}" alt="Acta"
            class="w-7 h-7 shrink-0">
-      <span x-show="$store.sidebar.open" x-cloak class="flex items-center gap-2">
+      <span x-show="$store.sidebar.open" x-cloak class="flex items-baseline gap-2">
         <span class="text-lg font-semibold tracking-tight">Acta</span>
-        <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "task tracker" %}</span>
+        <span class="font-mono text-[10px] uppercase tracking-wider text-placeholder-foreground">v0.1</span>
       </span>
     </a>
 
     <div class="px-3 pt-4 pb-3 space-y-0.5 text-sm border-b border-border/60">
       {% with current=request.resolver_match.url_name %}
+      <a href="{% url 'web:dashboard' %}"
+         :class="!$store.sidebar.open && 'justify-center'"
+         class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground">
+        {% lucide "layout-dashboard" "w-4 h-4 shrink-0" %}
+        <span x-show="$store.sidebar.open" x-cloak>{% trans "Dashboard" %}</span>
+        <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "Dashboard" %}</span>
+      </a>
       <a href="{% url 'web:my_work' %}"
          :class="!$store.sidebar.open && 'justify-center'"
          class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground">
@@ -77,13 +84,6 @@ Pages extend this and override the `app_main` block.
         {% lucide "list-checks" "w-4 h-4 shrink-0" %}
         <span x-show="$store.sidebar.open" x-cloak>{% trans "All Tasks" %}</span>
         <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "All Tasks" %}</span>
-      </a>
-      <a href="{% url 'web:dashboard' %}"
-         :class="!$store.sidebar.open && 'justify-center'"
-         class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground">
-        {% lucide "layout-dashboard" "w-4 h-4 shrink-0" %}
-        <span x-show="$store.sidebar.open" x-cloak>{% trans "Dashboard" %}</span>
-        <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "Dashboard" %}</span>
       </a>
       <a href="{% url 'web:project_list' %}"
          :class="!$store.sidebar.open && 'justify-center'"
