@@ -1,6 +1,10 @@
 services:
   db:
     image: postgres:16
+    # Fixed container name so CI / ops can target it explicitly
+    # (`docker stop acta.db`, `docker logs acta.db`). Mirrors the
+    # `<project>.<role>` convention used across the rest of the infra.
+    container_name: acta.db
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
@@ -24,6 +28,7 @@ services:
       context: .
       args:
         REQUIREMENTS: requirements/prod.txt
+    container_name: acta.web
     restart: unless-stopped
     depends_on:
       db:
