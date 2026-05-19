@@ -58,6 +58,14 @@ rail are queued in [[project-todo-filter-sidebar-presets-views]]
     {% include "web/_filter_count_badges.html" with variant="collapsed" %}
   </button>
 
+  {% comment %}
+  ``overflow-hidden`` deliberately NOT on the form — it would clip the
+  themed ``::after`` tooltips on the Reset / Hide-filters buttons at
+  the rounded corners. The inner body has its own ``overflow-y-auto
+  overflow-x-hidden`` so scrolling content stays contained, and rounded
+  corners read clean against the card-coloured backdrop without needing
+  parent-level clip.
+  {% endcomment %}
   <form x-show="$store.filters.open"
         id="filter-form"
         method="get"
@@ -65,7 +73,7 @@ rail are queued in [[project-todo-filter-sidebar-presets-views]]
         hx-target="{{ filter_htmx_target }}"
         hx-swap="innerHTML transition:true"
         hx-push-url="true"
-        class="bg-card border border-border rounded-lg overflow-hidden
+        class="bg-card border border-border rounded-lg
                flex flex-col w-full lg:max-h-full">
 
     {% for name, value in filter_preserved_pairs %}

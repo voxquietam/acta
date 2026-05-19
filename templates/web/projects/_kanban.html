@@ -27,9 +27,18 @@ hides the native scrollbar without losing the "you can scroll" cue.
   uppercase status name, mono fraction-style count, status dot leading
   the row. Background stays neutral so cards remain the visual focus.
   {% endcomment %}
+  {% comment %}
+  Width strategy: collapsed columns stay narrow + ``shrink-0`` (don't
+  grow). Expanded columns are ``flex-1`` with a 280px floor and 400px
+  ceiling — they grow to fill freed space when peers are collapsed,
+  and the board sprawls horizontally only past the minimum. See
+  [[project-todo-kanban-column-width]].
+  {% endcomment %}
   <div x-data
-       :class="$store.kanban.isCollapsed('{{ col.key }}') ? 'w-10 self-start h-72' : 'w-72 max-h-[calc(100vh-12rem)]'"
-       class="shrink-0 bg-subtle/50 border border-border rounded-lg flex flex-col overflow-hidden">
+       :class="$store.kanban.isCollapsed('{{ col.key }}')
+                 ? 'w-10 self-start h-72 shrink-0'
+                 : 'flex-1 min-w-[280px] max-w-[400px]'"
+       class="bg-subtle/50 border border-border rounded-lg flex flex-col overflow-hidden">
 
     <div x-show="!$store.kanban.isCollapsed('{{ col.key }}')" x-cloak
          class="shrink-0 border-b border-border bg-card/40 hover:bg-muted/40 transition-colors flex flex-col">
@@ -61,12 +70,11 @@ hides the native scrollbar without losing the "you can scroll" cue.
       {% comment %}
       Sub-status line — overdue count on non-done columns, "++ N this
       week" trend on the Done column. Avatar stack on the right shows
-      up to 4 unique assignees in this column. The whole row only
-      renders when there's something to say so calm columns stay
-      visually quiet.
+      up to 4 unique assignees in this column. The row is always
+      rendered (even empty) so all column headers stay the same
+      height — first cards across columns line up flush.
       {% endcomment %}
-      {% if col.overdue_count or col.done_this_week or col.active_avatars %}
-      <div class="px-3 pb-2 flex items-center justify-between font-mono text-[10px] -mt-1">
+      <div class="px-3 pb-2 flex items-center justify-between font-mono text-[10px] -mt-1 h-[14px]">
         {% if col.overdue_count %}
         <span class="text-rose-300">!! {{ col.overdue_count }} overdue</span>
         {% elif col.key == 'done' and col.done_this_week %}
@@ -86,23 +94,26 @@ hides the native scrollbar without losing the "you can scroll" cue.
         </div>
         {% endif %}
       </div>
-      {% endif %}
     </div>
 
+    {% comment %}
+    Collapsed-column trigger: 3px brand-coloured left stripe (via
+    inset shadow) marks the status without re-rendering the colored
+    dot above the count, per ``comp-kanban-column-head.html`` v3.
+    {% endcomment %}
     <button type="button"
             x-show="$store.kanban.isCollapsed('{{ col.key }}')"
             x-cloak
             @click="$store.kanban.toggle('{{ col.key }}')"
             :data-tooltip="'{% trans 'Expand column' %}'"
-            class="flex-1 px-3 py-2 hover:bg-muted/60 transition">
+            class="flex-1 px-3 py-2 hover:bg-muted/60 transition relative
+              {% if col.key == 'planned' %}shadow-[inset_3px_0_0_0_rgb(113_113_122)]
+              {% elif col.key == 'to-do' %}shadow-[inset_3px_0_0_0_rgb(59_130_246)]
+              {% elif col.key == 'in-progress' %}shadow-[inset_3px_0_0_0_rgb(139_92_246)]
+              {% elif col.key == 'in-review' %}shadow-[inset_3px_0_0_0_rgb(245_158_11)]
+              {% elif col.key == 'done' %}shadow-[inset_3px_0_0_0_rgb(16_185_129)]{% endif %}">
       <div class="flex flex-col items-center gap-2 py-1">
         <span class="font-mono text-[13px] font-bold text-foreground" data-column-count>{{ col.tasks|length }}</span>
-        <span class="w-2 h-2 rounded-full
-          {% if col.key == 'planned' %}bg-zinc-500
-          {% elif col.key == 'to-do' %}bg-blue-500
-          {% elif col.key == 'in-progress' %}bg-violet-500
-          {% elif col.key == 'in-review' %}bg-amber-500
-          {% elif col.key == 'done' %}bg-emerald-500{% endif %}"></span>
         <span class="font-mono text-[11px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap"
               style="writing-mode: vertical-rl; transform: rotate(180deg);">
           {{ col.label }}
