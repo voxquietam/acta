@@ -76,6 +76,133 @@
     </form>
   </section>
 
+  {# ----- API tokens section ----- #}
+  {% comment %}
+  Programmatic access (curl, scripts, the MCP server) authenticates
+  via per-user ``ApiToken``s instead of the web session cookie. The
+  plain secret is shown ONCE here right after creation (read once
+  from session by the view, then cleared); after the user navigates
+  away it can't be retrieved — they revoke and create a new one.
+  {% endcomment %}
+  <section class="bg-card border border-border rounded-lg p-4">
+    <header class="flex items-center justify-between mb-3">
+      <div>
+        <h2 class="text-sm font-medium text-foreground">{% trans "API tokens" %}</h2>
+        <p class="text-[11px] text-placeholder-foreground mt-0.5">
+          {% trans "For non-browser clients (scripts, MCP server, etc.). The plain secret is shown only once on creation." %}
+        </p>
+      </div>
+    </header>
+
+    {% if created_api_token_secret %}
+    {% comment %}
+    One-shot panel rendered on the redirect after a successful
+    ``create_api_token`` POST. The brand-tinted border + warning
+    icon signals "copy this NOW", since once the user reloads or
+    navigates away the secret is gone.
+    {% endcomment %}
+    <div class="mb-4 p-3 border border-brand-500/40 bg-brand-500/5 rounded-md text-xs">
+      <div class="flex items-center gap-2 text-brand-300 font-medium mb-2">
+        {% lucide "key-round" "w-4 h-4" %}
+        {% blocktrans with name=created_api_token_name %}Token “{{ name }}” created — copy it now, it won't be shown again:{% endblocktrans %}
+      </div>
+      <div class="flex items-center gap-2">
+        <code class="flex-1 font-mono text-[11px] bg-background border border-border-strong rounded px-2 py-1.5 break-all text-foreground"
+              id="acta-new-token">{{ created_api_token_secret }}</code>
+        <button type="button"
+                x-data="{ copied: false }"
+                @click="navigator.clipboard.writeText(document.getElementById('acta-new-token').textContent.trim()).then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
+                class="acta-btn-icon shrink-0"
+                :data-tooltip="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy to clipboard' %}'"
+                :aria-label="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy to clipboard' %}'">
+          <span x-show="!copied">{% lucide "copy" "w-4 h-4" %}</span>
+          <span x-show="copied" x-cloak class="text-emerald-400">{% lucide "check" "w-4 h-4" %}</span>
+        </button>
+      </div>
+    </div>
+    {% endif %}
+
+    <form method="post" action="{% url 'accounts:create_api_token' %}"
+          hx-boost="true"
+          hx-target="#app-content"
+          hx-select="#app-content"
+          hx-swap="outerHTML show:top"
+          hx-push-url="true"
+          class="flex items-end gap-2 mb-4">
+      {% csrf_token %}
+      <div class="flex-1">
+        <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "New token name" %}</label>
+        <input type="text" name="name" maxlength="80" required
+               placeholder="{% trans 'e.g. Claude Desktop' %}"
+               class="mt-1 acta-input">
+      </div>
+      <button type="submit" class="acta-btn-primary">
+        {% lucide "plus" "w-4 h-4" %}
+        {% trans "Generate" %}
+      </button>
+    </form>
+
+    {% if api_tokens %}
+    <ul class="divide-y divide-border">
+      {% for token in api_tokens %}
+      <li class="flex items-center gap-3 py-2.5 {% if token.revoked_at %}opacity-60{% endif %}">
+        <span class="text-placeholder-foreground">
+          {% if token.revoked_at %}{% lucide "key-round" "w-4 h-4" %}{% else %}{% lucide "key-round" "w-4 h-4 text-brand-400" %}{% endif %}
+        </span>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 text-sm">
+            <span class="font-medium text-foreground truncate">{{ token.name }}</span>
+            <span class="font-mono text-[10px] text-placeholder-foreground">{{ token.prefix }}…</span>
+            {% if token.revoked_at %}
+            <span class="text-[9.5px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted text-placeholder-foreground">
+              {% trans "revoked" %}
+            </span>
+            {% endif %}
+          </div>
+          <div class="text-[11px] text-placeholder-foreground mt-0.5">
+            {% blocktrans with d=token.created_at|date:"M j, Y" %}created {{ d }}{% endblocktrans %}
+            {% if token.last_used_at %}
+            · {% blocktrans with t=token.last_used_at|timesince %}last used {{ t }} ago{% endblocktrans %}
+            {% else %}
+            · <span class="italic">{% trans "never used" %}</span>
+            {% endif %}
+            {% if token.revoked_at %}
+            · {% blocktrans with t=token.revoked_at|timesince %}revoked {{ t }} ago{% endblocktrans %}
+            {% endif %}
+          </div>
+        </div>
+        {% if not token.revoked_at %}
+        <form method="post" action="{% url 'accounts:revoke_api_token' token_id=token.id %}"
+              hx-boost="true"
+              hx-target="#app-content"
+              hx-select="#app-content"
+              hx-swap="outerHTML show:top"
+              hx-push-url="true"
+              x-data="{ confirming: false }">
+          {% csrf_token %}
+          <button x-show="!confirming" type="button" @click="confirming = true"
+                  class="text-[11px] text-placeholder-foreground hover:text-rose-400 transition px-2 py-1">
+            {% trans "Revoke" %}
+          </button>
+          <span x-show="confirming" x-cloak class="inline-flex items-center gap-1 text-[11px]">
+            <span class="text-rose-400">{% trans "Revoke?" %}</span>
+            <button type="submit" class="text-emerald-400 hover:text-emerald-300 px-1">
+              {% lucide "check" "w-3.5 h-3.5" %}
+            </button>
+            <button type="button" @click="confirming = false" class="text-placeholder-foreground hover:text-foreground px-1">
+              {% lucide "x" "w-3.5 h-3.5" %}
+            </button>
+          </span>
+        </form>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-[11px] text-placeholder-foreground italic">{% trans "No API tokens yet." %}</p>
+    {% endif %}
+  </section>
+
   {# ----- Session section ----- #}
   <section class="bg-card border border-border rounded-lg p-4">
     <h2 class="text-sm font-medium text-foreground mb-3">{% trans "Session" %}</h2>

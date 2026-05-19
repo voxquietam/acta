@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Acta 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-05-19 12:25+0000\n"
+"POT-Creation-Date: 2026-05-19 12:32+0000\n"
 "PO-Revision-Date: 2026-05-16 15:30+0000\n"
 "Last-Translator: Acta team\n"
 "Language-Team: Ukrainian\n"
@@ -114,7 +114,6 @@ msgid "Invalid token header: missing credentials"
 msgstr "Невірний заголовок токена: відсутні облікові дані"
 
 #: apps/accounts/auth.py:67
-#| msgid "Invalid role"
 msgid "Invalid token"
 msgstr "Невірний токен"
 
@@ -134,13 +133,24 @@ msgstr "Користувач"
 msgid "API token"
 msgstr "API токен"
 
-#: apps/accounts/models.py:124
+#: apps/accounts/models.py:124 templates/accounts/settings.html:91
 msgid "API tokens"
 msgstr "API токени"
 
-#: apps/accounts/views.py:42
+#: apps/accounts/views.py:45
 msgid "Unsupported language"
 msgstr "Непідтримувана мова"
+
+#: apps/accounts/views.py:164
+#| msgid "Name is required"
+msgid "Token name is required."
+msgstr "Потрібно вказати назву токена."
+
+#: apps/accounts/views.py:198
+#, python-format
+#| msgid "Token has been revoked"
+msgid "Token “%(name)s” revoked."
+msgstr "Токен «%(name)s» відкликано."
 
 #: apps/activity/models.py:78
 msgid "Activity log entry"
@@ -600,11 +610,87 @@ msgstr "Мова"
 msgid "Save changes"
 msgstr "Зберегти зміни"
 
-#: templates/accounts/settings.html:81
+#: templates/accounts/settings.html:93
+msgid ""
+"For non-browser clients (scripts, MCP server, etc.). The plain secret is "
+"shown only once on creation."
+msgstr ""
+"Для не-браузерних клієнтів (скрипти, MCP сервер тощо). Сам токен показується"
+" тільки один раз при створенні."
+
+#: templates/accounts/settings.html:109
+#, python-format
+msgid "Token “%(name)s” created — copy it now, it won't be shown again:"
+msgstr ""
+
+#: templates/accounts/settings.html:118 templates/accounts/settings.html:119
+#: templates/web/projects/_task_detail_topbar.html:43
+#: templates/web/projects/_task_detail_topbar.html:44
+#: templates/web/projects/_task_detail_topbar.html:52
+#: templates/web/projects/_task_detail_topbar.html:53
+msgid "Copied!"
+msgstr "Скопійовано!"
+
+#: templates/accounts/settings.html:118 templates/accounts/settings.html:119
+msgid "Copy to clipboard"
+msgstr "Скопіювати"
+
+#: templates/accounts/settings.html:130
+msgid "New token name"
+msgstr "Назва нового токена"
+
+#: templates/accounts/settings.html:132
+msgid "e.g. Claude Desktop"
+msgstr "напр. Claude Desktop"
+
+#: templates/accounts/settings.html:137
+msgid "Generate"
+msgstr "Згенерувати"
+
+#: templates/accounts/settings.html:154
+msgid "revoked"
+msgstr "відкликаний"
+
+#: templates/accounts/settings.html:159
+#, fuzzy, python-format
+#| msgid "created the task"
+msgid "created %(d)s"
+msgstr "створено задачу"
+
+#: templates/accounts/settings.html:161
+#, fuzzy, python-format
+#| msgid "posted %(t)s ago"
+msgid "last used %(t)s ago"
+msgstr "опубліковано %(t)s тому"
+
+#: templates/accounts/settings.html:163
+msgid "never used"
+msgstr "не використовувався"
+
+#: templates/accounts/settings.html:166
+#, fuzzy, python-format
+#| msgid "posted %(t)s ago"
+msgid "revoked %(t)s ago"
+msgstr "опубліковано %(t)s тому"
+
+#: templates/accounts/settings.html:176
+msgid "Revoke"
+msgstr "Відкликати"
+
+#: templates/accounts/settings.html:179
+msgid "Revoke?"
+msgstr "Відкликати?"
+
+#: templates/accounts/settings.html:193
+#| msgid "API tokens"
+msgid "No API tokens yet."
+msgstr "Поки немає жодного API токена."
+
+#: templates/accounts/settings.html:199
 msgid "Session"
 msgstr "Сесія"
 
-#: templates/accounts/settings.html:87 templates/base_app.html:290
+#: templates/accounts/settings.html:205 templates/base_app.html:290
 msgid "Log out"
 msgstr "Вийти"
 
@@ -1405,13 +1491,6 @@ msgstr[3] "Підзадачі"
 #: templates/web/projects/_task_detail_body.html:111
 msgid "Subtasks"
 msgstr "Підзадачі"
-
-#: templates/web/projects/_task_detail_topbar.html:43
-#: templates/web/projects/_task_detail_topbar.html:44
-#: templates/web/projects/_task_detail_topbar.html:52
-#: templates/web/projects/_task_detail_topbar.html:53
-msgid "Copied!"
-msgstr "Скопійовано!"
 
 #: templates/web/projects/_task_detail_topbar.html:43
 #: templates/web/projects/_task_detail_topbar.html:44

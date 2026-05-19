@@ -1,14 +1,18 @@
 """Account-related page views."""
 
 from django.conf import settings
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseBadRequest, HttpResponseRedirect
-from django.shortcuts import render
+from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
-from django.utils import translation
+from django.utils import timezone, translation
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.translation import gettext
+from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_POST
+
+from apps.accounts.models import ApiToken
 
 
 @require_POST
@@ -121,10 +125,76 @@ def user_settings(request):
                 samesite=settings.LANGUAGE_COOKIE_SAMESITE,
             )
         return response
+    # ``api_tokens`` powers the API tokens section. ``created_secret``
+    # is a one-shot flash value populated by ``create_api_token`` —
+    # the plain token, shown ONCE on redirect back here, then cleared.
+    created_secret = request.session.pop("created_api_token_secret", None)
+    created_name = request.session.pop("created_api_token_name", None)
     return render(
         request,
         "accounts/settings.html",
         {
             "languages": list(settings.LANGUAGES),
+            "api_tokens": list(user.api_tokens.order_by("revoked_at", "-created_at")),
+            "created_api_token_secret": created_secret,
+            "created_api_token_name": created_name,
         },
     )
+
+
+@login_required
+@require_POST
+def create_api_token(request):
+    """Mint a new API token for the current user.
+
+    Stashes the plain secret in ``request.session`` for one-shot
+    rendering on the redirect target — the secret is shown ONCE on
+    the settings page, then cleared. The DB only stores the hash; if
+    the user navigates away before copying, the token is unusable and
+    they need to revoke + recreate.
+
+    Args:
+        request: POST with a ``name`` form field.
+
+    Returns:
+        Redirect to ``accounts:settings``. On success, the next render
+        of that page surfaces the plain secret in a copy-once panel.
+    """
+    name = (request.POST.get("name") or "").strip()[:80]
+    if not name:
+        messages.error(request, _("Token name is required."))
+        return HttpResponseRedirect(reverse("accounts:settings"))
+    # Don't shadow ``_`` (gettext_lazy) with a throwaway tuple slot —
+    # Python promotes it to local-scope for the whole function and
+    # the ``_()`` call above would fail with UnboundLocalError.
+    new_token, plain = ApiToken.generate(user=request.user, name=name)
+    del new_token  # only the plain secret matters from here on
+    # One-shot flash: the secret is read-and-cleared on the next render.
+    request.session["created_api_token_secret"] = plain
+    request.session["created_api_token_name"] = name
+    return HttpResponseRedirect(reverse("accounts:settings"))
+
+
+@login_required
+@require_POST
+def revoke_api_token(request, token_id: int):
+    """Revoke one of the current user's API tokens.
+
+    Soft-delete: sets ``revoked_at`` instead of deleting the row, so
+    the audit trail (when it was minted, when it was last used)
+    survives. The auth backend rejects revoked tokens at every
+    subsequent request, so the integration that owned this token
+    stops working immediately.
+
+    Args:
+        request: POST request.
+        token_id: PK of the token to revoke. Scoped to the current
+            user via ``get_object_or_404`` — users can't revoke
+            other users' tokens.
+    """
+    token = get_object_or_404(ApiToken, pk=token_id, user=request.user)
+    if token.revoked_at is None:
+        token.revoked_at = timezone.now()
+        token.save(update_fields=["revoked_at"])
+        messages.success(request, _("Token “%(name)s” revoked.") % {"name": token.name})
+    return HttpResponseRedirect(reverse("accounts:settings"))
