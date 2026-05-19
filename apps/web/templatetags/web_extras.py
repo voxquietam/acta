@@ -1,8 +1,10 @@
 """Small template filters used by the ``web`` app templates."""
 
+import datetime
 import html
 
 from django import template
+from django.utils import timezone
 from django.utils.safestring import mark_safe
 from django.utils.translation import gettext_lazy as _
 
@@ -32,6 +34,10 @@ def task_filter_attrs(context, task):
     * ``data-workspace-id`` — ``Task.project.workspace_id``
     * ``data-label-ids`` — space-separated label PKs
     * ``data-archived`` — ``"1"`` if ``archived_at`` is set
+    * ``data-overdue`` — ``"1"`` when ``due_date < today`` and not done
+    * ``data-done-this-week`` — ``"1"`` when ``status == 'done'`` and
+      ``updated_at`` within the last 7 days (for the Done column's
+      "++ N this week" substatus recompute on client-side filter)
     * ``data-search-haystack`` — lowercased title + first 160 chars
       of description, used for substring search
 
@@ -49,6 +55,10 @@ def task_filter_attrs(context, task):
     label_ids = " ".join(str(label.id) for label in task.labels.all())
     description = (task.description or "")[:160]
     haystack = ((task.title or "") + " " + description).lower()
+    today = timezone.localdate()
+    week_cutoff = timezone.now() - datetime.timedelta(days=7)
+    is_overdue = "1" if (task.due_date and task.due_date < today and task.status != "done") else "0"
+    is_done_this_week = "1" if (task.status == "done" and task.updated_at and task.updated_at >= week_cutoff) else "0"
     attrs = (
         f'data-status="{html.escape(task.status or "")}" '
         f'data-priority="{task.priority or 0}" '
@@ -58,6 +68,8 @@ def task_filter_attrs(context, task):
         f'data-workspace-id="{task.project.workspace_id}" '
         f'data-label-ids="{html.escape(label_ids)}" '
         f'data-archived="{"1" if task.archived_at else "0"}" '
+        f'data-overdue="{is_overdue}" '
+        f'data-done-this-week="{is_done_this_week}" '
         f'data-search-haystack="{html.escape(haystack, quote=True)}"'
     )
     return mark_safe(attrs)

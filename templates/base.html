@@ -37,6 +37,16 @@
       } else {
         html.classList.add("dark");
       }
+      // Pre-paint filter sidebar open / closed state — same idea as
+      // theme. CSS in main.css targets ``html.acta-filters-open`` /
+      // ``html.acta-filters-closed`` to show the right child of the
+      // filter aside (the collapsed trigger or the expanded form).
+      // Setting the class on <html> before first paint avoids the
+      // race where Alpine's reactivity on the form hadn't bound yet
+      // after an HTMX swap, leaving both children visible at once.
+      var filtersOpen = localStorage.getItem("filtersOpen") !== "false";
+      html.classList.toggle("acta-filters-open", filtersOpen);
+      html.classList.toggle("acta-filters-closed", !filtersOpen);
     })();
   </script>
 

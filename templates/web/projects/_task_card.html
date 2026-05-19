@@ -79,7 +79,8 @@ Acta doesn't have data for yet.
     {% if task.assignee %}
     <span class="ml-auto w-[18px] h-[18px] rounded-full text-white grid place-items-center font-medium text-[9px]"
           style="background-color: {{ task.assignee.avatar_color }}; box-shadow: 0 0 0 1.5px rgb(var(--card));"
-          title="{{ task.assignee.display_name }}">
+          title="{{ task.assignee.display_name }}"
+          data-task-assignee-avatar>
       {{ task.assignee.display_name|slice:":1"|upper }}
     </span>
     {% else %}

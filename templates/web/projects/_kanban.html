@@ -73,17 +73,21 @@ hides the native scrollbar without losing the "you can scroll" cue.
       up to 4 unique assignees in this column. The row is always
       rendered (even empty) so all column headers stay the same
       height — first cards across columns line up flush.
+
+      ``data-substatus-row`` + per-slot ``data-substatus-*`` markers
+      let ``recomputeKanbanSubstatus()`` in acta.js refresh the counts
+      and avatar stack from VISIBLE cards after a client-side filter
+      hides some, instead of leaving stale server-rendered numbers.
       {% endcomment %}
-      <div class="px-3 pb-2 flex items-center justify-between font-mono text-[10px] -mt-1 h-[14px]">
-        {% if col.overdue_count %}
-        <span class="text-rose-300">!! {{ col.overdue_count }} overdue</span>
-        {% elif col.key == 'done' and col.done_this_week %}
-        <span class="text-emerald-300">++ {{ col.done_this_week }} this week</span>
-        {% else %}
-        <span></span>
-        {% endif %}
-        {% if col.active_avatars %}
-        <div class="flex items-center">
+      <div class="px-3 pb-2 flex items-center justify-between font-mono text-[10px] -mt-1 h-[14px]"
+           data-substatus-row="{{ col.key }}">
+        <span data-substatus-overdue
+              class="text-rose-300{% if not col.overdue_count %} hidden{% endif %}">!! {{ col.overdue_count|default:0 }} overdue</span>
+        <span data-substatus-done-this-week
+              class="text-emerald-300{% if not col.done_this_week or col.key != 'done' or col.overdue_count %} hidden{% endif %}">++ {{ col.done_this_week|default:0 }} this week</span>
+        <span data-substatus-empty
+              class="{% if col.overdue_count or col.done_this_week and col.key == 'done' %}hidden{% endif %}"></span>
+        <div class="flex items-center" data-substatus-avatars>
           {% for avatar in col.active_avatars %}
           <span class="w-3.5 h-3.5 rounded-full text-white grid place-items-center text-[8px] font-medium -ml-1 first:ml-0"
                 style="background-color: {{ avatar.avatar_color }}; box-shadow: 0 0 0 1.5px rgb(var(--card));"
@@ -92,7 +96,6 @@ hides the native scrollbar without losing the "you can scroll" cue.
           </span>
           {% endfor %}
         </div>
-        {% endif %}
       </div>
     </div>
 

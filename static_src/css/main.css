@@ -413,6 +413,24 @@ main {
   color: rgb(36 53 173);                     /* brand-700 */
   box-shadow: inset 3px 0 0 0 rgb(66 90 245); /* 3px brand-500 left stripe */
 }
+
+/* Filter sidebar visibility — driven by a class on ``<html>`` set by
+   the pre-paint script in ``base.html`` (mirrors the theme switch).
+   CSS hides whichever child of the filter aside shouldn't show.
+
+   Why html-class and not Alpine ``x-show``: on HTMX swaps of
+   ``#app-content`` (left-sidebar navigation between My Work / All
+   Tasks / Projects), Alpine occasionally fails to bind reactive
+   directives on the freshly inserted form before the first paint —
+   both the collapsed trigger and the full form ended up visible at
+   once. The ``<html>`` class is set in <head> before first paint and
+   survives HTMX swaps untouched, so visibility is correct from the
+   first frame on every navigation.
+
+   The Alpine ``filters`` store mirrors the class on toggle/set in
+   acta.js, so user clicks update the visual state immediately. */
+html.acta-filters-open  .acta-filters-collapsed-trigger { display: none; }
+html.acta-filters-closed .acta-filters-form              { display: none; }
 html.dark .acta-rail-active {
   color: rgb(148 163 255);                   /* brand-300 */
 }

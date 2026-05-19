@@ -41,13 +41,18 @@ rail are queued in [[project-todo-filter-sidebar-presets-views]]
          $store.filters.open ? 'lg:!w-64' : 'lg:!w-10',
          ready ? 'transition-[width] duration-200' : '',
        ]"
-       class="w-full mt-6 lg:mt-0 lg:w-64 shrink-0 lg:max-h-full">
+       class="acta-filters-aside w-full mt-6 lg:mt-0 lg:w-64 shrink-0 lg:max-h-full">
 
-  {# Collapsed: a thin re-open button. #}
-  <button x-show="!$store.filters.open"
-          @click="$store.filters.set(true)"
-          x-cloak
-          class="w-full bg-card border border-border rounded-lg p-2 hover:border-border-strong transition relative"
+  {% comment %}
+  Collapsed-state trigger and expanded form are both always in the DOM;
+  visibility is driven by the aside's ``acta-filters-open`` /
+  ``acta-filters-closed`` class (toggled in :class via the Alpine
+  store). Rules live in main.css. This avoids the HTMX-swap race
+  where Alpine's ``x-show`` directive briefly fails to bind on the
+  re-swapped form, leaving both visible at the same time.
+  {% endcomment %}
+  <button @click="$store.filters.set(true)"
+          class="acta-filters-collapsed-trigger w-full bg-card border border-border rounded-lg p-2 hover:border-border-strong transition relative"
           title="{% trans 'Show filters' %}">
     {% lucide "sliders-horizontal" "w-4 h-4 text-brand-400 mx-auto" %}
     {% comment %}
@@ -59,21 +64,20 @@ rail are queued in [[project-todo-filter-sidebar-presets-views]]
   </button>
 
   {% comment %}
-  ``overflow-hidden`` deliberately NOT on the form — it would clip the
-  themed ``::after`` tooltips on the Reset / Hide-filters buttons at
-  the rounded corners. The inner body has its own ``overflow-y-auto
-  overflow-x-hidden`` so scrolling content stays contained, and rounded
-  corners read clean against the card-coloured backdrop without needing
-  parent-level clip.
+  ``overflow-hidden`` keeps inner content from bleeding past the rounded
+  corners into adjacent columns (My Work / All Tasks lay the filter
+  sidebar next to the task list — without the clip, header text
+  could overlap the list). The tooltips on header buttons compensate
+  with ``data-tooltip-pos="below"`` so they drop DOWN into the form
+  body where they're visible, instead of UP past the clipped edge.
   {% endcomment %}
-  <form x-show="$store.filters.open"
-        id="filter-form"
+  <form id="filter-form"
         method="get"
         hx-get="{{ filter_form_url }}"
         hx-target="{{ filter_htmx_target }}"
         hx-swap="innerHTML transition:true"
         hx-push-url="true"
-        class="bg-card border border-border rounded-lg
+        class="acta-filters-form bg-card border border-border rounded-lg overflow-hidden
                flex flex-col w-full lg:max-h-full">
 
     {% for name, value in filter_preserved_pairs %}
@@ -108,15 +112,16 @@ rail are queued in [[project-todo-filter-sidebar-presets-views]]
                   window.dispatchEvent(new CustomEvent('acta:filter-reset'));
                   $nextTick(() => form.requestSubmit());
                 "
-                class="text-[10px] text-placeholder-foreground hover:text-foreground flex items-center gap-1"
-                title="{% trans 'Clear all filters' %}">
+                class="text-[10px] text-placeholder-foreground hover:text-foreground flex items-center gap-1">
           {% lucide "refresh-cw" "w-3 h-3" %}
           {% trans "Reset" %}
         </button>
         <button type="button"
                 @click="$store.filters.set(false)"
-                class="text-placeholder-foreground hover:text-foreground"
-                title="{% trans 'Hide filters' %}">
+                data-tooltip="{% trans 'Hide filters' %}"
+                data-tooltip-pos="below"
+                aria-label="{% trans 'Hide filters' %}"
+                class="text-placeholder-foreground hover:text-foreground">
           {% lucide "chevron-right" "w-3.5 h-3.5" %}
         </button>
       </div>

@@ -322,6 +322,7 @@
       const counter = c.parentElement?.querySelector("[data-column-count]");
       if (counter) counter.textContent = String(visible);
     });
+    recomputeKanbanSubstatus();
     // Update ``acta_show_archived`` cookie so a hard refresh remembers
     // the toggle — server-side fallback path reads this on cold load.
     const oneYear = 60 * 60 * 24 * 365;
@@ -353,6 +354,85 @@
     return visible;
   }
   window.actaApplyFilters = applyClientFilters;
+
+  // Walk every kanban column, look at the *visible* cards inside,
+  // and refresh the substatus row (overdue count / "++ N this week" /
+  // avatar stack) so the header doesn't carry stale numbers after a
+  // client-side filter hides cards. Matches the logic the server
+  // applies in ``_build_kanban_columns`` (apps/web/views.py) but
+  // re-runs in pure DOM after every filter pass.
+  function recomputeKanbanSubstatus() {
+    document.querySelectorAll(".kanban-column").forEach((body) => {
+      const status = body.dataset.status;
+      if (!status) return;
+      // The substatus row sits in the column header (sibling of the
+      // ``.kanban-column`` body). Walk up to the column container
+      // and find the row by its data-attr.
+      const column = body.closest("[x-data]");
+      if (!column) return;
+      const row = column.querySelector(`[data-substatus-row="${status}"]`);
+      if (!row) return;
+
+      const visibleCards = body.querySelectorAll("[data-task-id]:not([hidden])");
+      let overdueCount = 0;
+      let doneThisWeekCount = 0;
+      const seenAssignees = new Set();
+      const avatarSources = [];
+
+      visibleCards.forEach((card) => {
+        if (card.dataset.overdue === "1") overdueCount += 1;
+        if (card.dataset.doneThisWeek === "1") doneThisWeekCount += 1;
+
+        const assigneeId = card.dataset.assigneeId;
+        if (assigneeId && !seenAssignees.has(assigneeId) && avatarSources.length < 4) {
+          seenAssignees.add(assigneeId);
+          const av = card.querySelector("[data-task-assignee-avatar]");
+          if (av) {
+            avatarSources.push({
+              bg: av.style.backgroundColor,
+              initial: av.textContent.trim(),
+              name: av.getAttribute("title") || "",
+            });
+          }
+        }
+      });
+
+      const overdueEl = row.querySelector("[data-substatus-overdue]");
+      const doneEl = row.querySelector("[data-substatus-done-this-week]");
+      const emptyEl = row.querySelector("[data-substatus-empty]");
+      const avatarsEl = row.querySelector("[data-substatus-avatars]");
+
+      const showOverdue = overdueCount > 0;
+      const showDoneThisWeek = status === "done" && doneThisWeekCount > 0 && !showOverdue;
+
+      if (overdueEl) {
+        overdueEl.textContent = `!! ${overdueCount} overdue`;
+        overdueEl.classList.toggle("hidden", !showOverdue);
+      }
+      if (doneEl) {
+        doneEl.textContent = `++ ${doneThisWeekCount} this week`;
+        doneEl.classList.toggle("hidden", !showDoneThisWeek);
+      }
+      if (emptyEl) {
+        emptyEl.classList.toggle("hidden", showOverdue || showDoneThisWeek);
+      }
+
+      if (avatarsEl) {
+        avatarsEl.innerHTML = "";
+        avatarSources.forEach((src, i) => {
+          const span = document.createElement("span");
+          span.className =
+            "w-3.5 h-3.5 rounded-full text-white grid place-items-center text-[8px] font-medium" +
+            (i > 0 ? " -ml-1" : "");
+          span.style.backgroundColor = src.bg;
+          span.style.boxShadow = "0 0 0 1.5px rgb(var(--card))";
+          span.setAttribute("title", src.name);
+          span.textContent = src.initial;
+          avatarsEl.appendChild(span);
+        });
+      }
+    });
+  }
 
   function bindFilterForm() {
     const form = document.getElementById("filter-form");
@@ -1126,13 +1206,26 @@
 
     window.Alpine.store("filters", {
       open: localStorage.getItem("filtersOpen") !== "false",
+      // Mirror open / closed onto <html> so the pre-paint script in
+      // base.html and the runtime class stay in sync. CSS in main.css
+      // (``html.acta-filters-open`` / ``html.acta-filters-closed``)
+      // drives visibility of the collapsed trigger vs the full form
+      // — keeping the class on <html> survives HTMX swaps and avoids
+      // the Alpine-reactivity race we hit on My Work / All Tasks nav.
+      _syncHtmlClass() {
+        const html = document.documentElement;
+        html.classList.toggle("acta-filters-open", this.open);
+        html.classList.toggle("acta-filters-closed", !this.open);
+      },
       toggle() {
         this.open = !this.open;
         localStorage.setItem("filtersOpen", this.open);
+        this._syncHtmlClass();
       },
       set(value) {
         this.open = !!value;
         localStorage.setItem("filtersOpen", this.open);
+        this._syncHtmlClass();
       },
     });
 
