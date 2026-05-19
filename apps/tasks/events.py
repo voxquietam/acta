@@ -273,6 +273,14 @@ def broadcast_task_events(events: list[ActivityLog], tasks_by_id: dict[int, Task
         card_html_by_task[task_id] = render_to_string("web/projects/_task_card.html", ctx)
         row_table_html_by_task[task_id] = render_to_string("web/projects/_table_row.html", ctx)
         row_list_html_by_task[task_id] = render_to_string("web/_task_row.html", ctx)
+    # Per-request context: MCP-driven writes carry a flag so the
+    # browser's "ignore self" filter knows this came from a *different*
+    # client (Claude Desktop, Cursor, curl) and not the local tab.
+    # Web-UI writes leave the flag falsy and the self-filter still
+    # suppresses the kanban double-flash on drag-drop.
+    from apps.mcp.context import IS_MCP_REQUEST
+
+    via_mcp = IS_MCP_REQUEST.get()
     for ev in events:
         workspace_id = ev.workspace_id
         payload = {
@@ -282,6 +290,8 @@ def broadcast_task_events(events: list[ActivityLog], tasks_by_id: dict[int, Task
             "bulk_id": str(ev.bulk_id) if ev.bulk_id else None,
             **(ev.payload or {}),
         }
+        if via_mcp:
+            payload["via_mcp"] = True
         card_html = card_html_by_task.get(ev.target_id)
         if card_html:
             payload["card_html"] = card_html

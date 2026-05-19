@@ -39,6 +39,7 @@ from apps.mcp.auth import (
     authenticate_secret,
     enforce_rate_limit,
 )
+from apps.mcp.context import mcp_request_scope
 from apps.mcp.server import _PING_TOOL, ACTA_MCP_VERSION
 from apps.mcp.tools import CALLABLES, TOOLS
 
@@ -95,7 +96,11 @@ async def mcp_http(request: HttpRequest) -> JsonResponse:
     if req_id is None and isinstance(method, str) and method.startswith("notifications/"):
         return JsonResponse({}, status=202)
 
-    return JsonResponse(await _dispatch(session, method, params, req_id))
+    # Mark every ORM write under this request as MCP-driven so SSE
+    # payloads carry ``via_mcp`` and the browser's self-filter applies
+    # the swap instead of dropping the event.
+    with mcp_request_scope():
+        return JsonResponse(await _dispatch(session, method, params, req_id))
 
 
 async def _dispatch(session: AuthenticatedSession, method: str | None, params: dict, req_id: Any) -> dict:

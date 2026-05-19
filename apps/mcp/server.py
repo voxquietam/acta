@@ -19,6 +19,7 @@ from mcp.server import Server
 from mcp.types import TextContent, Tool
 
 from apps.mcp.auth import AuthenticationError, RateLimitExceeded, authenticate_from_env, enforce_rate_limit
+from apps.mcp.context import mcp_request_scope
 from apps.mcp.tools import CALLABLES, TOOLS
 
 ACTA_MCP_VERSION = "0.1.0"
@@ -90,8 +91,12 @@ def build_server() -> Server:
 
         # Tool callables hit Django ORM (sync), so jump out of the
         # async loop for the DB pass. The result is JSON-serialisable
-        # (list of dicts) and serialised back in this coroutine.
-        payload = await sync_to_async(handler)(session.user, args)
+        # (list of dicts) and serialised back in this coroutine. The
+        # ``mcp_request_scope`` flag marks the SSE broadcasts so the
+        # originating user's browser tab applies the swap (instead of
+        # dropping it as a "self" event from a different MCP client).
+        with mcp_request_scope():
+            payload = await sync_to_async(handler)(session.user, args)
         return [TextContent(type="text", text=json.dumps(payload, ensure_ascii=False, default=str))]
 
     return server

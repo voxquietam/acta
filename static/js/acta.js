@@ -986,7 +986,12 @@
         } catch (_) {
           return;
         }
-        if (String(data.actor_id) === meId) return; // ignore self
+        // Drop self-events to avoid double-rendering (kanban drag,
+        // inline edits etc.) — *except* when the event came in via MCP
+        // (Claude Desktop, Cursor, curl): those write through a different
+        // client process the local tab doesn't know about, so the local
+        // tab must apply the SSE swap to stay in sync.
+        if (String(data.actor_id) === meId && !data.via_mcp) return;
         fn(data);
       });
     };

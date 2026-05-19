@@ -101,6 +101,9 @@ def log_event(
         payload=payload or {},
         bulk_id=bulk_id,
     )
+    # Per-request context: see ``apps.mcp.context`` for the rationale.
+    from apps.mcp.context import IS_MCP_REQUEST
+
     broadcast_payload = {
         "activity_id": row.id,
         "target_type": target_type,
@@ -110,6 +113,8 @@ def log_event(
         "occurred_at": row.created_at.isoformat() if row.created_at else None,
         **(payload or {}),
     }
+    if IS_MCP_REQUEST.get():
+        broadcast_payload["via_mcp"] = True
     actor_id = actor.id if actor else None
     transaction.on_commit(
         lambda: broadcast_event(workspace.id, event_type, broadcast_payload, actor_id),
