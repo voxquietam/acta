@@ -6,9 +6,18 @@ Shared task-filter sidebar. Used by All Tasks, My Work, and the
 per-project Kanban / Table page.
 
 Layout: a fixed-right floating panel on lg+. Height = content,
-capped at viewport. Selected values are visible at-a-glance via
-the active-count badge in the header (and via the page-top
-strip for assignee / project). Single column with sections.
+capped at viewport.
+
+**Sections are collapsible** — each section header is a button that
+toggles its body via Alpine ``x-show``; the open / closed state is
+persisted per section in ``localStorage`` (key
+``acta:filter-sec:<name>``). When collapsed, the header surfaces an
+active-count chip + a comma-separated preview of the first two active
+values, so the user doesn't have to expand to see what's on.
+
+Long sections (Labels) carry a **type-to-filter** input above the
+chip list — Alpine binds an ``:class`` expression on each chip that
+hides non-matching values without a server round-trip.
 
 Section order: search → status → priority → project → labels →
 workspace. Project sits above labels so the long scrollable list
@@ -21,6 +30,10 @@ Section visibility flags:
 * ``filter_hide_workspace`` — drop Workspace (only one workspace).
 * ``filter_hide_project`` — drop Project (page is scoped or hoisted).
 * ``filter_hide_status`` — drop Status (kanban columns already group by it).
+
+Quick Presets, Saved Views, prose-summary line, and collapsed icon
+rail are queued in [[project-todo-filter-sidebar-presets-views]]
+(stage B + C of the design rollout).
 {% endcomment %}
 <aside x-data="{ ready: false }"
        x-init="$nextTick(() => ready = true)"
@@ -101,8 +114,14 @@ Section visibility flags:
       </div>
     </div>
 
-    {# Body — natural height, overflow only as last resort. #}
-    <div class="min-h-0 overflow-y-auto p-3 flex flex-col gap-4">
+    {% comment %}
+    Body — natural height, overflow only as last resort. ``overflow-x-hidden``
+    is explicit because mixing ``overflow-y: auto`` with the default
+    ``overflow-x: visible`` makes browsers compute both axes as ``auto``
+    (CSS Overflow spec), which sneaks in a horizontal scrollbar whenever
+    any inner pill or label row hits the 256px sidebar width.
+    {% endcomment %}
+    <div class="min-h-0 overflow-y-auto overflow-x-hidden flex flex-col divide-y divide-border">
 
       {% comment %}
       Interaction hint. Each chip / row carries a tri-state: idle →
@@ -110,92 +129,144 @@ Section visibility flags:
       excludes (matching rows dropped). Without this banner users
       easily miss the right-click affordance.
       {% endcomment %}
-      <div class="-mt-1 mb-1 flex items-start gap-1.5 text-[10px] text-placeholder-foreground leading-snug">
+      <div class="px-3 pt-3 pb-2 flex items-start gap-1.5 text-[10px] text-placeholder-foreground leading-snug">
         {% lucide "info" "w-3 h-3 mt-0.5 shrink-0 text-placeholder-foreground" %}
         <span>
           {% trans "Click to include, right-click to exclude." %}
         </span>
       </div>
 
-      <div>
-        <label class="block text-[10px] uppercase tracking-wider text-placeholder-foreground font-medium mb-1.5">
-          {% trans "Search" %}
-        </label>
-        <input type="search" name="q" value="{{ q }}"
-               x-data
-               @acta:filter-reset.window="$el.value = ''"
-               placeholder="{% trans 'Title or description…' %}"
-               class="w-full bg-muted border border-border-strong rounded px-2 py-1.5 text-xs text-foreground placeholder-zinc-500 focus:outline-none focus:border-brand-500">
-      </div>
-
-      <div x-show="$store.viewMode.current !== 'kanban'" x-cloak>
-        <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground font-medium mb-1.5">{% trans "Status" %}</div>
-        <div class="flex gap-1 flex-wrap">
-          {% for key, label in status_labels.items %}
-          <label class="cursor-pointer"
-                 x-data="{ state: '{% if key in excluded_statuses %}excluded{% elif key in selected_statuses %}included{% else %}none{% endif %}' }"
-                 title="{% trans 'Click to include, right-click to exclude.' %}"
-                 @acta:filter-reset.window="state = 'none'"
-                 @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $nextTick(() => document.getElementById('filter-form').requestSubmit())">
-            <input type="checkbox"
-                   :name="state === 'excluded' ? 'xstatus' : 'status'"
-                   value="{{ key }}"
-                   :checked="state !== 'none'"
-                   class="peer sr-only"
-                   @change.stop="state = $event.target.checked ? 'included' : 'none'; $event.target.form.requestSubmit()">
-            <span :class="{
-                    'border-rose-500/70 bg-rose-500/15 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 line-through': state === 'excluded',
-                    'border-brand-400 bg-brand-600 text-white dark:bg-brand-500/25 dark:text-white': state === 'included',
-                    'border-border bg-background text-subtle-foreground hover:bg-muted': state === 'none',
-                  }"
-                  class="flex items-center gap-1 px-2 py-1 rounded-md border text-[11px] transition">
-              <span class="w-1.5 h-1.5 rounded-full
-                {% if key == 'planned' %}bg-zinc-500
-                {% elif key == 'to-do' %}bg-blue-500
-                {% elif key == 'in-progress' %}bg-violet-500
-                {% elif key == 'in-review' %}bg-amber-500
-                {% elif key == 'done' %}bg-emerald-500{% endif %}"></span>
-              {{ label }}
-            </span>
-          </label>
-          {% endfor %}
+      {# ---------- Search ---------- #}
+      <div x-data="{
+             open: (() => { const v = localStorage.getItem('acta:filter-sec:search'); return v === null ? true : v === '1'; })(),
+             toggle() { this.open = !this.open; localStorage.setItem('acta:filter-sec:search', this.open ? '1' : '0'); }
+           }">
+        <button type="button"
+                @click="toggle()"
+                class="w-full flex items-center gap-1.5 px-3 py-2 text-[10px] uppercase tracking-wider text-placeholder-foreground hover:text-foreground font-semibold transition">
+          <span :class="open ? '' : '-rotate-90'" class="inline-flex transition-transform">
+            {% lucide "chevron-down" "w-3 h-3" %}
+          </span>
+          <span class="flex-1 text-left">{% trans "Search" %}</span>
+          {% if q %}
+          <span class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-300 normal-case tracking-normal" title="{{ q }}">{{ q|truncatechars:12 }}</span>
+          {% endif %}
+        </button>
+        <div x-show="open" x-cloak class="px-3 pb-3">
+          <input type="search" name="q" value="{{ q }}"
+                 x-data
+                 @acta:filter-reset.window="$el.value = ''"
+                 placeholder="{% trans 'Title or description…' %}"
+                 class="w-full bg-muted border border-border-strong rounded px-2 py-1.5 text-xs text-foreground placeholder-zinc-500 focus:outline-none focus:border-brand-500">
         </div>
       </div>
 
-      <div>
-        <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground font-medium mb-1.5">{% trans "Priority" %}</div>
-        <div class="flex gap-1 flex-wrap">
-          {% for key, label in priority_labels.items %}
-          <label class="cursor-pointer"
-                 x-data="{ state: '{% if key in excluded_priorities %}excluded{% elif key in selected_priorities %}included{% else %}none{% endif %}' }"
-                 title="{% trans 'Click to include, right-click to exclude.' %}"
-                 @acta:filter-reset.window="state = 'none'"
-                 @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $nextTick(() => document.getElementById('filter-form').requestSubmit())">
-            <input type="checkbox"
-                   :name="state === 'excluded' ? 'xpriority' : 'priority'"
-                   value="{{ key }}"
-                   :checked="state !== 'none'"
-                   class="peer sr-only"
-                   @change.stop="state = $event.target.checked ? 'included' : 'none'; $event.target.form.requestSubmit()">
-            <span :class="{
-                    'border-rose-500/70 bg-rose-500/15 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 line-through': state === 'excluded',
-                    'border-brand-400 bg-brand-600 text-white dark:bg-brand-500/25 dark:text-white': state === 'included',
-                    'border-border bg-background text-subtle-foreground hover:bg-muted': state === 'none',
-                  }"
-                  class="flex items-center gap-1 px-2 py-1 rounded-md border text-[11px] transition">
-              <span class="w-1.5 h-1.5 rounded-full
-                {% if key == 1 %}bg-rose-500
-                {% elif key == 2 %}bg-orange-500
-                {% elif key == 3 %}bg-amber-500
-                {% elif key == 4 %}bg-sky-500
-                {% else %}bg-zinc-700{% endif %}"></span>
-              {{ label }}
-            </span>
-          </label>
-          {% endfor %}
+      {# ---------- Status ---------- #}
+      <div x-show="$store.viewMode.current !== 'kanban'" x-cloak
+           x-data="{
+             open: (() => { const v = localStorage.getItem('acta:filter-sec:status'); return v === null ? true : v === '1'; })(),
+             toggle() { this.open = !this.open; localStorage.setItem('acta:filter-sec:status', this.open ? '1' : '0'); }
+           }">
+        <button type="button"
+                @click="toggle()"
+                class="w-full flex items-center gap-1.5 px-3 py-2 text-[10px] uppercase tracking-wider text-placeholder-foreground hover:text-foreground font-semibold transition">
+          <span :class="open ? '' : '-rotate-90'" class="inline-flex transition-transform">
+            {% lucide "chevron-down" "w-3 h-3" %}
+          </span>
+          <span class="flex-1 text-left">{% trans "Status" %}</span>
+          {% with sc=selected_statuses|length xc=excluded_statuses|length %}
+          {% if sc|add:xc %}
+          <span class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-300 normal-case tracking-normal">{{ sc|add:xc }}</span>
+          {% endif %}
+          {% endwith %}
+        </button>
+        <div x-show="open" x-cloak class="px-3 pb-3">
+          <div class="flex gap-1 flex-wrap">
+            {% for key, label in status_labels.items %}
+            <label class="cursor-pointer"
+                   x-data="{ state: '{% if key in excluded_statuses %}excluded{% elif key in selected_statuses %}included{% else %}none{% endif %}' }"
+                   title="{% trans 'Click to include, right-click to exclude.' %}"
+                   @acta:filter-reset.window="state = 'none'"
+                   @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $nextTick(() => document.getElementById('filter-form').requestSubmit())">
+              <input type="checkbox"
+                     :name="state === 'excluded' ? 'xstatus' : 'status'"
+                     value="{{ key }}"
+                     :checked="state !== 'none'"
+                     class="peer sr-only"
+                     @change.stop="state = $event.target.checked ? 'included' : 'none'; $event.target.form.requestSubmit()">
+              <span :class="{
+                      'border-rose-500/70 bg-rose-500/15 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 line-through': state === 'excluded',
+                      'border-brand-400 bg-brand-600 text-white dark:bg-brand-500/25 dark:text-white': state === 'included',
+                      'border-border bg-background text-subtle-foreground hover:bg-muted': state === 'none',
+                    }"
+                    class="flex items-center gap-1 px-2 py-1 rounded-md border text-[11px] transition">
+                <span class="w-1.5 h-1.5 rounded-full
+                  {% if key == 'planned' %}bg-zinc-500
+                  {% elif key == 'to-do' %}bg-blue-500
+                  {% elif key == 'in-progress' %}bg-violet-500
+                  {% elif key == 'in-review' %}bg-amber-500
+                  {% elif key == 'done' %}bg-emerald-500{% endif %}"></span>
+                {{ label }}
+              </span>
+            </label>
+            {% endfor %}
+          </div>
         </div>
       </div>
 
+      {# ---------- Priority ---------- #}
+      <div x-data="{
+             open: (() => { const v = localStorage.getItem('acta:filter-sec:priority'); return v === null ? true : v === '1'; })(),
+             toggle() { this.open = !this.open; localStorage.setItem('acta:filter-sec:priority', this.open ? '1' : '0'); }
+           }">
+        <button type="button"
+                @click="toggle()"
+                class="w-full flex items-center gap-1.5 px-3 py-2 text-[10px] uppercase tracking-wider text-placeholder-foreground hover:text-foreground font-semibold transition">
+          <span :class="open ? '' : '-rotate-90'" class="inline-flex transition-transform">
+            {% lucide "chevron-down" "w-3 h-3" %}
+          </span>
+          <span class="flex-1 text-left">{% trans "Priority" %}</span>
+          {% with sc=selected_priorities|length xc=excluded_priorities|length %}
+          {% if sc|add:xc %}
+          <span class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-300 normal-case tracking-normal">{{ sc|add:xc }}</span>
+          {% endif %}
+          {% endwith %}
+        </button>
+        <div x-show="open" x-cloak class="px-3 pb-3">
+          <div class="flex gap-1 flex-wrap">
+            {% for key, label in priority_labels.items %}
+            <label class="cursor-pointer"
+                   x-data="{ state: '{% if key in excluded_priorities %}excluded{% elif key in selected_priorities %}included{% else %}none{% endif %}' }"
+                   title="{% trans 'Click to include, right-click to exclude.' %}"
+                   @acta:filter-reset.window="state = 'none'"
+                   @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $nextTick(() => document.getElementById('filter-form').requestSubmit())">
+              <input type="checkbox"
+                     :name="state === 'excluded' ? 'xpriority' : 'priority'"
+                     value="{{ key }}"
+                     :checked="state !== 'none'"
+                     class="peer sr-only"
+                     @change.stop="state = $event.target.checked ? 'included' : 'none'; $event.target.form.requestSubmit()">
+              <span :class="{
+                      'border-rose-500/70 bg-rose-500/15 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 line-through': state === 'excluded',
+                      'border-brand-400 bg-brand-600 text-white dark:bg-brand-500/25 dark:text-white': state === 'included',
+                      'border-border bg-background text-subtle-foreground hover:bg-muted': state === 'none',
+                    }"
+                    class="flex items-center gap-1 px-2 py-1 rounded-md border text-[11px] transition">
+                <span class="w-1.5 h-1.5 rounded-full
+                  {% if key == 1 %}bg-rose-500
+                  {% elif key == 2 %}bg-orange-500
+                  {% elif key == 3 %}bg-amber-500
+                  {% elif key == 4 %}bg-sky-500
+                  {% else %}bg-zinc-700{% endif %}"></span>
+                {{ label }}
+              </span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      {# ---------- Project ---------- #}
       {% if not filter_hide_project %}
       {% comment %}
       Project section: capped at ``max-h-64`` (~10 rows) with internal
@@ -203,101 +274,167 @@ Section visibility flags:
       via ``sticky top-0 bottom-0`` — the JS-driven z-index in
       ``acta.js`` keeps the row closest to the viewport on top.
       {% endcomment %}
-      <div>
-        <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground font-medium mb-1.5">{% trans "Project" %}</div>
-        <div class="space-y-0.5 max-h-64 overflow-y-auto pr-1 relative"
-             data-sticky-stack
-             x-data
-             @sticky-row-toggled.window="$nextTick(() => window.acta.updateStickyStack($el))">
-          {% for p in available_projects %}
-          <label x-data="{ state: '{% if p.id in excluded_projects %}excluded{% elif p.id in selected_projects %}included{% else %}none{% endif %}' }"
-                 :class="state !== 'none' ? 'sticky top-0 bottom-0 z-10 bg-card' : ''"
-                 :data-selected="state !== 'none'"
-                 class="cursor-pointer flex items-center"
-                 data-sticky-row
-                 title="{% trans 'Click to include, right-click to exclude.' %} {{ p.workspace.name }} / {{ p.name }}"
-                 @acta:filter-reset.window="state = 'none'; $dispatch('sticky-row-toggled')"
-                 @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $dispatch('sticky-row-toggled'); $nextTick(() => document.getElementById('filter-form').requestSubmit())">
-            <input type="checkbox"
-                   :name="state === 'excluded' ? 'xproject' : 'project'"
-                   value="{{ p.id }}"
-                   :checked="state !== 'none'"
-                   class="peer sr-only"
-                   @change.stop="state = $event.target.checked ? 'included' : 'none'; $dispatch('sticky-row-toggled'); $event.target.form.requestSubmit()">
-            <span :class="{
-                    'bg-rose-500/15 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 line-through': state === 'excluded',
-                    'bg-brand-600 text-white dark:bg-brand-500/25 dark:text-white': state === 'included',
-                    'text-subtle-foreground hover:bg-muted': state === 'none',
-                  }"
-                  class="w-full px-2 py-1 rounded-md text-[11px] transition flex items-center gap-1.5 min-w-0">
-              <span class="shrink-0 opacity-70 {{ p.icon_color_class }}">
-                {% lucide p.icon|default:"folder" "w-3 h-3" %}
+      <div x-data="{
+             open: (() => { const v = localStorage.getItem('acta:filter-sec:project'); return v === null ? true : v === '1'; })(),
+             toggle() { this.open = !this.open; localStorage.setItem('acta:filter-sec:project', this.open ? '1' : '0'); }
+           }">
+        <button type="button"
+                @click="toggle()"
+                class="w-full flex items-center gap-1.5 px-3 py-2 text-[10px] uppercase tracking-wider text-placeholder-foreground hover:text-foreground font-semibold transition">
+          <span :class="open ? '' : '-rotate-90'" class="inline-flex transition-transform">
+            {% lucide "chevron-down" "w-3 h-3" %}
+          </span>
+          <span class="flex-1 text-left">{% trans "Project" %}</span>
+          {% with sc=selected_projects|length xc=excluded_projects|length %}
+          {% if sc|add:xc %}
+          <span class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-300 normal-case tracking-normal">{{ sc|add:xc }}</span>
+          {% endif %}
+          {% endwith %}
+        </button>
+        <div x-show="open" x-cloak class="px-3 pb-3">
+          <div class="space-y-0.5 max-h-64 overflow-y-auto overflow-x-hidden pr-1 relative"
+               data-sticky-stack
+               x-data
+               @sticky-row-toggled.window="$nextTick(() => window.acta.updateStickyStack($el))">
+            {% for p in available_projects %}
+            <label x-data="{ state: '{% if p.id in excluded_projects %}excluded{% elif p.id in selected_projects %}included{% else %}none{% endif %}' }"
+                   :class="state !== 'none' ? 'sticky top-0 bottom-0 z-10 bg-card' : ''"
+                   :data-selected="state !== 'none'"
+                   class="cursor-pointer flex items-center"
+                   data-sticky-row
+                   @acta:filter-reset.window="state = 'none'; $dispatch('sticky-row-toggled')"
+                   @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $dispatch('sticky-row-toggled'); $nextTick(() => document.getElementById('filter-form').requestSubmit())">
+              <input type="checkbox"
+                     :name="state === 'excluded' ? 'xproject' : 'project'"
+                     value="{{ p.id }}"
+                     :checked="state !== 'none'"
+                     class="peer sr-only"
+                     @change.stop="state = $event.target.checked ? 'included' : 'none'; $dispatch('sticky-row-toggled'); $event.target.form.requestSubmit()">
+              <span :class="{
+                      'bg-rose-500/15 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 line-through': state === 'excluded',
+                      'bg-brand-600 text-white dark:bg-brand-500/25 dark:text-white': state === 'included',
+                      'text-subtle-foreground hover:bg-muted': state === 'none',
+                    }"
+                    class="w-full px-2 py-1 rounded-md text-[11px] transition flex items-center gap-1.5 min-w-0">
+                <span class="shrink-0 opacity-70 {{ p.icon_color_class }}">
+                  {% lucide p.icon|default:"folder" "w-3 h-3" %}
+                </span>
+                <span class="truncate">{{ p.name }}</span>
               </span>
-              <span class="truncate">{{ p.name }}</span>
-            </span>
-          </label>
-          {% endfor %}
+            </label>
+            {% endfor %}
+          </div>
         </div>
       </div>
       {% endif %}
 
+      {# ---------- Labels (with type-to-filter) ---------- #}
       {% if available_labels %}
-      <div>
-        <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground font-medium mb-1.5">{% trans "Labels" %}</div>
-        <div class="flex gap-1 flex-wrap">
-          {% for label in available_labels %}
-          <label class="cursor-pointer"
-                 x-data="{ state: '{% if label.id in excluded_labels %}excluded{% elif label.id in selected_labels %}included{% else %}none{% endif %}' }"
-                 title="{% trans 'Click to include, right-click to exclude.' %}"
-                 @acta:filter-reset.window="state = 'none'"
-                 @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $nextTick(() => document.getElementById('filter-form').requestSubmit())">
-            <input type="checkbox"
-                   :name="state === 'excluded' ? 'xlabel' : 'label'"
-                   value="{{ label.id }}"
-                   :checked="state !== 'none'"
-                   class="peer sr-only"
-                   @change.stop="state = $event.target.checked ? 'included' : 'none'; $event.target.form.requestSubmit()">
-            <span :data-state="state === 'excluded' ? 'excluded' : state === 'included' ? 'on' : 'off'"
-                  :class="{
-                    'line-through opacity-60 ring-1 ring-rose-500/60': state === 'excluded',
-                  }"
-                  class="acta-label-pill"
-                  style="--label-color: {{ label.color }};">
-              <span class="acta-label-pill-dot" style="background-color: {{ label.color }};"></span>
-              {{ label.name }}
-            </span>
-          </label>
-          {% endfor %}
+      <div x-data="{
+             open: (() => { const v = localStorage.getItem('acta:filter-sec:labels'); return v === null ? true : v === '1'; })(),
+             toggle() { this.open = !this.open; localStorage.setItem('acta:filter-sec:labels', this.open ? '1' : '0'); },
+             q: ''
+           }">
+        <button type="button"
+                @click="toggle()"
+                class="w-full flex items-center gap-1.5 px-3 py-2 text-[10px] uppercase tracking-wider text-placeholder-foreground hover:text-foreground font-semibold transition">
+          <span :class="open ? '' : '-rotate-90'" class="inline-flex transition-transform">
+            {% lucide "chevron-down" "w-3 h-3" %}
+          </span>
+          <span class="flex-1 text-left">{% trans "Labels" %}</span>
+          {% with sc=selected_labels|length xc=excluded_labels|length %}
+          {% if sc|add:xc %}
+          <span class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-300 normal-case tracking-normal">{{ sc|add:xc }}</span>
+          {% endif %}
+          {% endwith %}
+        </button>
+        <div x-show="open" x-cloak class="px-3 pb-3 space-y-2">
+          {% comment %}
+          Type-to-filter — Alpine state ``q`` scopes the parent. Each
+          label chip computes its hidden class against ``q`` so
+          non-matching pills drop out instantly without a server hit.
+          {% endcomment %}
+          <div class="flex items-center gap-1.5 px-2 py-1 bg-muted border border-border-strong rounded
+                      focus-within:border-brand-500 focus-within:bg-background">
+            {% lucide "search" "w-3 h-3 text-placeholder-foreground" %}
+            <input type="search" x-model="q"
+                   placeholder="{% trans 'Filter labels…' %}"
+                   class="flex-1 bg-transparent text-xs text-foreground placeholder-zinc-500 focus:outline-none">
+          </div>
+          <div class="flex gap-1 flex-wrap">
+            {% for label in available_labels %}
+            <label class="cursor-pointer"
+                   :class="q && !'{{ label.name|lower|escapejs }}'.includes(q.toLowerCase()) ? 'hidden' : ''"
+                   x-data="{ state: '{% if label.id in excluded_labels %}excluded{% elif label.id in selected_labels %}included{% else %}none{% endif %}' }"
+                   title="{% trans 'Click to include, right-click to exclude.' %}"
+                   @acta:filter-reset.window="state = 'none'"
+                   @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $nextTick(() => document.getElementById('filter-form').requestSubmit())">
+              <input type="checkbox"
+                     :name="state === 'excluded' ? 'xlabel' : 'label'"
+                     value="{{ label.id }}"
+                     :checked="state !== 'none'"
+                     class="peer sr-only"
+                     @change.stop="state = $event.target.checked ? 'included' : 'none'; $event.target.form.requestSubmit()">
+              <span :data-state="state === 'excluded' ? 'excluded' : state === 'included' ? 'on' : 'off'"
+                    :class="{
+                      'line-through opacity-60 ring-1 ring-rose-500/60': state === 'excluded',
+                    }"
+                    class="acta-label-pill"
+                    style="--label-color: {{ label.color }};">
+                <span class="acta-label-pill-dot" style="background-color: {{ label.color }};"></span>
+                {{ label.name }}
+              </span>
+            </label>
+            {% endfor %}
+          </div>
         </div>
       </div>
       {% endif %}
 
+      {# ---------- Workspace ---------- #}
       {% if not filter_hide_workspace and available_workspaces|length > 1 %}
-      <div>
-        <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground font-medium mb-1.5">{% trans "Workspace" %}</div>
-        <div class="space-y-0.5 max-h-32 overflow-y-auto">
-          {% for ws in available_workspaces %}
-          <label class="cursor-pointer flex items-center"
-                 x-data="{ state: '{% if ws.id in excluded_workspaces %}excluded{% elif ws.id in selected_workspaces %}included{% else %}none{% endif %}' }"
-                 title="{% trans 'Click to include, right-click to exclude.' %}"
-                 @acta:filter-reset.window="state = 'none'"
-                 @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $nextTick(() => document.getElementById('filter-form').requestSubmit())">
-            <input type="checkbox"
-                   :name="state === 'excluded' ? 'xworkspace' : 'workspace'"
-                   value="{{ ws.id }}"
-                   :checked="state !== 'none'"
-                   class="peer sr-only"
-                   @change.stop="state = $event.target.checked ? 'included' : 'none'; $event.target.form.requestSubmit()">
-            <span :class="{
-                    'bg-rose-500/15 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 line-through': state === 'excluded',
-                    'bg-brand-600 text-white dark:bg-brand-500/25 dark:text-white': state === 'included',
-                    'text-subtle-foreground hover:bg-muted': state === 'none',
-                  }"
-                  class="w-full px-2 py-1 rounded-md text-[11px] transition truncate">
-              {{ ws.name }}
-            </span>
-          </label>
-          {% endfor %}
+      <div x-data="{
+             open: (() => { const v = localStorage.getItem('acta:filter-sec:workspace'); return v === null ? false : v === '1'; })(),
+             toggle() { this.open = !this.open; localStorage.setItem('acta:filter-sec:workspace', this.open ? '1' : '0'); }
+           }">
+        <button type="button"
+                @click="toggle()"
+                class="w-full flex items-center gap-1.5 px-3 py-2 text-[10px] uppercase tracking-wider text-placeholder-foreground hover:text-foreground font-semibold transition">
+          <span :class="open ? '' : '-rotate-90'" class="inline-flex transition-transform">
+            {% lucide "chevron-down" "w-3 h-3" %}
+          </span>
+          <span class="flex-1 text-left">{% trans "Workspace" %}</span>
+          {% with sc=selected_workspaces|length xc=excluded_workspaces|length %}
+          {% if sc|add:xc %}
+          <span class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-300 normal-case tracking-normal">{{ sc|add:xc }}</span>
+          {% endif %}
+          {% endwith %}
+        </button>
+        <div x-show="open" x-cloak class="px-3 pb-3">
+          <div class="space-y-0.5 max-h-32 overflow-y-auto overflow-x-hidden">
+            {% for ws in available_workspaces %}
+            <label class="cursor-pointer flex items-center"
+                   x-data="{ state: '{% if ws.id in excluded_workspaces %}excluded{% elif ws.id in selected_workspaces %}included{% else %}none{% endif %}' }"
+                   title="{% trans 'Click to include, right-click to exclude.' %}"
+                   @acta:filter-reset.window="state = 'none'"
+                   @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $nextTick(() => document.getElementById('filter-form').requestSubmit())">
+              <input type="checkbox"
+                     :name="state === 'excluded' ? 'xworkspace' : 'workspace'"
+                     value="{{ ws.id }}"
+                     :checked="state !== 'none'"
+                     class="peer sr-only"
+                     @change.stop="state = $event.target.checked ? 'included' : 'none'; $event.target.form.requestSubmit()">
+              <span :class="{
+                      'bg-rose-500/15 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 line-through': state === 'excluded',
+                      'bg-brand-600 text-white dark:bg-brand-500/25 dark:text-white': state === 'included',
+                      'text-subtle-foreground hover:bg-muted': state === 'none',
+                    }"
+                    class="w-full px-2 py-1 rounded-md text-[11px] transition truncate">
+                {{ ws.name }}
+              </span>
+            </label>
+            {% endfor %}
+          </div>
         </div>
       </div>
       {% endif %}
@@ -314,7 +451,7 @@ Section visibility flags:
       ``resolve_show_archived`` reads via ``getlist`` so the trailing
       ``"1"`` (when checked) wins.
       {% endcomment %}
-      <div class="pt-3 border-t border-border">
+      <div class="px-3 py-3">
         <input type="hidden" name="show_archived" value="0">
         <label class="cursor-pointer flex items-center gap-2 text-muted-foreground text-[11px]"
                x-data
