@@ -28,7 +28,13 @@ from apps.labels.models import Label
 from apps.projects.models import Project, ProjectUpdate
 from apps.tasks.events import emit_task_diff_events, snapshot_task
 from apps.tasks.models import Task
-from apps.web.filters import apply_task_filters, apply_task_ordering, filter_sidebar_context, resolve_show_archived
+from apps.web.filters import (
+    SORTABLE_COLUMNS,
+    apply_task_filters,
+    apply_task_ordering,
+    filter_sidebar_context,
+    resolve_show_archived,
+)
 from apps.web.grouping import group_tasks
 from apps.workspaces.models import Workspace, WorkspaceMember
 
@@ -636,38 +642,47 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         now = timezone.now()
         today = ctx["today"]
         velocity_cutoff = now - datetime.timedelta(days=7)
-        stats_raw = (
-            Task.objects.filter(project=project, archived_at__isnull=True).values("status").annotate(c=Count("id"))
+        # Collapse the seven separate overview SELECTs (status histogram +
+        # overdue + velocity + last-activity) into one aggregate. Each
+        # ``Count("id", filter=...)`` compiles to a ``FILTER (WHERE …)``
+        # clause Postgres evaluates in a single table scan.
+        active = Q(archived_at__isnull=True)
+        stats = Task.objects.filter(project=project).aggregate(
+            planned=Count("id", filter=active & Q(status=Task.STATUS_PLANNED)),
+            todo=Count("id", filter=active & Q(status=Task.STATUS_TODO)),
+            in_progress=Count("id", filter=active & Q(status=Task.STATUS_IN_PROGRESS)),
+            in_review=Count("id", filter=active & Q(status=Task.STATUS_IN_REVIEW)),
+            done=Count("id", filter=active & Q(status=Task.STATUS_DONE)),
+            overdue=Count(
+                "id",
+                filter=active & Q(due_date__lt=today) & ~Q(status=Task.STATUS_DONE),
+            ),
+            velocity_7d=Count(
+                "id",
+                filter=Q(status=Task.STATUS_DONE, updated_at__gte=velocity_cutoff),
+            ),
+            last_activity=Max("updated_at"),
         )
-        counts_by_status = {row["status"]: row["c"] for row in stats_raw}
         ctx["overview_status_counts"] = {
-            Task.STATUS_PLANNED: counts_by_status.get(Task.STATUS_PLANNED, 0),
-            Task.STATUS_TODO: counts_by_status.get(Task.STATUS_TODO, 0),
-            Task.STATUS_IN_PROGRESS: counts_by_status.get(Task.STATUS_IN_PROGRESS, 0),
-            Task.STATUS_IN_REVIEW: counts_by_status.get(Task.STATUS_IN_REVIEW, 0),
-            Task.STATUS_DONE: counts_by_status.get(Task.STATUS_DONE, 0),
+            Task.STATUS_PLANNED: stats["planned"],
+            Task.STATUS_TODO: stats["todo"],
+            Task.STATUS_IN_PROGRESS: stats["in_progress"],
+            Task.STATUS_IN_REVIEW: stats["in_review"],
+            Task.STATUS_DONE: stats["done"],
         }
         ctx["overview_total"] = sum(ctx["overview_status_counts"].values())
-        ctx["overview_done"] = ctx["overview_status_counts"][Task.STATUS_DONE]
-        ctx["overview_overdue"] = (
-            Task.objects.filter(
-                project=project,
-                archived_at__isnull=True,
-                due_date__lt=today,
-            )
-            .exclude(status=Task.STATUS_DONE)
-            .count()
-        )
-        ctx["overview_velocity_7d"] = Task.objects.filter(
-            project=project,
-            status=Task.STATUS_DONE,
-            updated_at__gte=velocity_cutoff,
-        ).count()
-        ctx["overview_last_activity_at"] = Task.objects.filter(project=project).aggregate(latest=Max("updated_at"))[
-            "latest"
-        ]
+        ctx["overview_done"] = stats["done"]
+        ctx["overview_overdue"] = stats["overdue"]
+        ctx["overview_velocity_7d"] = stats["velocity_7d"]
+        ctx["overview_last_activity_at"] = stats["last_activity"]
         ctx["overview_latest_updates"] = list(project.updates.select_related("author").order_by("-created_at")[:3])
-        ctx["overview_updates_total"] = project.updates.count()
+        # When the latest-3 fetch returned fewer than 3 rows the table can't
+        # hold more — skip the extra COUNT(*) and just trust the slice's
+        # length. Most projects sit in this branch.
+        if len(ctx["overview_latest_updates"]) < 3:
+            ctx["overview_updates_total"] = len(ctx["overview_latest_updates"])
+        else:
+            ctx["overview_updates_total"] = project.updates.count()
         ctx["overview_project_age_days"] = (today - project.created_at.date()).days
         ctx["health_labels"] = dict(ProjectUpdate.HEALTH_CHOICES)
         ctx["latest_health"] = ctx["overview_latest_updates"][0].health if ctx["overview_latest_updates"] else None
@@ -717,7 +732,18 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             }
             return ctx
         if not table_only:
-            kanban_tasks = list(base.order_by("status", "-priority", "-updated_at"))
+            # When the user hasn't picked a custom ``?order=`` the table
+            # falls back to the same ordering kanban uses (status,
+            # -priority, -updated_at), so the two lists are identical.
+            # Reuse ``table_tasks`` instead of evaluating the queryset
+            # a second time — that double-fetch was the source of a
+            # +6-query N+1 regression caught by
+            # ``test_project_detail_constant_queries``.
+            table_order_key = (self.request.GET.get("order") or "").strip().lstrip("-")
+            if table_order_key in SORTABLE_COLUMNS:
+                kanban_tasks = list(base.order_by("status", "-priority", "-updated_at"))
+            else:
+                kanban_tasks = table_tasks
             ctx["tasks"] = table_tasks if view_mode == "table" else kanban_tasks
             ctx["columns"] = _build_kanban_columns(kanban_tasks)
             list_axis_keys = ("deadline", "status", "priority", "assignee")
