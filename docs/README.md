@@ -23,8 +23,13 @@ ADR format: **Context → Options → Decision → Why → Consequences**.
 | 0014 | accepted | Frontend: server-rendered + HTMX + Alpine + Chart.js, no build step | [0014-frontend-architecture.md](decisions/0014-frontend-architecture.md) |
 | 0015 | accepted | Real-time updates via SSE (`django-eventstream`), one stream per workspace | [0015-real-time.md](decisions/0015-real-time.md) |
 | 0016 | accepted | Dashboards: live ORM queries, Chart.js, fixed time windows         | [0016-dashboards.md](decisions/0016-dashboards.md) |
-| 0017 | accepted | Notifications: in-app toasts over SSE, no inbox in MVP             | [0017-notifications.md](decisions/0017-notifications.md) |
+| 0017 | superseded | Notifications: in-app toasts over SSE, no inbox in MVP (superseded by 0021) | [0017-notifications.md](decisions/0017-notifications.md) |
 | 0018 | accepted | i18n: en + uk, User.language preference, LocaleMiddleware          | [0018-i18n.md](decisions/0018-i18n.md) |
+| 0019 | accepted | Task filter architecture: cookie-backed state, shared `apply_task_filters` | [0019-filters.md](decisions/0019-filters.md) |
+| 0020 | accepted | MCP server: read + write tools over two transports                | [0020-mcp.md](decisions/0020-mcp.md) |
+| 0021 | accepted | Notification inbox: persistent, per-user fan-out (supersedes 0017) | [0021-notification-inbox.md](decisions/0021-notification-inbox.md) |
+| 0022 | accepted | Polymorphic Comment model: task OR project update, one-level replies | [0022-polymorphic-comments.md](decisions/0022-polymorphic-comments.md) |
+| 0023 | accepted | Mentions: `@user` / `@task` markdown-token pipeline, bleach-hardened chips | [0023-mentions.md](decisions/0023-mentions.md) |
 
 ## Operations
 
@@ -34,10 +39,10 @@ ADR format: **Context → Options → Decision → Why → Consequences**.
 ## Spec (filled in as decisions land)
 
 - `spec/project-layout.md` — directory tree, Django apps, settings/requirements split ✅
-- `spec/data-model.md` — models, fields, foreign keys (TBD)
-- `spec/api.md` — endpoints and payload formats (TBD)
-- `spec/activity-log.md` — event schema details (TBD)
-- `spec/bulk-operations.md` — bulk endpoints, edge cases (TBD)
+- `spec/data-model.md` — models, fields, foreign keys (TBD, not yet written)
+- `spec/api.md` — endpoints and payload formats (TBD, not yet written)
+- `spec/activity-log.md` — event schema details (TBD, not yet written)
+- `spec/bulk-operations.md` — bulk endpoints, edge cases (TBD, not yet written)
 
 ## Open Questions
 

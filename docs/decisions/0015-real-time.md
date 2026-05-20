@@ -120,6 +120,43 @@ Member admin events (`member.added` / `removed` / `role_changed`) are pushed to 
 
 ## Open Questions
 
-- Whether to also include `project.updated` and `project_update.created` in the broadcast set. Lean yes for `project_update.created` (it's a notification trigger). To be decided in [0017](0017-notifications.md).
+- ~~Whether to also include `project.updated` and `project_update.created` in the broadcast set.~~ **Resolved (2026-05-20):** `project_update.created` now fans out — see `notify_project_update_created` in `apps/notifications/services.py`, which delivers one `notification.created` event per workspace member over their private `user-<id>` channel (see the Stream topology amendment below). `project.updated` is still not broadcast.
 - Whether to gzip/compress the SSE stream behind the reverse proxy. Defer; check after MVP profiling.
 - Whether replay window should be configurable per workspace. Default 24h; tunable in settings without ADR change.
+
+## Amendment (2026-05-20): per-user `user-<id>` stream + recipient-only auth
+
+The original "Stream topology" section above committed to **one stream per
+workspace** and the "Why" section explicitly argued *against* per-user
+channels ("subscribing to a user channel would force every member to
+subscribe to N channels"). That reasoning held for *kanban / activity*
+broadcast — the channel-per-task fan-out it rejected. It does **not**
+apply to **personal notifications**, which the inbox layer (see
+[0021](0021-notification-inbox.md)) added. A private per-recipient channel
+turned out to be the right shape there, so the topology is now a **two-family
+design**:
+
+- **`workspace-<id>`** — the workspace broadcast stream from the original
+  decision. Carries the task / activity event set listed above, filtered to
+  exclude the actor. Readable by any member of that workspace.
+- **`user-<id>`** — a **private per-user notification stream**. Carries a
+  single event type, `notification.created`, whose payload is the
+  *pre-rendered* inbox row HTML plus the updated sidebar badge HTML (mirrors
+  the kanban "server pushes ready HTML" pattern, so the browser swaps with no
+  round-trip). One channel per user — not per task — so the rejected
+  N-channels cost never materializes.
+
+**Authorization.** `apps/workspaces/sse.WorkspaceChannelManager.can_read_channel`
+handles both families. A `user-<id>` channel is readable *only* by the user
+whose id matches; everyone else (and anonymous requests) gets a 403. Because
+the channel is recipient-private, the broadcaster does **not** need the
+actor-exclusion filter the workspace stream uses — `notify()` already drops
+self-notifications before a row is ever written, so a notification never
+reaches its own actor's channel.
+
+**Producers.** `apps/notifications/services._broadcast_notification` is the
+single emitter on `user-<id>`. It is queued on `transaction.on_commit` (same
+commit-then-broadcast rule as `log_event`), so a rolled-back request emits
+nothing. The recipient set for each notification kind is defined in
+[0021](0021-notification-inbox.md) (assignee/reporter, mentions, every member
+for `project_update.created`).

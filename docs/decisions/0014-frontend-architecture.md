@@ -98,7 +98,7 @@ Unchanged from the first version. Tailwind `darkMode: 'class'`. Class on `<html>
 
 The "no build step" rule above held for HTMX, Alpine, Tailwind (Play CDN), Chart.js, and sortable.js — each loads as a single `<script>` from a CDN with no peer-dep gymnastics. It did **not** hold for **TipTap** (ProseMirror-based WYSIWYG editor used for inline task description editing, see Stage 5d-2):
 
-- TipTap is split across ~10 packages (`@tiptap/core`, `@tiptap/pm/*`, `@tiptap/starter-kit`, `@tiptap/extension-link`, `@tiptap/extension-placeholder`, `@tiptap/extension-bubble-menu`, `tippy.js`, `tiptap-markdown`) with cross-package imports.
+- TipTap is split across ~10 packages (`@tiptap/core`, `@tiptap/pm/*`, `@tiptap/starter-kit`, `@tiptap/extension-link`, `@tiptap/extension-placeholder`, `@tiptap/extension-bubble-menu`, `tippy.js`, `tiptap-markdown`) with cross-package imports. *(The `@tiptap/extension-bubble-menu` + `tippy.js` line is historical — both were dropped on 2026-05-20; see the amendment at the end of this ADR for the current dependency list.)*
 - ESM-CDN delivery (esm.sh + importmap) loaded the modules but quietly failed on peer deps — bubble menu positioning broke (tippy.js not pulled), inline `code` mark misbehaved.
 
 **Decision**: bundle TipTap (and only TipTap) with **esbuild**, output `static/js/description_editor.bundle.js`. Source lives under `static_src/js/`. Bundle is committed so deploy does not need Node.
@@ -134,3 +134,30 @@ The Tailwind Play CDN (`cdn.tailwindcss.com`) was the original choice for "no bu
 
 - Every template / Python file change that introduces a *new* utility class needs `make build-css` (or running `make watch-css` in another terminal) before the class shows up styled. The extractor scans `templates/**/*.html`, `apps/**/*.py`, `apps/**/*.html`, `static_src/js/**/*.js`, `static/js/**/*.js`, so dynamically composed class strings still need to appear as plain text somewhere — the same constraint as Tailwind anywhere else.
 - One more committed artefact (`static/css/main.bundle.css`) churns on every CSS-relevant template change. Worth it for first-paint and a single source of truth for theme tokens.
+
+## Amendment (2026-05-20): custom selection bubble — drop `extension-bubble-menu` + `tippy.js`
+
+The 2026-05-16 amendment listed `@tiptap/extension-bubble-menu` and `tippy.js` as TipTap deps for the formatting toolbar that floats over a text selection. **Both are now removed.** The formatting toolbar is a **custom floating selection bubble** authored in `static_src/js/description_editor.js` — plain DOM, no positioning library, no portal.
+
+**Why drop them:**
+
+- TipTap's `BubbleMenu` extension delegates positioning to `tippy.js` (Popper under the hood). Under the esbuild bundle, that pulled a positioning + portal layer whose behaviour we didn't control — the bubble rendered in the wrong place and the portal fought our own z-index / overflow rules. These were the two failure modes the original CDN attempt also hit.
+- The actual requirement is small: show a toolbar over a non-empty selection, hide it when the selection collapses. That doesn't need a generic popover engine.
+
+**What replaced it:**
+
+- The toolbar is a normal element (`.description-editor-toolbar`), hidden by default. It is toggled from TipTap's own `onSelectionUpdate` (show on a non-empty selection while focused, hide on collapse).
+- Positioning reads the **rendered selection rect** — `window.getSelection().getRangeAt(0).getBoundingClientRect()` is authoritative (it matches what the user sees; `editor.view.coordsAtPos` drifted from it). The bubble is anchored by its own bottom edge (`translateY(-100%)`) so we never have to measure its height, sitting above the selection and flipping below only near the top of the viewport. See `selectionRect` / `positionBubble` / `showBubble` in `description_editor.js`.
+
+**Why this isn't a slippery slope:** it's *less* dependency surface, not more — we removed two packages and added ~40 lines of vanilla positioning. No new tooling, still one esbuild entry.
+
+**Current bundled TipTap dependencies** (authoritative — see `package.json`):
+
+- `@tiptap/core`, `@tiptap/pm`, `@tiptap/starter-kit`
+- `@tiptap/extension-link`, `@tiptap/extension-placeholder`
+- `@tiptap/extension-task-list`, `@tiptap/extension-task-item`, `@tiptap/extension-typography`
+- `@tiptap/extension-highlight` — `==text==` ⇆ `<mark>` round-trip (matches the server-side `pymdownx.mark` render)
+- `@tiptap/extension-mention` + `@tiptap/suggestion` — the `@user` / `@task` autocomplete (see [0023](0023-mentions.md))
+- `tiptap-markdown` — markdown serialization both ways
+
+No `@tiptap/extension-bubble-menu`, no `tippy.js`. Everything else (HTMX, Alpine, Tailwind, sortable.js, Chart.js) still loads from CDN per the original decision.

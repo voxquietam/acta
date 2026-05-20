@@ -18,7 +18,7 @@ Acta is a 3–4 week vibe-coding sprint, built alongside an existing job (`ksu24
 - **Members + Auth:** Google OAuth via `django-allauth` (see [0002](0002-auth.md)). Workspace membership granted manually.
 - **Views:** Kanban (5 columns based on fixed statuses) and table view.
 - **Drag-and-drop kanban** — via `sortable.js` wired through HTMX. See [0014](0014-frontend-architecture.md).
-- **Comments:** Markdown, attached to tasks.
+- **Comments:** Markdown, attached to tasks and project updates, with one level of replies. See [0022](0022-polymorphic-comments.md).
 - **Activity log:** auto-tracked via explicit `log_event()` calls. JSONB payload. See [0011](0011-activity-log.md).
 - **Labels:** workspace-scoped with optional label groups (Linear-style). See [0008](0008-labels.md).
 - **Project Updates:** Linear-style manual status posts per project, with health indicator. See [0009](0009-project-updates.md).
@@ -26,7 +26,9 @@ Acta is a 3–4 week vibe-coding sprint, built alongside an existing job (`ksu24
 - **Bulk operations:** the killer differentiator vs Kaneo. See [0012](0012-bulk-operations.md).
 - **Real-time updates** — SSE-based, every connected client sees kanban moves, status changes, comments live. See [0015](0015-real-time.md).
 - **Dashboards** — workspace overview, project overview, and personal "my work" pages with charts (tasks by status, throughput, workload). See [0016](0016-dashboards.md).
-- **In-app notifications** — toasts for events relevant to the current user (assigned to you, comment on your task, your task moved by someone else). See [0017](0017-notifications.md).
+- **In-app notifications** — events relevant to the current user (assigned to you, comment on your task, your task moved by someone else, @-mentions, project updates). Originally scoped as ephemeral toasts ([0017](0017-notifications.md)); shipped as a **persistent per-user inbox** at `/inbox/` (Notifications + Updates tabs, read/unread/archive). See [0021](0021-notification-inbox.md).
+- **@-mentions in comments and descriptions** *(amended 2026-05-20 — moved in-scope from "Out of MVP")*. `@user` and `@task` mentions in the TipTap editor, surviving the markdown round-trip; `@user` mentions raise a `mention` notification. See [0023](0023-mentions.md).
+- **My Activity page** — a personal feed of events the current user is involved in. Shipped alongside the inbox.
 
 ### Out of MVP
 
@@ -36,7 +38,6 @@ Acta is a 3–4 week vibe-coding sprint, built alongside an existing job (`ksu24
 - **WebSocket bi-directional protocols** — SSE is one-way (server → client). Sufficient for MVP; WebSocket reserved for cases that need client → server pushes outside of normal HTTP requests (none in MVP).
 - **Browser desktop notifications** (Notification API). In-app toasts only.
 - **Email notifications.**
-- **@-mentions in comments / descriptions.**
 - **Mobile-first UI** — desktop-first; mobile layouts later.
 - **PostgreSQL full-text search** — see [0005](0005-search.md).
 - **Per-project custom statuses** — see [0004](0004-statuses.md).
@@ -49,7 +50,7 @@ Acta is a 3–4 week vibe-coding sprint, built alongside an existing job (`ksu24
 - Bulk operations stay in scope because they are the *reason for building Acta in the first place* — moving 50 tasks at once is the headline pain point with Kaneo.
 - Real-time, dashboards, and notifications got added because the frontend pivot to HTMX + Alpine made them cheap, and they were the user's stated must-haves. Without those, Acta would be a slightly nicer Kaneo, not a meaningfully better tool.
 - Webhooks fall out because the team's pain is with *incoming* webhooks from Kaneo. Acta as a webhook *producer* has no concrete consumer planned.
-- @-mentions fell out to keep the markdown pipeline and notifications simple. Can be added later as a serializer extension + new notification trigger.
+- @-mentions originally fell out to keep the markdown pipeline and notifications simple. They were later pulled back in once the notification subsystem (and a markdown-token approach that survives the TipTap round-trip) made them cheap — see [0023](0023-mentions.md).
 
 ## Consequences
 

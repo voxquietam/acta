@@ -24,8 +24,11 @@ acta/
 │   ├── projects/               # Project, ProjectUpdate
 │   ├── tasks/                  # Task, slug counter, bulk endpoints
 │   ├── labels/                 # Label, LabelGroup
-│   ├── comments/               # Comment
+│   ├── comments/               # Comment (polymorphic: task OR project update, see ADR 0022)
 │   ├── activity/               # ActivityLog model + log_event() helper
+│   ├── notifications/          # Notification model + notify() per-user fan-out (ADR 0021/0023)
+│   ├── common/                 # shared utils — markdown rendering + mention pipeline (markdown.py)
+│   ├── mcp/                    # MCP server: read + write tools (ADR 0020)
 │   └── web/                    # HTML page views, templates, static
 ├── templates/                  # global base templates (base.html, partials)
 ├── static/                     # global static (acta.css, acta.js, sortable.js post-MVP)
@@ -75,8 +78,29 @@ acta/
 - Exclusive-group validation helper (used by tasks app when attaching labels).
 
 ### `comments`
-- `Comment` model and CRUD endpoints.
-- Markdown rendering pipeline (shared with tasks/projects via a small util module here or in `apps/common/`).
+- `Comment` model and CRUD endpoints. The model is **polymorphic**: a comment
+  targets either a task or a project update, with one level of replies — see
+  [0022](../decisions/0022-polymorphic-comments.md). The DRF `CommentViewSet`
+  stays task-only by design; update comments are posted from the web app.
+- Markdown rendering pipeline now lives in `apps/common/markdown.py` (shared by
+  task descriptions, comments, and project-update bodies) — see below.
+
+### `notifications`
+- `Notification` model (one persistent row per recipient) + `notify()`, the
+  single fan-out writer mirroring `log_event`. Per-user SSE broadcast over the
+  `user-<id>` channel. See [0021](../decisions/0021-notification-inbox.md).
+- Mention parsing helpers (`parse_mentioned_user_ids`, `notify_mentions`) for
+  the `@user` pipeline — see [0023](../decisions/0023-mentions.md).
+
+### `common`
+- Realized as `apps/common/markdown.py`: the markdown render + bleach
+  sanitization + mention-chip rewriting shared across surfaces. (The original
+  "premature `common/` is an anti-pattern" caution below held until markdown
+  rendering had three real call sites; at that point it was extracted here.)
+
+### `mcp`
+- MCP server exposing read + write tools over two transports. See
+  [0020](../decisions/0020-mcp.md).
 
 ### `activity`
 - `ActivityLog` model.
@@ -120,7 +144,12 @@ acta/
 
 ## What's NOT in MVP
 
-- No `apps/notifications/`, `apps/integrations/`, `apps/webhooks/` — deferred until concrete need.
+- No `apps/integrations/`, `apps/webhooks/` — deferred until concrete need.
+  (`apps/notifications/` was originally listed here as deferred; it has since
+  shipped — see the app tree above and [0021](../decisions/0021-notification-inbox.md).)
 - No `apps/api/` umbrella — each domain app owns its own API endpoints.
-- No frontend build pipeline (no `package.json`, no `webpack`, no `vite`).
+- A frontend build pipeline exists but is narrow: `package.json` + esbuild bundle
+  the TipTap editor and compile Tailwind only (see
+  [0014](../decisions/0014-frontend-architecture.md)). No webpack / vite, and the
+  rest of the frontend stays on CDN.
 - No Celery / Redis — synchronous request handling is sufficient for MVP load.

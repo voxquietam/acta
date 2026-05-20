@@ -65,6 +65,17 @@ Convention: `{target_type}.{verb_or_field_changed}`. Verbs are past tense.
 
 **Comment events:** `comment.created`, `comment.edited`, `comment.deleted`. Payload includes `task_id` and a short `body_preview` for `created`.
 
+> **Amendment (2026-05-20):** the `Comment` model is now polymorphic — a
+> comment targets *either* a task *or* a project update, with one-level
+> replies via a `parent` self-FK (see [0022](0022-polymorphic-comments.md)).
+> The `comment.*` events here fire **only for task comments**.
+> Comments and replies on a *project update* are deliberately **not** written
+> to the activity log — the same exclusion already applied to `project_update.*`
+> events (see [0009](0009-project-updates.md) and below): the update thread is
+> its own audit trail and the activity feed stays task-focused. The DRF
+> `CommentViewSet` that calls `log_event` is task-only by design, so the
+> "log a comment event" path is never reached for an update comment.
+
 **Workspace member events:** `member.added`, `member.removed`, `member.role_changed`. Payload includes the affected `user_id`, role(s), and the change shape.
 
 `project_update.*` events are **not** written to the activity log — see [0009](0009-project-updates.md). The updates themselves *are* the audit trail for that surface.

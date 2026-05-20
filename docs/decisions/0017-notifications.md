@@ -1,7 +1,27 @@
 # ADR 0017: Notifications
 
-**Status:** accepted
+**Status:** superseded (largely) by [0021](0021-notification-inbox.md)
 **Date:** 2026-05-15
+
+> **Note (2026-05-20):** this ADR is **largely superseded by
+> [0021](0021-notification-inbox.md)** — read 0021 as the source of truth for
+> the notification system as shipped. The two MVP pillars below no longer hold:
+>
+> - **Delivery is server-side per-user fan-out, not client-side trigger
+>   evaluation.** Notifications are now persistent `Notification` rows written
+>   by `notify()` and pushed over a private `user-<id>` SSE channel carrying
+>   pre-rendered inbox row + badge HTML (see [0015](0015-real-time.md)
+>   Stream-topology amendment). There is no client-side watch-list, no
+>   `acta:notify` toast pipeline, and no `GET /api/v1/me/watching/` endpoint.
+> - **There is a persistent inbox.** The "no notification inbox in MVP" section
+>   below is replaced wholesale by 0021's persistent, per-recipient inbox at
+>   `/inbox/` (read / unread / archive state, filter chips, Updates tab).
+>
+> The trigger *intent* below (assigned, status, due, comment, project update)
+> still broadly describes who gets notified — 0021 just moves the decision and
+> the fan-out to the server. The `priority_changed` open question at the bottom
+> is resolved: it **does** notify (`task.priority_changed` → assignee +
+> reporter, see 0021).
 
 ## Context
 
@@ -92,7 +112,7 @@ A notification is shown for a given user when an event matches one of these patt
 
 ## Open Questions
 
-- Should `task.priority_changed` on my task notify? Lean **yes**, but lower priority than status/due changes. To be decided at implementation if it feels too noisy.
+- ~~Should `task.priority_changed` on my task notify?~~ **Resolved (2026-05-20):** yes. `task.priority_changed` is one of the watched kinds in `apps/notifications/services._TASK_EVENT_KINDS` and notifies the assignee + reporter, per [0021](0021-notification-inbox.md).
 - Should `task.labels_changed` on my task notify? Lean **no** — labels change too often, low signal per event.
 - Should I get a notification when **I'm removed as assignee**? Yes, that's a `task.assigned` event with `to_user_id = null` (or someone else) and the previous `from_user_id = me`. Captured by the trigger as written.
 - Should `member.added` notify the added member? Yes eventually, but the user lands on a "no workspaces" screen before being added — and after being added they see the new workspace on next reload. Toast is overkill. Skip in MVP.
