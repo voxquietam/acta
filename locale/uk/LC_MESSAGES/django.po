@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Acta 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-05-20 21:34+0000\n"
+"POT-Creation-Date: 2026-05-20 21:48+0000\n"
 "PO-Revision-Date: 2026-05-16 15:30+0000\n"
 "Last-Translator: Acta team\n"
 "Language-Team: Ukrainian\n"
@@ -165,7 +165,12 @@ msgstr "Потрібно вказати назву токена."
 msgid "Token “%(name)s” revoked."
 msgstr "Токен «%(name)s» відкликано."
 
-#: apps/accounts/views.py:288
+#: apps/accounts/views.py:283
+#, python-format
+msgid "Token “%(name)s” deleted."
+msgstr "Токен «%(name)s» видалено."
+
+#: apps/accounts/views.py:311
 msgid ""
 "You're already signed in — share the invite link with someone who needs an "
 "account."
@@ -173,15 +178,15 @@ msgstr ""
 "Ви вже увійшли — поділіться посиланням-запрошенням з тим, кому потрібен "
 "акаунт."
 
-#: apps/accounts/views.py:295
+#: apps/accounts/views.py:318
 msgid "That invite link is not valid."
 msgstr "Це посилання-запрошення недійсне."
 
-#: apps/accounts/views.py:300
+#: apps/accounts/views.py:323
 msgid "That invite link has already been used."
 msgstr "Це посилання-запрошення вже використано."
 
-#: apps/accounts/views.py:302
+#: apps/accounts/views.py:325
 msgid "That invite link has expired — ask the admin to resend it."
 msgstr ""
 "Термін дії посилання-запрошення минув — попросіть адміністратора надіслати "
@@ -302,19 +307,19 @@ msgstr "Зірвано"
 msgid "Completed"
 msgstr "Завершено"
 
-#: apps/reactions/models.py:70
+#: apps/reactions/models.py:61
 #, fuzzy
 #| msgid "Mention"
 msgid "Reaction"
 msgstr "Згадка"
 
-#: apps/reactions/models.py:71
+#: apps/reactions/models.py:62
 #, fuzzy
 #| msgid "@Mentions"
 msgid "Reactions"
 msgstr "@Згадки"
 
-#: apps/reactions/models.py:133
+#: apps/reactions/models.py:120
 #, fuzzy
 #| msgid "A comment must target exactly one of a task or a project update."
 msgid ""
@@ -856,7 +861,7 @@ msgstr ""
 "показуватиметься:"
 
 #: templates/accounts/settings.html:118 templates/accounts/settings.html:119
-#: templates/accounts/settings.html:232 templates/accounts/settings.html:233
+#: templates/accounts/settings.html:257 templates/accounts/settings.html:258
 #: templates/web/projects/_task_detail_topbar.html:50
 #: templates/web/projects/_task_detail_topbar.html:51
 #: templates/web/projects/_task_detail_topbar.html:59
@@ -903,24 +908,32 @@ msgstr "не використовувався"
 msgid "revoked %(t)s ago"
 msgstr "відкликано %(t)s тому"
 
-#: templates/accounts/settings.html:187
+#: templates/accounts/settings.html:188
 msgid "Revoke"
 msgstr "Відкликати"
 
-#: templates/accounts/settings.html:190
+#: templates/accounts/settings.html:191
 #: templates/web/workspaces/_settings_invites.html:100
 msgid "Revoke?"
 msgstr "Відкликати?"
 
-#: templates/accounts/settings.html:204
+#: templates/accounts/settings.html:210
+msgid "Delete token"
+msgstr "Видалити токен"
+
+#: templates/accounts/settings.html:215
+msgid "Delete?"
+msgstr "Видалити?"
+
+#: templates/accounts/settings.html:229
 msgid "No API tokens yet."
 msgstr "Поки немає жодного API токена."
 
-#: templates/accounts/settings.html:210
+#: templates/accounts/settings.html:235
 msgid "How to wire the token into Claude Desktop / Cursor"
 msgstr "Як підключити токен у Claude Desktop / Cursor"
 
-#: templates/accounts/settings.html:214
+#: templates/accounts/settings.html:239
 msgid ""
 "Acta speaks <strong>HTTP MCP</strong>. One endpoint, one token, no SSH or "
 "wrapper scripts. Paste the snippet below into your MCP client's config — for "
@@ -935,11 +948,11 @@ msgstr ""
 "Application Support/Claude/claude_desktop_config.json</code> — замініть "
 "заглушку на ваш токен, повністю закрийте клієнта і відкрийте знову."
 
-#: templates/accounts/settings.html:232 templates/accounts/settings.html:233
+#: templates/accounts/settings.html:257 templates/accounts/settings.html:258
 msgid "Copy snippet"
 msgstr "Скопіювати фрагмент"
 
-#: templates/accounts/settings.html:239
+#: templates/accounts/settings.html:264
 msgid ""
 "For Cursor / Cline use the same URL and header in their MCP settings panel. "
 "Rate limit is 60 requests per minute per token. Revoke any token above to "
@@ -949,11 +962,11 @@ msgstr ""
 "налаштувань MCP. Обмеження — 60 запитів на хвилину на токен. Відкличте будь-"
 "який токен вище, щоб негайно припинити доступ."
 
-#: templates/accounts/settings.html:247
+#: templates/accounts/settings.html:272
 msgid "Session"
 msgstr "Сесія"
 
-#: templates/accounts/settings.html:253 templates/base_app.html:300
+#: templates/accounts/settings.html:278 templates/base_app.html:300
 msgid "Log out"
 msgstr "Вийти"
 

@@ -171,30 +171,55 @@
             {% endif %}
           </div>
         </div>
-        {% if not token.revoked_at %}
-        <form method="post" action="{% url 'accounts:revoke_api_token' token_id=token.id %}"
-              hx-boost="true"
-              hx-target="#app-content"
-              hx-select="#app-content"
-              hx-swap="outerHTML show:top"
-              hx-push-url="true"
-              x-data="{ confirming: false }">
-          {% csrf_token %}
-          <button x-show="!confirming" type="button" @click="confirming = true"
-                  class="text-[11px] text-placeholder-foreground hover:text-rose-400 transition px-2 py-1">
-            {% trans "Revoke" %}
-          </button>
-          <span x-show="confirming" x-cloak class="inline-flex items-center gap-1 text-[11px]">
-            <span class="text-rose-400">{% trans "Revoke?" %}</span>
-            <button type="submit" class="text-emerald-400 hover:text-emerald-300 px-1">
-              {% lucide "check" "w-3.5 h-3.5" %}
+        <div class="flex items-center gap-1 shrink-0">
+          {% if not token.revoked_at %}
+          <form method="post" action="{% url 'accounts:revoke_api_token' token_id=token.id %}"
+                hx-boost="true"
+                hx-target="#app-content"
+                hx-select="#app-content"
+                hx-swap="outerHTML show:top"
+                hx-push-url="true"
+                x-data="{ confirming: false }">
+            {% csrf_token %}
+            <button x-show="!confirming" type="button" @click="confirming = true"
+                    class="text-[11px] text-placeholder-foreground hover:text-rose-400 transition px-2 py-1">
+              {% trans "Revoke" %}
             </button>
-            <button type="button" @click="confirming = false" class="text-placeholder-foreground hover:text-foreground px-1">
-              {% lucide "x" "w-3.5 h-3.5" %}
+            <span x-show="confirming" x-cloak class="inline-flex items-center gap-1 text-[11px]">
+              <span class="text-rose-400">{% trans "Revoke?" %}</span>
+              <button type="submit" class="text-emerald-400 hover:text-emerald-300 px-1">
+                {% lucide "check" "w-3.5 h-3.5" %}
+              </button>
+              <button type="button" @click="confirming = false" class="text-placeholder-foreground hover:text-foreground px-1">
+                {% lucide "x" "w-3.5 h-3.5" %}
+              </button>
+            </span>
+          </form>
+          {% endif %}
+          <form method="post" action="{% url 'accounts:delete_api_token' token_id=token.id %}"
+                hx-boost="true"
+                hx-target="#app-content"
+                hx-select="#app-content"
+                hx-swap="outerHTML show:top"
+                hx-push-url="true"
+                x-data="{ confirming: false }">
+            {% csrf_token %}
+            <button x-show="!confirming" type="button" @click="confirming = true"
+                    data-tooltip="{% trans 'Delete token' %}"
+                    class="text-placeholder-foreground hover:text-rose-400 transition px-2 py-1">
+              {% lucide "trash-2" "w-3.5 h-3.5" %}
             </button>
-          </span>
-        </form>
-        {% endif %}
+            <span x-show="confirming" x-cloak class="inline-flex items-center gap-1 text-[11px]">
+              <span class="text-rose-400">{% trans "Delete?" %}</span>
+              <button type="submit" class="text-emerald-400 hover:text-emerald-300 px-1">
+                {% lucide "check" "w-3.5 h-3.5" %}
+              </button>
+              <button type="button" @click="confirming = false" class="text-placeholder-foreground hover:text-foreground px-1">
+                {% lucide "x" "w-3.5 h-3.5" %}
+              </button>
+            </span>
+          </form>
+        </div>
       </li>
       {% endfor %}
     </ul>
@@ -202,7 +227,7 @@
     <p class="text-[11px] text-placeholder-foreground italic">{% trans "No API tokens yet." %}</p>
     {% endif %}
 
-    <details class="mt-6 group" x-data="{ copied: false }">
+    <details class="mt-6 group" x-data="{ copied: false }" {% if created_api_token_secret %}open{% endif %}>
       <summary class="cursor-pointer text-xs text-placeholder-foreground hover:text-foreground transition select-none flex items-center gap-1.5">
         {% lucide "chevron-right" "w-3.5 h-3.5 transition group-open:rotate-90" %}
         {% trans "How to wire the token into Claude Desktop / Cursor" %}
@@ -219,7 +244,7 @@
       "transport": "http",
       "url": "{{ request.scheme }}://{{ request.get_host }}/mcp/",
       "headers": {
-        "Authorization": "Token &lt;paste-token-here&gt;"
+        "Authorization": "Token {% if created_api_token_secret %}{{ created_api_token_secret }}{% else %}&lt;paste-token-here&gt;{% endif %}"
       }
     }
   }

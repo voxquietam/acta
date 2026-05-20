@@ -13,6 +13,7 @@ Covered:
 """
 
 from django.urls import reverse
+from django.utils import timezone
 
 import pytest
 
@@ -90,3 +91,45 @@ class TestApiTokenViews:
         resp = client.post(reverse("accounts:create_api_token"), {"name": "x"})
         assert resp.status_code in (302, 301)
         assert "/accounts/login/" in resp.url
+
+    def test_delete_token_removes_row(self, client):
+        user = UserFactory()
+        token, _ = ApiToken.generate(user=user, name="t")
+        client.force_login(user)
+        resp = client.post(reverse("accounts:delete_api_token", kwargs={"token_id": token.id}))
+        assert resp.status_code == 302
+        assert not ApiToken.objects.filter(id=token.id).exists()
+
+    def test_delete_revoked_token_removes_row(self, client):
+        user = UserFactory()
+        token, _ = ApiToken.generate(user=user, name="t")
+        ApiToken.objects.filter(id=token.id).update(revoked_at=timezone.now())
+        client.force_login(user)
+        resp = client.post(reverse("accounts:delete_api_token", kwargs={"token_id": token.id}))
+        assert resp.status_code == 302
+        assert not ApiToken.objects.filter(id=token.id).exists()
+
+    def test_delete_other_users_token_404s(self, client):
+        owner = UserFactory()
+        intruder = UserFactory()
+        token, _ = ApiToken.generate(user=owner, name="t")
+        client.force_login(intruder)
+        resp = client.post(reverse("accounts:delete_api_token", kwargs={"token_id": token.id}))
+        assert resp.status_code == 404
+        assert ApiToken.objects.filter(id=token.id).exists()
+
+    def test_mcp_snippet_prefilled_after_create(self, client):
+        user = UserFactory()
+        client.force_login(user)
+        resp = client.post(reverse("accounts:create_api_token"), {"name": "Claude Desktop"}, follow=True)
+        body = resp.content.decode()
+        # The just-created secret is inlined into the snippet, so the
+        # placeholder is gone and the copy-once panel is present.
+        assert "paste-token-here" not in body
+        assert "acta-new-token" in body
+
+    def test_mcp_snippet_placeholder_without_create(self, client):
+        user = UserFactory()
+        client.force_login(user)
+        resp = client.get(reverse("accounts:settings"))
+        assert "paste-token-here" in resp.content.decode()

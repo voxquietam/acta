@@ -261,6 +261,29 @@ def revoke_api_token(request, token_id: int):
     return HttpResponseRedirect(reverse("accounts:settings"))
 
 
+@login_required
+@require_POST
+def delete_api_token(request, token_id: int):
+    """Permanently delete one of the current user's API tokens.
+
+    Unlike :func:`revoke_api_token` (a soft-delete that keeps the row for
+    the audit trail), this drops the row entirely so it disappears from
+    the settings list. Useful for clearing out stale / mistaken tokens.
+    A revoked token can also be deleted to tidy the list.
+
+    Args:
+        request: POST request.
+        token_id: PK of the token to delete. Scoped to the current user
+            via ``get_object_or_404`` — users can't delete other users'
+            tokens.
+    """
+    token = get_object_or_404(ApiToken, pk=token_id, user=request.user)
+    name = token.name
+    token.delete()
+    messages.success(request, _("Token “%(name)s” deleted.") % {"name": name})
+    return HttpResponseRedirect(reverse("accounts:settings"))
+
+
 def invite_accept(request, token: str):
     """Landing page for an invite URL.
 
