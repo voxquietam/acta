@@ -283,7 +283,13 @@ def task_get(user: User, arguments: dict[str, Any]) -> Any:
         task = (
             Task.objects.filter(project__workspace_id__in=user_workspace_ids(user))
             .select_related("project__workspace", "assignee", "reporter", "parent")
-            .prefetch_related("labels", "subtasks__assignee")
+            .prefetch_related(
+                "labels",
+                "subtasks__assignee",
+                "blocked_by__project",
+                "blocks__project",
+                "related__project",
+            )
             .get(project__slug_prefix=prefix, number=number_int)
         )
     except Task.DoesNotExist:
@@ -365,6 +371,12 @@ def task_get(user: User, arguments: dict[str, Any]) -> Any:
         ],
         "comments": comments,
         "activity": activity,
+        "links": {
+            "blocked_by": [{"slug": t.slug, "title": t.title, "status": t.status} for t in task.blocked_by.all()],
+            "blocks": [{"slug": t.slug, "title": t.title, "status": t.status} for t in task.blocks.all()],
+            "related": [{"slug": t.slug, "title": t.title, "status": t.status} for t in task.related.all()],
+        },
+        "is_blocked": task.is_blocked,
     }
 
 

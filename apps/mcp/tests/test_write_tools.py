@@ -490,3 +490,67 @@ class TestActivityLogIntegration:
         assert event.actor == user
         assert event.payload["task_id"] == task.id
         assert "audit me" in event.payload["body_preview"]
+
+
+@pytest.mark.django_db
+class TestTaskLink:
+    def _two_tasks(self, project):
+        a = TaskFactory(project=project, title="A")
+        b = TaskFactory(project=project, title="B")
+        return a, b
+
+    def test_link_blocks(self, project_setup):
+        user, _, project = project_setup
+        a, b = self._two_tasks(project)
+        CALLABLES["acta_task_link"](user, {"slug": a.slug, "target_slug": b.slug, "kind": "blocks"})
+        assert b in a.blocks.all()
+        assert a in b.blocked_by.all()
+
+    def test_link_blocked_by_reverses(self, project_setup):
+        user, _, project = project_setup
+        a, b = self._two_tasks(project)
+        CALLABLES["acta_task_link"](user, {"slug": a.slug, "target_slug": b.slug, "kind": "blocked_by"})
+        assert a in b.blocks.all()
+
+    def test_link_related_symmetric(self, project_setup):
+        user, _, project = project_setup
+        a, b = self._two_tasks(project)
+        CALLABLES["acta_task_link"](user, {"slug": a.slug, "target_slug": b.slug, "kind": "related"})
+        assert b in a.related.all()
+        assert a in b.related.all()
+
+    def test_link_self_rejected(self, project_setup):
+        user, _, project = project_setup
+        a, _b = self._two_tasks(project)
+        with pytest.raises(ValueError, match="itself"):
+            CALLABLES["acta_task_link"](user, {"slug": a.slug, "target_slug": a.slug, "kind": "blocks"})
+
+    def test_link_circular_rejected(self, project_setup):
+        user, _, project = project_setup
+        a, b = self._two_tasks(project)
+        CALLABLES["acta_task_link"](user, {"slug": a.slug, "target_slug": b.slug, "kind": "blocks"})
+        with pytest.raises(ValueError, match="circular"):
+            CALLABLES["acta_task_link"](user, {"slug": b.slug, "target_slug": a.slug, "kind": "blocks"})
+
+    def test_link_bad_kind_rejected(self, project_setup):
+        user, _, project = project_setup
+        a, b = self._two_tasks(project)
+        with pytest.raises(ValueError, match="kind"):
+            CALLABLES["acta_task_link"](user, {"slug": a.slug, "target_slug": b.slug, "kind": "frobnicate"})
+
+    def test_unlink_blocks(self, project_setup):
+        user, _, project = project_setup
+        a, b = self._two_tasks(project)
+        a.blocks.add(b)
+        CALLABLES["acta_task_unlink"](user, {"slug": a.slug, "target_slug": b.slug, "kind": "blocks"})
+        assert b not in a.blocks.all()
+
+    def test_task_get_includes_links(self, project_setup):
+        user, _, project = project_setup
+        a, b = self._two_tasks(project)
+        a.blocks.add(b)
+        payload = CALLABLES["acta_task_get"](user, {"slug": a.slug})
+        assert "links" in payload
+        blocks_slugs = [t["slug"] for t in payload["links"]["blocks"]]
+        assert b.slug in blocks_slugs
+        assert payload["is_blocked"] is False

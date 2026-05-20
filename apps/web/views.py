@@ -26,7 +26,7 @@ from apps.activity.services import log_event
 from apps.comments.models import Comment
 from apps.labels.models import Label
 from apps.projects.models import Project, ProjectUpdate
-from apps.tasks.events import emit_task_diff_events, snapshot_task
+from apps.tasks.events import broadcast_link_change, emit_task_diff_events, snapshot_task
 from apps.tasks.models import Task
 from apps.web.filters import (
     SORTABLE_COLUMNS,
@@ -1506,49 +1506,6 @@ def _resolve_link_target(user, raw_slug):
     return _user_task_qs(user).filter(project__slug_prefix=prefix, number=num_int).first()
 
 
-def _broadcast_link_change(*, task, target, event_type, payload, actor):
-    """Persist a link activity event + push fresh cards for BOTH endpoints.
-
-    A link changes the blocked / blocking state of two tasks (the one
-    the user edited and the linked one), so both cards / rows need a
-    fresh render over SSE. We write ONE activity-log row (on the acting
-    task) and pass an in-memory mirror event for the target so its card
-    also broadcasts without a second log entry. The browser handlers
-    for ``task.link_*`` apply these even for self-events, because the
-    request only swapped the rail panel — the board cards are untouched
-    by the response, so there's no double-render to suppress.
-    """
-    from apps.tasks.events import broadcast_task_events
-
-    saved = ActivityLog.objects.create(
-        workspace=task.project.workspace,
-        project=task.project,
-        actor=actor,
-        event_type=event_type,
-        target_type=ActivityLog.TARGET_TASK,
-        target_id=task.id,
-        payload=payload,
-    )
-
-    def _fresh(pk):
-        return (
-            Task.objects.select_related("project__workspace", "assignee")
-            .prefetch_related("labels", "blocks", "blocked_by")
-            .get(pk=pk)
-        )
-
-    mirror = ActivityLog(
-        workspace=task.project.workspace,
-        project=task.project,
-        actor=actor,
-        event_type=event_type,
-        target_type=ActivityLog.TARGET_TASK,
-        target_id=target.id,
-        payload=payload,
-    )
-    broadcast_task_events([saved, mirror], {task.pk: _fresh(task.pk), target.pk: _fresh(target.pk)}, actor)
-
-
 def _links_panel_response(request, task):
     """Render the links panel partial + OOB activity timeline."""
     panel = render_to_string(
@@ -1667,7 +1624,7 @@ def add_task_link(request, slug_prefix, number):
             if task.blocks.filter(pk=target.pk).exists():
                 return HttpResponseBadRequest("that would create a circular block")
             target.blocks.add(task)
-        _broadcast_link_change(
+        broadcast_link_change(
             task=task,
             target=target,
             event_type="task.link_added",
@@ -1705,7 +1662,7 @@ def remove_task_link(request, slug_prefix, number):
             task.blocks.remove(target)
         else:  # blocked_by
             target.blocks.remove(task)
-        _broadcast_link_change(
+        broadcast_link_change(
             task=task,
             target=target,
             event_type="task.link_removed",

@@ -343,3 +343,47 @@ def emit_task_diff_events(
         )
         broadcast_task_events(events, {task.pk: task_for_render}, actor)
     return len(events)
+
+
+def broadcast_link_change(*, task, target, event_type, payload, actor):
+    """Persist a link activity event + push fresh cards for BOTH endpoints.
+
+    A link changes the blocked / blocking state of two tasks (the one
+    the user edited and the linked one), so both cards / rows need a
+    fresh render over SSE. We write ONE activity-log row (on the acting
+    task) and pass an in-memory mirror event for the target so its card
+    also broadcasts without a second log entry.
+
+    Shared by the web link endpoints (``apps.web.views``) and the MCP
+    link tools (``apps.mcp.tools.write``) so both surfaces emit the
+    same event + SSE refresh. The browser applies ``task.link_*``
+    events even for self-events because the originating surface (rail
+    panel / MCP client) never touched the board card.
+    """
+    saved = ActivityLog.objects.create(
+        workspace=task.project.workspace,
+        project=task.project,
+        actor=actor,
+        event_type=event_type,
+        target_type=ActivityLog.TARGET_TASK,
+        target_id=task.id,
+        payload=payload,
+    )
+
+    def _fresh(pk):
+        return (
+            Task.objects.select_related("project__workspace", "assignee")
+            .prefetch_related("labels", "blocks", "blocked_by")
+            .get(pk=pk)
+        )
+
+    mirror = ActivityLog(
+        workspace=task.project.workspace,
+        project=task.project,
+        actor=actor,
+        event_type=event_type,
+        target_type=ActivityLog.TARGET_TASK,
+        target_id=target.id,
+        payload=payload,
+    )
+    broadcast_task_events([saved, mirror], {task.pk: _fresh(task.pk), target.pk: _fresh(target.pk)}, actor)

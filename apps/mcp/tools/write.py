@@ -225,6 +225,92 @@ def task_archive(user: User, arguments: dict[str, Any]) -> Any:
     return serialize_task_summary(task)
 
 
+_LINK_KINDS = ("blocks", "blocked_by", "related")
+
+
+def task_link(user: User, arguments: dict[str, Any]) -> Any:
+    """Link two tasks: ``blocks`` / ``blocked_by`` / ``related``.
+
+    Same validation as the web UI: target must be in the same
+    workspace, can't be the task itself, and a blocks/blocked_by link
+    can't create a direct circular block. Emits ``task.link_added`` and
+    pushes a fresh card over SSE for BOTH tasks (so the blocked badge
+    appears live). Returns the acting task's summary.
+    """
+    from django.db import transaction
+
+    from apps.tasks.events import broadcast_link_change
+
+    args = arguments or {}
+    slug = args.get("slug")
+    target_slug = args.get("target_slug")
+    kind = (args.get("kind") or "").strip()
+    if not slug or not target_slug:
+        raise ValueError("Arguments 'slug' and 'target_slug' are required.")
+    if kind not in _LINK_KINDS:
+        raise ValueError("'kind' must be one of: blocks, blocked_by, related.")
+    task = resolve_task(user, slug)
+    target = resolve_task(user, target_slug)
+    if target.pk == task.pk:
+        raise ValueError("A task cannot link to itself.")
+    if target.project.workspace_id != task.project.workspace_id:
+        raise ValueError("Target task is in a different workspace.")
+
+    with transaction.atomic():
+        if kind == "related":
+            task.related.add(target)
+        elif kind == "blocks":
+            if task.blocked_by.filter(pk=target.pk).exists():
+                raise ValueError("That would create a circular block.")
+            task.blocks.add(target)
+        else:  # blocked_by
+            if task.blocks.filter(pk=target.pk).exists():
+                raise ValueError("That would create a circular block.")
+            target.blocks.add(task)
+        broadcast_link_change(
+            task=task,
+            target=target,
+            event_type="task.link_added",
+            payload={"kind": kind, "target_slug": target.slug, "target_title": target.title},
+            actor=user,
+        )
+    return serialize_task_summary(task)
+
+
+def task_unlink(user: User, arguments: dict[str, Any]) -> Any:
+    """Remove a link between two tasks (inverse of ``acta_task_link``)."""
+    from django.db import transaction
+
+    from apps.tasks.events import broadcast_link_change
+
+    args = arguments or {}
+    slug = args.get("slug")
+    target_slug = args.get("target_slug")
+    kind = (args.get("kind") or "").strip()
+    if not slug or not target_slug:
+        raise ValueError("Arguments 'slug' and 'target_slug' are required.")
+    if kind not in _LINK_KINDS:
+        raise ValueError("'kind' must be one of: blocks, blocked_by, related.")
+    task = resolve_task(user, slug)
+    target = resolve_task(user, target_slug)
+
+    with transaction.atomic():
+        if kind == "related":
+            task.related.remove(target)
+        elif kind == "blocks":
+            task.blocks.remove(target)
+        else:  # blocked_by
+            target.blocks.remove(task)
+        broadcast_link_change(
+            task=task,
+            target=target,
+            event_type="task.link_removed",
+            payload={"kind": kind, "target_slug": target.slug},
+            actor=user,
+        )
+    return serialize_task_summary(task)
+
+
 def comment_create(user: User, arguments: dict[str, Any]) -> Any:
     """Post a comment on a task.
 
@@ -489,6 +575,48 @@ TOOLS: list[Tool] = [
                 "slug": {"type": "string"},
             },
             "required": ["slug"],
+            "additionalProperties": False,
+        },
+    ),
+    Tool(
+        name="acta_task_link",
+        description=(
+            "Link two tasks. ``kind`` is one of: ``blocks`` (this task blocks "
+            "the target — target can't start until this is done), ``blocked_by`` "
+            "(this task is blocked by the target), ``related`` (non-blocking "
+            "association, symmetric). Required: ``slug`` (acting task), "
+            "``target_slug`` (the other task), ``kind``. Both tasks must be in "
+            "the same workspace; a task can't link to itself; a blocks/blocked_by "
+            "link can't create a direct circular block. Returns the acting task's "
+            "summary."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "slug": {"type": "string", "description": "Acting task slug, e.g. ACTA-128."},
+                "target_slug": {"type": "string", "description": "The other task's slug, e.g. ACTA-200."},
+                "kind": {"type": "string", "enum": ["blocks", "blocked_by", "related"]},
+            },
+            "required": ["slug", "target_slug", "kind"],
+            "additionalProperties": False,
+        },
+    ),
+    Tool(
+        name="acta_task_unlink",
+        description=(
+            "Remove a link between two tasks (inverse of ``acta_task_link``). "
+            "Required: ``slug``, ``target_slug``, ``kind`` (blocks / blocked_by / "
+            "related — must match how the link was created). Returns the acting "
+            "task's summary."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "slug": {"type": "string"},
+                "target_slug": {"type": "string"},
+                "kind": {"type": "string", "enum": ["blocks", "blocked_by", "related"]},
+            },
+            "required": ["slug", "target_slug", "kind"],
             "additionalProperties": False,
         },
     ),
@@ -800,6 +928,8 @@ CALLABLES: dict[str, Callable[[User, dict[str, Any]], Any]] = {
     "acta_task_create": task_create,
     "acta_task_update": task_update,
     "acta_task_archive": task_archive,
+    "acta_task_link": task_link,
+    "acta_task_unlink": task_unlink,
     "acta_task_delete": task_delete,
     "acta_comment_create": comment_create,
     "acta_tasks_bulk_create": tasks_bulk_create,

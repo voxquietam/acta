@@ -119,7 +119,7 @@ Cursor stores its MCP config in **Settings → Tools & MCP**.
 | `acta_workspaces_list`                     | List workspaces the user can see.                          |
 | `acta_projects_list`                       | List projects (filter: workspace, archived).               |
 | `acta_tasks_list`                          | List tasks with filters (status, priority, assignee, etc.) |
-| `acta_task_get`                            | Full payload for one task — meta + subtasks + comments + activity. |
+| `acta_task_get`                            | Full payload for one task — meta + subtasks + comments + activity + links. |
 | `acta_activity_list`                       | Flat activity events with filters (workspace, project, task, type, actor, time range). |
 | `acta_comments_list`                       | Flat comments with filters (workspace, project, task, author, search). |
 | `acta_labels_list`                         | List labels.                                               |
@@ -127,6 +127,8 @@ Cursor stores its MCP config in **Settings → Tools & MCP**.
 | `acta_task_create`                         | Create one task. Validation matches the web UI.            |
 | `acta_task_update`                         | PATCH one task (partial; pass `null` to clear).            |
 | `acta_task_archive`                        | Soft-delete (set `archived_at`).                           |
+| `acta_task_link`                           | Link two tasks (`blocks` / `blocked_by` / `related`).      |
+| `acta_task_unlink`                         | Remove a link between two tasks.                           |
 | `acta_task_delete`                         | Hard-delete (irreversible — prefer archive).               |
 | `acta_comment_create`                      | Post a Markdown comment.                                   |
 | `acta_label_create` / `_update` / `_delete`| Label CRUD.                                                |
