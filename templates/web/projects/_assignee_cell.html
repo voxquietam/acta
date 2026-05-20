@@ -34,9 +34,11 @@ dropdown focused on member selection rather than mixing in a no-op
        toggle() { if (!this.open) this.measure(); this.open = !this.open; }
      }"
      x-init="
-       const onScroll = (e) => { if (open && !($refs.panel && $refs.panel.contains(e.target))) open = false; };
+       const onScroll = (e) => {
+         if (!$el.isConnected) { document.removeEventListener('scroll', onScroll, true); return; }
+         if (open && !($refs.panel && $refs.panel.contains(e.target))) open = false;
+       };
        document.addEventListener('scroll', onScroll, true);
-       $cleanup(() => document.removeEventListener('scroll', onScroll, true));
      "
      @resize.window="if (open) open = false"
      class="inline-block group">

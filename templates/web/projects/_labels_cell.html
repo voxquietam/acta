@@ -43,9 +43,11 @@ assignee treatment.
        },
      }"
      x-init="
-       const onScroll = (e) => { if (open && !($refs.panel && $refs.panel.contains(e.target))) open = false; };
+       const onScroll = (e) => {
+         if (!$el.isConnected) { document.removeEventListener('scroll', onScroll, true); return; }
+         if (open && !($refs.panel && $refs.panel.contains(e.target))) open = false;
+       };
        document.addEventListener('scroll', onScroll, true);
-       $cleanup(() => document.removeEventListener('scroll', onScroll, true));
      "
      @resize.window="if (open) open = false">
 
