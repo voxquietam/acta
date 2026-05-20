@@ -3,6 +3,7 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
 from apps.common.markdown import render_markdown
+from apps.tasks.models import Task
 from apps.workspaces.models import WorkspaceMember
 
 from .models import Comment
@@ -10,6 +11,13 @@ from .models import Comment
 
 class CommentSerializer(serializers.ModelSerializer):
     body_html = serializers.SerializerMethodField()
+    # ``Comment.task`` is nullable at the model level (comments can target a
+    # project update instead), but this REST API is task-only — project
+    # update comments are created via the web composer. Pin ``task`` as
+    # required so the write hooks never receive a target-less comment.
+    task = serializers.PrimaryKeyRelatedField(
+        queryset=Task.objects.all(),
+    )
 
     class Meta:
         model = Comment

@@ -8,10 +8,12 @@ from .models import Comment
 @admin.register(Comment)
 class CommentAdmin(ModelAdmin):
     list_display = [
+        "id",
         "task",
+        "project_update",
+        "parent",
         "author",
         "created_at",
-        "updated_at",
     ]
     list_filter = [
         "task__project",
@@ -22,4 +24,5 @@ class CommentAdmin(ModelAdmin):
     autocomplete_fields = [
         "task",
         "author",
+        "parent",
     ]

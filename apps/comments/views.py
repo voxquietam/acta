@@ -11,10 +11,14 @@ from .serializers import CommentSerializer
 
 
 class CommentViewSet(viewsets.ModelViewSet):
-    """CRUD for :class:`Comment`.
+    """CRUD for task :class:`Comment` rows.
 
     Any workspace member can read; writes require the user to be the
-    comment's author or a workspace admin/owner.
+    comment's author or a workspace admin/owner. **Task-only:** the model
+    is polymorphic (a comment can target a task *or* a project update),
+    but project-update comments are created through the web composer, not
+    this API — the queryset and serializer keep this surface task-scoped
+    so the write hooks (which walk ``comment.task.project``) are safe.
     """
 
     serializer_class = CommentSerializer
