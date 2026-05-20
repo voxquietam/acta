@@ -791,6 +791,72 @@ def _render_inbox_list(request):
     return HttpResponse(html)
 
 
+# ---------------------------------------------------------------------
+# My Activity (personal comments + activity feed)
+# ---------------------------------------------------------------------
+
+_MY_ACTIVITY_TABS = {
+    "comments",
+    "activity",
+}
+_MY_ACTIVITY_PAGE_SIZE = 50
+
+
+class MyActivityView(LoginRequiredMixin, TemplateView):
+    """The user's own activity at ``/my-activity/``.
+
+    Inbox-style tabs over a single-column feed:
+
+    * **Comments** — every comment the user authored, newest first.
+    * **Activity** — every event the user is the actor of (from the
+      activity log), each linking back to its task.
+
+    A cold load returns the full page; tab clicks swap only the inner
+    feed over HTMX.
+    """
+
+    def get_template_names(self):
+        """Full page on cold load, inner feed for HTMX tab swaps."""
+        if _is_htmx_partial(self.request):
+            return ["web/_my_activity_inner.html"]
+        return ["web/my_activity.html"]
+
+    def get_context_data(self, **kwargs):
+        """Build the active tab's feed plus both tab counts."""
+        ctx = super().get_context_data(**kwargs)
+        user = self.request.user
+        tab = self.request.GET.get("tab", "comments")
+        if tab not in _MY_ACTIVITY_TABS:
+            tab = "comments"
+
+        comments_qs = Comment.objects.filter(
+            author=user,
+            task__project__workspace__memberships__user=user,
+        )
+        events_qs = ActivityLog.objects.filter(
+            actor=user,
+            workspace__memberships__user=user,
+        )
+        ctx["activity_tab"] = tab
+        ctx["my_comments_count"] = comments_qs.count()
+        ctx["my_activity_count"] = events_qs.count()
+
+        if tab == "comments":
+            ctx["my_comments"] = list(
+                comments_qs.select_related("task__project").order_by("-created_at")[:_MY_ACTIVITY_PAGE_SIZE]
+            )
+        else:
+            events = list(events_qs.select_related("project").order_by("-created_at")[:_MY_ACTIVITY_PAGE_SIZE])
+            # Resolve task slugs in one batch so each event row can link to
+            # its task without an N+1 over the feed.
+            task_ids = [e.target_id for e in events if e.target_type == ActivityLog.TARGET_TASK]
+            tasks = {t.id: t for t in Task.objects.filter(id__in=task_ids).select_related("project")}
+            for e in events:
+                e.linked_task = tasks.get(e.target_id) if e.target_type == ActivityLog.TARGET_TASK else None
+            ctx["my_events"] = events
+        return ctx
+
+
 class DashboardView(LoginRequiredMixin, TemplateView):
     """Workspace dashboard at ``/``.
 

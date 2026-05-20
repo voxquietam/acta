@@ -86,6 +86,13 @@ Pages extend this and override the `app_main` block.
         <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "Inbox" %}</span>
         {% include "web/_inbox_badge.html" %}
       </a>
+      <a href="{% url 'web:my_activity' %}"
+         :class="!$store.sidebar.open && 'justify-center'"
+         class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground">
+        {% lucide "history" "w-4 h-4 shrink-0" %}
+        <span x-show="$store.sidebar.open" x-cloak>{% trans "My activity" %}</span>
+        <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "My activity" %}</span>
+      </a>
       <a href="{% url 'web:all_tasks' %}"
          :class="!$store.sidebar.open && 'justify-center'"
          class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground">

@@ -4,6 +4,7 @@ from .views import (
     AllTasksView,
     DashboardView,
     InboxView,
+    MyActivityView,
     MyWorkView,
     ProjectDetailView,
     ProjectListView,
@@ -57,6 +58,7 @@ app_name = "web"
 urlpatterns = [
     path("", DashboardView.as_view(), name="dashboard"),
     path("my-work/", MyWorkView.as_view(), name="my_work"),
+    path("my-activity/", MyActivityView.as_view(), name="my_activity"),
     path("inbox/", InboxView.as_view(), name="inbox"),
     path("inbox/bulk/", bulk_notifications, name="notifications_bulk"),
     path("inbox/read-all/", read_all_notifications, name="notifications_read_all"),

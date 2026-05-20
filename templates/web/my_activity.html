@@ -1,0 +1,15 @@
+{% extends "base_app.html" %}
+{% load i18n %}
+{% comment %}
+My Activity page — personal feed of the user's own comments + activity,
+with inbox-style tabs. The content (tabs + feed) lives in
+_my_activity_inner.html so tab clicks swap it whole over HTMX.
+{% endcomment %}
+
+{% block topbar_left %}
+<h1 class="text-base font-semibold text-foreground">{% trans "My activity" %}</h1>
+{% endblock %}
+
+{% block app_main %}
+{% include "web/_my_activity_inner.html" %}
+{% endblock %}
