@@ -1294,14 +1294,12 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         ctx["overview_overdue"] = stats["overdue"]
         ctx["overview_velocity_7d"] = stats["velocity_7d"]
         ctx["overview_last_activity_at"] = stats["last_activity"]
-        ctx["overview_latest_updates"] = list(project.updates.select_related("author").order_by("-created_at")[:3])
-        # When the latest-3 fetch returned fewer than 3 rows the table can't
-        # hold more — skip the extra COUNT(*) and just trust the slice's
-        # length. Most projects sit in this branch.
-        if len(ctx["overview_latest_updates"]) < 3:
-            ctx["overview_updates_total"] = len(ctx["overview_latest_updates"])
-        else:
-            ctx["overview_updates_total"] = project.updates.count()
+        # Linear-style: the overview surfaces only the latest update; the
+        # full history lives in the inbox Updates tab (filtered by project).
+        # Skip the COUNT(*) entirely when there are no updates (the common
+        # case), so the empty project keeps its constant query count.
+        ctx["overview_latest_updates"] = list(project.updates.select_related("author").order_by("-created_at")[:1])
+        ctx["overview_updates_total"] = project.updates.count() if ctx["overview_latest_updates"] else 0
         ctx["overview_project_age_days"] = (today - project.created_at.date()).days
         ctx["health_labels"] = dict(ProjectUpdate.HEALTH_CHOICES)
         ctx["latest_health"] = ctx["overview_latest_updates"][0].health if ctx["overview_latest_updates"] else None
@@ -2693,6 +2691,48 @@ def set_project_lead(request, slug_prefix):
             {
                 "project": project,
                 "workspace_members": _project_workspace_members(project, exclude_user=None),
+            },
+            request=request,
+        ),
+    )
+
+
+@require_POST
+@login_required
+def post_project_update(request, slug_prefix):
+    """Create a status update from the project overview composer.
+
+    Reads ``health`` (one of :attr:`ProjectUpdate.HEALTH_CHOICES`) and a
+    Markdown ``body``, authored by the current user. Returns the rendered
+    update card so HTMX can prepend it to the overview Updates list.
+
+    Args:
+        request: Django request carrying ``health`` + ``body`` fields.
+        slug_prefix: Project slug prefix from the URL.
+
+    Returns:
+        Rendered ``_overview_update_card.html`` for the new update, or
+        400 when ``health`` is invalid or ``body`` is empty.
+    """
+    project = _get_user_project_or_404(request.user, slug_prefix)
+    health = (request.POST.get("health") or "").strip()
+    if health not in {key for key, _ in ProjectUpdate.HEALTH_CHOICES}:
+        return HttpResponseBadRequest("invalid health")
+    body = (request.POST.get("body") or "").strip()
+    if not body:
+        return HttpResponseBadRequest("body required")
+    update = ProjectUpdate.objects.create(
+        project=project,
+        author=request.user,
+        health=health,
+        body=body,
+    )
+    return HttpResponse(
+        render_to_string(
+            "web/projects/_overview_update_card.html",
+            {
+                "update": update,
+                "health_labels": dict(ProjectUpdate.HEALTH_CHOICES),
             },
             request=request,
         ),

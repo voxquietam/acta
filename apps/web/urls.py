@@ -23,6 +23,7 @@ from .views import (
     mention_search,
     open_notification,
     post_comment,
+    post_project_update,
     read_all_notifications,
     remove_task_link,
     remove_workspace_member,
@@ -118,6 +119,11 @@ urlpatterns = [
         "projects/<str:slug_prefix>/lead/",
         set_project_lead,
         name="set_project_lead",
+    ),
+    path(
+        "projects/<str:slug_prefix>/updates/post/",
+        post_project_update,
+        name="post_project_update",
     ),
     path(
         "projects/<str:slug_prefix>/description/",

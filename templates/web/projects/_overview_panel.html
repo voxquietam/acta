@@ -159,74 +159,101 @@ Members with role badges.
 
       {% comment %}
       Latest project update(s). Linear-style cards: avatar + author +
-      relative date + health pill, followed by markdown body. Empty
-      state is a dashed-border card with a brand CTA to write the
-      first update. Posting / editing the update itself lands in the
-      future feature [[project-todo-project-updates-inbox]] — for now
-      the CTA links to admin.
+      relative date + health pill, followed by markdown body. The "new"
+      button reveals an inline composer (health chips + the shared TipTap
+      editor, same wiring as the comment form); posting prepends the new
+      card to ``#overview-updates-list`` without a reload. Cards live in
+      ``_overview_update_card.html`` so the POST response can render one.
 
       Sits above Description per Vox's preference: status posts read as
       the project's pulse, the description is reference material below.
       {% endcomment %}
-      <section>
+      <section x-data="{ composing: false, empty: true, hasUpdates: {{ overview_latest_updates|yesno:'true,false' }} }">
         <div class="flex items-center gap-2 mb-2.5">
           <h2 class="text-[10px] uppercase tracking-wider text-placeholder-foreground font-semibold">
-            {% if overview_updates_total %}{% trans "Updates" %}{% else %}{% trans "Latest update" %}{% endif %}
+            {% trans "Latest update" %}
           </h2>
-          {% if overview_updates_total > overview_latest_updates|length %}
-          <span class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-muted text-subtle-foreground">{{ overview_updates_total }}</span>
+          {% if overview_updates_total > 1 %}
+          <a href="{% url 'web:inbox' %}?tab=updates&project={{ project.id }}"
+             hx-boost="true" hx-target="#app-content" hx-select="#app-content" hx-swap="outerHTML show:top" hx-push-url="true"
+             class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-muted text-subtle-foreground hover:text-foreground transition">{{ overview_updates_total }}</a>
           {% endif %}
           <span class="flex-1"></span>
-          <a href="/admin/projects/projectupdate/add/?project={{ project.id }}"
-             class="inline-flex items-center gap-1 text-[10px] text-placeholder-foreground hover:text-brand-300 transition">
+          <button type="button" @click="composing = !composing"
+                  class="inline-flex items-center gap-1 text-[10px] text-placeholder-foreground hover:text-brand-300 transition">
             {% lucide "plus" "w-2.5 h-2.5" %}
             {% trans "new" %}
-          </a>
+          </button>
         </div>
 
-        {% if overview_latest_updates %}
-        <div class="space-y-2">
-          {% for update in overview_latest_updates %}
-          <div class="bg-background border border-border rounded-lg p-4">
-            <div class="flex items-center gap-2 mb-2">
-              {% if update.author %}
-              <span class="w-[22px] h-[22px] rounded-full text-white grid place-items-center font-medium text-[11px]"
-                    style="background-color: {{ update.author.avatar_color }};">{{ update.author.display_name|slice:":1"|upper }}</span>
-              <span class="text-[12px] text-foreground font-medium">{{ update.author.display_name }}</span>
-              {% else %}
-              <span class="w-[22px] h-[22px] rounded-full bg-muted text-placeholder-foreground grid place-items-center text-[11px]">?</span>
-              <span class="text-[12px] text-placeholder-foreground italic">{% trans "unknown" %}</span>
-              {% endif %}
-              <span class="text-[10.5px] text-placeholder-foreground">{% blocktrans with t=update.created_at|timesince %}posted {{ t }} ago{% endblocktrans %}</span>
-              <span class="ml-auto inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded
-                {% if update.health == 'on_track' %}bg-emerald-900 text-emerald-300
-                {% elif update.health == 'at_risk' %}bg-amber-900 text-amber-300
-                {% elif update.health == 'off_track' %}bg-rose-900 text-rose-300
-                {% elif update.health == 'completed' %}bg-sky-900 text-sky-300{% endif %}">
-                <span class="w-1.5 h-1.5 rounded-full
-                  {% if update.health == 'on_track' %}bg-emerald-500
-                  {% elif update.health == 'at_risk' %}bg-amber-500
-                  {% elif update.health == 'off_track' %}bg-rose-500
-                  {% elif update.health == 'completed' %}bg-sky-500{% endif %}"></span>
-                {{ health_labels|get_item:update.health }}
+        {% comment %}
+        Inline composer — health radio chips + the shared TipTap editor
+        (``data-no-autosave``: explicit submit only). The overview shows
+        only the latest update, so a successful post REPLACES the list
+        (innerHTML) with the new card; the editor clears and the form folds.
+        {% endcomment %}
+        <form x-show="composing" x-cloak
+              hx-post="{% url 'web:post_project_update' slug_prefix=project.slug_prefix %}"
+              hx-target="#overview-updates-list" hx-swap="innerHTML"
+              @editor:change="empty = $event.detail.empty"
+              @htmx:after-request="if ($event.detail.successful) {
+                  composing = false; hasUpdates = true;
+                  const ed = $el.querySelector('[data-description-editor]')?._editor;
+                  if (ed) ed.commands.clearContent();
+              }"
+              class="bg-background border border-border rounded-lg p-3 mb-2 space-y-2.5">
+          {% csrf_token %}
+          <div class="flex flex-wrap items-center gap-1.5">
+            {% for key, label in health_labels.items %}
+            <label class="cursor-pointer">
+              <input type="radio" name="health" value="{{ key }}" {% if key == 'on_track' %}checked{% endif %} class="peer sr-only">
+              <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] border transition peer-checked:font-medium {% if key == 'on_track' %}border-emerald-500/40 text-emerald-700 dark:text-emerald-300 peer-checked:bg-emerald-500/15{% elif key == 'at_risk' %}border-amber-500/40 text-amber-700 dark:text-amber-300 peer-checked:bg-amber-500/15{% elif key == 'off_track' %}border-rose-500/40 text-rose-700 dark:text-rose-300 peer-checked:bg-rose-500/15{% else %}border-sky-500/40 text-sky-700 dark:text-sky-300 peer-checked:bg-sky-500/15{% endif %}">
+                <span class="w-1.5 h-1.5 rounded-full {% if key == 'on_track' %}bg-emerald-500{% elif key == 'at_risk' %}bg-amber-500{% elif key == 'off_track' %}bg-rose-500{% else %}bg-sky-500{% endif %}"></span>
+                {{ label }}
               </span>
-            </div>
-            <div class="prose prose-sm dark:prose-invert max-w-none text-[12.5px] leading-relaxed text-muted-foreground">
-              {{ update.body|markdown }}
-            </div>
+            </label>
+            {% endfor %}
           </div>
+          <div data-description-editor
+               data-no-autosave
+               data-placeholder="{% trans 'Write an update…' %}">
+            <input type="hidden" name="body" value="" data-editor-output>
+            <textarea class="description-editor-source hidden" readonly></textarea>
+            {% include "web/projects/_editor_toolbar.html" %}
+            <div class="description-editor-mount min-h-[3rem] bg-card border border-border rounded-lg p-3"></div>
+          </div>
+          <div class="flex items-center justify-end gap-2">
+            <button type="button" @click="composing = false"
+                    class="px-3 py-1.5 text-xs rounded-md text-subtle-foreground hover:text-foreground hover:bg-muted transition">{% trans "Cancel" %}</button>
+            <button type="submit" :disabled="empty"
+                    class="px-3 py-1.5 text-xs rounded-md bg-brand-600 text-white hover:bg-brand-500 disabled:opacity-40 disabled:cursor-not-allowed">{% trans "Post update" %}</button>
+          </div>
+        </form>
+
+        <div id="overview-updates-list" class="space-y-2">
+          {% for update in overview_latest_updates %}
+          {% include "web/projects/_overview_update_card.html" %}
           {% endfor %}
         </div>
-        {% else %}
-        <div class="border border-dashed border-border-strong rounded-lg p-6 text-center bg-background">
+
+        {% if overview_updates_total > 1 %}
+        <a href="{% url 'web:inbox' %}?tab=updates&project={{ project.id }}"
+           hx-boost="true" hx-target="#app-content" hx-select="#app-content" hx-swap="outerHTML show:top" hx-push-url="true"
+           class="inline-flex items-center gap-1 mt-2.5 text-[11px] text-placeholder-foreground hover:text-brand-300 transition">
+          {% trans "View all updates" %}
+          {% lucide "arrow-right" "w-3 h-3" %}
+        </a>
+        {% endif %}
+
+        <div x-show="!hasUpdates" x-cloak
+             class="border border-dashed border-border-strong rounded-lg p-6 text-center bg-background">
           <p class="text-[12px] text-placeholder-foreground italic">{% trans "No updates yet — post one to keep the team in sync." %}</p>
-          <a href="/admin/projects/projectupdate/add/?project={{ project.id }}"
-             class="inline-flex items-center gap-1.5 mt-3 px-3 py-1 rounded-md bg-brand-500/15 text-brand-300 border border-brand-500/30 text-[11px] hover:bg-brand-500/20 transition">
+          <button type="button" @click="composing = true"
+                  class="inline-flex items-center gap-1.5 mt-3 px-3 py-1 rounded-md bg-brand-500/15 text-brand-300 border border-brand-500/30 text-[11px] hover:bg-brand-500/20 transition">
             {% lucide "plus" "w-3 h-3" %}
             {% trans "Write first update" %}
-          </a>
+          </button>
         </div>
-        {% endif %}
       </section>
 
       {% comment %}

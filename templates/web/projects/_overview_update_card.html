@@ -1,0 +1,35 @@
+{% load i18n %}
+{% load web_extras %}
+{% comment %}
+One project status update card. Used both in the overview Updates list
+loop and as the response fragment when a new update is posted (prepended
+to ``#overview-updates-list``). Expects ``update`` + ``health_labels``.
+{% endcomment %}
+<div class="bg-background border border-border rounded-lg p-4">
+  <div class="flex items-center gap-2 mb-2">
+    {% if update.author %}
+    <span class="w-[22px] h-[22px] rounded-full text-white grid place-items-center font-medium text-[11px]"
+          style="background-color: {{ update.author.avatar_color }};">{{ update.author.display_name|slice:":1"|upper }}</span>
+    <span class="text-[12px] text-foreground font-medium">{{ update.author.display_name }}</span>
+    {% else %}
+    <span class="w-[22px] h-[22px] rounded-full bg-muted text-placeholder-foreground grid place-items-center text-[11px]">?</span>
+    <span class="text-[12px] text-placeholder-foreground italic">{% trans "unknown" %}</span>
+    {% endif %}
+    <span class="text-[10.5px] text-placeholder-foreground">{% blocktrans with t=update.created_at|timesince %}posted {{ t }} ago{% endblocktrans %}</span>
+    <span class="ml-auto inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded
+      {% if update.health == 'on_track' %}bg-emerald-900 text-emerald-300
+      {% elif update.health == 'at_risk' %}bg-amber-900 text-amber-300
+      {% elif update.health == 'off_track' %}bg-rose-900 text-rose-300
+      {% elif update.health == 'completed' %}bg-sky-900 text-sky-300{% endif %}">
+      <span class="w-1.5 h-1.5 rounded-full
+        {% if update.health == 'on_track' %}bg-emerald-500
+        {% elif update.health == 'at_risk' %}bg-amber-500
+        {% elif update.health == 'off_track' %}bg-rose-500
+        {% elif update.health == 'completed' %}bg-sky-500{% endif %}"></span>
+      {{ health_labels|get_item:update.health }}
+    </span>
+  </div>
+  <div class="prose prose-sm dark:prose-invert max-w-none text-[12.5px] leading-relaxed text-muted-foreground">
+    {{ update.body|markdown }}
+  </div>
+</div>
