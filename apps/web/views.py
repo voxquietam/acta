@@ -610,7 +610,7 @@ def _get_user_notification_or_404(user, pk):
         The :class:`Notification` instance.
     """
     return get_object_or_404(
-        Notification.objects.select_related("task__project", "actor", "comment"),
+        Notification.objects.select_related("task__project", "actor", "comment", "project_update__project"),
         pk=pk,
         recipient=user,
     )

@@ -16,18 +16,7 @@ to ``#overview-updates-list``). Expects ``update`` + ``health_labels``.
     <span class="text-[12px] text-placeholder-foreground italic">{% trans "unknown" %}</span>
     {% endif %}
     <span class="text-[10.5px] text-placeholder-foreground">{% blocktrans with t=update.created_at|timesince %}posted {{ t }} ago{% endblocktrans %}</span>
-    <span class="ml-auto inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded
-      {% if update.health == 'on_track' %}bg-emerald-900 text-emerald-300
-      {% elif update.health == 'at_risk' %}bg-amber-900 text-amber-300
-      {% elif update.health == 'off_track' %}bg-rose-900 text-rose-300
-      {% elif update.health == 'completed' %}bg-sky-900 text-sky-300{% endif %}">
-      <span class="w-1.5 h-1.5 rounded-full
-        {% if update.health == 'on_track' %}bg-emerald-500
-        {% elif update.health == 'at_risk' %}bg-amber-500
-        {% elif update.health == 'off_track' %}bg-rose-500
-        {% elif update.health == 'completed' %}bg-sky-500{% endif %}"></span>
-      {{ health_labels|get_item:update.health }}
-    </span>
+    <span class="ml-auto">{% include "web/_health_pill.html" with health=update.health %}</span>
   </div>
   <div class="prose prose-sm dark:prose-invert max-w-none text-[12.5px] leading-relaxed text-muted-foreground">
     {{ update.body|markdown }}

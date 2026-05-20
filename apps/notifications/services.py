@@ -50,6 +50,7 @@ def notify(
         task: The target :class:`Task`, if any.
         comment: The triggering :class:`Comment`, if any.
         activity: The source :class:`ActivityLog` row, if any.
+        project_update: The target :class:`ProjectUpdate`, if any.
         preview: Denormalized snippet for the inbox list.
         payload: Event-specific JSON details (status diff, tint, etc.).
 

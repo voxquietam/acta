@@ -61,6 +61,32 @@ class TestInboxPage:
         resp = client.get(reverse("web:inbox"))
         assert resp.context["inbox_unread"] == 3
 
+    def test_inbox_list_no_n_plus_one(self, client, user_ws):
+        """Rendering the inbox is constant-query: adding rows must not add SELECTs."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from apps.projects.tests.factories import ProjectFactory
+        from apps.tasks.tests.factories import TaskFactory
+
+        user, ws = user_ws
+        project = ProjectFactory(workspace=ws)
+
+        def make(n):
+            for _ in range(n):
+                NotificationFactory(recipient=user, workspace=ws, task=TaskFactory(project=project), preview="x")
+
+        make(3)
+        client.force_login(user)
+        with CaptureQueriesContext(connection) as few:
+            client.get(reverse("web:inbox"))
+        make(5)
+        with CaptureQueriesContext(connection) as more:
+            client.get(reverse("web:inbox"))
+        assert len(more.captured_queries) == len(
+            few.captured_queries
+        ), f"inbox queries grew with row count: {len(few.captured_queries)} -> {len(more.captured_queries)}"
+
     def test_strip_projects_limited_to_those_with_notifications(self, client, user_ws):
         """The project strip only lists projects this user has notifications in."""
         from apps.projects.tests.factories import ProjectFactory
