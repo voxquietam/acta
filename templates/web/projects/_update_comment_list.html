@@ -1,0 +1,9 @@
+{% comment %}
+The <li> rows of one update's comment thread (top-level comments, each
+with its one-level replies). Rendered inside #update-comments-<pk> on
+first paint and returned by post_update_comment to replace the thread.
+Expects ``update``.
+{% endcomment %}
+{% for comment in update.top_level_comments %}
+{% include "web/projects/_update_comment.html" %}
+{% endfor %}

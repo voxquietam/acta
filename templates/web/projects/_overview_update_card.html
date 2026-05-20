@@ -32,4 +32,5 @@ to ``#overview-updates-list``). Expects ``update`` + ``health_labels``.
   <div class="prose prose-sm dark:prose-invert max-w-none text-[12.5px] leading-relaxed text-muted-foreground">
     {{ update.body|markdown }}
   </div>
+  {% include "web/projects/_update_comments.html" with update=update %}
 </div>

@@ -1,0 +1,36 @@
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+Comment thread (Linear-style cards) + a bottom composer for new
+top-level comments. Reused in the inbox Updates preview pane and the
+project overview's latest-update card. Expects ``update``.
+
+Each thread card carries its own inline reply composer (see
+_update_comment.html); this bottom composer starts new top-level
+threads. Posting appends the new card / reply surgically, so half-typed
+text in other inputs is never wiped. Forms carry their own CSRF token.
+{% endcomment %}
+<div class="mt-3 pt-3 border-t border-border">
+  <h3 class="text-[10px] uppercase tracking-wider text-placeholder-foreground font-semibold mb-2">{% trans "Comments" %}</h3>
+  <ul id="update-comments-{{ update.pk }}" class="space-y-3">
+    {% include "web/projects/_update_comment_list.html" %}
+  </ul>
+  <form x-data="{}"
+        hx-post="{% url 'web:post_update_comment' pk=update.pk %}"
+        hx-target="#update-comments-{{ update.pk }}" hx-swap="beforeend"
+        @htmx:after-request="if ($event.detail.successful) { $el.reset(); $refs.ta.style.height = 'auto'; }"
+        class="mt-3 bg-card border border-border rounded-lg flex items-end gap-2 px-4 py-2.5">
+    {% csrf_token %}
+    {% if user.is_authenticated %}
+    <span class="w-6 h-6 rounded-full text-white grid place-items-center font-medium text-[11px] shrink-0"
+          style="background-color: {{ user.avatar_color }};">{{ user.display_name|slice:":1"|upper }}</span>
+    {% endif %}
+    <textarea x-ref="ta" name="body" required rows="1" placeholder="{% trans 'Leave a comment…' %}"
+              oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"
+              class="flex-1 bg-transparent text-sm text-foreground placeholder:text-placeholder-foreground resize-none focus:outline-none py-1 max-h-40"></textarea>
+    <button type="submit" data-tooltip="{% trans 'Comment' %}" data-tooltip-pos="below-left"
+            class="shrink-0 w-7 h-7 grid place-items-center rounded-full bg-muted text-placeholder-foreground hover:bg-brand-600 hover:text-white transition">
+      {% lucide "arrow-up" "w-3.5 h-3.5" %}
+    </button>
+  </form>
+</div>

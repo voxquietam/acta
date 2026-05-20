@@ -4,18 +4,39 @@ from django.utils.translation import gettext_lazy as _
 
 
 class Comment(models.Model):
-    """A Markdown comment attached to a task.
+    """A Markdown comment attached to a task or a project update.
 
-    Comments contribute to the activity log via ``comment.created`` /
-    ``comment.edited`` / ``comment.deleted`` events (see
-    docs/decisions/0011-activity-log.md).
+    Targets exactly one of ``task`` / ``project_update`` (enforced by a
+    DB check constraint). Task comments contribute to the activity log
+    via ``comment.created`` / ``comment.edited`` / ``comment.deleted``
+    events (see docs/decisions/0011-activity-log.md); project-update
+    comments do not — updates are intentionally off the activity log.
+    One level of threading is supported via ``parent``.
     """
 
     task = models.ForeignKey(
         "tasks.Task",
         on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         related_name="comments",
-        help_text="Task this comment is attached to",
+        help_text="Task this comment is attached to. Null when it targets a project update",
+    )
+    project_update = models.ForeignKey(
+        "projects.ProjectUpdate",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="comments",
+        help_text="Project update this comment is attached to. Null when it targets a task",
+    )
+    parent = models.ForeignKey(
+        "self",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="replies",
+        help_text="Parent comment when this is a one-level reply; null for top-level comments",
     )
     author = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -42,11 +63,38 @@ class Comment(models.Model):
         ordering = [
             "created_at",
         ]
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(task__isnull=False, project_update__isnull=True)
+                    | models.Q(task__isnull=True, project_update__isnull=False)
+                ),
+                name="comment_exactly_one_target",
+            ),
+        ]
 
     def __str__(self) -> str:
-        """Return author, task, and a preview of the comment body."""
+        """Return author, target, and a preview of the comment body."""
         preview = self.body[:60].replace("\n", " ")
-        return f"{self.author} on {self.task}: {preview}"
+        return f"{self.author} on {self.task or self.project_update}: {preview}"
+
+    def clean(self) -> None:
+        """Validate the comment target and one-level reply threading.
+
+        Raises:
+            ValidationError: If neither or both targets are set, or a
+                reply points at another reply / a comment on a different
+                target.
+        """
+        from django.core.exceptions import ValidationError
+
+        if bool(self.task_id) == bool(self.project_update_id):
+            raise ValidationError(_("A comment must target exactly one of a task or a project update."))
+        if self.parent_id is not None:
+            if self.parent.parent_id is not None:
+                raise ValidationError(_("Replies cannot have their own replies (depth limit 1)."))
+            if self.parent.task_id != self.task_id or self.parent.project_update_id != self.project_update_id:
+                raise ValidationError(_("A reply must belong to the same target as its parent."))
 
     @property
     def was_edited(self) -> bool:

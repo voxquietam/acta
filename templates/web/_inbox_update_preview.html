@@ -31,6 +31,7 @@ when an update row is clicked.
       <span>· {{ u.created_at|timesince }} {% trans "ago" %}</span>
     </div>
     <div class="prose dark:prose-invert prose-sm max-w-none text-muted-foreground">{{ u.body|markdown }}</div>
+    {% include "web/projects/_update_comments.html" with update=u %}
   </div>
 </div>
 {% endwith %}

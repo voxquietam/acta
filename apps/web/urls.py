@@ -24,6 +24,7 @@ from .views import (
     open_notification,
     post_comment,
     post_project_update,
+    post_update_comment,
     read_all_notifications,
     remove_task_link,
     remove_workspace_member,
@@ -124,6 +125,11 @@ urlpatterns = [
         "projects/<str:slug_prefix>/updates/post/",
         post_project_update,
         name="post_project_update",
+    ),
+    path(
+        "updates/<int:pk>/comment/",
+        post_update_comment,
+        name="post_update_comment",
     ),
     path(
         "projects/<str:slug_prefix>/description/",

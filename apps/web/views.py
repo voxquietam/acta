@@ -2882,6 +2882,46 @@ def post_comment(request, slug_prefix, number):
     )
 
 
+@require_POST
+@login_required
+def post_update_comment(request, pk):
+    """Create a comment (or one-level reply) on a project update.
+
+    Reads a Markdown ``body`` and an optional ``parent`` (a top-level
+    comment id). Returns just the new node so HTMX appends it without
+    disturbing other in-progress inputs: a whole thread card for a
+    top-level comment, or a single reply block for a reply. Posted from
+    both the inbox Updates preview and the project overview.
+
+    Args:
+        request: Django request carrying ``body`` + optional ``parent``.
+        pk: Project update primary key.
+
+    Returns:
+        Rendered ``_update_comment.html`` (new card) or
+        ``_update_comment_reply.html`` (new reply), 400 on an empty body
+        / bad parent, or 404 for a foreign / missing update.
+    """
+    update = get_object_or_404(
+        ProjectUpdate.objects.filter(project__workspace__memberships__user=request.user).select_related("project"),
+        pk=pk,
+    )
+    body = (request.POST.get("body") or "").strip()
+    if not body:
+        return HttpResponseBadRequest("body required")
+    parent = None
+    parent_raw = (request.GET.get("parent") or request.POST.get("parent") or "").strip()
+    if parent_raw:
+        if not parent_raw.isdigit():
+            return HttpResponseBadRequest("invalid parent")
+        parent = Comment.objects.filter(project_update=update, parent__isnull=True, pk=int(parent_raw)).first()
+        if parent is None:
+            return HttpResponseBadRequest("invalid parent")
+    comment = Comment.objects.create(project_update=update, author=request.user, parent=parent, body=body)
+    template = "web/projects/_update_comment_reply.html" if parent else "web/projects/_update_comment.html"
+    return HttpResponse(render_to_string(template, {"comment": comment}, request=request))
+
+
 def _user_accessible_projects(user):
     """Return projects the user can post tasks to, with workspace eager-loaded.
 

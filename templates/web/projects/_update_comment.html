@@ -1,0 +1,37 @@
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+One comment thread, Linear-style: a card holding the top-level comment,
+its one-level replies (divided), and a persistent inline reply composer
+at the bottom. ``post_update_comment`` returns this whole card when a new
+top-level comment is posted (appended to #update-comments-<update pk>).
+Expects ``comment`` (a top-level comment).
+{% endcomment %}
+<li id="update-comment-{{ comment.id }}" class="bg-card border border-border rounded-lg overflow-hidden">
+  {% include "web/projects/_update_comment_body.html" %}
+
+  <div id="update-replies-{{ comment.id }}">
+    {% for reply in comment.replies.all %}
+    {% include "web/projects/_update_comment_reply.html" with comment=reply %}
+    {% endfor %}
+  </div>
+
+  <form x-data="{}"
+        hx-post="{% url 'web:post_update_comment' pk=comment.project_update_id %}?parent={{ comment.id }}"
+        hx-target="#update-replies-{{ comment.id }}" hx-swap="beforeend"
+        @htmx:after-request="if ($event.detail.successful) { $el.reset(); $refs.ta.style.height = 'auto'; }"
+        class="flex items-end gap-2 px-4 py-2.5 border-t border-border">
+    {% csrf_token %}
+    {% if user.is_authenticated %}
+    <span class="w-6 h-6 rounded-full text-white grid place-items-center font-medium text-[11px] shrink-0"
+          style="background-color: {{ user.avatar_color }};">{{ user.display_name|slice:":1"|upper }}</span>
+    {% endif %}
+    <textarea x-ref="ta" name="body" required rows="1" placeholder="{% trans 'Leave a reply…' %}"
+              oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"
+              class="flex-1 bg-transparent text-sm text-foreground placeholder:text-placeholder-foreground resize-none focus:outline-none py-1 max-h-40"></textarea>
+    <button type="submit" data-tooltip="{% trans 'Reply' %}" data-tooltip-pos="below-left"
+            class="shrink-0 w-7 h-7 grid place-items-center rounded-full bg-muted text-placeholder-foreground hover:bg-brand-600 hover:text-white transition">
+      {% lucide "arrow-up" "w-3.5 h-3.5" %}
+    </button>
+  </form>
+</li>

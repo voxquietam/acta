@@ -248,3 +248,22 @@ class ProjectUpdate(models.Model):
     def __str__(self) -> str:
         """Return project, health, and date for the update."""
         return f"{self.project} · {self.health} · {self.created_at:%Y-%m-%d}"
+
+    @property
+    def top_level_comments(self):
+        """Return this update's top-level comments, replies prefetched.
+
+        Replies (one level deep) come back via each comment's ``replies``
+        relation. Authors are eager-loaded so the thread renders without
+        an extra query per row.
+
+        Returns:
+            A queryset of top-level :class:`apps.comments.models.Comment`
+            rows ordered oldest-first.
+        """
+        return (
+            self.comments.filter(parent__isnull=True)
+            .select_related("author")
+            .prefetch_related("replies__author")
+            .order_by("created_at")
+        )
