@@ -109,11 +109,68 @@ class TestMyActivity:
         client.force_login(ws.owner)
         first = client.get(reverse("web:my_activity"))
         assert first.context["has_more"] is True
+        assert first.context["remaining_count"] == 5
         assert len(first.context["my_comments"]) == 50
         second = client.get(reverse("web:my_activity"), {"tab": "comments", "offset": 50, "items": 1})
         assert second.status_code == 200
         assert len(second.context["my_comments"]) == 5
         assert second.context["has_more"] is False
+        assert second.context["remaining_count"] == 0
+
+    def test_activity_type_filter(self, client):
+        ws = WorkspaceFactory()
+        project = ProjectFactory(workspace=ws)
+        task = TaskFactory(project=project)
+        log_event(
+            workspace=ws,
+            project=project,
+            actor=ws.owner,
+            event_type="task.status_changed",
+            target_type=ActivityLog.TARGET_TASK,
+            target_id=task.id,
+            payload={"from": "to-do", "to": "done"},
+        )
+        log_event(
+            workspace=ws,
+            project=project,
+            actor=ws.owner,
+            event_type="comment.created",
+            target_type=ActivityLog.TARGET_COMMENT,
+            target_id=7,
+            payload={"task_id": task.id, "body_preview": "x"},
+        )
+        client.force_login(ws.owner)
+        resp = client.get(reverse("web:my_activity"), {"tab": "activity", "types": "comments"})
+        kinds = {e.event_type for e in resp.context["my_events"]}
+        assert kinds == {"comment.created"}
+
+    def test_activity_search_matches_comment_preview(self, client):
+        ws = WorkspaceFactory()
+        project = ProjectFactory(workspace=ws)
+        task = TaskFactory(project=project)
+        log_event(
+            workspace=ws,
+            project=project,
+            actor=ws.owner,
+            event_type="comment.created",
+            target_type=ActivityLog.TARGET_COMMENT,
+            target_id=8,
+            payload={"task_id": task.id, "body_preview": "needle zzz"},
+        )
+        log_event(
+            workspace=ws,
+            project=project,
+            actor=ws.owner,
+            event_type="comment.created",
+            target_type=ActivityLog.TARGET_COMMENT,
+            target_id=9,
+            payload={"task_id": task.id, "body_preview": "other"},
+        )
+        client.force_login(ws.owner)
+        resp = client.get(reverse("web:my_activity"), {"tab": "activity", "q": "needle"})
+        previews = [e.payload.get("body_preview") for e in resp.context["my_events"]]
+        assert "needle zzz" in previews
+        assert "other" not in previews
 
     def test_counts_in_context(self, client):
         ws = WorkspaceFactory()

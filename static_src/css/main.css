@@ -245,6 +245,16 @@ main {
   font-weight: 400;
   font-size: 0.875em;
 }
+/* Fenced code blocks: Tailwind typography's default ``pre`` is dark in
+   both themes (article style), which reads as a stray dark box in the
+   light theme. Track the theme tokens instead, matching inline code. */
+.prose pre {
+  background-color: rgb(var(--muted));
+  color: rgb(var(--foreground));
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgb(var(--border));
+}
 .prose pre code {
   background-color: transparent;
   padding: 0;

@@ -21,6 +21,28 @@ scrolls, so the tabs stay pinned without sticky hacks.
     </a>
   </div>
 
+  {% if activity_tab == 'activity' %}
+  {% comment %}
+  Activity filters — text search + multi-select event-type chips. The
+  form auto-submits (HTMX) on chip toggle / debounced typing and swaps
+  the whole content. The search keeps focus across swaps via its stable id.
+  {% endcomment %}
+  <form hx-get="{% url 'web:my_activity' %}" hx-target="#my-activity-content" hx-swap="outerHTML" hx-push-url="true"
+        hx-trigger="change, keyup changed delay:350ms from:#activity-search"
+        class="flex items-center gap-1.5 px-4 md:px-8 py-2.5 border-b border-border shrink-0 flex-wrap bg-subtle/40">
+    <input type="hidden" name="tab" value="activity">
+    <input id="activity-search" type="search" name="q" value="{{ activity_q }}"
+           placeholder="{% trans 'Search activity…' %}"
+           class="acta-input text-xs w-44 mr-1">
+    {% for chip in activity_type_chips %}
+    <label class="cursor-pointer">
+      <input type="checkbox" name="types" value="{{ chip.key }}" {% if chip.active %}checked{% endif %} class="peer sr-only">
+      <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] border transition bg-muted/50 border-border text-muted-foreground hover:bg-muted peer-checked:bg-brand-600 peer-checked:text-white peer-checked:border-brand-500">{{ chip.label }}</span>
+    </label>
+    {% endfor %}
+  </form>
+  {% endif %}
+
   <div class="flex-1 overflow-y-auto px-4 md:px-8 py-4">
     {% include "web/_my_activity_items.html" %}
   </div>

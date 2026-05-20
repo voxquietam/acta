@@ -56,9 +56,9 @@ an outerHTML swap, so the next page appends in place).
 {% endif %}
 
 {% if has_more %}
-<button hx-get="{% url 'web:my_activity' %}?tab={{ tab }}&offset={{ next_offset }}&items=1"
+<button hx-get="{% url 'web:my_activity' %}?tab={{ tab }}&offset={{ next_offset }}&items=1{% if activity_filter_qs %}&{{ activity_filter_qs }}{% endif %}"
         hx-target="this" hx-swap="outerHTML"
         class="block w-full text-center text-xs text-placeholder-foreground hover:text-foreground py-3 mt-1">
-  {% lucide "chevron-down" "w-3.5 h-3.5 inline" %} {% trans "Load more" %}
+  {% lucide "chevron-down" "w-3.5 h-3.5 inline" %} {% trans "Load more" %}{% if remaining_count %} <span class="font-mono text-placeholder-foreground">({{ remaining_count }})</span>{% endif %}
 </button>
 {% endif %}

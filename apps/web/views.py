@@ -7,6 +7,7 @@ endpoints (or from `/api/v1/...` for JSON-only consumers).
 
 import datetime
 import re
+from urllib.parse import urlencode
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
@@ -801,6 +802,31 @@ _MY_ACTIVITY_TABS = {
 }
 _MY_ACTIVITY_PAGE_SIZE = 50
 
+# Activity-tab filter chips → the event types each one covers.
+_ACTIVITY_TYPE_GROUPS = {
+    "status": ["task.status_changed"],
+    "priority": ["task.priority_changed"],
+    "assignee": ["task.assigned"],
+    "due": ["task.due_changed"],
+    "labels": ["task.labels_changed"],
+    "comments": ["comment.created"],
+    "links": [
+        "task.link_added",
+        "task.link_removed",
+    ],
+    "edits": ["task.updated"],
+}
+_ACTIVITY_TYPE_LABELS = [
+    ("status", _("Status")),
+    ("priority", _("Priority")),
+    ("assignee", _("Assignee")),
+    ("due", _("Due")),
+    ("labels", _("Labels")),
+    ("comments", _("Comments")),
+    ("links", _("Links")),
+    ("edits", _("Edits")),
+]
+
 
 class MyActivityView(LoginRequiredMixin, TemplateView):
     """The user's own activity at ``/my-activity/``.
@@ -857,9 +883,41 @@ class MyActivityView(LoginRequiredMixin, TemplateView):
         if tab == "comments":
             comments = list(comments_qs.select_related("task__project").order_by("-created_at")[offset:end])
             ctx["my_comments"] = comments
-            ctx["has_more"] = len(comments) == page and comments_qs.count() > offset + page
+            total = comments_qs.count()
+            ctx["has_more"] = len(comments) == page and total > end
+            ctx["remaining_count"] = max(0, total - end)
         else:
-            events = list(events_qs.select_related("project").order_by("-created_at")[offset:end])
+            # Filters: multi-select event-type chips + a text search over
+            # the comment preview and the linked task's title / slug.
+            selected = [t for t in self.request.GET.getlist("types") if t in _ACTIVITY_TYPE_GROUPS]
+            activity_q = (self.request.GET.get("q") or "").strip()
+            filtered = events_qs
+            if selected:
+                event_types = []
+                for key in selected:
+                    event_types += _ACTIVITY_TYPE_GROUPS[key]
+                filtered = filtered.filter(event_type__in=event_types)
+            if activity_q:
+                tmatch = Q(title__icontains=activity_q)
+                upper = activity_q.upper()
+                if "-" in upper:
+                    prefix, _sep, num = upper.rpartition("-")
+                    if num.isdigit():
+                        tmatch |= Q(project__slug_prefix=prefix, number=int(num))
+                elif activity_q.isdigit():
+                    tmatch |= Q(number=int(activity_q))
+                matched_task_ids = list(
+                    Task.objects.filter(project__workspace__memberships__user=user)
+                    .filter(tmatch)
+                    .values_list("id", flat=True)[:500]
+                )
+                match = Q(payload__body_preview__icontains=activity_q)
+                if matched_task_ids:
+                    match |= Q(target_type=ActivityLog.TARGET_TASK, target_id__in=matched_task_ids)
+                    match |= Q(target_type=ActivityLog.TARGET_COMMENT, payload__task_id__in=matched_task_ids)
+                filtered = filtered.filter(match)
+
+            events = list(filtered.select_related("project").order_by("-created_at")[offset:end])
 
             # Resolve the task each event points at, in one batch (no N+1).
             # Task events carry it as ``target_id``; comment events
@@ -880,7 +938,17 @@ class MyActivityView(LoginRequiredMixin, TemplateView):
             ctx["my_event_groups"] = _group_events_by_task(events)
             ctx["status_labels"] = Task.STATUS_LABELS
             ctx["priority_labels"] = dict(Task.PRIORITY_CHOICES)
-            ctx["has_more"] = len(events) == page and events_qs.count() > offset + page
+            total = filtered.count()
+            ctx["has_more"] = len(events) == page and total > end
+            ctx["remaining_count"] = max(0, total - end)
+            ctx["activity_types"] = set(selected)
+            ctx["activity_q"] = activity_q
+            ctx["activity_type_chips"] = [
+                {"key": key, "label": label, "active": key in selected} for key, label in _ACTIVITY_TYPE_LABELS
+            ]
+            ctx["activity_filter_qs"] = urlencode(
+                [("types", t) for t in selected] + ([("q", activity_q)] if activity_q else [])
+            )
         return ctx
 
 
