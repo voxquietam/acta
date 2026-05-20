@@ -64,20 +64,6 @@ Pages extend this and override the `app_main` block.
 
     <div class="px-3 pt-4 pb-3 space-y-0.5 text-sm border-b border-border/60">
       {% with current=request.resolver_match.url_name %}
-      <a href="{% url 'web:dashboard' %}"
-         :class="!$store.sidebar.open && 'justify-center'"
-         class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground">
-        {% lucide "layout-dashboard" "w-4 h-4 shrink-0" %}
-        <span x-show="$store.sidebar.open" x-cloak>{% trans "Dashboard" %}</span>
-        <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "Dashboard" %}</span>
-      </a>
-      <a href="{% url 'web:my_work' %}"
-         :class="!$store.sidebar.open && 'justify-center'"
-         class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground">
-        {% lucide "briefcase" "w-4 h-4 shrink-0" %}
-        <span x-show="$store.sidebar.open" x-cloak>{% trans "My Work" %}</span>
-        <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "My Work" %}</span>
-      </a>
       <a href="{% url 'web:inbox' %}"
          :class="!$store.sidebar.open && 'justify-center'"
          class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground">
@@ -92,6 +78,13 @@ Pages extend this and override the `app_main` block.
         {% lucide "history" "w-4 h-4 shrink-0" %}
         <span x-show="$store.sidebar.open" x-cloak>{% trans "My activity" %}</span>
         <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "My activity" %}</span>
+      </a>
+      <a href="{% url 'web:my_work' %}"
+         :class="!$store.sidebar.open && 'justify-center'"
+         class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground">
+        {% lucide "briefcase" "w-4 h-4 shrink-0" %}
+        <span x-show="$store.sidebar.open" x-cloak>{% trans "My Work" %}</span>
+        <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "My Work" %}</span>
       </a>
       <a href="{% url 'web:all_tasks' %}"
          :class="!$store.sidebar.open && 'justify-center'"
@@ -159,6 +152,13 @@ Pages extend this and override the `app_main` block.
     </nav>
 
     <div class="px-3 py-3 border-t border-border text-xs text-placeholder-foreground space-y-2">
+      <a href="{% url 'web:dashboard' %}"
+         :class="!$store.sidebar.open && 'justify-center'"
+         class="acta-rail-link group relative flex items-center gap-2 hover:text-foreground">
+        {% lucide "layout-dashboard" "w-3.5 h-3.5 shrink-0" %}
+        <span x-show="$store.sidebar.open" x-cloak>{% trans "Dashboard" %}</span>
+        <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "Dashboard" %}</span>
+      </a>
       {% comment %}
       Manual ``htmx.ajax`` call rather than ``hx-get`` because the
       surrounding ``<aside hx-boost="true" hx-select="#app-content">``
