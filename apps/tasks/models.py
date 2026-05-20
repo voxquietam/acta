@@ -136,6 +136,19 @@ class Task(models.Model):
         related_name="tasks",
         help_text="Labels attached to the task",
     )
+    blocks = models.ManyToManyField(
+        "self",
+        symmetrical=False,
+        related_name="blocked_by",
+        blank=True,
+        help_text="Tasks that cannot start until this one is done (directional). Reverse side is blocked_by",
+    )
+    related = models.ManyToManyField(
+        "self",
+        symmetrical=True,
+        blank=True,
+        help_text="Tasks related to this one without a blocking dependency (symmetric)",
+    )
 
     archived_at = models.DateTimeField(
         null=True,
@@ -260,6 +273,36 @@ class Task(models.Model):
             The string ``"{slug_prefix}-{number}"``, e.g. ``"HRW-49"``.
         """
         return f"{self.project.slug_prefix}-{self.number}"
+
+    @property
+    def incomplete_blockers(self):
+        """Return the blocking tasks that are not yet done.
+
+        A task is "blocked" while any task in its ``blocked_by`` set is
+        still open (status != done) and not archived. Used by the
+        Blocked badge + scrumban pull-flow signalling. Callers that
+        render many tasks should ``prefetch_related("blocked_by")`` to
+        avoid an N+1.
+        """
+        return [
+            blocker
+            for blocker in self.blocked_by.all()
+            if blocker.status != self.STATUS_DONE and blocker.archived_at is None
+        ]
+
+    @property
+    def is_blocked(self) -> bool:
+        """``True`` when at least one incomplete task blocks this one."""
+        return len(self.incomplete_blockers) > 0
+
+    @property
+    def is_blocking(self) -> bool:
+        """``True`` when this task blocks at least one still-open task.
+
+        Mirror of :attr:`is_blocked` for the other end of the edge.
+        Callers rendering many tasks should ``prefetch_related("blocks")``.
+        """
+        return any(t.status != self.STATUS_DONE and t.archived_at is None for t in self.blocks.all())
 
     def clean(self) -> None:
         """Validate cross-field invariants beyond what field validators cover.

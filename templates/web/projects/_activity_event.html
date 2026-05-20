@@ -39,6 +39,14 @@ with ``truncate`` so the row never wraps.
       {% if event.added_label_names and event.removed_label_names %} · {% endif %}
       {% if event.removed_label_names %}−{{ event.removed_label_names|join:", " }}{% endif %}
     </span>
+  {% elif event.event_type == "task.link_added" %}
+    <span class="text-placeholder-foreground shrink-0">
+      {% if event.payload.kind == "blocks" %}{% trans "now blocks" %}{% elif event.payload.kind == "blocked_by" %}{% trans "now blocked by" %}{% else %}{% trans "linked" %}{% endif %}
+    </span>
+    <span class="text-placeholder-foreground truncate font-mono">{{ event.payload.target_slug }}</span>
+  {% elif event.event_type == "task.link_removed" %}
+    <span class="text-placeholder-foreground shrink-0">{% trans "unlinked" %}</span>
+    <span class="text-placeholder-foreground truncate font-mono">{{ event.payload.target_slug }}</span>
   {% elif event.event_type == "task.updated" %}
     {% if event.payload.changes.size %}
       <span class="text-placeholder-foreground shrink-0">{% trans "changed size" %}</span>

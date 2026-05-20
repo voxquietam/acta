@@ -1079,6 +1079,22 @@
     handle("task.updated", applyTaskUpdate);
     handle("task.archived", applyTaskUpdate);
     handle("task.unarchived", applyTaskUpdate);
+
+    // Link events bypass the self-filter on purpose: adding a link only
+    // swapped the rail panel (#task-links), so the board card / table row
+    // for this task — and the linked task — are still stale and need the
+    // SSE refresh even when the acting user is the one looking at them.
+    ["task.link_added", "task.link_removed"].forEach((name) => {
+      source.addEventListener(name, (e) => {
+        let d;
+        try {
+          d = JSON.parse(e.data);
+        } catch (_) {
+          return;
+        }
+        applyTaskUpdate(d);
+      });
+    });
     handle("task.deleted", (d) => {
       applyCardRemove(d.target_id);
       document.querySelectorAll(`tr[data-task-id="${d.target_id}"]`).forEach((el) => el.remove());

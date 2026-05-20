@@ -373,7 +373,10 @@ class TestProjectViewQueryCounts:
         for _ in range(20):
             TaskFactory(project=project, reporter=user)
         client.force_login(user)
-        with django_assert_max_num_queries(15):
+        # 17 = 15 baseline + 2 flat prefetches (blocks / blocked_by) the
+        # board cards need for the blocked / blocking badges. Still
+        # constant — adding more tasks must not move it.
+        with django_assert_max_num_queries(17):
             client.get(
                 reverse("web:project_detail", kwargs={"slug_prefix": project.slug_prefix}),
             )

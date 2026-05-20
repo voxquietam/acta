@@ -49,9 +49,12 @@ status dot · slug + priority chevron · title (flex-1) · size · labels
     {% endif %}
   </span>
 
-  <span class="flex-1 min-w-0 truncate
-    {% if task.status == 'done' %}line-through text-placeholder-foreground{% else %}text-foreground{% endif %}">
-    {{ task.title }}
+  <span class="flex items-center gap-1.5 flex-1 min-w-0">
+    {% include "web/projects/_task_link_badges.html" %}
+    <span class="truncate min-w-0
+      {% if task.status == 'done' %}line-through text-placeholder-foreground{% else %}text-foreground{% endif %}">
+      {{ task.title }}
+    </span>
   </span>
 
   <div class="flex items-center gap-2 shrink-0 text-xs">

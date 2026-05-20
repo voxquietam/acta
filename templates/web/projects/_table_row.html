@@ -55,11 +55,14 @@ in context.
     </span>
   </td>
   <td class="px-3 py-2 max-w-md">
-    <a href="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
-       {% open_task_modal_attrs task %}
-       class="block hover:text-brand-400 truncate
-         {% if task.status == 'done' %}line-through text-placeholder-foreground{% else %}text-foreground{% endif %}"
-       title="{{ task.title }}">{{ task.title }}</a>
+    <span class="flex items-center gap-1.5 min-w-0">
+      {% include "web/projects/_task_link_badges.html" %}
+      <a href="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
+         {% open_task_modal_attrs task %}
+         class="block hover:text-brand-400 truncate min-w-0
+           {% if task.status == 'done' %}line-through text-placeholder-foreground{% else %}text-foreground{% endif %}"
+         title="{{ task.title }}">{{ task.title }}</a>
+    </span>
   </td>
   <td class="px-3 py-2 whitespace-nowrap">
     <span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded cursor-pointer transition hover:ring-1 hover:ring-offset-1 hover:ring-offset-card

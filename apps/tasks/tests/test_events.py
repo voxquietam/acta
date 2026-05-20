@@ -171,17 +171,20 @@ class TestEmitTaskDiffEvents:
           (for the SSE card pre-render — see ADR 0015)
         * ``SELECT labels`` again under the prefetch_related on that
           fresh task instance
+        * ``SELECT blocks`` + ``SELECT blocked_by`` — the card now shows
+          the blocked / blocking badges, which read both link sets.
 
-        The cap (4) reflects all of those. What the test prevents is a
-        regression to N separate INSERTs for N events, which would push
-        the cap to 3 + N rather than this constant 4.
+        The cap (6) reflects all of those constant queries. What the
+        test prevents is a regression to N separate INSERTs for N
+        events (which would scale the cap with event count) — the
+        prefetch additions are flat, not per-row.
         """
         task = TaskFactory()
         old = snapshot_task(task)
         task.status = Task.STATUS_DONE
         task.priority = Task.URGENT
         task.save()
-        with django_assert_max_num_queries(4):
+        with django_assert_max_num_queries(6):
             count = emit_task_diff_events(
                 old_state=old,
                 task=task,

@@ -337,7 +337,9 @@ def emit_task_diff_events(
     if events:
         ActivityLog.objects.bulk_create(events)
         task_for_render = (
-            Task.objects.select_related("project__workspace", "assignee").prefetch_related("labels").get(pk=task.pk)
+            Task.objects.select_related("project__workspace", "assignee")
+            .prefetch_related("labels", "blocks", "blocked_by")
+            .get(pk=task.pk)
         )
         broadcast_task_events(events, {task.pk: task_for_render}, actor)
     return len(events)

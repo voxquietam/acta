@@ -438,7 +438,7 @@ def _run_bulk_update(*, user, ids: list[int], updates: dict[str, Any]) -> tuple[
         post_tasks = list(
             Task.objects.filter(id__in=full_ids)
             .select_related("project__workspace", "assignee")
-            .prefetch_related("labels"),
+            .prefetch_related("labels", "blocks", "blocked_by"),
         )
         all_events: list[ActivityLog] = []
         for task in post_tasks:

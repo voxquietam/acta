@@ -13,7 +13,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
 from django.db.models import Count, F, Max, OuterRef, Q, Subquery
-from django.http import HttpResponse, HttpResponseBadRequest
+from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.template.loader import render_to_string
 from django.utils import timezone
@@ -186,7 +186,7 @@ def _user_task_qs(user):
             "project__workspace",
             "assignee",
         )
-        .prefetch_related("labels")
+        .prefetch_related("labels", "blocks", "blocked_by")
     )
 
 
@@ -228,7 +228,7 @@ def _my_work_tasks(user, params):
             Q(status__in=_OPEN_STATUSES) | Q(status=Task.STATUS_DONE, updated_at__gte=done_cutoff),
         )
         .select_related("project__workspace", "assignee", "reporter")
-        .prefetch_related("labels")
+        .prefetch_related("labels", "blocks", "blocked_by")
     )
     base = apply_task_filters(base, params, request_user=user)
     return list(
@@ -690,7 +690,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         base = (
             Task.objects.filter(project=project)
             .select_related("assignee", "reporter", "parent", "project__workspace")
-            .prefetch_related("labels")
+            .prefetch_related("labels", "blocks", "blocked_by")
         )
         params = _params_with_archive_cookie(self.request)
         base = apply_task_filters(base, params, request_user=self.request.user)
@@ -819,7 +819,11 @@ class TaskDetailView(LoginRequiredMixin, DetailView):
         never use.
         """
         return get_object_or_404(
-            _user_task_qs(self.request.user).select_related("reporter", "parent"),
+            _user_task_qs(self.request.user).select_related("reporter", "parent")
+            # Links panel + Blocked badge read all three link sets; the
+            # ``__project`` hop is needed because each chip renders the
+            # linked task's slug (prefix + number).
+            .prefetch_related("blocked_by__project", "blocks__project", "related__project"),
             project__slug_prefix=self.kwargs["slug_prefix"],
             number=self.kwargs["number"],
         )
@@ -1482,6 +1486,233 @@ def toggle_task_label(request, slug_prefix, number):
         request=request,
     )
     return HttpResponse(trigger_html + dropdown_html + activity_html)
+
+
+_LINK_KINDS = {"blocks", "blocked_by", "related"}
+
+
+def _resolve_link_target(user, raw_slug):
+    """Resolve a ``PREFIX-NUMBER`` slug to a Task in the user's workspaces.
+
+    Returns ``None`` when the slug is malformed or points at a task
+    the user can't see — callers turn that into a 400.
+    """
+    raw = (raw_slug or "").strip().upper()
+    try:
+        prefix, num = raw.rsplit("-", 1)
+        num_int = int(num)
+    except (ValueError, AttributeError):
+        return None
+    return _user_task_qs(user).filter(project__slug_prefix=prefix, number=num_int).first()
+
+
+def _broadcast_link_change(*, task, target, event_type, payload, actor):
+    """Persist a link activity event + push fresh cards for BOTH endpoints.
+
+    A link changes the blocked / blocking state of two tasks (the one
+    the user edited and the linked one), so both cards / rows need a
+    fresh render over SSE. We write ONE activity-log row (on the acting
+    task) and pass an in-memory mirror event for the target so its card
+    also broadcasts without a second log entry. The browser handlers
+    for ``task.link_*`` apply these even for self-events, because the
+    request only swapped the rail panel — the board cards are untouched
+    by the response, so there's no double-render to suppress.
+    """
+    from apps.tasks.events import broadcast_task_events
+
+    saved = ActivityLog.objects.create(
+        workspace=task.project.workspace,
+        project=task.project,
+        actor=actor,
+        event_type=event_type,
+        target_type=ActivityLog.TARGET_TASK,
+        target_id=task.id,
+        payload=payload,
+    )
+
+    def _fresh(pk):
+        return (
+            Task.objects.select_related("project__workspace", "assignee")
+            .prefetch_related("labels", "blocks", "blocked_by")
+            .get(pk=pk)
+        )
+
+    mirror = ActivityLog(
+        workspace=task.project.workspace,
+        project=task.project,
+        actor=actor,
+        event_type=event_type,
+        target_type=ActivityLog.TARGET_TASK,
+        target_id=target.id,
+        payload=payload,
+    )
+    broadcast_task_events([saved, mirror], {task.pk: _fresh(task.pk), target.pk: _fresh(target.pk)}, actor)
+
+
+def _links_panel_response(request, task):
+    """Render the links panel partial + OOB activity timeline."""
+    panel = render_to_string(
+        "web/projects/_links_panel.html",
+        {"task": task, "status_labels": Task.STATUS_LABELS},
+        request=request,
+    )
+    activity = render_to_string(
+        "web/projects/_activity_oob.html",
+        {
+            "task": task,
+            "timeline": _build_timeline(task),
+            "status_labels": Task.STATUS_LABELS,
+            "priority_labels": dict(Task.PRIORITY_CHOICES),
+        },
+        request=request,
+    )
+    return HttpResponse(panel + activity)
+
+
+@login_required
+def task_link_search(request, slug_prefix, number):
+    """Typeahead search for the link-target picker.
+
+    Returns up to 10 tasks in the same workspace (excluding this task
+    and already-linked ones), matched by title (icontains), full slug
+    (``PREFIX-NUMBER``), or bare number. Optional ``status`` filter
+    narrows by task status. JSON payload feeds the Alpine autocomplete
+    in the links panel.
+    """
+    from django.db.models import Q
+
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    q = (request.GET.get("q") or "").strip()
+    status = (request.GET.get("status") or "").strip()
+
+    # Already-linked tasks shouldn't show up as add candidates.
+    linked_ids = set(task.blocks.values_list("id", flat=True))
+    linked_ids |= set(task.blocked_by.values_list("id", flat=True))
+    linked_ids |= set(task.related.values_list("id", flat=True))
+    linked_ids.add(task.pk)
+
+    qs = (
+        _user_task_qs(request.user)
+        .filter(project__workspace_id=task.project.workspace_id)
+        .exclude(pk__in=linked_ids)
+        .select_related("project", "assignee")
+    )
+    if status in Task.STATUS_VALUES:
+        qs = qs.filter(status=status)
+    if q:
+        match = Q(title__icontains=q)
+        upper = q.upper()
+        if "-" in upper:
+            prefix, _, num = upper.rpartition("-")
+            if num.isdigit():
+                match |= Q(project__slug_prefix=prefix, number=int(num))
+        elif q.isdigit():
+            match |= Q(number=int(q))
+        qs = qs.filter(match)
+
+    results = []
+    for t in qs.order_by("-updated_at")[:10]:
+        assignee = None
+        if t.assignee_id:
+            assignee = {
+                "username": t.assignee.username,
+                "initial": t.assignee.display_name[:1].upper(),
+                "avatar_color": t.assignee.avatar_color,
+            }
+        results.append(
+            {
+                "slug": t.slug,
+                "title": t.title,
+                "status": t.status,
+                "project": t.project.name,
+                "assignee": assignee,
+            }
+        )
+    return JsonResponse({"results": results})
+
+
+@require_POST
+@login_required
+def add_task_link(request, slug_prefix, number):
+    """Add a dependency / relation link from this task to another.
+
+    Form fields: ``kind`` (blocks / blocked_by / related) + ``target``
+    (a ``PREFIX-NUMBER`` slug). Validates the target is in the same
+    workspace, isn't the task itself, and — for blocks — doesn't create
+    a direct reciprocal block (A blocks B while B blocks A). Emits a
+    ``task.link_added`` activity event on both endpoints of the link.
+    """
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    kind = (request.POST.get("kind") or "").strip()
+    if kind not in _LINK_KINDS:
+        return HttpResponseBadRequest("invalid kind")
+    target = _resolve_link_target(request.user, request.POST.get("target"))
+    if target is None:
+        return HttpResponseBadRequest("target not found")
+    if target.pk == task.pk:
+        return HttpResponseBadRequest("a task cannot link to itself")
+    if target.project.workspace_id != task.project.workspace_id:
+        return HttpResponseBadRequest("target is in a different workspace")
+
+    with transaction.atomic():
+        if kind == "related":
+            task.related.add(target)
+        elif kind == "blocks":
+            # Reject direct reciprocal: if target already blocks task,
+            # adding task-blocks-target makes a 2-cycle.
+            if task.blocked_by.filter(pk=target.pk).exists():
+                return HttpResponseBadRequest("that would create a circular block")
+            task.blocks.add(target)
+        else:  # blocked_by — the reverse direction
+            if task.blocks.filter(pk=target.pk).exists():
+                return HttpResponseBadRequest("that would create a circular block")
+            target.blocks.add(task)
+        _broadcast_link_change(
+            task=task,
+            target=target,
+            event_type="task.link_added",
+            payload={"kind": kind, "target_slug": target.slug, "target_title": target.title},
+            actor=request.user,
+        )
+    return _links_panel_response(request, task)
+
+
+@require_POST
+@login_required
+def remove_task_link(request, slug_prefix, number):
+    """Remove a dependency / relation link.
+
+    Form fields: ``kind`` + ``target_id`` (the linked task's pk). The
+    inverse of :func:`add_task_link` — symmetric for ``related``,
+    directional for ``blocks`` / ``blocked_by``.
+    """
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    kind = (request.POST.get("kind") or "").strip()
+    if kind not in _LINK_KINDS:
+        return HttpResponseBadRequest("invalid kind")
+    try:
+        target_id = int(request.POST.get("target_id") or "")
+    except (TypeError, ValueError):
+        return HttpResponseBadRequest("invalid target_id")
+    target = _user_task_qs(request.user).filter(pk=target_id).first()
+    if target is None:
+        return HttpResponseBadRequest("target not found")
+
+    with transaction.atomic():
+        if kind == "related":
+            task.related.remove(target)
+        elif kind == "blocks":
+            task.blocks.remove(target)
+        else:  # blocked_by
+            target.blocks.remove(task)
+        _broadcast_link_change(
+            task=task,
+            target=target,
+            event_type="task.link_removed",
+            payload={"kind": kind, "target_slug": target.slug},
+            actor=request.user,
+        )
+    return _links_panel_response(request, task)
 
 
 @require_POST
