@@ -31,6 +31,9 @@ when an update row is clicked.
       <span>· {{ u.created_at|timesince }} {% trans "ago" %}</span>
     </div>
     <div class="prose dark:prose-invert prose-sm max-w-none text-muted-foreground">{{ u.body|markdown }}</div>
+    <div class="mt-3">
+      {% include "web/_reaction_bar.html" with target_type="update" target_id=u.id reactions=u.reaction_summary can_react=True %}
+    </div>
     {% include "web/projects/_update_comments.html" with update=u %}
   </div>
 </div>

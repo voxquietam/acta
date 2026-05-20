@@ -1,0 +1,93 @@
+{% load i18n %}
+{% load static %}
+{% load lucide %}
+{% comment %}
+Emoji reaction bar for one target (task / comment / project update).
+Reused on every reactable surface; re-rendered and swapped in place by
+``toggle_reaction_view`` after each toggle.
+
+Expects:
+  ``target_type``  — one of ``task`` / ``comment`` / ``update``
+  ``target_id``    — the target's primary key
+  ``reactions``    — list of ``{emoji, count, mine, names}`` (may be empty)
+  ``can_react``    — truthy to render the interactive picker / pills
+
+A single hidden ``<form>`` carries the CSRF token + emoji input; both the
+existing-reaction pills and the picker funnel through it via ``react()``,
+so there's one POST path and one CSRF token regardless of pill count. The
+emoji picker is a lazily-instantiated web component (see
+docs/decisions/0014-frontend-architecture.md) teleported to ``<body>`` and
+positioned under its trigger — the same dropdown pattern as the status /
+priority cells.
+{% endcomment %}
+<div id="reaction-bar-{{ target_type }}-{{ target_id }}"
+     class="flex flex-wrap items-center gap-1"
+     x-data="{
+       open: false,
+       rect: { top: 0, left: 0, bottom: 0, right: 0 },
+       measure() {
+         const r = this.$refs.trigger.getBoundingClientRect();
+         this.rect = { top: r.top, left: r.left, bottom: r.bottom, right: r.right };
+       },
+       toggle() { if (!this.open) this.measure(); this.open = !this.open; },
+       react(emoji) { this.$refs.emoji.value = emoji; this.$refs.form.requestSubmit(); this.open = false; }
+     }"
+     x-init="
+       const onScroll = (e) => {
+         if (!$el.isConnected) { document.removeEventListener('scroll', onScroll, true); return; }
+         if (open && !($refs.panel && $refs.panel.contains(e.target))) open = false;
+       };
+       document.addEventListener('scroll', onScroll, true);
+     "
+     @resize.window="if (open) open = false">
+
+  <form x-ref="form"
+        method="post"
+        hx-post="{% url 'web:toggle_reaction' target_type=target_type target_id=target_id %}"
+        hx-target="#reaction-bar-{{ target_type }}-{{ target_id }}"
+        hx-swap="outerHTML"
+        class="contents">
+    {% csrf_token %}
+    <input type="hidden" name="emoji" x-ref="emoji">
+
+    {% for r in reactions %}
+    <button type="button"
+            {% if can_react %}@click="react('{{ r.emoji }}')"{% else %}disabled{% endif %}
+            data-tooltip="{{ r.names|join:', ' }}"
+            class="inline-flex items-center gap-1 h-6 pl-1.5 pr-2 rounded-full text-xs border transition
+              {% if r.mine %}border-brand-500 bg-brand-500/10 text-brand-200{% else %}border-transparent bg-muted text-muted-foreground hover:border-border-strong{% endif %}">
+      <span class="text-sm leading-none">{{ r.emoji }}</span>
+      <span class="tabular-nums">{{ r.count }}</span>
+    </button>
+    {% endfor %}
+
+    {% if can_react %}
+    <button type="button"
+            x-ref="trigger"
+            @click="toggle()"
+            data-tooltip="{% trans 'Add reaction' %}"
+            :class="open && 'text-foreground bg-muted'"
+            class="inline-flex items-center justify-center h-6 w-6 rounded-full text-placeholder-foreground hover:text-foreground hover:bg-muted transition">
+      {% lucide "smile-plus" "w-4 h-4" %}
+    </button>
+    {% endif %}
+  </form>
+
+  {% if can_react %}
+  <template x-teleport="body">
+    <div x-ref="panel"
+         x-show="open"
+         x-cloak
+         @click.outside="open = false"
+         @keydown.escape.window="open = false"
+         :style="`position:fixed; top:${rect.bottom + 6}px; left:${rect.left}px;`"
+         class="z-50 rounded-lg overflow-hidden border border-border shadow-lg">
+      <template x-if="open">
+        <emoji-picker data-source="{% static 'vendor/emoji-data.json' %}"
+                      :class="document.documentElement.classList.contains('light') ? 'light' : 'dark'"
+                      @emoji-click="react($event.detail.unicode)"></emoji-picker>
+      </template>
+    </div>
+  </template>
+  {% endif %}
+</div>

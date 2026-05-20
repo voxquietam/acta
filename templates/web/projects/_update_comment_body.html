@@ -18,4 +18,7 @@ Shared by top-level comments and replies. Expects ``comment``.
     {% if comment.was_edited %}<span class="italic text-placeholder-foreground">({% trans "edited" %})</span>{% endif %}
   </div>
   <div class="prose dark:prose-invert prose-sm max-w-none text-muted-foreground">{{ comment.body|markdown }}</div>
+  <div class="mt-2">
+    {% include "web/_reaction_bar.html" with target_type="comment" target_id=comment.id reactions=comment.reaction_summary can_react=True %}
+  </div>
 </div>
