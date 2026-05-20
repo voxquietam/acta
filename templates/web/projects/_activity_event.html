@@ -11,7 +11,9 @@ timestamp pushed to the far right via ``ml-auto``. Long diffs truncate
 with ``truncate`` so the row never wraps.
 {% endcomment %}
 <li class="text-xs text-subtle-foreground px-3 py-1 flex items-baseline gap-1.5 min-w-0">
+  {% if not hide_actor %}
   <span class="text-muted-foreground shrink-0">{% if event.actor %}{{ event.actor.display_name }}{% else %}system{% endif %}</span>
+  {% endif %}
   {% if event.event_type == "task.status_changed" %}
     <span class="text-placeholder-foreground shrink-0">{% trans "changed status" %}</span>
     <span class="text-placeholder-foreground truncate">
@@ -53,6 +55,10 @@ with ``truncate`` so the row never wraps.
       <span class="text-placeholder-foreground truncate">
         {% if event.payload.changes.size.old %}{{ event.payload.changes.size.old }} {% endif %}→ {% if event.payload.changes.size.new %}{{ event.payload.changes.size.new }}{% else %}{% trans "cleared" %}{% endif %}
       </span>
+    {% elif event.payload.changes.title %}
+      <span class="text-placeholder-foreground truncate">{% trans "renamed" %}</span>
+    {% elif event.payload.changes.description %}
+      <span class="text-placeholder-foreground truncate">{% trans "edited description" %}</span>
     {% else %}
       <span class="text-placeholder-foreground truncate">{{ event.event_type|event_label }}</span>
     {% endif %}

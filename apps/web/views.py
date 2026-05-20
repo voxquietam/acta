@@ -847,13 +847,26 @@ class MyActivityView(LoginRequiredMixin, TemplateView):
             )
         else:
             events = list(events_qs.select_related("project").order_by("-created_at")[:_MY_ACTIVITY_PAGE_SIZE])
-            # Resolve task slugs in one batch so each event row can link to
-            # its task without an N+1 over the feed.
-            task_ids = [e.target_id for e in events if e.target_type == ActivityLog.TARGET_TASK]
+
+            # Resolve the task each event points at, in one batch (no N+1).
+            # Task events carry it as ``target_id``; comment events
+            # (``comment.created`` etc.) carry it in ``payload.task_id``.
+            def _event_task_id(event):
+                if event.target_type == ActivityLog.TARGET_TASK:
+                    return event.target_id
+                if event.target_type == ActivityLog.TARGET_COMMENT:
+                    return (event.payload or {}).get("task_id")
+                return None
+
+            task_ids = [tid for tid in (_event_task_id(e) for e in events) if tid]
             tasks = {t.id: t for t in Task.objects.filter(id__in=task_ids).select_related("project")}
             for e in events:
-                e.linked_task = tasks.get(e.target_id) if e.target_type == ActivityLog.TARGET_TASK else None
+                e.linked_task = tasks.get(_event_task_id(e))
+            _enrich_activity_events(events)
             ctx["my_events"] = events
+            ctx["my_event_groups"] = _group_events_by_task(events)
+            ctx["status_labels"] = Task.STATUS_LABELS
+            ctx["priority_labels"] = dict(Task.PRIORITY_CHOICES)
         return ctx
 
 
@@ -1543,6 +1556,25 @@ def _task_activity(task, limit=25):
         return bool(keys - _hide_only_keys)
 
     events = [e for e in events if _visible(e)]
+    _enrich_activity_events(events)
+    return events
+
+
+def _enrich_activity_events(events):
+    """Attach display-name diffs to assigned / labels_changed events.
+
+    Resolves the user ids (assignee from/to) and label ids (added /
+    removed) referenced across ``events`` in two batched queries, then
+    sets ``assigned_from_name`` / ``assigned_to_name`` and
+    ``added_label_names`` / ``removed_label_names`` so
+    ``_activity_event.html`` renders the diff without per-row lookups.
+
+    Args:
+        events: A list of :class:`ActivityLog` rows (mutated in place).
+
+    Returns:
+        The same ``events`` list, enriched.
+    """
     user_ids = set()
     label_ids = set()
     for e in events:
@@ -1568,6 +1600,31 @@ def _task_activity(task, limit=25):
             e.added_label_names = [label_names.get(lid, f"#{lid}") for lid in (e.payload.get("added_ids") or [])]
             e.removed_label_names = [label_names.get(lid, f"#{lid}") for lid in (e.payload.get("removed_ids") or [])]
     return events
+
+
+def _group_events_by_task(events):
+    """Group consecutive events that share a task into timeline runs.
+
+    Walks the (already time-ordered) list and starts a new group each
+    time the linked task changes, so the template can show one task
+    header per run with the events stacked under a left rail.
+
+    Args:
+        events: Events carrying a ``linked_task`` attribute (or ``None``).
+
+    Returns:
+        A list of ``{"task": <Task|None>, "events": [...]}`` dicts in the
+        original order.
+    """
+    groups = []
+    for e in events:
+        task = getattr(e, "linked_task", None)
+        tid = task.id if task else None
+        if groups and groups[-1]["task_id"] == tid:
+            groups[-1]["events"].append(e)
+        else:
+            groups.append({"task_id": tid, "task": task, "events": [e]})
+    return groups
 
 
 def _workspace_members(task):

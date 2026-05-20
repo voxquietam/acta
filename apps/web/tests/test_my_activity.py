@@ -49,6 +49,24 @@ class TestMyActivity:
         assert len(events) == 1
         assert events[0].linked_task.id == task.id
 
+    def test_comment_event_resolves_task_link(self, client):
+        ws = WorkspaceFactory()
+        project = ProjectFactory(workspace=ws)
+        task = TaskFactory(project=project)
+        log_event(
+            workspace=ws,
+            project=project,
+            actor=ws.owner,
+            event_type="comment.created",
+            target_type=ActivityLog.TARGET_COMMENT,
+            target_id=4242,
+            payload={"task_id": task.id, "body_preview": "hi"},
+        )
+        client.force_login(ws.owner)
+        resp = client.get(reverse("web:my_activity"), {"tab": "activity"})
+        events = resp.context["my_events"]
+        assert any(e.linked_task and e.linked_task.id == task.id for e in events)
+
     def test_counts_in_context(self, client):
         ws = WorkspaceFactory()
         project = ProjectFactory(workspace=ws)
