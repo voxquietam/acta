@@ -12,11 +12,10 @@ posted from the inline form.
       {{ comment.author.display_name|slice:":1"|upper }}
     </span>
     <span class="text-muted-foreground">{{ comment.author.display_name }}</span>
-    <span>·</span>
-    <span>{{ comment.created_at|date:"M j, H:i" }}</span>
     {% if comment.was_edited %}
     <span class="italic">({% trans "edited" %})</span>
     {% endif %}
+    <span class="ml-auto">{{ comment.created_at|date:"M j, H:i" }}</span>
   </div>
   <div class="prose dark:prose-invert prose-sm max-w-none text-muted-foreground">
     {{ comment.body|markdown }}
