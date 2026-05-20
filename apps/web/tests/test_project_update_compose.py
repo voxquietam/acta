@@ -4,9 +4,10 @@ from django.urls import reverse
 
 import pytest
 
+from apps.notifications.models import Notification
 from apps.projects.models import ProjectUpdate
 from apps.projects.tests.factories import ProjectFactory
-from apps.workspaces.tests.factories import WorkspaceFactory
+from apps.workspaces.tests.factories import WorkspaceFactory, WorkspaceMemberFactory
 
 
 @pytest.mark.django_db
@@ -52,6 +53,16 @@ class TestPostProjectUpdate:
         resp = client.post(self._url(project), {"health": ProjectUpdate.ON_TRACK, "body": "x"})
         assert resp.status_code == 404
         assert not ProjectUpdate.objects.filter(project=project).exists()
+
+    def test_post_notifies_other_members(self, client):
+        ws = WorkspaceFactory()
+        project = ProjectFactory(workspace=ws)
+        other = WorkspaceMemberFactory(workspace=ws).user
+        client.force_login(ws.owner)
+        client.post(self._url(project), {"health": ProjectUpdate.ON_TRACK, "body": "shipped it"})
+        assert Notification.objects.filter(recipient=other, kind=Notification.Kind.PROJECT_UPDATE).exists()
+        # author is self-suppressed
+        assert not Notification.objects.filter(recipient=ws.owner, kind=Notification.Kind.PROJECT_UPDATE).exists()
 
     def test_get_not_allowed(self, client):
         ws = WorkspaceFactory()

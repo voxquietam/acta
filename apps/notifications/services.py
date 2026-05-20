@@ -30,6 +30,7 @@ def notify(
     task=None,
     comment=None,
     activity=None,
+    project_update=None,
     preview: str = "",
     payload: dict[str, Any] | None = None,
 ) -> Notification | None:
@@ -69,6 +70,7 @@ def notify(
         task=task,
         comment=comment,
         activity=activity,
+        project_update=project_update,
         preview=preview or "",
         payload=payload or {},
     )
@@ -114,7 +116,11 @@ def _broadcast_notification(notification: Notification) -> None:
 
         import django_eventstream
 
-        row = Notification.objects.select_related("task__project", "actor", "comment").filter(pk=pk).first()
+        row = (
+            Notification.objects.select_related("task__project", "actor", "comment", "project_update__project")
+            .filter(pk=pk)
+            .first()
+        )
         if row is None:
             return
         unread = _unread_count(recipient_id)
@@ -294,5 +300,34 @@ def notify_comment_created(*, comment, actor) -> None:
             workspace_id=workspace_id,
             task=task,
             comment=comment,
+            preview=preview,
+        )
+
+
+def notify_project_update_created(*, update, actor) -> None:
+    """Fan a new project status update out to the workspace's members.
+
+    Called right after a :class:`apps.projects.models.ProjectUpdate` is
+    created. Every member of the update's workspace gets a
+    ``PROJECT_UPDATE`` notification — the same audience that sees the
+    update in the inbox Updates tab — and the author is dropped by
+    :func:`notify`'s self-suppression.
+
+    Args:
+        update: The freshly created ``ProjectUpdate``.
+        actor: The :class:`User` who posted it.
+    """
+    from apps.workspaces.models import WorkspaceMember
+
+    workspace_id = update.project.workspace_id
+    preview = (update.body or "")[:_COMMENT_PREVIEW_CHARS]
+    member_ids = WorkspaceMember.objects.filter(workspace_id=workspace_id).values_list("user_id", flat=True)
+    for recipient_id in member_ids:
+        notify(
+            recipient_id=recipient_id,
+            actor=actor,
+            kind=Notification.Kind.PROJECT_UPDATE,
+            workspace_id=workspace_id,
+            project_update=update,
             preview=preview,
         )

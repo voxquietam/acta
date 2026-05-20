@@ -13,8 +13,8 @@ import pytest
 
 from apps.comments.models import Comment
 from apps.notifications.models import Notification
-from apps.notifications.services import notify_comment_created
-from apps.projects.tests.factories import ProjectFactory
+from apps.notifications.services import notify_comment_created, notify_project_update_created
+from apps.projects.tests.factories import ProjectFactory, ProjectUpdateFactory
 from apps.tasks.events import emit_task_diff_events, snapshot_task
 from apps.tasks.models import Task
 from apps.tasks.tests.factories import TaskFactory
@@ -195,3 +195,29 @@ class TestMentionFanout:
         task.save()
         emit_task_diff_events(old_state=old2, task=task, actor=actor)
         assert Notification.objects.filter(recipient=mentioned, kind=Notification.Kind.MENTION).count() == 1
+
+
+@pytest.mark.django_db
+class TestProjectUpdateFanout:
+    def test_notifies_other_members_not_author(self):
+        ws = WorkspaceFactory()
+        project = ProjectFactory(workspace=ws)
+        author = ws.owner
+        member = WorkspaceMemberFactory(workspace=ws).user
+        update = ProjectUpdateFactory(project=project, author=author, body="weekly recap")
+        notify_project_update_created(update=update, actor=author)
+        notifs = Notification.objects.filter(kind=Notification.Kind.PROJECT_UPDATE)
+        recipients = set(notifs.values_list("recipient_id", flat=True))
+        assert member.id in recipients
+        assert author.id not in recipients  # self-suppressed
+        row = notifs.get(recipient=member)
+        assert row.project_update_id == update.id
+        assert "weekly recap" in row.preview
+
+    def test_does_not_notify_foreign_workspace(self):
+        ws = WorkspaceFactory()
+        project = ProjectFactory(workspace=ws)
+        outsider = WorkspaceFactory().owner
+        update = ProjectUpdateFactory(project=project, author=ws.owner, body="x")
+        notify_project_update_created(update=update, actor=ws.owner)
+        assert not Notification.objects.filter(recipient=outsider).exists()

@@ -27,7 +27,7 @@ from apps.activity.services import log_event
 from apps.comments.models import Comment
 from apps.labels.models import Label
 from apps.notifications.models import Notification
-from apps.notifications.services import notify_comment_created
+from apps.notifications.services import notify_comment_created, notify_project_update_created
 from apps.projects.models import Project, ProjectUpdate
 from apps.tasks.events import broadcast_link_change, emit_task_diff_events, snapshot_task
 from apps.tasks.models import Task
@@ -502,6 +502,7 @@ def _inbox_base_qs(user):
             "task__project",
             "actor",
             "comment",
+            "project_update__project",
         )
         .order_by("-created_at")
     )
@@ -707,10 +708,16 @@ class InboxView(LoginRequiredMixin, TemplateView):
             if filter_key not in _INBOX_FILTERS:
                 filter_key = "all"
             qs = _inbox_filtered_qs(user, filter_key)
+            # A notification belongs to a project via its task OR (for
+            # project-update notifications) via the update's project.
             if selected_projects:
-                qs = qs.filter(task__project_id__in=selected_projects)
+                qs = qs.filter(
+                    Q(task__project_id__in=selected_projects) | Q(project_update__project_id__in=selected_projects)
+                )
             if excluded_projects:
-                qs = qs.exclude(task__project_id__in=excluded_projects)
+                qs = qs.exclude(task__project_id__in=excluded_projects).exclude(
+                    project_update__project_id__in=excluded_projects
+                )
             notifications = list(qs[:_INBOX_PAGE_SIZE])
             selected = None
             sel_pk = self.request.GET.get("selected")
@@ -2727,6 +2734,7 @@ def post_project_update(request, slug_prefix):
         health=health,
         body=body,
     )
+    notify_project_update_created(update=update, actor=request.user)
     return HttpResponse(
         render_to_string(
             "web/projects/_overview_update_card.html",

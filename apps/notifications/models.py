@@ -26,6 +26,7 @@ class Notification(models.Model):
         COMMENT = "comment", _("Comment")
         STATUS_CHANGE = "status_change", _("Status change")
         PRIORITY_CHANGE = "priority_change", _("Priority change")
+        PROJECT_UPDATE = "project_update", _("Project update")
         SYSTEM = "system", _("System")
 
     recipient = models.ForeignKey(
@@ -76,6 +77,14 @@ class Notification(models.Model):
         blank=True,
         related_name="notifications",
         help_text="Activity-log row this notification was fanned out from, if any",
+    )
+    project_update = models.ForeignKey(
+        "projects.ProjectUpdate",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="notifications",
+        help_text="Project update this notification is about, for project_update kind",
     )
     preview = models.TextField(
         blank=True,
