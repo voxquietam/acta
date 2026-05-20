@@ -29,6 +29,7 @@ from apps.labels.models import Label
 from apps.notifications.models import Notification
 from apps.notifications.services import notify_comment_created, notify_project_update_created
 from apps.projects.models import Project, ProjectUpdate
+from apps.reactions.services import TARGET_TYPES, attach_reactions, summarize_reactions, toggle_reaction
 from apps.tasks.events import broadcast_link_change, emit_task_diff_events, snapshot_task
 from apps.tasks.models import Task
 from apps.web.filters import (
@@ -696,6 +697,9 @@ class InboxView(LoginRequiredMixin, TemplateView):
                 selected_update = next((u for u in updates if str(u.pk) == sel_pk), None)
             if selected_update is None and updates:
                 selected_update = updates[0]
+            if selected_update is not None:
+                _attach_update_reactions([selected_update], user.id)
+                _attach_update_thread_reactions(selected_update, user.id)
             ctx.update(
                 updates=updates,
                 selected_update=selected_update,
@@ -899,6 +903,8 @@ def inbox_update_preview(request, pk):
         ),
         pk=pk,
     )
+    _attach_update_reactions([update], request.user.id)
+    _attach_update_thread_reactions(update, request.user.id)
     return HttpResponse(
         render_to_string(
             "web/_inbox_update_preview.html",
@@ -1307,6 +1313,10 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         # case), so the empty project keeps its constant query count.
         ctx["overview_latest_updates"] = list(project.updates.select_related("author").order_by("-created_at")[:1])
         ctx["overview_updates_total"] = project.updates.count() if ctx["overview_latest_updates"] else 0
+        if ctx["overview_latest_updates"]:
+            user_id = self.request.user.id
+            _attach_update_reactions(ctx["overview_latest_updates"], user_id)
+            _attach_update_thread_reactions(ctx["overview_latest_updates"][0], user_id)
         ctx["overview_project_age_days"] = (today - project.created_at.date()).days
         ctx["health_labels"] = dict(ProjectUpdate.HEALTH_CHOICES)
         ctx["latest_health"] = ctx["overview_latest_updates"][0].health if ctx["overview_latest_updates"] else None
@@ -1471,6 +1481,13 @@ class TaskDetailView(LoginRequiredMixin, DetailView):
         ctx["comments"] = list(
             task.comments.select_related("author").order_by("created_at"),
         )
+        user_id = self.request.user.id
+        task.reaction_summary = summarize_reactions(
+            target_field="task",
+            ids=[task.id],
+            user_id=user_id,
+        ).get(task.id, [])
+        attach_reactions(objs=ctx["comments"], target_field="comment", user_id=user_id)
         ctx["activity"] = _task_activity(task)
         non_comment_activity = [e for e in ctx["activity"] if not (e.event_type or "").startswith("comment.")]
         ctx["timeline"] = sorted(
@@ -1543,6 +1560,7 @@ def task_comments_fragment(request, slug_prefix, number):
     """
     task = _get_user_task_or_404(request.user, slug_prefix, number)
     comments = list(task.comments.select_related("author").order_by("created_at"))
+    attach_reactions(objs=comments, target_field="comment", user_id=request.user.id)
     rows = "".join(render_to_string("web/projects/_comment.html", {"comment": c}, request=request) for c in comments)
     return HttpResponse(rows)
 
@@ -1591,6 +1609,7 @@ def task_timeline_fragment(request, slug_prefix, number):
     """
     task = _get_user_task_or_404(request.user, slug_prefix, number)
     comments = list(task.comments.select_related("author").order_by("created_at"))
+    attach_reactions(objs=comments, target_field="comment", user_id=request.user.id)
     activity = _task_activity(task)
     non_comment_activity = [e for e in activity if not (e.event_type or "").startswith("comment.")]
     timeline = sorted(
@@ -1889,7 +1908,7 @@ def _inline_edit_response(request, task, primary_template, primary_context):
         "web/projects/_activity_oob.html",
         {
             "task": task,
-            "timeline": _build_timeline(task),
+            "timeline": _build_timeline(task, request.user.id),
             "status_labels": Task.STATUS_LABELS,
             "priority_labels": dict(Task.PRIORITY_CHOICES),
         },
@@ -1898,10 +1917,15 @@ def _inline_edit_response(request, task, primary_template, primary_context):
     return HttpResponse(primary_html + activity_html)
 
 
-def _build_timeline(task):
+def _build_timeline(task, user_id):
     """Merge comments + non-comment activity events into the unified
-    timeline tuple list consumed by ``_task_detail_timeline.html``."""
+    timeline tuple list consumed by ``_task_detail_timeline.html``.
+
+    Comments are decorated with ``reaction_summary`` (one extra query)
+    so the OOB timeline refresh keeps their reaction bars intact.
+    """
     comments = list(task.comments.select_related("author").order_by("created_at"))
+    attach_reactions(objs=comments, target_field="comment", user_id=user_id)
     activity = _task_activity(task)
     non_comment = [e for e in activity if not (e.event_type or "").startswith("comment.")]
     return sorted(
@@ -2041,7 +2065,7 @@ def set_task_description(request, slug_prefix, number):
         "web/projects/_activity_oob.html",
         {
             "task": task,
-            "timeline": _build_timeline(task),
+            "timeline": _build_timeline(task, request.user.id),
             "status_labels": Task.STATUS_LABELS,
             "priority_labels": dict(Task.PRIORITY_CHOICES),
         },
@@ -2153,7 +2177,7 @@ def toggle_task_label(request, slug_prefix, number):
         "web/projects/_activity_oob.html",
         {
             "task": task,
-            "timeline": _build_timeline(task),
+            "timeline": _build_timeline(task, request.user.id),
             "status_labels": Task.STATUS_LABELS,
             "priority_labels": dict(Task.PRIORITY_CHOICES),
         },
@@ -2191,7 +2215,7 @@ def _links_panel_response(request, task):
         "web/projects/_activity_oob.html",
         {
             "task": task,
-            "timeline": _build_timeline(task),
+            "timeline": _build_timeline(task, request.user.id),
             "status_labels": Task.STATUS_LABELS,
             "priority_labels": dict(Task.PRIORITY_CHOICES),
         },
@@ -2735,6 +2759,7 @@ def post_project_update(request, slug_prefix):
         body=body,
     )
     notify_project_update_created(update=update, actor=request.user)
+    update.reaction_summary = []
     return HttpResponse(
         render_to_string(
             "web/projects/_overview_update_card.html",
@@ -2874,6 +2899,7 @@ def post_comment(request, slug_prefix, number):
         payload={"task_id": task.id, "body_preview": body[:120]},
     )
     notify_comment_created(comment=comment, actor=request.user)
+    comment.reaction_summary = []
     return _inline_edit_response(
         request,
         task,
@@ -2918,8 +2944,117 @@ def post_update_comment(request, pk):
         if parent is None:
             return HttpResponseBadRequest("invalid parent")
     comment = Comment.objects.create(project_update=update, author=request.user, parent=parent, body=body)
+    comment.reaction_summary = []
     template = "web/projects/_update_comment_reply.html" if parent else "web/projects/_update_comment.html"
     return HttpResponse(render_to_string(template, {"comment": comment}, request=request))
+
+
+def _get_reaction_target_or_404(user, target_type, target_id):
+    """Resolve a reaction target, scoped to the user's workspaces.
+
+    Args:
+        user: The acting :class:`User`.
+        target_type: One of ``task`` / ``comment`` / ``update``.
+        target_id: Primary key of the target.
+
+    Returns:
+        The target model instance — a :class:`Task`, :class:`Comment`, or
+        :class:`ProjectUpdate` the user can see.
+
+    Raises:
+        Http404: If the target is missing or lives in another workspace.
+    """
+    if target_type == "task":
+        qs = Task.objects.filter(project__workspace__memberships__user=user)
+    elif target_type == "comment":
+        qs = Comment.objects.filter(
+            Q(task__project__workspace__memberships__user=user)
+            | Q(project_update__project__workspace__memberships__user=user),
+        )
+    else:
+        qs = ProjectUpdate.objects.filter(project__workspace__memberships__user=user)
+    return get_object_or_404(qs, pk=target_id)
+
+
+@require_POST
+@login_required
+def toggle_reaction_view(request, target_type, target_id):
+    """Toggle the current user's emoji reaction on a task / comment / update.
+
+    Reads an ``emoji`` form field and flips the reaction (add if absent,
+    remove if present). Returns the freshly rendered reaction bar for the
+    target so HTMX can swap it in place.
+
+    Args:
+        request: Django request carrying the ``emoji`` form field.
+        target_type: One of ``task`` / ``comment`` / ``update``.
+        target_id: Primary key of the target.
+
+    Returns:
+        Rendered ``web/_reaction_bar.html`` for the target, 400 on an
+        unknown target type or empty / oversized emoji, or 404 for a
+        foreign / missing target.
+    """
+    target_field = TARGET_TYPES.get(target_type)
+    if target_field is None:
+        return HttpResponseBadRequest("invalid target type")
+    emoji = (request.POST.get("emoji") or "").strip()
+    if not emoji or len(emoji) > 64:
+        return HttpResponseBadRequest("invalid emoji")
+    target = _get_reaction_target_or_404(request.user, target_type, target_id)
+    toggle_reaction(user=request.user, target_field=target_field, target=target, emoji=emoji)
+    reactions = summarize_reactions(
+        target_field=target_field,
+        ids=[target.id],
+        user_id=request.user.id,
+    ).get(target.id, [])
+    return HttpResponse(
+        render_to_string(
+            "web/_reaction_bar.html",
+            {
+                "target_type": target_type,
+                "target_id": target.id,
+                "reactions": reactions,
+                "can_react": True,
+            },
+            request=request,
+        ),
+    )
+
+
+def _attach_update_reactions(updates, user_id):
+    """Attach update-level ``reaction_summary`` to each project update.
+
+    One query for the whole batch. Use for any list of updates whose own
+    reaction bar will render (the inbox preview card, the overview card).
+
+    Args:
+        updates: Iterable of :class:`ProjectUpdate`.
+        user_id: The viewer's id (highlights their own reactions).
+
+    Returns:
+        The materialized list of updates, each carrying ``reaction_summary``.
+    """
+    return attach_reactions(objs=updates, target_field="project_update", user_id=user_id)
+
+
+def _attach_update_thread_reactions(update, user_id):
+    """Attach comment-level ``reaction_summary`` across one update's thread.
+
+    Decorates every top-level comment and reply the thread will render, in
+    a single reaction query. Relies on ``ProjectUpdate.top_level_comments``
+    being cached + reply-prefetched so the decorated objects are the exact
+    ones the template re-reads.
+
+    Args:
+        update: The :class:`ProjectUpdate` whose thread is being shown.
+        user_id: The viewer's id (highlights their own reactions).
+    """
+    comments = []
+    for comment in update.top_level_comments:
+        comments.append(comment)
+        comments.extend(comment.replies.all())
+    attach_reactions(objs=comments, target_field="comment", user_id=user_id)
 
 
 def _user_accessible_projects(user):

@@ -3,6 +3,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
 from django.db.models import F
+from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
 
 SLUG_PREFIX_VALIDATOR = RegexValidator(
@@ -249,7 +250,7 @@ class ProjectUpdate(models.Model):
         """Return project, health, and date for the update."""
         return f"{self.project} · {self.health} · {self.created_at:%Y-%m-%d}"
 
-    @property
+    @cached_property
     def top_level_comments(self):
         """Return this update's top-level comments, replies prefetched.
 
@@ -257,11 +258,16 @@ class ProjectUpdate(models.Model):
         relation. Authors are eager-loaded so the thread renders without
         an extra query per row.
 
+        Cached on the instance (and materialized to a list) so the web
+        layer can decorate the very objects the template will render —
+        e.g. attaching ``reaction_summary`` once, with no second query
+        per comment when the template re-reads the thread.
+
         Returns:
-            A queryset of top-level :class:`apps.comments.models.Comment`
-            rows ordered oldest-first.
+            A list of top-level :class:`apps.comments.models.Comment`
+            rows ordered oldest-first, each reply-prefetched.
         """
-        return (
+        return list(
             self.comments.filter(parent__isnull=True)
             .select_related("author")
             .prefetch_related("replies__author")

@@ -48,6 +48,9 @@ class ProjectUpdateAdmin(ModelAdmin):
         "health",
         "project",
     ]
+    search_fields = [
+        "body",
+    ]
     autocomplete_fields = [
         "project",
         "author",

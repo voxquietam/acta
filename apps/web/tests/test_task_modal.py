@@ -203,7 +203,7 @@ class TestBuildTimeline:
         comment_b = CommentFactory(task=task, author=task.reporter, body="B")
         Comment.objects.filter(pk=comment_b.pk).update(created_at=t0 + datetime.timedelta(minutes=2))
 
-        timeline = _build_timeline(task.__class__.objects.get(pk=task.pk))
+        timeline = _build_timeline(task.__class__.objects.get(pk=task.pk), task.reporter_id)
         kinds = [kv[0] for kv in timeline]
         items = [kv[1] for kv in timeline]
 
@@ -226,7 +226,7 @@ class TestBuildTimeline:
             target_id=comment.id,
             payload={"task_id": task.id, "body_preview": "hello"},
         )
-        timeline = _build_timeline(task)
+        timeline = _build_timeline(task, task.reporter_id)
         # Only the comment itself — no duplicate "added a comment" row.
         assert len(timeline) == 1
         assert timeline[0][0] == "comment"

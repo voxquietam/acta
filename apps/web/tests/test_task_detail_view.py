@@ -161,8 +161,10 @@ class TestTaskDetailQueryCount:
             )
         client.force_login(user)
         # +1 over the prior cap for the sidebar inbox-unread badge COUNT
-        # added by the context processor (ADR 0021). Constant, not N+1.
-        with django_assert_max_num_queries(21):
+        # added by the context processor (ADR 0021); +2 for the task's own
+        # reaction summary and the comment-reaction batch (both single
+        # queries regardless of row count). Constant, not N+1.
+        with django_assert_max_num_queries(23):
             client.get(
                 reverse(
                     "web:task_detail",

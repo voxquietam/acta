@@ -53,6 +53,7 @@ from .views import (
     task_topbar_title_fragment,
     toggle_project_favourite,
     toggle_project_member,
+    toggle_reaction_view,
     toggle_task_label,
 )
 
@@ -130,6 +131,11 @@ urlpatterns = [
         "updates/<int:pk>/comment/",
         post_update_comment,
         name="post_update_comment",
+    ),
+    path(
+        "reactions/<str:target_type>/<int:target_id>/toggle/",
+        toggle_reaction_view,
+        name="toggle_reaction",
     ),
     path(
         "projects/<str:slug_prefix>/description/",
