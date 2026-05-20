@@ -1,0 +1,62 @@
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+Inbox Updates tab — list of project status updates visible to the user
+(workspace members see all). Clicking a row loads its full body in the
+preview pane. Mirrors the notification list pane.
+{% endcomment %}
+<div id="inbox-updates-list" class="flex flex-col min-h-0 min-w-0">
+  {% comment %}
+  Filters — colour-coded single-select health chips only. The project
+  filter lives in the shared strip at the top of the page (see
+  inbox.html), so this bar is a single chip row matching the
+  Notifications tab height. hx-include pulls the strip's checked
+  project / xproject chips so health + project compose. Non-boosted GET
+  re-renders just this list partial.
+  {% endcomment %}
+  <form hx-get="{% url 'web:inbox' %}" hx-target="#inbox-updates-list" hx-swap="outerHTML" hx-push-url="true"
+        hx-trigger="change" hx-include="[name='project']:checked, [name='xproject']:checked"
+        class="flex items-center gap-1.5 flex-nowrap overflow-x-auto scrollbar-none px-4 h-12 border-b border-border shrink-0 bg-subtle/40">
+    <input type="hidden" name="tab" value="updates">
+    <label class="cursor-pointer">
+      <input type="radio" name="health" value="" {% if not update_health %}checked{% endif %} class="peer sr-only">
+      <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] border transition bg-muted/50 border-border text-muted-foreground hover:bg-muted peer-checked:bg-brand-600 peer-checked:text-white peer-checked:border-brand-500">{% trans "All" %}</span>
+    </label>
+    {% for key, label in health_choices %}
+    <label class="cursor-pointer">
+      <input type="radio" name="health" value="{{ key }}" {% if update_health == key %}checked{% endif %} class="peer sr-only">
+      <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] border transition peer-checked:font-medium {% if key == 'on_track' %}border-emerald-500/40 text-emerald-700 dark:text-emerald-300 peer-checked:bg-emerald-500/15{% elif key == 'at_risk' %}border-amber-500/40 text-amber-700 dark:text-amber-300 peer-checked:bg-amber-500/15{% elif key == 'off_track' %}border-rose-500/40 text-rose-700 dark:text-rose-300 peer-checked:bg-rose-500/15{% else %}border-blue-500/40 text-blue-700 dark:text-blue-300 peer-checked:bg-blue-500/15{% endif %}">
+        <span class="w-1.5 h-1.5 rounded-full {% if key == 'on_track' %}bg-emerald-500{% elif key == 'at_risk' %}bg-amber-500{% elif key == 'off_track' %}bg-rose-500{% else %}bg-blue-500{% endif %}"></span>
+        {{ label }}
+      </span>
+    </label>
+    {% endfor %}
+  </form>
+  <div class="flex-1 overflow-y-auto">
+    {% for u in updates %}
+    <a hx-get="{% url 'web:inbox_update_preview' pk=u.pk %}" hx-target="#inbox-preview" hx-swap="innerHTML"
+       hx-push-url="{% url 'web:inbox' %}?tab=updates&selected={{ u.pk }}"
+       class="flex items-start gap-3 px-4 py-3 border-b border-border cursor-pointer transition hover:bg-muted/30 {% if selected_update and selected_update.pk == u.pk %}bg-muted/40{% endif %}">
+      <span class="w-7 h-7 rounded-lg grid place-items-center shrink-0 {{ u.project.icon_color_class }}">
+        {% lucide u.project.icon|default:"folder" "w-4 h-4" %}
+      </span>
+      <div class="min-w-0 flex-1">
+        <div class="text-[13px] text-muted-foreground flex items-center gap-1.5 flex-wrap">
+          {% if u.author %}<b class="text-foreground font-semibold">{{ u.author.display_name }}</b>{% endif %}
+          {% trans "posted an update to" %}
+          <span class="font-mono text-xs px-1 rounded bg-muted text-foreground">{{ u.project.slug_prefix }}</span>
+          {% include "web/_health_pill.html" with health=u.health %}
+        </div>
+        <div class="mt-0.5 text-[11.5px] text-placeholder-foreground line-clamp-2">{{ u.body|truncatechars:140 }}</div>
+      </div>
+      <span class="font-mono text-[10px] text-placeholder-foreground shrink-0 whitespace-nowrap">{{ u.created_at|timesince }}</span>
+    </a>
+    {% empty %}
+    <div class="flex flex-col items-center justify-center gap-2.5 text-center px-6 py-16">
+      <span class="w-12 h-12 rounded-full bg-muted text-placeholder-foreground grid place-items-center">{% lucide "message-circle" "w-6 h-6" %}</span>
+      <h2 class="text-[15px] font-semibold text-foreground">{% trans "No updates yet" %}</h2>
+      <p class="text-xs text-placeholder-foreground max-w-[280px] leading-relaxed">{% trans "Project status updates from your workspaces will show up here." %}</p>
+    </div>
+    {% endfor %}
+  </div>
+</div>

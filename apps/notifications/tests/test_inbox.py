@@ -61,6 +61,48 @@ class TestInboxPage:
         resp = client.get(reverse("web:inbox"))
         assert resp.context["inbox_unread"] == 3
 
+    def test_strip_projects_limited_to_those_with_notifications(self, client, user_ws):
+        """The project strip only lists projects this user has notifications in."""
+        from apps.projects.tests.factories import ProjectFactory
+        from apps.tasks.tests.factories import TaskFactory
+
+        user, ws = user_ws
+        with_notif = ProjectFactory(workspace=ws)
+        without_notif = ProjectFactory(workspace=ws)
+        t = TaskFactory(project=with_notif)
+        NotificationFactory(recipient=user, workspace=ws, task=t)
+        client.force_login(user)
+        resp = client.get(reverse("web:inbox"))
+        ids = {p.id for p in resp.context["available_projects"]}
+        assert with_notif.id in ids
+        assert without_notif.id not in ids
+
+    def test_project_filter_on_notifications(self, client, user_ws):
+        """The shared project strip narrows notifications by their task's project."""
+        from apps.projects.tests.factories import ProjectFactory
+        from apps.tasks.tests.factories import TaskFactory
+
+        user, ws = user_ws
+        p1 = ProjectFactory(workspace=ws)
+        p2 = ProjectFactory(workspace=ws)
+        t1 = TaskFactory(project=p1)
+        t2 = TaskFactory(project=p2)
+        NotificationFactory(recipient=user, workspace=ws, task=t1, preview="p1 notif")
+        NotificationFactory(recipient=user, workspace=ws, task=t2, preview="p2 notif")
+        client.force_login(user)
+
+        resp = client.get(reverse("web:inbox"), {"project": p1.id})
+        body = resp.content.decode()
+        assert "p1 notif" in body
+        assert "p2 notif" not in body
+        assert resp.context["selected_projects"] == {p1.id}
+
+        resp = client.get(reverse("web:inbox"), {"xproject": p1.id})
+        body = resp.content.decode()
+        assert "p1 notif" not in body
+        assert "p2 notif" in body
+        assert resp.context["excluded_projects"] == {p1.id}
+
 
 @pytest.mark.django_db
 class TestInboxEndpoints:

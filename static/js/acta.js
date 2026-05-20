@@ -308,6 +308,9 @@
   function applyClientFilters() {
     const form = document.getElementById("filter-form");
     if (!form) return;
+    // Inbox filters server-side (see ``bindFilterForm``) — never hide
+    // rows client-side there.
+    if (form.dataset.serverFilter === "true") return;
     const state = readFilterState(form);
     if (!state) return;
     const rows = document.querySelectorAll("[data-task-id]");
@@ -462,6 +465,11 @@
   function bindFilterForm() {
     const form = document.getElementById("filter-form");
     if (!form || form.dataset.clientFiltersBound === "true") return;
+    // The inbox reuses ``#filter-form`` for its project strip but filters
+    // server-side (notifications / updates aren't task rows), so leave
+    // HTMX's normal round-trip alone — don't hijack it with the
+    // client-side task filter below.
+    if (form.dataset.serverFilter === "true") return;
     form.dataset.clientFiltersBound = "true";
     // The filter chips in ``_filters_sidebar.html`` use Alpine
     // ``@change.stop`` — that stops the change event from bubbling to

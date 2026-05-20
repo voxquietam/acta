@@ -436,9 +436,21 @@ class MyWorkView(LoginRequiredMixin, TemplateView):
             "priority": group_tasks(tasks, "priority", request_user=self.request.user),
             "project": group_tasks(tasks, "project", request_user=self.request.user),
         }
+        # The project strip only offers projects the user actually has
+        # tasks in — no point filtering My Work by a project with none.
+        my_work_projects = list(
+            Project.objects.filter(
+                workspace__memberships__user=self.request.user,
+                tasks__assignee=self.request.user,
+            )
+            .select_related("workspace")
+            .order_by("workspace__name", "name")
+            .distinct()
+        )
         ctx.update(
             filter_sidebar_context(
                 self.request,
+                available_projects=my_work_projects,
                 hide_assignee=True,
                 hide_project=True,
                 htmx_target="#my-work-content",
@@ -615,30 +627,100 @@ class InboxView(LoginRequiredMixin, TemplateView):
     def get_template_names(self):
         """Full page on cold load, list fragment for HTMX filter swaps."""
         if _is_htmx_partial(self.request):
+            if self.request.GET.get("tab") == "updates":
+                return ["web/_inbox_updates_list.html"]
             return ["web/_inbox_list.html"]
         return ["web/inbox.html"]
 
     def get_context_data(self, **kwargs):
-        """Build the notification list + filter chip counts + preview."""
+        """Build the active tab (Notifications / Updates) + its split panes."""
         ctx = super().get_context_data(**kwargs)
         user = self.request.user
-        filter_key = self.request.GET.get("filter", "all")
-        if filter_key not in _INBOX_FILTERS:
-            filter_key = "all"
-        notifications = list(_inbox_filtered_qs(user, filter_key)[:_INBOX_PAGE_SIZE])
+        tab = self.request.GET.get("tab", "notifications")
+        if tab not in {"notifications", "updates"}:
+            tab = "notifications"
+
+        # Project strip (shared with My Work via ``_project_strip.html``):
+        # ``project`` / ``xproject`` carry project IDs to include / exclude.
+        # Applies to both tabs — notifications via their task's project,
+        # updates via the update's project.
+        params = self.request.GET
+        selected_projects = {int(p) for p in params.getlist("project") if p.isdigit()}
+        excluded_projects = {int(p) for p in params.getlist("xproject") if p.isdigit()}
+        # The strip only offers projects that actually have something on the
+        # active tab — notifications for this user, or project updates —
+        # so you can't filter to a project with nothing to show.
+        available_qs = Project.objects.filter(workspace__memberships__user=user)
+        if tab == "updates":
+            available_qs = available_qs.filter(updates__isnull=False)
+        else:
+            available_qs = available_qs.filter(
+                tasks__notifications__recipient=user,
+                tasks__notifications__archived_at__isnull=True,
+            )
+        available_projects = list(
+            available_qs.select_related("workspace").order_by("workspace__name", "name").distinct()
+        )
+
         counts = _inbox_counts(user)
-        selected = None
-        sel_pk = self.request.GET.get("selected")
-        if sel_pk:
-            selected = next((n for n in notifications if str(n.pk) == sel_pk), None)
+        updates_qs = ProjectUpdate.objects.filter(
+            project__workspace__memberships__user=user,
+        ).select_related("project", "author")
         ctx.update(
-            notifications=notifications,
-            inbox_filter=filter_key,
+            active_tab=tab,
             inbox_counts=counts,
             inbox_unread=counts["unread"],
-            selected_notification=selected,
-            active_tab="notifications",
+            updates_count=updates_qs.count(),
+            available_projects=available_projects,
+            selected_projects=selected_projects,
+            excluded_projects=excluded_projects,
         )
+
+        if tab == "updates":
+            health_keys = dict(ProjectUpdate.HEALTH_CHOICES)
+            selected_health = (self.request.GET.get("health") or "").strip()
+            if selected_health not in health_keys:
+                selected_health = ""
+            filtered = updates_qs
+            if selected_health:
+                filtered = filtered.filter(health=selected_health)
+            if selected_projects:
+                filtered = filtered.filter(project_id__in=selected_projects)
+            if excluded_projects:
+                filtered = filtered.exclude(project_id__in=excluded_projects)
+            updates = list(filtered.order_by("-created_at")[:_INBOX_PAGE_SIZE])
+            sel_pk = self.request.GET.get("selected")
+            selected_update = None
+            if sel_pk:
+                selected_update = next((u for u in updates if str(u.pk) == sel_pk), None)
+            if selected_update is None and updates:
+                selected_update = updates[0]
+            ctx.update(
+                updates=updates,
+                selected_update=selected_update,
+                health_labels=health_keys,
+                health_choices=ProjectUpdate.HEALTH_CHOICES,
+                update_health=selected_health,
+            )
+        else:
+            filter_key = self.request.GET.get("filter", "all")
+            if filter_key not in _INBOX_FILTERS:
+                filter_key = "all"
+            qs = _inbox_filtered_qs(user, filter_key)
+            if selected_projects:
+                qs = qs.filter(task__project_id__in=selected_projects)
+            if excluded_projects:
+                qs = qs.exclude(task__project_id__in=excluded_projects)
+            notifications = list(qs[:_INBOX_PAGE_SIZE])
+            selected = None
+            sel_pk = self.request.GET.get("selected")
+            if sel_pk:
+                selected = next((n for n in notifications if str(n.pk) == sel_pk), None)
+            ctx.update(
+                notifications=notifications,
+                inbox_filter=filter_key,
+                selected_notification=selected,
+            )
         return ctx
 
 
@@ -790,6 +872,36 @@ def _render_inbox_list(request):
     )
     html += _inbox_badge_oob(user)
     return HttpResponse(html)
+
+
+@login_required
+def inbox_update_preview(request, pk):
+    """Render the preview pane for one project update (inbox Updates tab).
+
+    Args:
+        request: The current request.
+        pk: ProjectUpdate primary key.
+
+    Returns:
+        Rendered ``_inbox_update_preview.html`` for the selected update,
+        scoped to the user's workspaces (404 otherwise).
+    """
+    update = get_object_or_404(
+        ProjectUpdate.objects.select_related("project", "author").filter(
+            project__workspace__memberships__user=request.user,
+        ),
+        pk=pk,
+    )
+    return HttpResponse(
+        render_to_string(
+            "web/_inbox_update_preview.html",
+            {
+                "selected_update": update,
+                "health_labels": dict(ProjectUpdate.HEALTH_CHOICES),
+            },
+            request=request,
+        )
+    )
 
 
 # ---------------------------------------------------------------------

@@ -9,7 +9,7 @@ comment thread with mention highlight lands with the mentions phase.
 {% endcomment %}
 {% if selected_notification %}
 {% with n=selected_notification %}
-<div class="flex items-center gap-3 px-5 py-3.5 border-b border-border shrink-0">
+<div class="flex items-center gap-3 px-5 h-12 border-b border-border shrink-0">
   {% if n.task %}
   <span class="font-mono text-xs px-1.5 py-0.5 rounded bg-muted">{{ n.task.slug }}</span>
   <span class="text-sm font-semibold text-foreground truncate flex-1">{{ n.task.title }}</span>
@@ -22,6 +22,7 @@ comment thread with mention highlight lands with the mentions phase.
   {% endif %}
 </div>
 <div class="flex-1 overflow-y-auto px-5 py-4">
+  <div class="max-w-3xl">
   <div class="flex items-center gap-2 text-[11.5px] text-placeholder-foreground mb-3">
     {% if n.actor %}
     <span class="w-6 h-6 rounded-full text-white text-[11px] grid place-items-center font-medium"
@@ -41,6 +42,7 @@ comment thread with mention highlight lands with the mentions phase.
   {% elif n.preview %}
   <div class="rounded-lg border border-border bg-card p-3 text-[12.5px] text-muted-foreground leading-relaxed">{{ n.preview }}</div>
   {% endif %}
+  </div>
 </div>
 {% endwith %}
 {% else %}

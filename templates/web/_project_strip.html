@@ -5,7 +5,7 @@ Page-top project strip — My Work variant. Same overlay-based
 overflow indicators as ``_assignee_strip.html``: hidden native
 scrollbar, edge fades, ``+N`` counters absolutely positioned.
 {% endcomment %}
-<div class="flex items-center gap-2 border-b border-border bg-background/70 backdrop-blur-md px-4 md:px-6 py-2 -mx-4 md:-mx-8 -mt-6 mb-4">
+<div class="{{ strip_wrap_class|default:"flex items-center gap-2 border-b border-border bg-background/70 backdrop-blur-md px-4 md:px-6 py-2 -mx-4 md:-mx-8 -mt-6 mb-4" }}">
   <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground font-medium shrink-0">
     {% trans "Project" %}
   </span>
@@ -15,10 +15,11 @@ scrollbar, edge fades, ``+N`` counters absolutely positioned.
       {% for p in available_projects %}
       <label x-data="{ state: '{% if p.id in excluded_projects %}excluded{% elif p.id in selected_projects %}included{% else %}none{% endif %}' }"
              :class="{
-               'bg-brand-500/15': state === 'included',
-               'bg-rose-500/15 dark:bg-rose-500/15': state === 'excluded',
+               'bg-brand-500/15 hover:bg-brand-500/25': state === 'included',
+               'bg-rose-500/15 dark:bg-rose-500/15 hover:bg-rose-500/20': state === 'excluded',
+               'hover:bg-muted/60': state === 'none',
              }"
-             class="strip-chip group inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded-full cursor-pointer shrink-0 hover:bg-muted/60 transition"
+             class="strip-chip group inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded-full cursor-pointer shrink-0 transition"
              data-strip-chip
              title="{{ p.workspace.name }} / {{ p.name }} — {% trans 'click to include, right-click to exclude.' %}"
              @acta:filter-reset.window="state = 'none'"

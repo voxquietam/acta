@@ -16,26 +16,76 @@ acta-design-system/preview/comp-page-inbox.html.
 </span>
 {% endblock %}
 
+{% block topbar_mid %}
+{% comment %}
+Inbox tabs as a segmented pill in the topbar — consistent with the
+All Tasks / project view tabs. Boosted links swap #app-content (which
+includes the topbar), so the active tab + content re-render together
+while the sidebar stays mounted.
+{% endcomment %}
+<nav class="inline-flex items-center bg-card border border-border rounded-lg p-1 gap-0.5 text-sm">
+  <a href="{% url 'web:inbox' %}" hx-boost="true" hx-target="#app-content" hx-select="#app-content" hx-swap="outerHTML show:top" hx-push-url="true"
+     class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md transition {% if active_tab == 'notifications' %}bg-brand-500/15 text-brand-300 ring-1 ring-brand-500/30 ring-inset{% else %}text-subtle-foreground hover:text-foreground hover:bg-muted/50{% endif %}">
+    {% lucide "inbox" "w-3.5 h-3.5" %}{% trans "Notifications" %}
+    <span class="font-mono text-[10px] px-1.5 rounded {% if active_tab == 'notifications' %}bg-brand-500/20 text-brand-300{% else %}bg-muted text-subtle-foreground{% endif %}">{{ inbox_counts.all }}</span>
+  </a>
+  <a href="{% url 'web:inbox' %}?tab=updates" hx-boost="true" hx-target="#app-content" hx-select="#app-content" hx-swap="outerHTML show:top" hx-push-url="true"
+     class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md transition {% if active_tab == 'updates' %}bg-brand-500/15 text-brand-300 ring-1 ring-brand-500/30 ring-inset{% else %}text-subtle-foreground hover:text-foreground hover:bg-muted/50{% endif %}">
+    {% lucide "message-circle" "w-3.5 h-3.5" %}{% trans "Updates" %}
+    <span class="font-mono text-[10px] px-1.5 rounded {% if active_tab == 'updates' %}bg-brand-500/20 text-brand-300{% else %}bg-muted text-subtle-foreground{% endif %}">{{ updates_count }}</span>
+  </a>
+</nav>
+{% endblock %}
+
 {% block app_main %}
 <div class="-mx-4 md:-mx-8 -mt-5 -mb-6 flex flex-col h-[calc(100vh-3.5rem)]"
      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
 
-  <div class="flex items-center px-4 border-b border-border shrink-0">
-    <span class="inline-flex items-center gap-2 px-3.5 py-2.5 text-[13px] text-brand-300 border-b-2 border-brand-500 -mb-px">
-      {% lucide "inbox" "w-3.5 h-3.5" %}{% trans "Notifications" %}
-      <span class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-brand-500/20 text-brand-300">{{ inbox_counts.all }}</span>
-    </span>
-    <span class="inline-flex items-center gap-2 px-3.5 py-2.5 text-[13px] text-placeholder-foreground/60 cursor-not-allowed"
-          data-tooltip="{% trans 'Coming soon' %}">
-      {% lucide "message-circle" "w-3.5 h-3.5" %}{% trans "Updates" %}
-    </span>
-  </div>
+  {% comment %}
+  Project filter strip — same component as My Work (click to include,
+  right-click to exclude), shared across both tabs. The chips submit
+  ``#filter-form`` below; the strip itself sits outside the swapped list
+  so its Alpine chip state survives a list re-render.
+  {% endcomment %}
+  {% include "web/_project_strip.html" with strip_wrap_class="flex items-center gap-2 border-b border-border bg-background px-4 md:px-6 py-2 shrink-0" %}
 
-  <div class="flex-1 grid grid-cols-1 md:grid-cols-[minmax(0,42%)_1fr] min-h-0">
+  {% comment %}
+  Strip submit target. Per-tab so the project filter composes with the
+  active secondary filter without stale hidden state: notifications pull
+  the live ``filter`` hidden input out of #inbox-list; updates carry
+  ``tab`` + pull the checked health radio out of #inbox-updates-list. The
+  project / xproject checkboxes (in the strip, ``form="filter-form"``) are
+  submitted automatically.
+  {% endcomment %}
+  {% if active_tab == 'updates' %}
+  <form id="filter-form" data-server-filter="true"
+        hx-get="{% url 'web:inbox' %}" hx-target="#inbox-updates-list" hx-swap="outerHTML"
+        hx-push-url="true" hx-include="#inbox-updates-list [name='health']:checked">
+    <input type="hidden" name="tab" value="updates">
+  </form>
+  {% else %}
+  <form id="filter-form" data-server-filter="true"
+        hx-get="{% url 'web:inbox' %}" hx-target="#inbox-list" hx-swap="outerHTML"
+        hx-push-url="true" hx-include="#inbox-list input[name='filter']"></form>
+  {% endif %}
+
+  {% comment %}
+  Split — narrow list on the left, wider preview on the right (master /
+  detail). The preview body caps its own reading width (max-w-3xl) so a
+  short update doesn't sprawl across the pane.
+  {% endcomment %}
+  <div class="flex-1 grid grid-cols-1 md:grid-cols-[minmax(0,38%)_1fr] min-h-0">
+    {% if active_tab == 'updates' %}
+    {% include "web/_inbox_updates_list.html" %}
+    <div id="inbox-preview" class="hidden md:flex flex-col min-w-0 border-l border-border">
+      {% include "web/_inbox_update_preview.html" %}
+    </div>
+    {% else %}
     {% include "web/_inbox_list.html" %}
     <div id="inbox-preview" class="hidden md:flex flex-col min-w-0 border-l border-border">
       {% include "web/_inbox_preview.html" %}
     </div>
+    {% endif %}
   </div>
 </div>
 {% endblock %}
