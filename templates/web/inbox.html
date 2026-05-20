@@ -1,0 +1,41 @@
+{% extends "base_app.html" %}
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+Inbox page — Notifications tab (split list / preview). The Updates tab
+is stubbed disabled until the project-updates phase. The container
+breaks out of the main padding and pins to the viewport height so the
+list and preview panes scroll independently, matching
+acta-design-system/preview/comp-page-inbox.html.
+{% endcomment %}
+
+{% block topbar_left %}
+<h1 class="text-base font-semibold text-foreground">{% trans "Inbox" %}</h1>
+<span class="hidden sm:flex items-center gap-1.5 text-[11px] text-placeholder-foreground">
+  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>{% trans "live" %}
+</span>
+{% endblock %}
+
+{% block app_main %}
+<div class="-mx-4 md:-mx-8 -mt-5 -mb-6 flex flex-col h-[calc(100vh-3.5rem)]"
+     hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+
+  <div class="flex items-center px-4 border-b border-border shrink-0">
+    <span class="inline-flex items-center gap-2 px-3.5 py-2.5 text-[13px] text-brand-300 border-b-2 border-brand-500 -mb-px">
+      {% lucide "inbox" "w-3.5 h-3.5" %}{% trans "Notifications" %}
+      <span class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-brand-500/20 text-brand-300">{{ inbox_counts.all }}</span>
+    </span>
+    <span class="inline-flex items-center gap-2 px-3.5 py-2.5 text-[13px] text-placeholder-foreground/60 cursor-not-allowed"
+          data-tooltip="{% trans 'Coming soon' %}">
+      {% lucide "message-circle" "w-3.5 h-3.5" %}{% trans "Updates" %}
+    </span>
+  </div>
+
+  <div class="flex-1 grid grid-cols-1 md:grid-cols-[minmax(0,42%)_1fr] min-h-0">
+    {% include "web/_inbox_list.html" %}
+    <div id="inbox-preview" class="hidden md:flex flex-col min-w-0 border-l border-border">
+      {% include "web/_inbox_preview.html" %}
+    </div>
+  </div>
+</div>
+{% endblock %}

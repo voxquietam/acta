@@ -1,0 +1,46 @@
+{% load i18n %}
+{% load lucide %}
+{% load web_extras %}
+{% comment %}
+Inbox preview pane content. Rendered inside #inbox-preview on cold load
+and swapped (innerHTML) when a row is opened. Phase 0 shows the actor +
+timestamp and the comment body (or denormalized preview); the full
+comment thread with mention highlight lands with the mentions phase.
+{% endcomment %}
+{% if selected_notification %}
+{% with n=selected_notification %}
+<div class="flex items-center gap-3 px-5 py-3.5 border-b border-border shrink-0">
+  {% if n.task %}
+  <span class="font-mono text-xs px-1.5 py-0.5 rounded bg-muted">{{ n.task.slug }}</span>
+  <span class="text-sm font-semibold text-foreground truncate flex-1">{{ n.task.title }}</span>
+  <a href="{% url 'web:task_detail' slug_prefix=n.task.project.slug_prefix number=n.task.number %}"
+     class="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11.5px] rounded-md bg-brand-600 hover:bg-brand-500 text-white shrink-0">
+    {% lucide "external-link" "w-3 h-3" %}{% trans "Open" %}
+  </a>
+  {% else %}
+  <span class="text-sm font-semibold text-foreground">{% trans "Notification" %}</span>
+  {% endif %}
+</div>
+<div class="flex-1 overflow-y-auto px-5 py-4">
+  <div class="flex items-center gap-2 text-[11.5px] text-placeholder-foreground mb-3">
+    {% if n.actor %}
+    <span class="w-6 h-6 rounded-full text-white text-[11px] grid place-items-center font-medium"
+          style="background-color: {{ n.actor.avatar_color }};">{{ n.actor.display_name|slice:":1"|upper }}</span>
+    <b class="text-foreground">{{ n.actor.display_name }}</b>
+    {% endif %}
+    <span>· {{ n.created_at|timesince }} {% trans "ago" %}</span>
+  </div>
+  {% if n.comment %}
+  <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground mb-2">{% trans "Comment" %}</div>
+  <div class="rounded-lg border border-border bg-card p-3 text-[12.5px] text-muted-foreground leading-relaxed prose-acta">{{ n.comment.body|markdown }}</div>
+  {% elif n.preview %}
+  <div class="rounded-lg border border-border bg-card p-3 text-[12.5px] text-muted-foreground leading-relaxed">{{ n.preview }}</div>
+  {% endif %}
+</div>
+{% endwith %}
+{% else %}
+<div class="flex-1 flex flex-col items-center justify-center gap-3 text-placeholder-foreground italic text-sm p-8 text-center">
+  {% lucide "inbox" "w-9 h-9 opacity-40" %}
+  <span>{% trans "Pick something on the left to see details." %}</span>
+</div>
+{% endif %}

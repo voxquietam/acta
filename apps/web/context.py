@@ -6,6 +6,7 @@ that nearly every page template needs (current user's workspaces and
 the projects inside them) without forcing each view to recompute it.
 """
 
+from apps.notifications.models import Notification
 from apps.web.nav import get_nav_workspaces
 
 
@@ -33,4 +34,9 @@ def workspace_nav(request):
     return {
         "nav_workspaces": workspaces,
         "nav_has_favourites": any(ws.favourite_projects for ws in workspaces),
+        "inbox_unread": Notification.objects.filter(
+            recipient=request.user,
+            archived_at__isnull=True,
+            is_read=False,
+        ).count(),
     }

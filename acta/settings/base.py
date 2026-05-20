@@ -80,6 +80,7 @@ LOCAL_APPS = [
     "apps.labels",
     "apps.comments",
     "apps.activity",
+    "apps.notifications",
     "apps.web",
     "apps.mcp",
 ]

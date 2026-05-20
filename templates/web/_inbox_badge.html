@@ -1,0 +1,9 @@
+{% load i18n %}
+{% comment %}
+Sidebar unread badge for the Inbox nav entry. Rendered inline in
+base_app.html and re-sent out-of-band (oob=True) from every inbox
+mutation so the count stays live without a page reload. When the count
+is zero we still emit the element (hidden) so a later OOB swap has a
+target to replace.
+{% endcomment %}
+{% if inbox_unread %}<span id="inbox-badge" x-show="$store.sidebar.open" x-cloak{% if oob %} hx-swap-oob="true"{% endif %} class="ml-auto font-mono text-[10px] px-1.5 py-0.5 rounded bg-brand-500/20 text-brand-300">{{ inbox_unread }}</span>{% else %}<span id="inbox-badge"{% if oob %} hx-swap-oob="true"{% endif %} class="hidden"></span>{% endif %}

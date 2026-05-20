@@ -289,3 +289,36 @@ def event_label(event_type):
         A translated, lowercase verb phrase suitable for the timeline.
     """
     return _EVENT_LABELS.get(event_type, event_type)
+
+
+@register.filter(name="status_label")
+def status_label(value):
+    """Return the human label for a task status key.
+
+    Args:
+        value: A ``Task.STATUS_*`` key, e.g. ``"in_review"``.
+
+    Returns:
+        The translated label, or the raw key if unknown.
+    """
+    from apps.tasks.models import Task
+
+    return Task.STATUS_LABELS.get(value, value)
+
+
+@register.filter(name="priority_label")
+def priority_label(value):
+    """Return the human label for a task priority value.
+
+    Args:
+        value: A ``Task.PRIORITY_*`` integer (or its string form).
+
+    Returns:
+        The translated label, or the raw value if unknown.
+    """
+    from apps.tasks.models import Task
+
+    try:
+        return dict(Task.PRIORITY_CHOICES).get(int(value), value)
+    except (TypeError, ValueError):
+        return value

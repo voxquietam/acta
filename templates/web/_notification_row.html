@@ -1,0 +1,76 @@
+{% load i18n %}
+{% load lucide %}
+{% load web_extras %}
+{% comment %}
+One inbox notification row. Reused as an out-of-band swap fragment
+(oob=True) after read/unread toggles so the row restyles in place.
+Clicking the row opens its preview in the right pane and marks it read.
+Type-icon colour + glyph are keyed off ``n.kind`` (6 + priority kinds).
+{% endcomment %}
+<div id="notification-{{ n.pk }}"{% if oob %} hx-swap-oob="true"{% endif %}
+     hx-post="{% url 'web:notification_open' pk=n.pk %}"
+     hx-target="#inbox-preview"
+     hx-swap="innerHTML"
+     class="group/nrow relative flex items-start gap-3 px-4 py-3 border-b border-border cursor-pointer transition hover:bg-muted/30">
+
+  <label class="pt-1 shrink-0 cursor-pointer opacity-0 group-hover/nrow:opacity-100 has-[:checked]:opacity-100 transition" @click.stop>
+    <span class="relative block w-3.5 h-3.5">
+      <input type="checkbox" name="ids" value="{{ n.pk }}"
+             class="peer appearance-none absolute inset-0 w-full h-full rounded border border-border-strong bg-muted checked:bg-brand-600 checked:border-brand-500 cursor-pointer transition">
+      <svg class="pointer-events-none absolute inset-0 m-auto w-2.5 h-2.5 text-white hidden peer-checked:block"
+           viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+    </span>
+  </label>
+
+  <div class="relative w-8 h-8 shrink-0">
+    {% if n.actor %}
+    <span class="w-8 h-8 rounded-full text-white text-xs grid place-items-center font-medium"
+          style="background-color: {{ n.actor.avatar_color }};">{{ n.actor.display_name|slice:":1"|upper }}</span>
+    {% else %}
+    <span class="w-8 h-8 rounded-full bg-muted text-placeholder-foreground grid place-items-center">{% lucide "bell" "w-4 h-4" %}</span>
+    {% endif %}
+    <span class="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full grid place-items-center text-white ring-2 ring-background {% if n.kind == 'mention' %}bg-rose-500{% elif n.kind == 'assigned' %}bg-brand-500{% elif n.kind == 'due' %}bg-amber-500{% elif n.kind == 'comment' %}bg-emerald-500{% elif n.kind == 'status_change' %}bg-violet-500{% elif n.kind == 'priority_change' %}bg-orange-500{% else %}bg-zinc-500{% endif %}">
+      {% if n.kind == 'mention' %}{% lucide "at-sign" "w-2.5 h-2.5" %}
+      {% elif n.kind == 'assigned' %}{% lucide "user-plus" "w-2.5 h-2.5" %}
+      {% elif n.kind == 'due' %}{% lucide "clock" "w-2.5 h-2.5" %}
+      {% elif n.kind == 'comment' %}{% lucide "message-square" "w-2.5 h-2.5" %}
+      {% elif n.kind == 'status_change' %}{% lucide "git-commit-horizontal" "w-2.5 h-2.5" %}
+      {% elif n.kind == 'priority_change' %}{% lucide "flag" "w-2.5 h-2.5" %}
+      {% else %}{% lucide "bell" "w-2.5 h-2.5" %}{% endif %}
+    </span>
+  </div>
+
+  <div class="min-w-0 flex-1">
+    <div class="text-[13px] leading-snug truncate {% if n.is_read %}text-subtle-foreground{% else %}text-muted-foreground{% endif %}">
+      {% if n.actor %}<b class="font-semibold {% if n.is_read %}text-muted-foreground{% else %}text-foreground{% endif %}">{{ n.actor.display_name }}</b> {% endif %}{% if n.kind == 'mention' %}{% trans "mentioned you in" %}{% elif n.kind == 'assigned' %}{% trans "assigned" %}{% elif n.kind == 'comment' %}{% trans "commented on" %}{% elif n.kind == 'status_change' %}{% trans "moved" %}{% elif n.kind == 'priority_change' %}{% trans "changed priority of" %}{% elif n.kind == 'due' %}{% trans "due soon:" %}{% else %}{% trans "updated" %}{% endif %}
+      {% if n.task %}<span class="font-mono text-xs px-1 rounded bg-muted text-foreground">{{ n.task.slug }}</span>{% endif %}{% if n.kind == 'assigned' %} {% trans "to you" %}{% endif %}{% if n.kind == 'status_change' and n.payload.to %} {% trans "to" %} <b class="text-foreground">{{ n.payload.to|status_label }}</b>{% endif %}
+    </div>
+    {% if n.preview %}
+    <div class="mt-0.5 text-[11.5px] text-placeholder-foreground line-clamp-2">{{ n.preview }}</div>
+    {% endif %}
+  </div>
+
+  <div class="flex flex-col items-end gap-1.5 shrink-0 pt-0.5">
+    <span class="font-mono text-[10px] text-placeholder-foreground whitespace-nowrap">{{ n.created_at|timesince }}</span>
+    <div class="flex items-center gap-1.5">
+      <button type="button" @click.stop
+              hx-post="{% url 'web:notification_read' pk=n.pk %}"
+              hx-vals='{"read": "{% if n.is_read %}0{% else %}1{% endif %}"}'
+              hx-target="#notification-{{ n.pk }}" hx-swap="none"
+              data-tooltip="{% if n.is_read %}{% trans 'Mark unread' %}{% else %}{% trans 'Mark read' %}{% endif %}"
+              data-tooltip-pos="below-left"
+              class="opacity-0 group-hover/nrow:opacity-100 text-placeholder-foreground hover:text-foreground transition">
+        {% lucide "check" "w-3.5 h-3.5" %}
+      </button>
+      <button type="button" @click.stop
+              hx-post="{% url 'web:notification_archive' pk=n.pk %}"
+              hx-target="#notification-{{ n.pk }}" hx-swap="outerHTML"
+              data-tooltip="{% trans 'Archive' %}"
+              data-tooltip-pos="below-left"
+              class="opacity-0 group-hover/nrow:opacity-100 text-placeholder-foreground hover:text-rose-400 transition">
+        {% lucide "archive" "w-3.5 h-3.5" %}
+      </button>
+      {% if not n.is_read %}<span class="w-2 h-2 rounded-full bg-brand-500"></span>{% endif %}
+    </div>
+  </div>
+</div>

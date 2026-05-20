@@ -160,7 +160,9 @@ class TestTaskDetailQueryCount:
                 payload={"changes": {"title": {"old": "x", "new": f"x{i}"}}},
             )
         client.force_login(user)
-        with django_assert_max_num_queries(20):
+        # +1 over the prior cap for the sidebar inbox-unread badge COUNT
+        # added by the context processor (ADR 0021). Constant, not N+1.
+        with django_assert_max_num_queries(21):
             client.get(
                 reverse(
                     "web:task_detail",

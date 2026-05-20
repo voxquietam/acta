@@ -3,6 +3,7 @@ from rest_framework.permissions import IsAuthenticated
 
 from apps.activity.models import ActivityLog
 from apps.activity.services import log_event
+from apps.notifications.services import notify_comment_created
 from apps.workspaces.permissions import IsAuthorOrWorkspaceAdmin
 
 from .models import Comment
@@ -67,6 +68,7 @@ class CommentViewSet(viewsets.ModelViewSet):
                 "body_preview": comment.body[:120],
             },
         )
+        notify_comment_created(comment=comment, actor=self.request.user)
 
     def perform_update(self, serializer):
         """Save the edit and emit a ``comment.edited`` activity event.

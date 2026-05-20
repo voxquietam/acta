@@ -322,6 +322,7 @@ def comment_create(user: User, arguments: dict[str, Any]) -> Any:
     from apps.activity.models import ActivityLog
     from apps.activity.services import log_event
     from apps.comments.models import Comment
+    from apps.notifications.services import notify_comment_created
 
     args = arguments or {}
     slug = args.get("task")
@@ -342,6 +343,7 @@ def comment_create(user: User, arguments: dict[str, Any]) -> Any:
             "body_preview": comment.body[:120],
         },
     )
+    notify_comment_created(comment=comment, actor=user)
     return {
         "id": comment.id,
         "task_slug": task.slug,

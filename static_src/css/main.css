@@ -625,6 +625,16 @@ html.dark .acta-checkbox {
   bottom: auto;
   top: calc(100% + 0.5rem);
 }
+/* Tooltip below + right-aligned — for icon actions hugging a right edge
+   (inbox row buttons) where a centered tooltip would spill across the
+   pane divider. Anchors the tooltip's right edge to the trigger's. */
+[data-tooltip][data-tooltip-pos="below-left"]::after {
+  bottom: auto;
+  top: calc(100% + 0.5rem);
+  left: auto;
+  right: 0;
+  transform: none;
+}
 
 /* Reset native focus outline on form controls — browsers default to a
    thick coloured outline (Firefox pink, Chrome blue, Safari blue) that

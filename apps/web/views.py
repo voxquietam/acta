@@ -25,6 +25,8 @@ from apps.activity.models import ActivityLog
 from apps.activity.services import log_event
 from apps.comments.models import Comment
 from apps.labels.models import Label
+from apps.notifications.models import Notification
+from apps.notifications.services import notify_comment_created
 from apps.projects.models import Project, ProjectUpdate
 from apps.tasks.events import broadcast_link_change, emit_task_diff_events, snapshot_task
 from apps.tasks.models import Task
@@ -443,6 +445,350 @@ class MyWorkView(LoginRequiredMixin, TemplateView):
             )
         )
         return ctx
+
+
+# ---------------------------------------------------------------------
+# Inbox (notifications)
+# ---------------------------------------------------------------------
+
+_INBOX_FILTERS = {
+    "all",
+    "unread",
+    "mentions",
+    "assigned",
+    "due",
+    "comments",
+}
+
+_INBOX_FILTER_KINDS = {
+    "mentions": Notification.Kind.MENTION,
+    "assigned": Notification.Kind.ASSIGNED,
+    "due": Notification.Kind.DUE,
+    "comments": Notification.Kind.COMMENT,
+}
+
+_INBOX_PAGE_SIZE = 100
+
+
+def _inbox_base_qs(user):
+    """Active (non-archived) notifications for a user, render-ready.
+
+    Args:
+        user: The recipient :class:`User`.
+
+    Returns:
+        A queryset with the FK chain the row/preview templates read
+        eager-loaded (``task__project``, ``actor``, ``comment``).
+    """
+    return (
+        Notification.objects.filter(
+            recipient=user,
+            archived_at__isnull=True,
+        )
+        .select_related(
+            "task__project",
+            "actor",
+            "comment",
+        )
+        .order_by("-created_at")
+    )
+
+
+def _inbox_filtered_qs(user, filter_key):
+    """Apply one inbox filter chip to the base queryset.
+
+    Args:
+        user: The recipient :class:`User`.
+        filter_key: One of :data:`_INBOX_FILTERS`.
+
+    Returns:
+        The filtered notification queryset.
+    """
+    qs = _inbox_base_qs(user)
+    if filter_key == "unread":
+        return qs.filter(is_read=False)
+    kind = _INBOX_FILTER_KINDS.get(filter_key)
+    if kind is not None:
+        return qs.filter(kind=kind)
+    return qs
+
+
+def _inbox_counts(user):
+    """Return chip counts for the inbox filter row in a single query.
+
+    Args:
+        user: The recipient :class:`User`.
+
+    Returns:
+        A dict with ``all`` / ``unread`` / ``mentions`` / ``assigned`` /
+        ``due`` / ``comments`` integer counts over active notifications.
+    """
+    return _inbox_base_qs(user).aggregate(
+        all=Count("id"),
+        unread=Count("id", filter=Q(is_read=False)),
+        mentions=Count("id", filter=Q(kind=Notification.Kind.MENTION)),
+        assigned=Count("id", filter=Q(kind=Notification.Kind.ASSIGNED)),
+        due=Count("id", filter=Q(kind=Notification.Kind.DUE)),
+        comments=Count("id", filter=Q(kind=Notification.Kind.COMMENT)),
+    )
+
+
+def inbox_unread_count(user):
+    """Return the active unread notification count for the sidebar badge.
+
+    Args:
+        user: The recipient :class:`User`.
+
+    Returns:
+        The number of non-archived, unread notifications.
+    """
+    return Notification.objects.filter(
+        recipient=user,
+        archived_at__isnull=True,
+        is_read=False,
+    ).count()
+
+
+def _inbox_badge_oob(user):
+    """Render the sidebar unread badge as an out-of-band swap fragment.
+
+    Args:
+        user: The recipient :class:`User`.
+
+    Returns:
+        Rendered HTML for ``#inbox-badge`` with ``hx-swap-oob`` set.
+    """
+    return render_to_string(
+        "web/_inbox_badge.html",
+        {
+            "inbox_unread": inbox_unread_count(user),
+            "oob": True,
+        },
+    )
+
+
+def _notification_row_oob(notification):
+    """Render a single notification row as an out-of-band swap fragment.
+
+    Args:
+        notification: The :class:`Notification` to re-render.
+
+    Returns:
+        Rendered ``_notification_row.html`` with ``hx-swap-oob`` set.
+    """
+    return render_to_string(
+        "web/_notification_row.html",
+        {
+            "n": notification,
+            "oob": True,
+        },
+    )
+
+
+def _get_user_notification_or_404(user, pk):
+    """Fetch a notification owned by the user, or raise 404.
+
+    Args:
+        user: The recipient :class:`User`.
+        pk: Notification primary key.
+
+    Returns:
+        The :class:`Notification` instance.
+    """
+    return get_object_or_404(
+        Notification.objects.select_related("task__project", "actor", "comment"),
+        pk=pk,
+        recipient=user,
+    )
+
+
+class InboxView(LoginRequiredMixin, TemplateView):
+    """The user's notification inbox at ``/inbox/``.
+
+    Renders the Notifications tab of the split-pane inbox: filter chips,
+    a scrollable notification list, and a preview pane. Filter chip
+    clicks swap only the list fragment over HTMX; a cold load returns
+    the full page.
+    """
+
+    def get_template_names(self):
+        """Full page on cold load, list fragment for HTMX filter swaps."""
+        if _is_htmx_partial(self.request):
+            return ["web/_inbox_list.html"]
+        return ["web/inbox.html"]
+
+    def get_context_data(self, **kwargs):
+        """Build the notification list + filter chip counts + preview."""
+        ctx = super().get_context_data(**kwargs)
+        user = self.request.user
+        filter_key = self.request.GET.get("filter", "all")
+        if filter_key not in _INBOX_FILTERS:
+            filter_key = "all"
+        notifications = list(_inbox_filtered_qs(user, filter_key)[:_INBOX_PAGE_SIZE])
+        counts = _inbox_counts(user)
+        selected = None
+        sel_pk = self.request.GET.get("selected")
+        if sel_pk:
+            selected = next((n for n in notifications if str(n.pk) == sel_pk), None)
+        ctx.update(
+            notifications=notifications,
+            inbox_filter=filter_key,
+            inbox_counts=counts,
+            inbox_unread=counts["unread"],
+            selected_notification=selected,
+            active_tab="notifications",
+        )
+        return ctx
+
+
+@require_POST
+@login_required
+def open_notification(request, pk):
+    """Mark a notification read and return its preview pane.
+
+    Returns the preview fragment for the main target, plus out-of-band
+    swaps for the (now-read) row and the sidebar unread badge.
+
+    Args:
+        request: The current request.
+        pk: Notification primary key.
+
+    Returns:
+        Rendered ``_inbox_preview.html`` + OOB row + OOB badge.
+    """
+    notification = _get_user_notification_or_404(request.user, pk)
+    notification.mark_read()
+    html = render_to_string("web/_inbox_preview.html", {"selected_notification": notification})
+    html += _notification_row_oob(notification)
+    html += _inbox_badge_oob(request.user)
+    return HttpResponse(html)
+
+
+@require_POST
+@login_required
+def set_notification_read(request, pk):
+    """Toggle a notification's read state; return OOB row + badge.
+
+    The ``read`` POST field decides direction (``"1"`` → read,
+    otherwise unread).
+
+    Args:
+        request: The current request carrying a ``read`` field.
+        pk: Notification primary key.
+
+    Returns:
+        OOB row fragment + OOB badge fragment.
+    """
+    notification = _get_user_notification_or_404(request.user, pk)
+    if request.POST.get("read") == "1":
+        notification.mark_read()
+    else:
+        notification.mark_unread()
+    html = _notification_row_oob(notification)
+    html += _inbox_badge_oob(request.user)
+    return HttpResponse(html)
+
+
+@require_POST
+@login_required
+def archive_notification(request, pk):
+    """Archive a notification out of the inbox.
+
+    The triggering row targets itself with an ``outerHTML`` swap, so the
+    empty body removes it; the sidebar badge updates out of band.
+
+    Args:
+        request: The current request.
+        pk: Notification primary key.
+
+    Returns:
+        An empty body (row removed) + OOB badge fragment.
+    """
+    notification = _get_user_notification_or_404(request.user, pk)
+    notification.archived_at = timezone.now()
+    notification.save(
+        update_fields=[
+            "archived_at",
+        ],
+    )
+    return HttpResponse(_inbox_badge_oob(request.user))
+
+
+@require_POST
+@login_required
+def bulk_notifications(request):
+    """Apply a bulk action to selected notifications, re-render the list.
+
+    The ``action`` field is one of ``read`` / ``unread`` / ``archive``;
+    ``ids`` is a repeated form field of notification primary keys. Scoped
+    to the requesting user — foreign ids are silently ignored.
+
+    Args:
+        request: The current request carrying ``action`` + ``ids``.
+
+    Returns:
+        Re-rendered ``_inbox_list.html`` + OOB badge fragment.
+    """
+    action = request.POST.get("action")
+    ids = request.POST.getlist("ids")
+    qs = Notification.objects.filter(recipient=request.user, pk__in=ids)
+    if action == "read":
+        qs.update(is_read=True, read_at=timezone.now())
+    elif action == "unread":
+        qs.update(is_read=False, read_at=None)
+    elif action == "archive":
+        qs.update(archived_at=timezone.now())
+    else:
+        return HttpResponseBadRequest("invalid action")
+    return _render_inbox_list(request)
+
+
+@require_POST
+@login_required
+def read_all_notifications(request):
+    """Mark every active notification read, re-render the list.
+
+    Args:
+        request: The current request.
+
+    Returns:
+        Re-rendered ``_inbox_list.html`` + OOB badge fragment.
+    """
+    Notification.objects.filter(
+        recipient=request.user,
+        archived_at__isnull=True,
+        is_read=False,
+    ).update(is_read=True, read_at=timezone.now())
+    return _render_inbox_list(request)
+
+
+def _render_inbox_list(request):
+    """Render the inbox list fragment for the current filter + OOB badge.
+
+    Args:
+        request: The current request (reads ``?filter=``).
+
+    Returns:
+        Rendered ``_inbox_list.html`` + OOB badge fragment.
+    """
+    user = request.user
+    filter_key = request.GET.get("filter", "all")
+    if filter_key not in _INBOX_FILTERS:
+        filter_key = "all"
+    notifications = list(_inbox_filtered_qs(user, filter_key)[:_INBOX_PAGE_SIZE])
+    counts = _inbox_counts(user)
+    html = render_to_string(
+        "web/_inbox_list.html",
+        {
+            "notifications": notifications,
+            "inbox_filter": filter_key,
+            "inbox_counts": counts,
+            "inbox_unread": counts["unread"],
+        },
+        request=request,
+    )
+    html += _inbox_badge_oob(user)
+    return HttpResponse(html)
 
 
 class DashboardView(LoginRequiredMixin, TemplateView):
@@ -2056,6 +2402,7 @@ def post_comment(request, slug_prefix, number):
         target_id=comment.id,
         payload={"task_id": task.id, "body_preview": body[:120]},
     )
+    notify_comment_created(comment=comment, actor=request.user)
     return _inline_edit_response(
         request,
         task,

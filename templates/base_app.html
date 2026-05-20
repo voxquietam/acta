@@ -78,6 +78,14 @@ Pages extend this and override the `app_main` block.
         <span x-show="$store.sidebar.open" x-cloak>{% trans "My Work" %}</span>
         <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "My Work" %}</span>
       </a>
+      <a href="{% url 'web:inbox' %}"
+         :class="!$store.sidebar.open && 'justify-center'"
+         class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground">
+        {% lucide "inbox" "w-4 h-4 shrink-0" %}
+        <span x-show="$store.sidebar.open" x-cloak>{% trans "Inbox" %}</span>
+        <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "Inbox" %}</span>
+        {% include "web/_inbox_badge.html" %}
+      </a>
       <a href="{% url 'web:all_tasks' %}"
          :class="!$store.sidebar.open && 'justify-center'"
          class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground">
@@ -360,9 +368,9 @@ Pages extend this and override the `app_main` block.
        x-show="$store.selection.size > 0"
        x-cloak
        @keydown.escape.window="$store.selection.size > 0 && (document.getElementById('modal-root').innerHTML.trim() === '') && $store.selection.clear()"
-       class="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 inline-flex items-stretch gap-0.5 p-1.5 rounded-xl bg-zinc-900/95 border border-border-strong backdrop-blur-md text-[12.5px]"
-       style="box-shadow: 0 20px 40px -8px rgb(0 0 0 / 0.7), 0 6px 12px -4px rgb(0 0 0 / 0.4), inset 0 0 0 1px rgb(66 90 245 / 0.2), 0 0 0 4px rgb(66 90 245 / 0.06);">
-    <div class="inline-flex items-center gap-1.5 px-2.5 rounded-lg bg-brand-500/15 text-brand-300 font-mono text-[11px] font-medium">
+       class="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 inline-flex items-stretch gap-0.5 p-1.5 rounded-xl bg-card/95 border border-border-strong backdrop-blur-md text-[12.5px]"
+       style="box-shadow: 0 20px 40px -8px rgb(0 0 0 / 0.35), 0 6px 12px -4px rgb(0 0 0 / 0.2), inset 0 0 0 1px rgb(66 90 245 / 0.2), 0 0 0 4px rgb(66 90 245 / 0.06);">
+    <div class="inline-flex items-center gap-1.5 px-2.5 rounded-lg bg-brand-500/15 text-brand-600 dark:text-brand-300 font-mono text-[11px] font-medium">
       <span class="text-sm font-bold text-white bg-brand-600 rounded px-1.5 py-0.5 leading-tight tabular-nums"
             x-text="$store.selection.size"></span>
       <span>{% trans "selected" %}</span>
@@ -386,7 +394,7 @@ Pages extend this and override the `app_main` block.
             data-tooltip="{% trans 'Clear selection' %}"
             class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-subtle-foreground hover:bg-muted hover:text-foreground transition text-xs">
       {% lucide "x" "w-3.5 h-3.5" %}
-      <kbd class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-zinc-800/60 border border-border text-placeholder-foreground">esc</kbd>
+      <kbd class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-muted border border-border text-placeholder-foreground">esc</kbd>
     </button>
   </div>
 
