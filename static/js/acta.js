@@ -1311,6 +1311,181 @@
   // tree (event fires after each Alpine ``x-init`` / DOM change).
   document.addEventListener("alpine:initialized", () => themeTooltips(document.body));
 
+  // ----- @-mention hover cards ------------------------------------
+  // A user-mention chip (``.acta-mention[data-user-id]``) shows a small
+  // card with avatar + full name on hover. The chip itself only carries
+  // the id (the markdown render is context-free), so the card is fetched
+  // from the page's ``mention-search`` endpoint (``?id=``) and cached.
+  const MENTION_CARD_CACHE = {};
+  let mentionCardEl = null;
+  function hideMentionCard() {
+    if (mentionCardEl) {
+      mentionCardEl.remove();
+      mentionCardEl = null;
+    }
+  }
+  function placeMentionCard(chip, user) {
+    hideMentionCard();
+    const rect = chip.getBoundingClientRect();
+    const initial = (user.name || user.username || "?").slice(0, 1).toUpperCase();
+    mentionCardEl = document.createElement("div");
+    mentionCardEl.className = "acta-mention-card";
+    mentionCardEl.innerHTML =
+      `<span class="av" style="background:${user.avatar_color || "#3f3f46"}">${initial}</span>` +
+      `<span><span class="nm">${user.name || user.username}</span><br>` +
+      `<span class="un">@${user.username}</span></span>`;
+    document.body.appendChild(mentionCardEl);
+    mentionCardEl.style.top = rect.bottom + 6 + "px";
+    mentionCardEl.style.left = rect.left + "px";
+  }
+  function showMentionCard(chip) {
+    const id = chip.getAttribute("data-user-id");
+    if (!id) return;
+    if (MENTION_CARD_CACHE[id]) {
+      placeMentionCard(chip, MENTION_CARD_CACHE[id]);
+      return;
+    }
+    const ep = document.querySelector("[data-mention-url]");
+    if (!ep) return;
+    fetch(ep.getAttribute("data-mention-url") + "?id=" + encodeURIComponent(id), {
+      headers: { "X-Requested-With": "XMLHttpRequest" },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d && d.user) {
+          MENTION_CARD_CACHE[id] = d.user;
+          placeMentionCard(chip, d.user);
+        }
+      })
+      .catch(() => {});
+  }
+  document.addEventListener("mouseover", (e) => {
+    const chip = e.target.closest && e.target.closest(".acta-mention[data-user-id]");
+    if (chip) showMentionCard(chip);
+  });
+  document.addEventListener("mouseout", (e) => {
+    const chip = e.target.closest && e.target.closest(".acta-mention[data-user-id]");
+    if (chip) hideMentionCard();
+  });
+
+  // ----- Task-mention hover cards ---------------------------------
+  // A task chip shows a richer popover (status / priority / assignee /
+  // due / labels) fetched from ``mention-search?task_id=`` and cached.
+  const TASK_STATUS_COLOR = {
+    planned: "#71717a",
+    "to-do": "#3b82f6",
+    "in-progress": "#8b5cf6",
+    "in-review": "#f59e0b",
+    done: "#10b981",
+  };
+  const TASK_PRIORITY_COLOR = { 1: "#f43f5e", 2: "#fb923c", 3: "#fbbf24", 4: "#38bdf8", 5: "#71717a" };
+  const TASK_CARD_CACHE = {};
+  let taskCardEl = null;
+  function hideTaskCard() {
+    if (taskCardEl) {
+      taskCardEl.remove();
+      taskCardEl = null;
+    }
+  }
+  function esc(s) {
+    const d = document.createElement("div");
+    d.textContent = s == null ? "" : String(s);
+    return d.innerHTML;
+  }
+  function placeTaskCard(chip, t) {
+    hideTaskCard();
+    const rect = chip.getBoundingClientRect();
+    const sColor = TASK_STATUS_COLOR[t.status] || "#71717a";
+    const pColor = TASK_PRIORITY_COLOR[t.priority] || "#71717a";
+    let html =
+      `<div class="t-meta">` +
+      `<span class="t-meta-left">` +
+      `<span class="t-chip"><span class="t-dot" style="background:${sColor}"></span>${esc(t.status_label)}</span>` +
+      `<span class="t-chip" style="color:${pColor}">${esc(t.priority_label)}</span>` +
+      `</span>` +
+      `<span class="t-due">${t.due_date ? esc(t.due_date) : "—"}</span>` +
+      `</div>`;
+    if (t.assignee) {
+      html +=
+        `<div class="t-line"><span class="t-av" style="background:${t.assignee.avatar_color}">` +
+        `${esc(t.assignee.initial)}</span>${esc(t.assignee.name)}</div>`;
+    } else {
+      html += '<div class="t-line t-muted">Unassigned</div>';
+    }
+    if (t.labels && t.labels.length) {
+      html +=
+        '<div class="t-labels">' +
+        t.labels
+          .map(
+            (l) =>
+              `<span class="acta-label-pill" style="--label-color:${esc(l.color)}">` +
+              `<span class="acta-label-pill-dot" style="background-color:${esc(l.color)}"></span>${esc(l.name)}</span>`,
+          )
+          .join("") +
+        "</div>";
+    }
+    taskCardEl = document.createElement("div");
+    taskCardEl.className = "acta-task-card";
+    taskCardEl.innerHTML = html;
+    document.body.appendChild(taskCardEl);
+    const ch = taskCardEl.offsetHeight;
+    const below = window.innerHeight - rect.bottom - 8;
+    const top = below < ch && rect.top > below ? rect.top - ch - 6 : rect.bottom + 6;
+    let left = rect.left;
+    const cw = taskCardEl.offsetWidth;
+    if (left + cw > window.innerWidth - 8) left = window.innerWidth - cw - 8;
+    taskCardEl.style.top = top + "px";
+    taskCardEl.style.left = Math.max(8, left) + "px";
+  }
+  function showTaskCard(chip) {
+    const id = chip.getAttribute("data-task-id");
+    if (!id) return;
+    if (TASK_CARD_CACHE[id]) {
+      placeTaskCard(chip, TASK_CARD_CACHE[id]);
+      return;
+    }
+    const ep = document.querySelector("[data-mention-url]");
+    if (!ep) return;
+    fetch(ep.getAttribute("data-mention-url") + "?task_id=" + encodeURIComponent(id), {
+      headers: { "X-Requested-With": "XMLHttpRequest" },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d && d.task) {
+          TASK_CARD_CACHE[id] = d.task;
+          placeTaskCard(chip, d.task);
+        }
+      })
+      .catch(() => {});
+  }
+  document.addEventListener("mouseover", (e) => {
+    const chip = e.target.closest && e.target.closest(".acta-task-mention[data-task-id]");
+    if (chip) showTaskCard(chip);
+  });
+  document.addEventListener("mouseout", (e) => {
+    const chip = e.target.closest && e.target.closest(".acta-task-mention[data-task-id]");
+    if (chip) hideTaskCard();
+  });
+
+  // Task-mention chip → open the task in the modal instead of a full
+  // page nav. The chip is rendered server-side through bleach (which
+  // strips ``hx-*``), so we intercept the click here and drive the same
+  // ``?modal=1`` → ``#modal-root`` flow the kanban cards use. Modifier /
+  // middle clicks fall through to the native link (open in new tab).
+  document.addEventListener("click", (e) => {
+    const chip = e.target.closest && e.target.closest("a.acta-task-mention");
+    if (!chip) return;
+    if (e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
+    const href = chip.getAttribute("href");
+    if (!href || href === "#" || !window.htmx) return;
+    e.preventDefault();
+    window._actaModalReturnTo = window.location.href;
+    window.htmx.ajax("GET", href + "?modal=1", { target: "#modal-root", swap: "innerHTML" });
+    if (window.history && window.history.pushState) {
+      window.history.pushState({}, "", href);
+    }
+  });
+
   // Shared Alpine store for the filter sidebar's open / collapsed state.
   // Drives both the sidebar itself (collapsed button vs full form) and
   // the page-content wrapper that needs to reserve right padding for the

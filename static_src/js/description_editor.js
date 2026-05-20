@@ -28,6 +28,7 @@ import TaskItem from "@tiptap/extension-task-item";
 import Highlight from "@tiptap/extension-highlight";
 import Typography from "@tiptap/extension-typography";
 import { Markdown } from "tiptap-markdown";
+import { buildMention } from "./mention.js";
 
 const INSTANCES = new WeakMap();
 
@@ -96,6 +97,9 @@ function initEditor(root) {
         breaks: false,
         transformPastedText: true,
       }),
+      // @-mention picker (users + tasks) — only when the mount declares
+      // a search endpoint via ``data-mention-url``.
+      ...(root.dataset.mentionUrl ? [buildMention(root.dataset.mentionUrl)] : []),
     ],
     content: initialMarkdown,
     editorProps: {

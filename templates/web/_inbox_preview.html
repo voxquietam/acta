@@ -31,8 +31,13 @@ comment thread with mention highlight lands with the mentions phase.
     <span>· {{ n.created_at|timesince }} {% trans "ago" %}</span>
   </div>
   {% if n.comment %}
+  {% if n.kind == 'mention' %}
+  <div class="text-[10px] uppercase tracking-wider text-rose-300 mb-2 flex items-center gap-1">↳ {% trans "mentioned you" %}</div>
+  <div class="rounded-lg border border-rose-500/30 bg-rose-500/[0.06] p-3 text-[12.5px] text-muted-foreground leading-relaxed prose-acta">{{ n.comment.body|markdown }}</div>
+  {% else %}
   <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground mb-2">{% trans "Comment" %}</div>
   <div class="rounded-lg border border-border bg-card p-3 text-[12.5px] text-muted-foreground leading-relaxed prose-acta">{{ n.comment.body|markdown }}</div>
+  {% endif %}
   {% elif n.preview %}
   <div class="rounded-lg border border-border bg-card p-3 text-[12.5px] text-muted-foreground leading-relaxed">{{ n.preview }}</div>
   {% endif %}
