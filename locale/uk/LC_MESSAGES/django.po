@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Acta 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-05-20 17:01+0000\n"
+"POT-Creation-Date: 2026-05-20 17:34+0000\n"
 "PO-Revision-Date: 2026-05-16 15:30+0000\n"
 "Last-Translator: Acta team\n"
 "Language-Team: Ukrainian\n"
@@ -38,7 +38,7 @@ msgstr "Робочий простір"
 msgid "Workspaces"
 msgstr "Робочі простори"
 
-#: acta/settings/base.py:294 templates/web/projects/_overview_panel.html:260
+#: acta/settings/base.py:294 templates/web/projects/_overview_panel.html:288
 #: templates/web/workspaces/settings.html:29
 msgid "Members"
 msgstr "Учасники"
@@ -252,7 +252,7 @@ msgstr "Сповіщення"
 msgid "Notifications"
 msgstr "Сповіщення"
 
-#: apps/projects/models.py:10 apps/web/views.py:3615
+#: apps/projects/models.py:10 apps/web/views.py:3655
 msgid "Slug prefix must be 2–6 uppercase Latin letters."
 msgstr "Префікс slug має містити 2–6 великих латинських літер."
 
@@ -263,7 +263,7 @@ msgstr "Префікс slug має містити 2–6 великих лати�
 msgid "Project"
 msgstr "Проєкт"
 
-#: apps/projects/models.py:131 apps/web/views.py:3633
+#: apps/projects/models.py:131 apps/web/views.py:3673
 msgid "Lead must be a member of the project's workspace."
 msgstr "Лід повинен бути учасником робочого простору проєкту."
 
@@ -541,116 +541,116 @@ msgstr "Зв'язки"
 msgid "Edits"
 msgstr "Правки"
 
-#: apps/web/views.py:3275 apps/web/views.py:3313 apps/web/views.py:3340
-#: apps/web/views.py:3438 apps/web/views.py:3470 apps/web/views.py:3495
+#: apps/web/views.py:3315 apps/web/views.py:3353 apps/web/views.py:3380
+#: apps/web/views.py:3478 apps/web/views.py:3510 apps/web/views.py:3535
 msgid "Admin or owner only"
 msgstr "Тільки для адміна або власника"
 
-#: apps/web/views.py:3278
+#: apps/web/views.py:3318
 msgid "Email is required"
 msgstr "Email обов'язковий"
 
-#: apps/web/views.py:3281 apps/web/views.py:3445 apps/web/views.py:3478
+#: apps/web/views.py:3321 apps/web/views.py:3485 apps/web/views.py:3518
 msgid "Invalid role"
 msgstr "Неправильна роль"
 
-#: apps/web/views.py:3290
+#: apps/web/views.py:3330
 #, python-format
 msgid "Invite sent to %(email)s."
 msgstr "Запрошення надіслано на %(email)s."
 
-#: apps/web/views.py:3293
+#: apps/web/views.py:3333
 msgid "Invite created but email failed — copy the link from the list."
 msgstr ""
 "Запрошення створено, але лист не надіслався — скопіюйте посилання зі списку."
 
-#: apps/web/views.py:3316
+#: apps/web/views.py:3356
 msgid "Invite not found"
 msgstr "Запрошення не знайдено"
 
-#: apps/web/views.py:3322
+#: apps/web/views.py:3362
 #, python-format
 msgid "Invite to %(email)s revoked."
 msgstr "Запрошення для %(email)s відкликано."
 
-#: apps/web/views.py:3343
+#: apps/web/views.py:3383
 msgid "Invite not found or already accepted"
 msgstr "Запрошення не знайдено або вже прийнято"
 
-#: apps/web/views.py:3346
+#: apps/web/views.py:3386
 #, python-format
 msgid "Invite re-sent to %(email)s."
 msgstr "Запрошення повторно надіслано на %(email)s."
 
-#: apps/web/views.py:3348
+#: apps/web/views.py:3388
 msgid "Resend failed — try again later."
 msgstr "Не вдалося надіслати повторно — спробуйте пізніше."
 
-#: apps/web/views.py:3442
+#: apps/web/views.py:3482
 msgid "Invalid user_id"
 msgstr "Неправильний user_id"
 
-#: apps/web/views.py:3450
+#: apps/web/views.py:3490
 msgid "Cannot add another owner"
 msgstr "Не можна додати ще одного власника"
 
-#: apps/web/views.py:3453
+#: apps/web/views.py:3493
 msgid "User not found"
 msgstr "Користувача не знайдено"
 
-#: apps/web/views.py:3455
+#: apps/web/views.py:3495
 msgid "User already a member"
 msgstr "Користувач вже є учасником"
 
-#: apps/web/views.py:3473 apps/web/views.py:3498
+#: apps/web/views.py:3513 apps/web/views.py:3538
 msgid "Not a member"
 msgstr "Не є учасником"
 
-#: apps/web/views.py:3475
+#: apps/web/views.py:3515
 msgid "Transfer ownership first"
 msgstr "Спочатку передай право власності"
 
-#: apps/web/views.py:3480
+#: apps/web/views.py:3520
 msgid "Ownership transfer not supported here"
 msgstr "Передача права власності тут не підтримується"
 
-#: apps/web/views.py:3500
+#: apps/web/views.py:3540
 msgid "Cannot remove owner"
 msgstr "Не можна видалити власника"
 
-#: apps/web/views.py:3599
+#: apps/web/views.py:3639
 msgid "Invalid workspace"
 msgstr "Неправильний робочий простір"
 
-#: apps/web/views.py:3605
+#: apps/web/views.py:3645
 msgid "Workspace not accessible"
 msgstr "Робочий простір недоступний"
 
-#: apps/web/views.py:3609 apps/web/views.py:3700
+#: apps/web/views.py:3649 apps/web/views.py:3740
 msgid "Name is required"
 msgstr "Ім'я обов'язкове"
 
-#: apps/web/views.py:3611 apps/web/views.py:3702
+#: apps/web/views.py:3651 apps/web/views.py:3742
 msgid "Name too long"
 msgstr "Назва задовга"
 
-#: apps/web/views.py:3617
+#: apps/web/views.py:3657
 msgid "Slug prefix already used in this workspace"
 msgstr "Префікс slug вже використовується в цьому робочому просторі"
 
-#: apps/web/views.py:3627
+#: apps/web/views.py:3667
 msgid "Invalid lead"
 msgstr "Неправильний лід"
 
-#: apps/web/views.py:3708
+#: apps/web/views.py:3748
 msgid "Invalid slug"
 msgstr "Неправильний slug"
 
-#: apps/web/views.py:3710
+#: apps/web/views.py:3750
 msgid "Slug already taken"
 msgstr "Slug вже зайнятий"
 
-#: apps/web/views.py:3719
+#: apps/web/views.py:3759
 msgid "Cannot generate unique slug"
 msgstr "Не вдалось згенерувати унікальний slug"
 
@@ -1069,6 +1069,7 @@ msgstr "щоб скасувати"
 #: templates/web/_create_workspace_modal.html:99
 #: templates/web/projects/_editor_toolbar.html:139
 #: templates/web/projects/_editor_toolbar.html:140
+#: templates/web/projects/_overview_panel.html:231
 #: templates/web/workspaces/_settings_invites.html:109
 #: templates/web/workspaces/_settings_members.html:141
 msgid "Cancel"
@@ -1133,7 +1134,7 @@ msgid "What needs to be done?"
 msgstr "Що потрібно зробити?"
 
 #: templates/web/_create_task_modal.html:82
-#: templates/web/projects/_overview_panel.html:244
+#: templates/web/projects/_overview_panel.html:272
 #: templates/web/projects/_task_detail_body.html:108
 msgid "Description"
 msgstr "Опис"
@@ -1303,7 +1304,8 @@ msgstr "Апдейтів ще немає"
 
 #: templates/web/_inbox_updates_list.html:59
 msgid "Project status updates from your workspaces will show up here."
-msgstr "Тут з'являтимуться апдейти статусу проєктів із ваших робочих просторів."
+msgstr ""
+"Тут з'являтимуться апдейти статусу проєктів із ваших робочих просторів."
 
 #: templates/web/_modal_shell.html:40 templates/web/_modal_shell.html:41
 msgid "Close"
@@ -1426,7 +1428,7 @@ msgstr ""
 msgid "live"
 msgstr "наживо"
 
-#: templates/web/inbox.html:34 templates/web/projects/_overview_panel.html:177
+#: templates/web/inbox.html:34
 msgid "Updates"
 msgstr "Апдейти"
 
@@ -1827,26 +1829,38 @@ msgstr "Поки що немає задач — оживіть цей проєк
 msgid "Latest update"
 msgstr "Останній апдейт"
 
-#: templates/web/projects/_overview_panel.html:186
+#: templates/web/projects/_overview_panel.html:188
 msgid "new"
 msgstr "новий"
 
-#: templates/web/projects/_overview_panel.html:201
-msgid "unknown"
-msgstr "невідомо"
+#: templates/web/projects/_overview_panel.html:223
+msgid "Write an update…"
+msgstr "Напишіть апдейт…"
 
-#: templates/web/projects/_overview_panel.html:203
-#, python-format
-msgid "posted %(t)s ago"
-msgstr "опубліковано %(t)s тому"
+#: templates/web/projects/_overview_panel.html:233
+msgid "Post update"
+msgstr "Опублікувати апдейт"
 
-#: templates/web/projects/_overview_panel.html:225
+#: templates/web/projects/_overview_panel.html:247
+msgid "View all updates"
+msgstr "Переглянути всі апдейти"
+
+#: templates/web/projects/_overview_panel.html:254
 msgid "No updates yet — post one to keep the team in sync."
 msgstr "Поки що немає апдейтів — опублікуйте перший, щоб команда була в курсі."
 
-#: templates/web/projects/_overview_panel.html:229
+#: templates/web/projects/_overview_panel.html:258
 msgid "Write first update"
 msgstr "Написати перший апдейт"
+
+#: templates/web/projects/_overview_update_card.html:16
+msgid "unknown"
+msgstr "невідомо"
+
+#: templates/web/projects/_overview_update_card.html:18
+#, python-format
+msgid "posted %(t)s ago"
+msgstr "опубліковано %(t)s тому"
 
 #: templates/web/projects/_project_favourite_star.html:22
 msgid "Unstar project"
