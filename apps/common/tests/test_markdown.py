@@ -98,6 +98,40 @@ class TestSanitization:
         assert "javascript:" not in html
 
 
+class TestMentions:
+    """``mention:`` / ``task:`` link tokens become chips."""
+
+    def test_user_mention_becomes_chip(self):
+        html = render_markdown("hey [@vox](mention:5) ping")
+        assert '<span class="acta-mention" data-user-id="5">@vox</span>' in html
+
+    def test_task_mention_becomes_internal_chip_link(self):
+        html = render_markdown("see [ACTA-128](task:9)")
+        assert 'class="acta-task-mention"' in html
+        assert 'data-task-id="9"' in html
+        assert 'href="/projects/ACTA/128/"' in html
+        assert "_blank" not in html  # internal link stays in the same tab
+
+    def test_task_mention_label_with_title(self):
+        """Label carries "SLUG Title"; URL is derived from the leading slug."""
+        html = render_markdown("see [ACTA-128 Fix the thing](task:9)")
+        assert 'href="/projects/ACTA/128/"' in html
+        assert "Fix the thing" in html
+
+    def test_mention_span_cannot_carry_dangerous_attrs(self):
+        """A forged chip is cosmetic-only (notifications derive from the
+        membership-validated token parse), but it must never smuggle an
+        event handler or non-numeric id through bleach."""
+        html = render_markdown('<span class="acta-mention" data-user-id="1" onclick="x()">z</span>')
+        assert "onclick" not in html
+        html2 = render_markdown('<span class="acta-mention" data-user-id="1;alert(1)">z</span>')
+        assert "alert(1)" not in html2
+
+    def test_external_link_still_opens_new_tab(self):
+        html = render_markdown("[g](https://g.com)")
+        assert 'target="_blank"' in html
+
+
 class TestEdgeCases:
     """Trivial inputs."""
 

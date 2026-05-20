@@ -140,3 +140,58 @@ class TestCommentFanout:
         n = Notification.objects.filter(recipient=assignee).first()
         assert n.preview == "store this body"
         assert n.comment_id == comment.id
+
+
+@pytest.mark.django_db
+class TestMentionFanout:
+    def test_comment_mention_notifies_member(self, trio):
+        project, assignee, reporter, actor = trio
+        mentioned = WorkspaceMemberFactory(workspace=project.workspace).user
+        task = TaskFactory(project=project, assignee=assignee, reporter=reporter)
+        comment = Comment.objects.create(
+            task=task, author=actor, body=f"hey [@{mentioned.username}](mention:{mentioned.id}) look"
+        )
+        notify_comment_created(comment=comment, actor=actor)
+        assert Notification.objects.filter(recipient=mentioned, kind=Notification.Kind.MENTION).exists()
+
+    def test_mentioned_assignee_gets_mention_not_comment(self, trio):
+        project, assignee, reporter, actor = trio
+        task = TaskFactory(project=project, assignee=assignee, reporter=reporter)
+        comment = Comment.objects.create(
+            task=task, author=actor, body=f"ping [@{assignee.username}](mention:{assignee.id})"
+        )
+        notify_comment_created(comment=comment, actor=actor)
+        kinds = set(Notification.objects.filter(recipient=assignee).values_list("kind", flat=True))
+        assert Notification.Kind.MENTION in kinds
+        assert Notification.Kind.COMMENT not in kinds
+
+    def test_mention_of_non_member_ignored(self, trio):
+        project, assignee, reporter, actor = trio
+        outsider = WorkspaceFactory().owner
+        task = TaskFactory(project=project, assignee=assignee, reporter=reporter)
+        comment = Comment.objects.create(task=task, author=actor, body=f"[@x](mention:{outsider.id})")
+        notify_comment_created(comment=comment, actor=actor)
+        assert not Notification.objects.filter(recipient=outsider).exists()
+
+    def test_mention_of_actor_suppressed(self, trio):
+        project, assignee, reporter, actor = trio
+        task = TaskFactory(project=project, assignee=assignee, reporter=reporter)
+        comment = Comment.objects.create(task=task, author=actor, body=f"note [@me](mention:{actor.id})")
+        notify_comment_created(comment=comment, actor=actor)
+        assert not Notification.objects.filter(recipient=actor).exists()
+
+    def test_description_mention_notifies_once(self, trio):
+        project, assignee, reporter, actor = trio
+        mentioned = WorkspaceMemberFactory(workspace=project.workspace).user
+        task = TaskFactory(project=project, assignee=assignee, reporter=reporter, description="")
+        old = snapshot_task(task)
+        task.description = f"see [@{mentioned.username}](mention:{mentioned.id})"
+        task.save()
+        emit_task_diff_events(old_state=old, task=task, actor=actor)
+        assert Notification.objects.filter(recipient=mentioned, kind=Notification.Kind.MENTION).count() == 1
+        # editing the description again without dropping the mention must not re-ping
+        old2 = snapshot_task(task)
+        task.description = f"see [@{mentioned.username}](mention:{mentioned.id}) more"
+        task.save()
+        emit_task_diff_events(old_state=old2, task=task, actor=actor)
+        assert Notification.objects.filter(recipient=mentioned, kind=Notification.Kind.MENTION).count() == 1

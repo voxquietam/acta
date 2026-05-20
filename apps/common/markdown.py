@@ -7,6 +7,8 @@ docs/decisions/0014-frontend-architecture.md for the rationale of
 server-side rendering.
 """
 
+import re
+
 import bleach
 import markdown
 
@@ -31,6 +33,7 @@ ALLOWED_TAGS = [
     "p",
     "pre",
     "s",
+    "span",
     "strong",
     "table",
     "tbody",
@@ -65,6 +68,15 @@ ALLOWED_PROTOCOLS = [
     "https",
     "mailto",
 ]
+
+# Mention tokens are stored in Markdown as links with custom schemes so
+# they survive the TipTap ↔ markdown round-trip:
+#   user: ``[@username](mention:<id>)``  → an inline chip + hover card
+#   task: ``[ACTA-128](task:<id>)``      → a chip-link to the task
+# These are rewritten to chips *after* the markdown render but *before*
+# bleach, so the hardened attribute filter below governs what survives.
+_USER_MENTION_RE = re.compile(r'<a href="mention:(\d+)">(.*?)</a>')
+_TASK_MENTION_RE = re.compile(r'<a href="task:(\d+)">(.*?)</a>')
 
 _MD_EXTENSIONS = [
     "fenced_code",
@@ -104,7 +116,54 @@ def _attr_filter(tag, name, value):
         if name == "type":
             return value == "checkbox"
         return name in {"disabled", "checked"}
+    # Mention chips are emitted by :func:`_render_mentions`, but a user
+    # could also type a literal ``<span class=...>`` in their Markdown —
+    # so lock the surviving span/anchor mention attributes to exactly the
+    # shapes we generate (no arbitrary class / data-* injection).
+    if tag == "span":
+        if name == "class":
+            return value == "acta-mention"
+        if name == "data-user-id":
+            return value.isdigit()
+        return False
+    if tag == "a":
+        if name == "class":
+            return value == "acta-task-mention"
+        if name == "data-task-id":
+            return value.isdigit()
+        return name in _ALLOWED_ATTRS_BY_TAG.get("a", [])
     return name in _ALLOWED_ATTRS_BY_TAG.get(tag, [])
+
+
+def _render_mentions(html: str) -> str:
+    """Rewrite mention link tokens into chip markup.
+
+    Runs on the markdown-rendered HTML before bleach. User mentions
+    become an inline ``<span class="acta-mention" data-user-id>`` (the
+    hover-card + brand chip is wired client-side); task mentions become a
+    chip ``<a class="acta-task-mention">`` whose href is derived from the
+    slug label (``ACTA-128`` → ``/projects/ACTA/128/``), so no DB lookup
+    is needed at render time.
+
+    Args:
+        html: HTML produced by ``markdown.markdown``.
+
+    Returns:
+        HTML with mention links replaced by chip markup.
+    """
+
+    def _task(match: re.Match) -> str:
+        task_id, label = match.group(1), match.group(2)
+        # The label may carry the title after the slug ("AUD-180 Title"),
+        # so the URL is derived from the leading slug token only.
+        slug = label.split(" ", 1)[0]
+        prefix, _, number = slug.rpartition("-")
+        href = f"/projects/{prefix}/{number}/" if prefix and number.isdigit() else "#"
+        return f'<a class="acta-task-mention" data-task-id="{task_id}" href="{href}">{label}</a>'
+
+    html = _USER_MENTION_RE.sub(r'<span class="acta-mention" data-user-id="\1">\2</span>', html)
+    html = _TASK_MENTION_RE.sub(_task, html)
+    return html
 
 
 def render_markdown(text: str | None) -> str:
@@ -131,6 +190,7 @@ def render_markdown(text: str | None) -> str:
         extension_configs=_MD_EXTENSION_CONFIGS,
         output_format="html",
     )
+    rendered = _render_mentions(rendered)
     cleaned = bleach.clean(
         rendered,
         tags=ALLOWED_TAGS,
@@ -164,6 +224,14 @@ def _force_safe_rel(attrs, new=False):
         ``noopener noreferrer nofollow``; ``target="_blank"`` so the
         link opens in a new tab.
     """
+    href = attrs.get((None, "href"), "")
+    # Internal links (task-mention chips → ``/projects/...``) stay in the
+    # same tab; only external destinations open in a new tab + get the
+    # full nofollow hardening.
+    if href.startswith("/"):
+        attrs[(None, "rel")] = "noopener noreferrer"
+        attrs.pop((None, "target"), None)
+        return attrs
     attrs[(None, "rel")] = "noopener noreferrer nofollow"
     attrs[(None, "target")] = "_blank"
     return attrs

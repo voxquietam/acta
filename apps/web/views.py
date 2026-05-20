@@ -1934,6 +1934,106 @@ def task_link_search(request, slug_prefix, number):
     return JsonResponse({"results": results})
 
 
+@login_required
+def mention_search(request, slug_prefix):
+    """Combined ``@``-mention typeahead: workspace members + tasks.
+
+    Feeds the editor's ``@``-picker with two sections — **Users** (matched
+    by username / first / last name) and **Issues** (by title or
+    ``PREFIX-NUMBER`` slug). With ``?id=<n>`` it returns a single member
+    card for the chip hover popover; with ``?task_id=<n>`` it returns a
+    task card (status / priority / assignee / due / labels). All results
+    are scoped to the project's workspace.
+    """
+    from django.db.models import Q
+
+    project = _get_user_project_or_404(request.user, slug_prefix)
+    workspace_id = project.workspace_id
+
+    card_id = (request.GET.get("id") or "").strip()
+    if card_id:
+        member = (
+            WorkspaceMember.objects.filter(workspace_id=workspace_id, user_id=card_id).select_related("user").first()
+        )
+        if member is None:
+            return JsonResponse({"user": None}, status=404)
+        u = member.user
+        return JsonResponse(
+            {"user": {"id": u.id, "username": u.username, "name": u.display_name, "avatar_color": u.avatar_color}}
+        )
+
+    task_card_id = (request.GET.get("task_id") or "").strip()
+    if task_card_id:
+        t = (
+            Task.objects.filter(project__workspace_id=workspace_id, id=task_card_id)
+            .select_related("project", "assignee")
+            .prefetch_related("labels")
+            .first()
+        )
+        if t is None:
+            return JsonResponse({"task": None}, status=404)
+        assignee = None
+        if t.assignee_id:
+            assignee = {
+                "name": t.assignee.display_name,
+                "initial": t.assignee.display_name[:1].upper(),
+                "avatar_color": t.assignee.avatar_color,
+            }
+        return JsonResponse(
+            {
+                "task": {
+                    "slug": t.slug,
+                    "title": t.title,
+                    "status": t.status,
+                    "status_label": str(Task.STATUS_LABELS.get(t.status, t.status)),
+                    "priority": t.priority,
+                    "priority_label": str(dict(Task.PRIORITY_CHOICES).get(t.priority, "")),
+                    "assignee": assignee,
+                    "due_date": t.due_date.isoformat() if t.due_date else None,
+                    "labels": [{"name": label.name, "color": label.color} for label in t.labels.all()],
+                }
+            }
+        )
+
+    q = (request.GET.get("q") or "").strip()
+
+    members = WorkspaceMember.objects.filter(workspace_id=workspace_id).select_related("user")
+    if q:
+        members = members.filter(
+            Q(user__username__icontains=q) | Q(user__first_name__icontains=q) | Q(user__last_name__icontains=q)
+        )
+    users = [
+        {
+            "id": m.user_id,
+            "username": m.user.username,
+            "name": m.user.display_name,
+            "avatar_color": m.user.avatar_color,
+        }
+        for m in members.order_by("user__username")[:6]
+    ]
+
+    task_qs = Task.objects.filter(
+        project__workspace_id=workspace_id,
+        project__workspace__memberships__user=request.user,
+        archived_at__isnull=True,
+    ).select_related("project")
+    if q:
+        match = Q(title__icontains=q)
+        upper = q.upper()
+        if "-" in upper:
+            prefix, _, num = upper.rpartition("-")
+            if num.isdigit():
+                match |= Q(project__slug_prefix=prefix, number=int(num))
+        elif q.isdigit():
+            match |= Q(number=int(q))
+        task_qs = task_qs.filter(match)
+    tasks = [
+        {"id": t.id, "slug": t.slug, "title": t.title, "status": t.status} for t in task_qs.order_by("-updated_at")[:6]
+    ]
+
+    return JsonResponse({"users": users, "tasks": tasks})
+
+
 @require_POST
 @login_required
 def add_task_link(request, slug_prefix, number):

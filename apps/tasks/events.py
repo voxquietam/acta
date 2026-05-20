@@ -344,9 +344,15 @@ def emit_task_diff_events(
         broadcast_task_events(events, {task.pk: task_for_render}, actor)
         # Per-user inbox fan-out. Lazy import keeps tasks → notifications
         # a runtime edge, not a module-load cycle.
-        from apps.notifications.services import notify_for_task_diff
+        from apps.notifications.services import notify_description_mentions, notify_for_task_diff
 
         notify_for_task_diff(events=events, task=task_for_render, actor=actor)
+        notify_description_mentions(
+            old_text=old_state.get("description"),
+            new_text=task.description,
+            task=task_for_render,
+            actor=actor,
+        )
     return len(events)
 
 

@@ -18,6 +18,7 @@ from .views import (
     create_task,
     create_workspace,
     create_workspace_invite,
+    mention_search,
     open_notification,
     post_comment,
     read_all_notifications,
@@ -104,6 +105,11 @@ urlpatterns = [
     path("projects/", ProjectListView.as_view(), name="project_list"),
     path("projects/new/", create_project, name="create_project"),
     path("projects/<str:slug_prefix>/", ProjectDetailView.as_view(), name="project_detail"),
+    path(
+        "projects/<str:slug_prefix>/mention-search/",
+        mention_search,
+        name="mention_search",
+    ),
     path(
         "projects/<str:slug_prefix>/lead/",
         set_project_lead,

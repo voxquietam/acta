@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any, Iterable
 
 from django.db import transaction
@@ -7,6 +8,10 @@ from django.db import transaction
 from .models import Notification
 
 _COMMENT_PREVIEW_CHARS = 280
+
+# Mention tokens are stored in Markdown as ``[@username](mention:<id>)``.
+# Fan-out reads the user id straight from the token — no HTML parse.
+_MENTION_TOKEN_RE = re.compile(r"\(mention:(\d+)\)")
 
 _TASK_EVENT_KINDS = {
     "task.assigned": Notification.Kind.ASSIGNED,
@@ -172,25 +177,115 @@ def notify_for_task_diff(*, events: Iterable, task, actor) -> None:
             )
 
 
+def parse_mentioned_user_ids(text: str | None) -> set[int]:
+    """Return the user ids referenced by ``mention:`` tokens in Markdown.
+
+    Args:
+        text: Markdown source (comment body / task description).
+
+    Returns:
+        A set of user ids. Empty for falsy input. Membership is *not*
+        validated here — :func:`notify_mentions` does that.
+    """
+    if not text:
+        return set()
+    return {int(m) for m in _MENTION_TOKEN_RE.findall(text)}
+
+
+def notify_mentions(*, user_ids, actor, task, workspace_id, preview, comment=None) -> set[int]:
+    """Send ``MENTION`` notifications to workspace members among ``user_ids``.
+
+    Non-members are dropped (a mention can only reach someone who can see
+    the task) and the actor is dropped by :func:`notify`'s self-rule.
+
+    Args:
+        user_ids: Candidate recipient ids parsed from the text.
+        actor: The :class:`User` who wrote the mention.
+        task: The :class:`Task` the mention lives on.
+        workspace_id: Workspace the task belongs to.
+        preview: Denormalized snippet for the inbox row.
+        comment: The :class:`Comment` carrying the mention, if any.
+
+    Returns:
+        The set of user ids actually notified (validated members), so the
+        comment fan-out can avoid sending them a duplicate ``COMMENT``.
+    """
+    if not user_ids:
+        return set()
+    from apps.workspaces.models import WorkspaceMember
+
+    valid = set(
+        WorkspaceMember.objects.filter(workspace_id=workspace_id, user_id__in=user_ids).values_list(
+            "user_id", flat=True
+        )
+    )
+    for recipient_id in valid:
+        notify(
+            recipient_id=recipient_id,
+            actor=actor,
+            kind=Notification.Kind.MENTION,
+            workspace_id=workspace_id,
+            task=task,
+            comment=comment,
+            preview=preview,
+        )
+    return valid
+
+
+def notify_description_mentions(*, old_text, new_text, task, actor) -> None:
+    """Notify users newly @-mentioned in a task description edit.
+
+    Diffs the mention tokens so re-saving a description (or editing an
+    unrelated field) never re-pings someone already mentioned.
+
+    Args:
+        old_text: Description Markdown before the edit.
+        new_text: Description Markdown after the edit.
+        task: The :class:`Task` (``project.workspace_id`` read without a
+            query when ``project__workspace`` is select-related).
+        actor: The :class:`User` who edited the description.
+    """
+    added = parse_mentioned_user_ids(new_text) - parse_mentioned_user_ids(old_text)
+    if not added:
+        return
+    notify_mentions(
+        user_ids=added,
+        actor=actor,
+        task=task,
+        workspace_id=task.project.workspace_id,
+        preview=task.title,
+    )
+
+
 def notify_comment_created(*, comment, actor) -> None:
-    """Fan a new comment out to the task's assignee and reporter.
+    """Fan a new comment out to mentions, then assignee + reporter.
 
     Called right after the ``comment.created`` activity event at every
-    surface that posts comments (web, DRF, MCP). Mentions inside the body
-    are a separate, later notification path; this only covers the
-    "discussion progressed on a task I'm involved with" trigger.
+    surface that posts comments (web, DRF, MCP). ``@``-mentions in the
+    body get a ``MENTION`` notification first; the assignee / reporter
+    get a ``COMMENT`` notification, minus anyone already mentioned (so a
+    mentioned assignee gets the higher-signal mention, not a duplicate).
 
     Args:
         comment: The freshly created :class:`Comment`.
         actor: The :class:`User` who wrote the comment.
     """
     task = comment.task
-    involved = {task.assignee_id, task.reporter_id}
-    involved.discard(None)
-    if not involved:
-        return
     workspace_id = task.project.workspace_id
     preview = (comment.body or "")[:_COMMENT_PREVIEW_CHARS]
+
+    mentioned = notify_mentions(
+        user_ids=parse_mentioned_user_ids(comment.body),
+        actor=actor,
+        task=task,
+        workspace_id=workspace_id,
+        preview=preview,
+        comment=comment,
+    )
+
+    involved = {task.assignee_id, task.reporter_id}
+    involved.discard(None)
+    involved -= mentioned
     for recipient_id in involved:
         notify(
             recipient_id=recipient_id,
