@@ -6,8 +6,10 @@
 //
 // Mount: any element with [data-description-editor] containing a
 // nested .description-editor-mount (the editable surface) and a
-// .description-editor-bubble (the floating toolbar template). The
-// initial markdown source is read from a sibling
+// .description-editor-toolbar (a selection bubble: hidden by default,
+// shown over a non-empty text selection and positioned from the
+// selection's coords — see onSelectionUpdate / positionBubble; no tippy,
+// no portaling). The initial markdown source is read from a sibling
 // .description-editor-source hidden textarea.
 //
 // Save: on blur (editor losing focus), if the markdown has changed,
@@ -22,7 +24,6 @@ import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
-import Underline from "@tiptap/extension-underline";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import Highlight from "@tiptap/extension-highlight";
@@ -31,6 +32,65 @@ import { Markdown } from "tiptap-markdown";
 import { buildMention } from "./mention.js";
 
 const INSTANCES = new WeakMap();
+
+// Custom selection bubble (no positioning library, no portaling — the
+// two things that broke the tippy attempts). We position our own toolbar
+// from the selection's viewport coords and toggle it from TipTap's own
+// lifecycle callbacks. The toolbar stays inside the editor root, so its
+// Alpine link-mode keeps working.
+function selectionRect(editor) {
+  // The rendered selection box in viewport coords. The DOM selection's
+  // own getBoundingClientRect is authoritative (matches what the user
+  // sees); editor.view.coordsAtPos drifted from it and put the bubble on
+  // top of the word. Fall back to coordsAtPos only if there's no live
+  // DOM range (rare).
+  const sel = window.getSelection();
+  if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+    const r = sel.getRangeAt(0).getBoundingClientRect();
+    if (r.width || r.height) {
+      return { top: r.top, bottom: r.bottom, left: r.left, right: r.right };
+    }
+  }
+  const s = editor.view.coordsAtPos(editor.state.selection.from);
+  const e = editor.view.coordsAtPos(editor.state.selection.to);
+  return { top: s.top, bottom: e.bottom, left: s.left, right: e.right };
+}
+
+function positionBubble(editor, toolbar) {
+  const rect = selectionRect(editor);
+  const midX = (rect.left + rect.right) / 2;
+  toolbar.style.position = "fixed";
+  toolbar.style.zIndex = "50";
+  toolbar.style.left = `${midX}px`;
+  // Anchor by the bubble's own bottom edge (translateY -100%) so we never
+  // read its height. Sit fully above the selection; flip below only when
+  // too close to the viewport top.
+  const ROOM_ABOVE = 56;
+  if (rect.top < ROOM_ABOVE) {
+    toolbar.style.top = `${rect.bottom + 8}px`;
+    toolbar.style.transform = "translateX(-50%)";
+  } else {
+    toolbar.style.top = `${rect.top - 8}px`;
+    toolbar.style.transform = "translate(-50%, -100%)";
+  }
+}
+
+function showBubble(editor, toolbar) {
+  if (!toolbar) return;
+  // Take the toolbar out of flow BEFORE revealing it. The toolbar sits
+  // in the DOM ahead of the editor mount; showing it in-flow first would
+  // push the editor down by the toolbar's height, so the selection coords
+  // we then read are skewed by exactly that height — which dropped the
+  // bubble onto the selected word. Going fixed first means display never
+  // shifts the layout.
+  toolbar.style.position = "fixed";
+  toolbar.style.display = "";
+  positionBubble(editor, toolbar);
+}
+
+function hideBubble(toolbar) {
+  if (toolbar) toolbar.style.display = "none";
+}
 
 function initEditor(root) {
   if (INSTANCES.has(root)) {
@@ -75,15 +135,14 @@ function initEditor(root) {
       Link.configure({
         // Click to navigate (opens in a new tab thanks to the
         // target="_blank" attribute). Editing a link goes through the
-        // bubble-menu link button — select text containing the link,
-        // click 🔗, prompt is pre-filled with the current href.
+        // toolbar link button — select text containing the link, click
+        // 🔗, the inline URL field is pre-filled with the current href.
         openOnClick: true,
         HTMLAttributes: { rel: "noopener noreferrer nofollow", target: "_blank" },
       }),
       Placeholder.configure({
         placeholder: root.dataset.placeholder || "Write a description…",
       }),
-      Underline,
       TaskList,
       TaskItem.configure({
         nested: true,
@@ -107,8 +166,10 @@ function initEditor(root) {
         // ``prose-invert`` is gated on the dark mode class so the
         // editor renders with dark text on the white surface in
         // light mode (without this it inherits the invert palette
-        // both ways and shows pale-grey text on white).
-        class: "prose dark:prose-invert prose-sm max-w-none focus:outline-none min-h-[6rem]",
+        // both ways and shows pale-grey text on white). No min-height
+        // here — the editor auto-grows with content; each mount sets its
+        // own floor (comments stay short, descriptions reserve more).
+        class: "prose dark:prose-invert prose-sm max-w-none focus:outline-none",
       },
     },
     onUpdate({ editor }) {
@@ -125,7 +186,31 @@ function initEditor(root) {
         }),
       );
     },
-    onBlur({ editor }) {
+    onSelectionUpdate({ editor }) {
+      // Selection bubble: show the toolbar over a non-empty selection
+      // while the editor is focused; hide it the moment the selection
+      // collapses. Positioned from selection coords, no library.
+      if (toolbar && editor.isFocused && !editor.state.selection.empty) {
+        showBubble(editor, toolbar);
+      } else {
+        hideBubble(toolbar);
+      }
+    },
+    onFocus({ editor }) {
+      // Re-show if focus returns to a still-selected range (e.g. after
+      // applying a link from the toolbar's own input).
+      if (toolbar && !editor.state.selection.empty) {
+        showBubble(editor, toolbar);
+      }
+    },
+    onBlur({ editor, event }) {
+      // Hide the bubble on blur — unless focus moved into the toolbar
+      // itself (the link-URL input), so editing a link doesn't make its
+      // own input vanish. Clicking a formatting button keeps editor focus
+      // (mousedown preventDefault below), so onBlur doesn't fire for those.
+      if (toolbar && !(event && event.relatedTarget && toolbar.contains(event.relatedTarget))) {
+        hideBubble(toolbar);
+      }
       // Comment editor opts out of blur-save: comments need an
       // explicit submit, not autosave on every focus change.
       if (!autosave) {
@@ -157,16 +242,27 @@ function initEditor(root) {
   // Initial sync so the hidden input matches what the editor shows.
   hidden.value = editor.storage.markdown.getMarkdown();
 
+  let bubbleScroll = null;
   if (toolbar) {
+    // Toolbar buttons reach this editor via
+    // ``closest('.description-editor-toolbar')._editor``.
+    toolbar._editor = editor;
     // Toolbar buttons must not steal focus from the editor on click,
     // otherwise the chain commands they dispatch fire against an
-    // empty selection. preventDefault on mousedown keeps focus
-    // inside the editor view. Inputs (e.g. the link-URL field) are
-    // exempt — they *should* take focus while the user types.
+    // empty selection — and the blur would hide the bubble mid-click.
+    // preventDefault on mousedown keeps focus inside the editor view.
+    // Inputs (e.g. the link-URL field) are exempt — they *should* take
+    // focus while the user types.
     toolbar.addEventListener("mousedown", (event) => {
       if (event.target instanceof HTMLInputElement) return;
       event.preventDefault();
     });
+    // Hide the fixed-positioned bubble while scrolling (it would
+    // otherwise drift away from the selection); it re-shows on the next
+    // selection change. Capture-phase to catch scroll in any container.
+    // Removed in the cleanup hook below.
+    bubbleScroll = () => hideBubble(toolbar);
+    window.addEventListener("scroll", bubbleScroll, true);
   }
 
   INSTANCES.set(root, editor);
@@ -210,6 +306,7 @@ function initEditor(root) {
   const cleanup = (event) => {
     if (event.detail && event.detail.elt === root) {
       window.removeEventListener("pagehide", onPageHide);
+      if (bubbleScroll) window.removeEventListener("scroll", bubbleScroll, true);
       editor.destroy();
       document.body.removeEventListener("htmx:beforeCleanupElement", cleanup);
     }

@@ -1,13 +1,20 @@
 {% load i18n %}
 {% comment %}
-Static toolbar above the TipTap editor (always visible while the
-editor is mounted). Drop this partial inside any element marked
-``[data-description-editor]`` and the JS module wires it up to the
-editor in that container.
+Selection bubble for the TipTap editor: a floating formatting bar shown
+over a non-empty text selection. Hidden by default (``display:none``);
+description_editor.js shows + positions it from the selection's coords on
+``onSelectionUpdate`` and hides it on collapse / blur / scroll. Drop this
+partial inside any element marked ``[data-description-editor]``.
 
-We swapped from a tippy-positioned bubble menu to a static toolbar
-after the bubble's show/hide kept misfiring in edge cases — see
-``feedback_stop_kostyling`` memory for the lesson learned.
+Third take, done without a positioning library. The two earlier attempts
+failed for the same reason — both leaned on tippy: a hand-rolled bubble
+(7 patches to hide reliably — see ``feedback_stop_kostyling``), then the
+official ``@tiptap/extension-bubble-menu`` (portals the toolbar to
+``<body>``, which broke our Alpine link-mode and didn't render). This one
+keeps the toolbar in our DOM and positions it via ``coordsAtPos`` — no
+tippy, no portal, so there's nothing fragile to rot. Buttons keep editor
+focus via mousedown preventDefault and reach the editor via
+``closest('.description-editor-toolbar')._editor`` (set in JS).
 
 Buttons use ``data-tooltip="…"`` + ``aria-label="…"`` instead of the
 native ``title`` attribute — the browser default tooltip is black/
@@ -20,12 +27,13 @@ Two modes via Alpine state — "menu" (default toolbar) and "link"
 (an inline URL input replacing the buttons, so we don't fall back to
 the native ``window.prompt`` dialog on link insertion).
 {% endcomment %}
-<div class="description-editor-toolbar flex flex-wrap items-center justify-center gap-0.5 border-b border-border pb-1.5 mb-2 sticky -top-6 z-10 backdrop-blur-md"
+<div class="description-editor-toolbar flex items-center gap-0.5 bg-card border border-border rounded-lg shadow-lg p-1"
+     style="display: none"
      x-data="{
        mode: 'menu',
        url: '',
        originalUrl: '',
-       ed() { return this.$el.closest('[data-description-editor]')?._editor; },
+       ed() { return this.$el.closest('.description-editor-toolbar')?._editor; },
        openLink() {
          const e = this.ed();
          if (!e) return;
@@ -57,32 +65,27 @@ the native ``window.prompt`` dialog on link insertion).
 
   <div x-show="mode === 'menu'" class="flex flex-wrap items-center gap-0.5">
     <button type="button"
-            onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleBold().run()"
+            onclick="event.preventDefault(); this.closest('.description-editor-toolbar')._editor?.chain().focus().toggleBold().run()"
             class="w-7 h-7 grid place-items-center rounded hover:bg-muted text-muted-foreground text-sm font-bold"
             aria-label="{% trans 'Bold' %}"
             data-tooltip="{% trans 'Bold' %}">B</button>
     <button type="button"
-            onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleItalic().run()"
+            onclick="event.preventDefault(); this.closest('.description-editor-toolbar')._editor?.chain().focus().toggleItalic().run()"
             class="w-7 h-7 grid place-items-center rounded hover:bg-muted text-muted-foreground text-sm italic"
             aria-label="{% trans 'Italic' %}"
             data-tooltip="{% trans 'Italic' %}">I</button>
     <button type="button"
-            onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleStrike().run()"
+            onclick="event.preventDefault(); this.closest('.description-editor-toolbar')._editor?.chain().focus().toggleStrike().run()"
             class="w-7 h-7 grid place-items-center rounded hover:bg-muted text-muted-foreground text-sm line-through"
             aria-label="{% trans 'Strike' %}"
             data-tooltip="{% trans 'Strike' %}">S</button>
     <button type="button"
-            onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleUnderline().run()"
-            class="w-7 h-7 grid place-items-center rounded hover:bg-muted text-muted-foreground text-sm underline"
-            aria-label="{% trans 'Underline' %}"
-            data-tooltip="{% trans 'Underline' %}">U</button>
-    <button type="button"
-            onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleCode().run()"
+            onclick="event.preventDefault(); this.closest('.description-editor-toolbar')._editor?.chain().focus().toggleCode().run()"
             class="w-7 h-7 grid place-items-center rounded hover:bg-muted text-muted-foreground text-xs font-mono"
             aria-label="{% trans 'Inline code' %}"
             data-tooltip="{% trans 'Inline code' %}">&lt;/&gt;</button>
     <button type="button"
-            onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleHighlight().run()"
+            onclick="event.preventDefault(); this.closest('.description-editor-toolbar')._editor?.chain().focus().toggleHighlight().run()"
             class="w-7 h-7 grid place-items-center rounded hover:bg-muted text-amber-700 dark:text-amber-300 text-sm"
             aria-label="{% trans 'Highlight' %}"
             data-tooltip="{% trans 'Highlight' %}">H</button>
@@ -93,22 +96,22 @@ the native ``window.prompt`` dialog on link insertion).
             data-tooltip="{% trans 'Link' %}">🔗</button>
     <span class="w-px h-4 bg-muted mx-1"></span>
     <button type="button"
-            onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleHeading({ level: 2 }).run()"
+            onclick="event.preventDefault(); this.closest('.description-editor-toolbar')._editor?.chain().focus().toggleHeading({ level: 2 }).run()"
             class="px-2 h-7 grid place-items-center rounded hover:bg-muted text-muted-foreground text-xs"
             aria-label="{% trans 'Heading' %}"
             data-tooltip="{% trans 'Heading' %}">H</button>
     <button type="button"
-            onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleBulletList().run()"
+            onclick="event.preventDefault(); this.closest('.description-editor-toolbar')._editor?.chain().focus().toggleBulletList().run()"
             class="px-2 h-7 grid place-items-center rounded hover:bg-muted text-muted-foreground text-xs"
             aria-label="{% trans 'Bullet list' %}"
             data-tooltip="{% trans 'Bullet list' %}">•</button>
     <button type="button"
-            onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleOrderedList().run()"
+            onclick="event.preventDefault(); this.closest('.description-editor-toolbar')._editor?.chain().focus().toggleOrderedList().run()"
             class="px-2 h-7 grid place-items-center rounded hover:bg-muted text-muted-foreground text-xs"
             aria-label="{% trans 'Numbered list' %}"
             data-tooltip="{% trans 'Numbered list' %}">1.</button>
     <button type="button"
-            onclick="event.preventDefault(); this.closest('[data-description-editor]')._editor?.chain().focus().toggleTaskList && this.closest('[data-description-editor]')._editor?.chain().focus().toggleTaskList().run()"
+            onclick="event.preventDefault(); this.closest('.description-editor-toolbar')._editor?.chain().focus().toggleTaskList && this.closest('.description-editor-toolbar')._editor?.chain().focus().toggleTaskList().run()"
             class="w-7 h-7 grid place-items-center rounded hover:bg-muted text-muted-foreground text-xs"
             aria-label="{% trans 'Task list' %}"
             data-tooltip="{% trans 'Task list' %}">☐</button>
