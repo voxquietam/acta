@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "description": "Acta frontend bundle — only used to compile the description editor (TipTap). Most of the app stays on CDN (HTMX, Alpine, Tailwind via Play CDN). See docs/decisions/0014-frontend-architecture.md for the rationale.",
   "scripts": {
-    "build:js": "esbuild static_src/js/description_editor.js --bundle --format=iife --minify --target=es2020 --outfile=static/js/description_editor.bundle.js --log-level=info",
+    "build:js": "esbuild static_src/js/description_editor.js --bundle --format=iife --minify --target=es2020 --outfile=static/js/description_editor.bundle.js --log-level=info && esbuild static_src/js/reactions.js --bundle --format=iife --minify --target=es2020 --outfile=static/js/reactions.bundle.js --log-level=info",
     "watch:js": "esbuild static_src/js/description_editor.js --bundle --format=iife --target=es2020 --outfile=static/js/description_editor.bundle.js --watch --log-level=info",
     "build:css": "tailwindcss -i static_src/css/main.css -o static/css/main.bundle.css --minify",
     "watch:css": "tailwindcss -i static_src/css/main.css -o static/css/main.bundle.css --watch",
@@ -32,6 +32,8 @@
     "@tiptap/pm": "^2.10.3",
     "@tiptap/starter-kit": "^2.10.3",
     "@tiptap/suggestion": "^2.27.2",
+    "emoji-picker-element": "^1.29.1",
+    "emoji-picker-element-data": "^1.8.0",
     "tiptap-markdown": "^0.8.10"
   }
 }

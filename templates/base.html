@@ -79,6 +79,13 @@
   rest of the app stays on CDN.
   {% endcomment %}
   <script src="{% static 'js/description_editor.bundle.js' %}" defer></script>
+  {% comment %}
+  Reactions bundle — registers the <emoji-picker> web component used by
+  the reaction-bar popovers (templates/web/_reaction_bar.html). Separate,
+  tiny entry from the editor bundle; built alongside it by
+  ``npm run build:js``. See docs/decisions/0014-frontend-architecture.md.
+  {% endcomment %}
+  <script src="{% static 'js/reactions.bundle.js' %}" defer></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>
