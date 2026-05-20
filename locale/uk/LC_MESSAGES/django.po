@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Acta 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-05-20 09:31+0000\n"
+"POT-Creation-Date: 2026-05-20 10:45+0000\n"
 "PO-Revision-Date: 2026-05-16 15:30+0000\n"
 "Last-Translator: Acta team\n"
 "Language-Team: Ukrainian\n"
@@ -44,10 +44,9 @@ msgid "Members"
 msgstr "Учасники"
 
 #: acta/settings/base.py:299 templates/web/workspaces/settings.html:40
-#, fuzzy
 #| msgid "Sites"
 msgid "Invites"
-msgstr "Сайти"
+msgstr "Запрошення"
 
 #: acta/settings/base.py:306 acta/settings/base.py:310
 #: apps/projects/models.py:105 templates/base_app.html:104
@@ -183,14 +182,16 @@ msgstr "Це посилання-запрошення вже використан
 
 #: apps/accounts/views.py:302
 msgid "That invite link has expired — ask the admin to resend it."
-msgstr "Термін дії посилання-запрошення минув — попросіть адміністратора надіслати його ще раз."
+msgstr ""
+"Термін дії посилання-запрошення минув — попросіть адміністратора надіслати "
+"його ще раз."
 
 #: apps/activity/models.py:78
 msgid "Activity log entry"
 msgstr "Запис журналу активності"
 
 #: apps/comments/models.py:40 apps/notifications/models.py:26
-#: templates/web/_inbox_preview.html:34
+#: templates/web/_inbox_preview.html:38
 msgid "Comment"
 msgstr "Коментар"
 
@@ -228,26 +229,23 @@ msgid "Mention"
 msgstr "Згадка"
 
 #: apps/notifications/models.py:24 templates/web/_inbox_list.html:28
-#, fuzzy
 #| msgid "Assignee"
 msgid "Assigned"
-msgstr "Виконавець"
+msgstr "Призначено"
 
 #: apps/notifications/models.py:25
 msgid "Due soon"
 msgstr "Незабаром дедлайн"
 
 #: apps/notifications/models.py:27
-#, fuzzy
 #| msgid "Save changes"
 msgid "Status change"
-msgstr "Зберегти зміни"
+msgstr "Зміна статусу"
 
 #: apps/notifications/models.py:28
-#, fuzzy
 #| msgid "Priority"
 msgid "Priority change"
-msgstr "Пріоритет"
+msgstr "Зміна пріоритету"
 
 #: apps/notifications/models.py:111 templates/web/_inbox_preview.html:21
 msgid "Notification"
@@ -257,7 +255,7 @@ msgstr "Сповіщення"
 msgid "Notifications"
 msgstr "Сповіщення"
 
-#: apps/projects/models.py:10 apps/web/views.py:3192
+#: apps/projects/models.py:10 apps/web/views.py:3259
 msgid "Slug prefix must be 2–6 uppercase Latin letters."
 msgstr "Префікс slug має містити 2–6 великих латинських літер."
 
@@ -267,7 +265,7 @@ msgstr "Префікс slug має містити 2–6 великих лати�
 msgid "Project"
 msgstr "Проєкт"
 
-#: apps/projects/models.py:131 apps/web/views.py:3210
+#: apps/projects/models.py:131 apps/web/views.py:3277
 msgid "Lead must be a member of the project's workspace."
 msgstr "Лід повинен бути учасником робочого простору проєкту."
 
@@ -392,10 +390,10 @@ msgid "Labels %(ids)s are not in this project's workspace."
 msgstr "Мітки %(ids)s не належать робочому простору цього проєкту."
 
 #: apps/tasks/serializers.py:160
-#, fuzzy, python-format
+#, python-format
 #| msgid "You are not a member of this project's workspace."
 msgid "User %(user)s is not a member of this project's workspace."
-msgstr "Ви не є учасником робочого простору цього проєкту."
+msgstr "Користувач %(user)s не є учасником робочого простору цього проєкту."
 
 #: apps/web/grouping.py:111
 msgid "Overdue"
@@ -495,119 +493,118 @@ msgstr "учасника виключено з простору"
 msgid "changed a member role"
 msgstr "змінено роль учасника"
 
-#: apps/web/views.py:2852 apps/web/views.py:2890 apps/web/views.py:2917
-#: apps/web/views.py:3015 apps/web/views.py:3047 apps/web/views.py:3072
+#: apps/web/views.py:2919 apps/web/views.py:2957 apps/web/views.py:2984
+#: apps/web/views.py:3082 apps/web/views.py:3114 apps/web/views.py:3139
 msgid "Admin or owner only"
 msgstr "Тільки для адміна або власника"
 
-#: apps/web/views.py:2855
-#, fuzzy
+#: apps/web/views.py:2922
 #| msgid "Name is required"
 msgid "Email is required"
-msgstr "Ім'я обов'язкове"
+msgstr "Email обов'язковий"
 
-#: apps/web/views.py:2858 apps/web/views.py:3022 apps/web/views.py:3055
+#: apps/web/views.py:2925 apps/web/views.py:3089 apps/web/views.py:3122
 msgid "Invalid role"
 msgstr "Неправильна роль"
 
-#: apps/web/views.py:2867
+#: apps/web/views.py:2934
 #, python-format
 msgid "Invite sent to %(email)s."
 msgstr "Запрошення надіслано на %(email)s."
 
-#: apps/web/views.py:2870
+#: apps/web/views.py:2937
 msgid "Invite created but email failed — copy the link from the list."
-msgstr "Запрошення створено, але лист не надіслався — скопіюйте посилання зі списку."
+msgstr ""
+"Запрошення створено, але лист не надіслався — скопіюйте посилання зі списку."
 
-#: apps/web/views.py:2893
-#, fuzzy
+#: apps/web/views.py:2960
 #| msgid "User not found"
 msgid "Invite not found"
-msgstr "Користувача не знайдено"
+msgstr "Запрошення не знайдено"
 
-#: apps/web/views.py:2899
+#: apps/web/views.py:2966
 #, python-format
 msgid "Invite to %(email)s revoked."
 msgstr "Запрошення для %(email)s відкликано."
 
-#: apps/web/views.py:2920
+#: apps/web/views.py:2987
 msgid "Invite not found or already accepted"
 msgstr "Запрошення не знайдено або вже прийнято"
 
-#: apps/web/views.py:2923
+#: apps/web/views.py:2990
 #, python-format
 msgid "Invite re-sent to %(email)s."
 msgstr "Запрошення повторно надіслано на %(email)s."
 
-#: apps/web/views.py:2925
+#: apps/web/views.py:2992
 msgid "Resend failed — try again later."
 msgstr "Не вдалося надіслати повторно — спробуйте пізніше."
 
-#: apps/web/views.py:3019
+#: apps/web/views.py:3086
 msgid "Invalid user_id"
 msgstr "Неправильний user_id"
 
-#: apps/web/views.py:3027
+#: apps/web/views.py:3094
 msgid "Cannot add another owner"
 msgstr "Не можна додати ще одного власника"
 
-#: apps/web/views.py:3030
+#: apps/web/views.py:3097
 msgid "User not found"
 msgstr "Користувача не знайдено"
 
-#: apps/web/views.py:3032
+#: apps/web/views.py:3099
 msgid "User already a member"
 msgstr "Користувач вже є учасником"
 
-#: apps/web/views.py:3050 apps/web/views.py:3075
+#: apps/web/views.py:3117 apps/web/views.py:3142
 msgid "Not a member"
 msgstr "Не є учасником"
 
-#: apps/web/views.py:3052
+#: apps/web/views.py:3119
 msgid "Transfer ownership first"
 msgstr "Спочатку передай право власності"
 
-#: apps/web/views.py:3057
+#: apps/web/views.py:3124
 msgid "Ownership transfer not supported here"
 msgstr "Передача права власності тут не підтримується"
 
-#: apps/web/views.py:3077
+#: apps/web/views.py:3144
 msgid "Cannot remove owner"
 msgstr "Не можна видалити власника"
 
-#: apps/web/views.py:3176
+#: apps/web/views.py:3243
 msgid "Invalid workspace"
 msgstr "Неправильний робочий простір"
 
-#: apps/web/views.py:3182
+#: apps/web/views.py:3249
 msgid "Workspace not accessible"
 msgstr "Робочий простір недоступний"
 
-#: apps/web/views.py:3186 apps/web/views.py:3277
+#: apps/web/views.py:3253 apps/web/views.py:3344
 msgid "Name is required"
 msgstr "Ім'я обов'язкове"
 
-#: apps/web/views.py:3188 apps/web/views.py:3279
+#: apps/web/views.py:3255 apps/web/views.py:3346
 msgid "Name too long"
 msgstr "Назва задовга"
 
-#: apps/web/views.py:3194
+#: apps/web/views.py:3261
 msgid "Slug prefix already used in this workspace"
 msgstr "Префікс slug вже використовується в цьому робочому просторі"
 
-#: apps/web/views.py:3204
+#: apps/web/views.py:3271
 msgid "Invalid lead"
 msgstr "Неправильний лід"
 
-#: apps/web/views.py:3285
+#: apps/web/views.py:3352
 msgid "Invalid slug"
 msgstr "Неправильний slug"
 
-#: apps/web/views.py:3287
+#: apps/web/views.py:3354
 msgid "Slug already taken"
 msgstr "Slug вже зайнятий"
 
-#: apps/web/views.py:3296
+#: apps/web/views.py:3363
 msgid "Cannot generate unique slug"
 msgstr "Не вдалось згенерувати унікальний slug"
 
@@ -633,16 +630,14 @@ msgid "Workspace members"
 msgstr "Учасники робочого простору"
 
 #: apps/workspaces/models.py:195
-#, fuzzy
 #| msgid "Workspace name"
 msgid "Workspace invite"
-msgstr "Назва робочого простору"
+msgstr "Запрошення до робочого простору"
 
 #: apps/workspaces/models.py:196
-#, fuzzy
 #| msgid "Workspace name"
 msgid "Workspace invites"
-msgstr "Назва робочого простору"
+msgstr "Запрошення до робочого простору"
 
 #: templates/account/login.html:21 templates/account/login.html:24
 #: templates/account/login.html:69 templates/account/signup.html:101
@@ -670,16 +665,14 @@ msgid "Account required — contact an admin if you need access."
 msgstr "Потрібен акаунт — звернись до адміністратора, щоб отримати доступ."
 
 #: templates/account/signup.html:15 templates/account/signup.html:92
-#, fuzzy
 #| msgid "Create project"
 msgid "Create account"
-msgstr "Створити проєкт"
+msgstr "Створити акаунт"
 
 #: templates/account/signup.html:18
-#, fuzzy
 #| msgid "Create your first project"
 msgid "Create your account"
-msgstr "Створи свій перший проєкт"
+msgstr "Створіть свій акаунт"
 
 #: templates/account/signup.html:21
 #, python-format
@@ -690,31 +683,28 @@ msgid ""
 "    "
 msgstr ""
 "\n"
-"    Ви приєднуєтесь до <span class=\"text-foreground\">%(workspace)s</span> як "
-"<span class=\"text-foreground\">%(role)s</span>.\n"
+"    Ви приєднуєтесь до <span class=\"text-foreground\">%(workspace)s</span> "
+"як <span class=\"text-foreground\">%(role)s</span>.\n"
 "    "
 
 #: templates/account/signup.html:26
-#, fuzzy
 #| msgid "Sign in with your Acta account."
 msgid "Sign up for an Acta account."
-msgstr "Увійди до свого акаунта Acta."
+msgstr "Зареєструйте акаунт Acta."
 
 #: templates/account/signup.html:40 templates/accounts/settings.html:49
 msgid "Email"
 msgstr "Email"
 
 #: templates/account/signup.html:54
-#, fuzzy
 #| msgid "User"
 msgid "Username"
-msgstr "Користувач"
+msgstr "Ім'я користувача"
 
 #: templates/account/signup.html:77
-#, fuzzy
 #| msgid "Forgot password?"
 msgid "Confirm password"
-msgstr "Забув пароль?"
+msgstr "Підтвердьте пароль"
 
 #: templates/account/signup.html:100
 msgid "Already have an account?"
@@ -822,26 +812,26 @@ msgid "revoked"
 msgstr "відкликаний"
 
 #: templates/accounts/settings.html:165
-#, fuzzy, python-format
+#, python-format
 #| msgid "created the task"
 msgid "created %(d)s"
-msgstr "створено задачу"
+msgstr "створено %(d)s"
 
 #: templates/accounts/settings.html:167
-#, fuzzy, python-format
+#, python-format
 #| msgid "posted %(t)s ago"
 msgid "last used %(t)s ago"
-msgstr "опубліковано %(t)s тому"
+msgstr "востаннє використано %(t)s тому"
 
 #: templates/accounts/settings.html:169
 msgid "never used"
 msgstr "не використовувався"
 
 #: templates/accounts/settings.html:172
-#, fuzzy, python-format
+#, python-format
 #| msgid "posted %(t)s ago"
 msgid "revoked %(t)s ago"
-msgstr "опубліковано %(t)s тому"
+msgstr "відкликано %(t)s тому"
 
 #: templates/accounts/settings.html:187
 msgid "Revoke"
@@ -973,10 +963,9 @@ msgid "Archive"
 msgstr "Архівувати"
 
 #: templates/base_app.html:413 templates/web/_inbox_list.html:109
-#, fuzzy
 #| msgid "Clear deadline"
 msgid "Clear selection"
-msgstr "Прибрати дедлайн"
+msgstr "Зняти вибір"
 
 #: templates/web/_all_tasks_inner.html:31
 #: templates/web/projects/_list_panel.html:71
@@ -1253,16 +1242,14 @@ msgstr ""
 "тут."
 
 #: templates/web/_inbox_list.html:69
-#, fuzzy
 #| msgid "No tasks match these filters"
 msgid "Nothing matches this filter"
-msgstr "Жодна задача не відповідає фільтрам"
+msgstr "Нічого не відповідає фільтру"
 
 #: templates/web/_inbox_list.html:72
-#, fuzzy
 #| msgid "Hide filters"
 msgid "Reset filter"
-msgstr "Сховати фільтри"
+msgstr "Скинути фільтр"
 
 #: templates/web/_inbox_list.html:96 templates/web/_notification_row.html:60
 msgid "Mark read"
@@ -1280,7 +1267,12 @@ msgstr "Відкрити"
 msgid "ago"
 msgstr "тому"
 
-#: templates/web/_inbox_preview.html:44
+#: templates/web/_inbox_preview.html:35
+#| msgid "mentioned you in"
+msgid "mentioned you"
+msgstr "згадав(ла) вас"
+
+#: templates/web/_inbox_preview.html:49
 msgid "Pick something on the left to see details."
 msgstr "Виберіть щось ліворуч, щоб побачити деталі."
 
@@ -1301,38 +1293,33 @@ msgid "mentioned you in"
 msgstr "згадав(ла) вас у"
 
 #: templates/web/_notification_row.html:45
-#, fuzzy
 #| msgid "Unassigned"
 msgid "assigned"
-msgstr "Без виконавця"
+msgstr "призначив(ла)"
 
 #: templates/web/_notification_row.html:45
-#, fuzzy
 #| msgid "Comment"
 msgid "commented on"
-msgstr "Коментар"
+msgstr "прокоментував(ла)"
 
 #: templates/web/_notification_row.html:45
-#, fuzzy
 #| msgid "Remove?"
 msgid "moved"
-msgstr "Видалити?"
+msgstr "перемістив(ла)"
 
 #: templates/web/_notification_row.html:45
-#, fuzzy
 #| msgid "changed priority"
 msgid "changed priority of"
-msgstr "змінено пріоритет"
+msgstr "змінив(ла) пріоритет"
 
 #: templates/web/_notification_row.html:45
 msgid "due soon:"
 msgstr "незабаром дедлайн:"
 
 #: templates/web/_notification_row.html:45
-#, fuzzy
 #| msgid "Updated"
 msgid "updated"
-msgstr "Оновлено"
+msgstr "оновив(ла)"
 
 #: templates/web/_notification_row.html:46
 msgid "to you"
@@ -1364,10 +1351,9 @@ msgstr "Фільтрувати за проєктом"
 #: templates/web/_task_row.html:110 templates/web/_task_row.html:116
 #: templates/web/projects/_table_row.html:156
 #: templates/web/projects/_table_row.html:166
-#, fuzzy
 #| msgid "Filter by label"
 msgid "Filter by assignee"
-msgstr "Фільтрувати за міткою"
+msgstr "Фільтрувати за виконавцем"
 
 #: templates/web/dashboard.html:14
 msgid "Your workspaces"
@@ -1429,16 +1415,14 @@ msgstr ""
 
 #: templates/web/projects/_activity_event.html:28
 #: templates/web/projects/_activity_event.html:54
-#, fuzzy
 #| msgid "Clear lead"
 msgid "cleared"
-msgstr "Прибрати ліда"
+msgstr "очищено"
 
 #: templates/web/projects/_activity_event.html:33
-#, fuzzy
 #| msgid "Unassigned"
 msgid "unassigned"
-msgstr "Без виконавця"
+msgstr "знято виконавця"
 
 #: templates/web/projects/_activity_event.html:44
 msgid "now blocks"
@@ -1453,10 +1437,9 @@ msgid "linked"
 msgstr "пов’язано"
 
 #: templates/web/projects/_activity_event.html:48
-#, fuzzy
 #| msgid "Inline code"
 msgid "unlinked"
-msgstr "Код у тексті"
+msgstr "відв'язано"
 
 #: templates/web/projects/_activity_event.html:52
 msgid "changed size"
@@ -1492,16 +1475,16 @@ msgstr "Пошук учасників…"
 msgid "edited"
 msgstr "відредаговано"
 
-#: templates/web/projects/_comment_form.html:41
+#: templates/web/projects/_comment_form.html:42
 msgid "Write a comment…"
 msgstr "Напишіть коментар…"
 
-#: templates/web/projects/_comment_form.html:52
+#: templates/web/projects/_comment_form.html:53
 msgid "Post comment"
 msgstr "Надіслати коментар"
 
-#: templates/web/projects/_description_cell.html:31
-#: templates/web/projects/_description_cell.html:62
+#: templates/web/projects/_description_cell.html:32
+#: templates/web/projects/_description_cell.html:63
 #: templates/web/projects/_overview_description.html:22
 #: templates/web/projects/_overview_description.html:49
 msgid "Write a description…"
@@ -1610,20 +1593,18 @@ msgid "Add labels"
 msgstr "Додати мітки"
 
 #: templates/web/projects/_links_panel.html:50
-#, fuzzy
 #| msgid "Link"
 msgid "Links"
-msgstr "Посилання"
+msgstr "Зв'язки"
 
 #: templates/web/projects/_links_panel.html:53
 msgid "Add link"
 msgstr "Додати зв’язок"
 
 #: templates/web/projects/_links_panel.html:61
-#, fuzzy
 #| msgid "started today"
 msgid "Related to"
-msgstr "стартував сьогодні"
+msgstr "Пов'язано з"
 
 #: templates/web/projects/_links_panel.html:62
 #: templates/web/projects/_links_panel.html:144
@@ -1644,22 +1625,19 @@ msgid "Search by slug or title…"
 msgstr "Пошук за кодом або назвою…"
 
 #: templates/web/projects/_links_panel.html:118
-#, fuzzy
 #| msgid "No tasks."
 msgid "No tasks match."
-msgstr "Задач немає."
+msgstr "Немає задач за запитом."
 
 #: templates/web/projects/_links_panel.html:192
-#, fuzzy
 #| msgid "Created"
 msgid "Related"
-msgstr "Створено"
+msgstr "Пов'язані"
 
 #: templates/web/projects/_links_panel.html:214
-#, fuzzy
 #| msgid "No tasks."
 msgid "No links yet."
-msgstr "Задач немає."
+msgstr "Зв'язків ще немає."
 
 #: templates/web/projects/_list_panel.html:16
 msgid "Group by"
@@ -1734,7 +1712,7 @@ msgstr[1] "%(counter)s учасники"
 msgstr[2] "%(counter)s учасників"
 
 #: templates/web/projects/_overview_panel.html:76
-#, fuzzy, python-format
+#, python-format
 #| msgid "%(counter)s member"
 #| msgid_plural "%(counter)s members"
 msgid "%(counter)s overdue"
@@ -1876,10 +1854,9 @@ msgid "No tasks."
 msgstr "Задач немає."
 
 #: templates/web/projects/_table_row.html:44
-#, fuzzy
 #| msgid "Priority"
 msgid "No priority"
-msgstr "Пріоритет"
+msgstr "Без пріоритету"
 
 #: templates/web/projects/_task_detail_body.html:54
 #: templates/web/projects/_task_detail_modal_body.html:55
@@ -1971,22 +1948,19 @@ msgid "archived"
 msgstr "архівовано"
 
 #: templates/web/projects/list.html:138
-#, fuzzy
 #| msgid "No tasks."
 msgid "No tasks yet"
-msgstr "Задач немає."
+msgstr "Задач ще немає"
 
 #: templates/web/projects/list.html:158
-#, fuzzy
 #| msgid "Not a member"
 msgid "No members"
-msgstr "Не є учасником"
+msgstr "Немає учасників"
 
 #: templates/web/projects/list.html:167
-#, fuzzy
 #| msgid "Close"
 msgid "closed"
-msgstr "Закрити"
+msgstr "закрито"
 
 #: templates/web/projects/list.html:177
 msgid "no activity"
@@ -2006,10 +1980,9 @@ msgid "Open full page"
 msgstr "Відкрити повну сторінку"
 
 #: templates/web/workspaces/_settings_invites.html:22
-#, fuzzy
 #| msgid "Filter by label"
 msgid "Invite by email"
-msgstr "Фільтрувати за міткою"
+msgstr "Запросити за email"
 
 #: templates/web/workspaces/_settings_invites.html:30
 #: templates/web/workspaces/_settings_members.html:43
@@ -2025,10 +1998,10 @@ msgid "expired"
 msgstr "термін минув"
 
 #: templates/web/workspaces/_settings_invites.html:62
-#, fuzzy, python-format
+#, python-format
 #| msgid "created the task"
 msgid "expires %(d)s"
-msgstr "створено задачу"
+msgstr "діє до %(d)s"
 
 #: templates/web/workspaces/_settings_invites.html:65
 #, python-format
@@ -2040,16 +2013,14 @@ msgid "Resend email"
 msgstr "Надіслати лист ще раз"
 
 #: templates/web/workspaces/_settings_invites.html:90
-#, fuzzy
 #| msgid "Revoke"
 msgid "Revoke invite"
-msgstr "Відкликати"
+msgstr "Відкликати запрошення"
 
 #: templates/web/workspaces/_settings_invites.html:103
-#, fuzzy
 #| msgid "Confirm removal"
 msgid "Confirm revoke"
-msgstr "Підтвердити видалення"
+msgstr "Підтвердити відкликання"
 
 #: templates/web/workspaces/_settings_invites.html:121
 msgid "No pending invites."
@@ -2076,7 +2047,7 @@ msgid "Confirm removal"
 msgstr "Підтвердити видалення"
 
 #: templates/web/workspaces/settings.html:42
-#, fuzzy, python-format
+#, python-format
 #| msgid "%(counter)s project"
 #| msgid_plural "%(counter)s projects"
 msgid "%(counter)s pending"
