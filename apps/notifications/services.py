@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
+from django.db import transaction
+
 from .models import Notification
 
 _COMMENT_PREVIEW_CHARS = 280
@@ -10,6 +12,7 @@ _TASK_EVENT_KINDS = {
     "task.assigned": Notification.Kind.ASSIGNED,
     "task.status_changed": Notification.Kind.STATUS_CHANGE,
     "task.priority_changed": Notification.Kind.PRIORITY_CHANGE,
+    "task.due_changed": Notification.Kind.DUE,
 }
 
 
@@ -53,7 +56,7 @@ def notify(
     actor_id = actor.id if actor is not None else None
     if actor_id is not None and recipient_id == actor_id:
         return None
-    return Notification.objects.create(
+    notification = Notification.objects.create(
         recipient_id=recipient_id,
         actor=actor,
         workspace_id=workspace_id,
@@ -64,6 +67,61 @@ def notify(
         preview=preview or "",
         payload=payload or {},
     )
+    _broadcast_notification(notification)
+    return notification
+
+
+def _unread_count(recipient_id: int) -> int:
+    """Return the recipient's active unread notification count.
+
+    Args:
+        recipient_id: The recipient user id.
+
+    Returns:
+        Count of non-archived, unread notifications.
+    """
+    return Notification.objects.filter(
+        recipient_id=recipient_id,
+        archived_at__isnull=True,
+        is_read=False,
+    ).count()
+
+
+def _broadcast_notification(notification: Notification) -> None:
+    """Push a ``notification.created`` event to the recipient's SSE channel.
+
+    Queued on ``transaction.on_commit`` so a rolled-back request never
+    emits a phantom notification. The payload carries pre-rendered row +
+    badge HTML so the browser updates the inbox and the sidebar badge
+    with no extra round-trips (mirrors ``broadcast_task_events``). The
+    per-user ``user-<id>`` channel is private — only the recipient may
+    read it (see ``apps.workspaces.sse.WorkspaceChannelManager``), so no
+    self-filter is needed: notifications never reach their own actor.
+
+    Args:
+        notification: The freshly created :class:`Notification`.
+    """
+    recipient_id = notification.recipient_id
+    pk = notification.pk
+
+    def _send() -> None:
+        from django.template.loader import render_to_string
+
+        import django_eventstream
+
+        row = Notification.objects.select_related("task__project", "actor", "comment").filter(pk=pk).first()
+        if row is None:
+            return
+        unread = _unread_count(recipient_id)
+        payload = {
+            "kind": row.kind,
+            "unread": unread,
+            "row_html": render_to_string("web/_notification_row.html", {"n": row}),
+            "badge_html": render_to_string("web/_inbox_badge.html", {"inbox_unread": unread}),
+        }
+        django_eventstream.send_event(f"user-{recipient_id}", "notification.created", payload)
+
+    transaction.on_commit(_send)
 
 
 def notify_for_task_diff(*, events: Iterable, task, actor) -> None:
@@ -76,9 +134,12 @@ def notify_for_task_diff(*, events: Iterable, task, actor) -> None:
     parent, text edits) are intentionally skipped — see ADR 0021.
 
     Recipients:
-        * ``task.assigned`` → the new assignee only (``to_user_id``).
-        * ``task.status_changed`` / ``task.priority_changed`` → the task's
-          current assignee and reporter.
+        * ``task.assigned`` → both the new assignee (``to_user_id``) and
+          the previous one (``from_user_id``) — the latter so a person
+          learns a task was taken off their plate. The actor is still
+          dropped by :func:`notify`'s self-suppression.
+        * ``task.status_changed`` / ``task.priority_changed`` /
+          ``task.due_changed`` → the task's current assignee and reporter.
 
     Args:
         events: The persisted :class:`ActivityLog` rows for this diff.
@@ -93,8 +154,9 @@ def notify_for_task_diff(*, events: Iterable, task, actor) -> None:
         if kind is None:
             continue
         if event.event_type == "task.assigned":
-            to_user_id = (event.payload or {}).get("to_user_id")
-            recipients = {to_user_id} if to_user_id else set()
+            payload = event.payload or {}
+            recipients = {payload.get("to_user_id"), payload.get("from_user_id")}
+            recipients.discard(None)
         else:
             recipients = set(involved)
         for recipient_id in recipients:

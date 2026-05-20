@@ -1178,6 +1178,94 @@
   }
   document.body.addEventListener("htmx:afterSwap", initWorkspaceSse);
 
+  // ----- Per-user notification stream (live inbox) ----------------
+  //
+  // A second EventSource on the private ``user-<id>`` channel. No
+  // self-filter here: the server never delivers a notification to its
+  // own actor, so anything arriving on this channel is genuinely for
+  // me. Each ``notification.created`` event carries pre-rendered row +
+  // badge HTML (see ``apps.notifications.services._broadcast_notification``).
+  const USER_SSE_BOUND = new Set();
+  const INBOX_KIND_FILTER = { mentions: "mention", assigned: "assigned", due: "due", comments: "comment" };
+
+  function onNotificationCreated(d) {
+    // 1) Sidebar unread badge — replace its node, then pulse once.
+    const badge = document.getElementById("inbox-badge");
+    if (badge && d.badge_html) {
+      const tpl = document.createElement("template");
+      tpl.innerHTML = d.badge_html.trim();
+      const fresh = tpl.content.firstElementChild;
+      if (fresh) {
+        // Drop ``x-cloak`` on the live-injected node — it's only needed
+        // to prevent a flash before Alpine binds on first page paint;
+        // here keeping it would hide the badge for a frame and twitch
+        // the sidebar row as the digit appears.
+        fresh.removeAttribute("x-cloak");
+        badge.replaceWith(fresh);
+        fresh.classList.add("inbox-pulse");
+        setTimeout(() => fresh.classList.remove("inbox-pulse"), 3400);
+      }
+    }
+    // 2) Inbox list — prepend the new row when the inbox is open and the
+    // active filter would include it (new rows are always unread). For
+    // non-matching filters the badge still bumps; the row shows on the
+    // next list fetch.
+    const list = document.getElementById("inbox-list");
+    if (list && d.row_html) {
+      const f = list.getAttribute("data-inbox-filter") || "all";
+      const include = f === "all" || f === "unread" || INBOX_KIND_FILTER[f] === d.kind;
+      const rows = list.querySelector("[data-inbox-rows]");
+      if (include && rows) {
+        const tpl = document.createElement("template");
+        tpl.innerHTML = d.row_html.trim();
+        const row = tpl.content.firstElementChild;
+        if (row) {
+          row.classList.add("inbox-newly");
+          rows.prepend(row);
+          if (window.htmx) window.htmx.process(row);
+        }
+      }
+    }
+  }
+
+  function initUserSse() {
+    document.querySelectorAll("[data-user-sse]").forEach((root) => {
+      if (root.dataset.sseBound === "true") return;
+      const url = root.getAttribute("data-user-sse");
+      if (!url || USER_SSE_BOUND.has(url)) {
+        root.dataset.sseBound = "true";
+        return;
+      }
+      root.dataset.sseBound = "true";
+      USER_SSE_BOUND.add(url);
+      const source = new EventSource(url);
+      const close = () => {
+        try {
+          source.close();
+        } catch (_) {
+          /* already closed */
+        }
+      };
+      window.addEventListener("pagehide", close);
+      window.addEventListener("beforeunload", close);
+      source.addEventListener("notification.created", (e) => {
+        let d;
+        try {
+          d = JSON.parse(e.data);
+        } catch (_) {
+          return;
+        }
+        onNotificationCreated(d);
+      });
+    });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initUserSse);
+  } else {
+    initUserSse();
+  }
+  document.body.addEventListener("htmx:afterSwap", initUserSse);
+
   // Remember the URL we came from any time a click is about to open a
   // modal-root surface. The task-detail modal shell uses this on close
   // to ``history.replaceState`` back without triggering popstate

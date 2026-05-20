@@ -29,14 +29,16 @@ list a user can come back to, mark read, filter, and archive — the thing
 - **`notify()` is the single writer**, mirroring `log_event`'s role for
   activity. It enforces the self-suppression rule from 0017 — never
   notify the actor about their own action.
-- **Triggers (Phase 0):** `task.assigned` (→ new assignee),
-  `task.status_changed` and `task.priority_changed` (→ assignee +
-  reporter), `comment.created` (→ assignee + reporter). Fan-out hangs off
-  the one path every single-task edit funnels through
+- **Triggers (Phase 0):** `task.assigned` (→ both the new and the
+  previous assignee, so a person learns a task left their plate),
+  `task.status_changed`, `task.priority_changed`, `task.due_changed`
+  (→ assignee + reporter), `comment.created` (→ assignee + reporter).
+  Fan-out hangs off the one path every single-task edit funnels through
   (`apps.tasks.events.emit_task_diff_events`) plus the three
   `comment.created` call sites (web, DRF, MCP). **Labels do not notify**
-  (too noisy — confirms 0017's lean-no). `task.due_changed` notifications
-  are deferred (need a scheduler — see below).
+  (too noisy — confirms 0017's lean-no). Note `task.due_changed` is the
+  *due date was edited* event; **"due soon"** (deadline approaching) is a
+  separate time-driven alert that needs a scheduler and is deferred.
 - **Read / unread / archive** state is persisted. Inbox endpoints:
   open (mark read + preview), toggle read, archive, bulk action, mark
   all read.
@@ -54,7 +56,8 @@ list a user can come back to, mark read, filter, and archive — the thing
   This is the next phase and the headline ask.
 - **Updates tab** over `ProjectUpdate` (compose UI + subscriptions).
 - **Due-soon + Snooze** — both need a scheduler, which the project does
-  not have yet (no Celery/cron). Out of scope until that lands.
+  not have yet (no Celery/cron). Out of scope until that lands. See the
+  ``project-todo-due-soon-notifications`` roadmap note.
 
 ## Why
 

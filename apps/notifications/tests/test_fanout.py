@@ -5,6 +5,10 @@ for task edits, and ``notify_comment_created`` for comments. Asserts
 recipient resolution + the self-actor suppression rule from ADR 0021.
 """
 
+import datetime
+
+from django.utils import timezone
+
 import pytest
 
 from apps.comments.models import Comment
@@ -72,12 +76,32 @@ class TestTaskDiffFanout:
         assert not Notification.objects.filter(recipient=actor).exists()
         assert Notification.objects.filter(recipient=reporter, kind=Notification.Kind.STATUS_CHANGE).exists()
 
-    def test_assignment_notifies_only_new_assignee(self, trio):
+    def test_assignment_notifies_new_assignee(self, trio):
         project, assignee, reporter, actor = trio
         task = TaskFactory(project=project, assignee=None, reporter=reporter, status=Task.STATUS_TODO)
         _reassign(task, assignee, actor)
         rows = Notification.objects.filter(kind=Notification.Kind.ASSIGNED)
         assert list(rows.values_list("recipient_id", flat=True)) == [assignee.id]
+
+    def test_reassignment_notifies_old_and_new_assignee(self, trio):
+        project, old_assignee, reporter, actor = trio
+        new_assignee = WorkspaceMemberFactory(workspace=project.workspace).user
+        task = TaskFactory(project=project, assignee=old_assignee, reporter=reporter, status=Task.STATUS_TODO)
+        _reassign(task, new_assignee, actor)
+        recipients = set(
+            Notification.objects.filter(kind=Notification.Kind.ASSIGNED).values_list("recipient_id", flat=True)
+        )
+        assert recipients == {old_assignee.id, new_assignee.id}
+
+    def test_due_change_notifies_assignee_and_reporter(self, trio):
+        project, assignee, reporter, actor = trio
+        task = TaskFactory(project=project, assignee=assignee, reporter=reporter)
+        old = snapshot_task(task)
+        task.due_date = timezone.localdate() + datetime.timedelta(days=3)
+        task.save()
+        emit_task_diff_events(old_state=old, task=task, actor=actor)
+        recipients = set(Notification.objects.filter(kind=Notification.Kind.DUE).values_list("recipient_id", flat=True))
+        assert recipients == {assignee.id, reporter.id}
 
     def test_labels_change_does_not_notify(self, trio):
         project, assignee, reporter, actor = trio

@@ -636,6 +636,36 @@ html.dark .acta-checkbox {
   transform: none;
 }
 
+/* ---- Inbox live arrival (SSE) ----------------------------------- */
+/* A notification that lands over the per-user SSE stream slides in from
+   the top of the list with a brief brand tint. */
+@keyframes inbox-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+    background: rgb(66 90 245 / 0.14);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.inbox-newly {
+  animation: inbox-row-in 380ms ease-out;
+}
+/* Sidebar unread badge pulses a soft brand ring twice on arrival. */
+@keyframes inbox-badge-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgb(66 90 245 / 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 8px rgb(66 90 245 / 0);
+  }
+}
+.inbox-pulse {
+  animation: inbox-badge-pulse 1.6s ease-out 2;
+}
+
 /* Reset native focus outline on form controls — browsers default to a
    thick coloured outline (Firefox pink, Chrome blue, Safari blue) that
    clashes with our brand palette. Visual focus is delivered through the

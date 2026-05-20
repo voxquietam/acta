@@ -347,6 +347,12 @@ Pages extend this and override the `app_main` block.
         data-workspace-sse="/events/workspace/{{ ws.id }}"
         data-current-user-id="{{ user.id }}"></span>
   {% endfor %}
+  {% comment %}
+  Per-user notification stream — drives the live inbox badge + row
+  arrival (acta.js ``initUserSse``). One private ``user-<id>`` channel.
+  {% endcomment %}
+  <span class="hidden"
+        data-user-sse="/events/user/{{ user.id }}"></span>
   {% endif %}
 
   {% comment %}

@@ -26,10 +26,23 @@ class WorkspaceChannelManager(DefaultChannelManager):
     """
 
     def can_read_channel(self, user, channel: str) -> bool:
-        """Return True iff ``user`` is a member of the channel's workspace."""
-        if not channel.startswith("workspace-"):
-            return False
+        """Return True iff ``user`` may read the channel.
+
+        Two channel families are authorized:
+
+        * ``workspace-<id>`` — readable by any member of that workspace.
+        * ``user-<id>`` — the private per-user notification stream,
+          readable only by the user whose id matches.
+        """
         if user is None or not getattr(user, "is_authenticated", False):
+            return False
+        if channel.startswith("user-"):
+            try:
+                target_user_id = int(channel.split("-", 1)[1])
+            except (ValueError, IndexError):
+                return False
+            return target_user_id == user.id
+        if not channel.startswith("workspace-"):
             return False
         try:
             workspace_id = int(channel.split("-", 1)[1])

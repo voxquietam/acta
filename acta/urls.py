@@ -41,6 +41,14 @@ urlpatterns = [
         include(django_eventstream.urls),
         {"format-channels": ["workspace-{workspace_id}"]},
     ),
+    # Per-user notification stream — the ``user-<id>`` channel only the
+    # matching user may read (see ``WorkspaceChannelManager``). Carries
+    # ``notification.created`` events for the live inbox badge + row.
+    re_path(
+        r"^events/user/(?P<user_id>\d+)",
+        include(django_eventstream.urls),
+        {"format-channels": ["user-{user_id}"]},
+    ),
     path("", include("apps.web.urls", namespace="web")),
 ]
 

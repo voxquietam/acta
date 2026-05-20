@@ -56,3 +56,24 @@ class TestWorkspaceChannelManager:
         ws = WorkspaceFactory(owner=owner)
         WorkspaceMemberFactory(workspace=ws, user=member)
         assert self.manager.can_read_channel(member, f"workspace-{ws.id}") is True
+
+    def test_user_can_read_own_channel(self):
+        """The private ``user-<id>`` notification channel is self-only."""
+        user = UserFactory()
+        assert self.manager.can_read_channel(user, f"user-{user.id}") is True
+
+    def test_user_cannot_read_others_channel(self):
+        user = UserFactory()
+        other = UserFactory()
+        assert self.manager.can_read_channel(user, f"user-{other.id}") is False
+
+    def test_anonymous_cannot_read_user_channel(self):
+        class _Anon:
+            is_authenticated = False
+            id = 1
+
+        assert self.manager.can_read_channel(_Anon(), "user-1") is False
+
+    def test_malformed_user_channel_rejected(self):
+        user = UserFactory()
+        assert self.manager.can_read_channel(user, "user-abc") is False

@@ -6,7 +6,7 @@ rows. Swapped as a whole (#inbox-list, outerHTML) by filter-chip clicks
 and bulk actions, so it always re-renders with the active filter and a
 fresh chip-count row. The chips are HTMX GETs that push the ?filter= URL.
 {% endcomment %}
-<div id="inbox-list" class="flex flex-col min-h-0 min-w-0">
+<div id="inbox-list" class="flex flex-col min-h-0 min-w-0" data-inbox-filter="{{ inbox_filter }}">
 
   <div class="flex items-center gap-1.5 px-4 py-2.5 border-b border-border bg-subtle/40 flex-wrap shrink-0">
     {% comment %}Filter chips. ``active`` chip is brand-filled; the rest are muted pills.{% endcomment %}
@@ -52,7 +52,7 @@ fresh chip-count row. The chips are HTMX GETs that push the ?filter= URL.
         class="flex-1 flex flex-col min-h-0">
     <input type="hidden" name="action" x-ref="bulkAction">
 
-    <div class="flex-1 overflow-y-auto">
+    <div class="flex-1 overflow-y-auto" data-inbox-rows>
       {% for n in notifications %}
       {% include "web/_notification_row.html" with n=n %}
       {% empty %}
