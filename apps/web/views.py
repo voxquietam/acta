@@ -816,18 +816,26 @@ class MyActivityView(LoginRequiredMixin, TemplateView):
     """
 
     def get_template_names(self):
-        """Full page on cold load, inner feed for HTMX tab swaps."""
+        """Items fragment on load-more, inner feed on tab swap, full page cold."""
+        if self.request.GET.get("items"):
+            return ["web/_my_activity_items.html"]
         if _is_htmx_partial(self.request):
             return ["web/_my_activity_inner.html"]
         return ["web/my_activity.html"]
 
     def get_context_data(self, **kwargs):
-        """Build the active tab's feed plus both tab counts."""
+        """Build one page of the active tab's feed (offset-paginated)."""
         ctx = super().get_context_data(**kwargs)
         user = self.request.user
         tab = self.request.GET.get("tab", "comments")
         if tab not in _MY_ACTIVITY_TABS:
             tab = "comments"
+        try:
+            offset = max(0, int(self.request.GET.get("offset", 0)))
+        except (TypeError, ValueError):
+            offset = 0
+        page = _MY_ACTIVITY_PAGE_SIZE
+        end = offset + page
 
         comments_qs = Comment.objects.filter(
             author=user,
@@ -838,15 +846,20 @@ class MyActivityView(LoginRequiredMixin, TemplateView):
             workspace__memberships__user=user,
         )
         ctx["activity_tab"] = tab
-        ctx["my_comments_count"] = comments_qs.count()
-        ctx["my_activity_count"] = events_qs.count()
+        ctx["tab"] = tab
+        ctx["next_offset"] = offset + page
+        # Counts drive the tab chips — only needed when the tabs render
+        # (cold load / tab swap), not on a load-more items fetch.
+        if not self.request.GET.get("items"):
+            ctx["my_comments_count"] = comments_qs.count()
+            ctx["my_activity_count"] = events_qs.count()
 
         if tab == "comments":
-            ctx["my_comments"] = list(
-                comments_qs.select_related("task__project").order_by("-created_at")[:_MY_ACTIVITY_PAGE_SIZE]
-            )
+            comments = list(comments_qs.select_related("task__project").order_by("-created_at")[offset:end])
+            ctx["my_comments"] = comments
+            ctx["has_more"] = len(comments) == page and comments_qs.count() > offset + page
         else:
-            events = list(events_qs.select_related("project").order_by("-created_at")[:_MY_ACTIVITY_PAGE_SIZE])
+            events = list(events_qs.select_related("project").order_by("-created_at")[offset:end])
 
             # Resolve the task each event points at, in one batch (no N+1).
             # Task events carry it as ``target_id``; comment events
@@ -867,6 +880,7 @@ class MyActivityView(LoginRequiredMixin, TemplateView):
             ctx["my_event_groups"] = _group_events_by_task(events)
             ctx["status_labels"] = Task.STATUS_LABELS
             ctx["priority_labels"] = dict(Task.PRIORITY_CHOICES)
+            ctx["has_more"] = len(events) == page and events_qs.count() > offset + page
         return ctx
 
 
@@ -1589,16 +1603,22 @@ def _enrich_activity_events(events):
     user_names = {}
     if user_ids:
         user_names = {u.id: u.display_name for u in User.objects.filter(id__in=user_ids)}
-    label_names = {}
+    label_map = {}
     if label_ids:
-        label_names = dict(Label.objects.filter(id__in=label_ids).values_list("id", "name"))
+        label_map = {row["id"]: row for row in Label.objects.filter(id__in=label_ids).values("id", "name", "color")}
+
+    def _labels(ids):
+        return [label_map.get(lid, {"name": f"#{lid}", "color": "#71717a"}) for lid in (ids or [])]
+
     for e in events:
         if e.event_type == "task.assigned" and e.payload:
             e.assigned_from_name = user_names.get(e.payload.get("from_user_id"))
             e.assigned_to_name = user_names.get(e.payload.get("to_user_id"))
         elif e.event_type == "task.labels_changed" and e.payload:
-            e.added_label_names = [label_names.get(lid, f"#{lid}") for lid in (e.payload.get("added_ids") or [])]
-            e.removed_label_names = [label_names.get(lid, f"#{lid}") for lid in (e.payload.get("removed_ids") or [])]
+            e.added_label_names = [lbl["name"] for lbl in _labels(e.payload.get("added_ids"))]
+            e.removed_label_names = [lbl["name"] for lbl in _labels(e.payload.get("removed_ids"))]
+            e.added_labels = _labels(e.payload.get("added_ids"))
+            e.removed_labels = _labels(e.payload.get("removed_ids"))
     return events
 
 
@@ -2235,7 +2255,7 @@ def remove_task_link(request, slug_prefix, number):
             task=task,
             target=target,
             event_type="task.link_removed",
-            payload={"kind": kind, "target_slug": target.slug},
+            payload={"kind": kind, "target_slug": target.slug, "target_title": target.title},
             actor=request.user,
         )
     return _links_panel_response(request, task)

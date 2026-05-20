@@ -16,13 +16,15 @@ with ``truncate`` so the row never wraps.
   {% endif %}
   {% if event.event_type == "task.status_changed" %}
     <span class="text-placeholder-foreground shrink-0">{% trans "changed status" %}</span>
-    <span class="text-placeholder-foreground truncate">
-      {% if event.payload.from %}{{ status_labels|get_item:event.payload.from|default:event.payload.from }} {% endif %}→ {% if event.payload.to %}{{ status_labels|get_item:event.payload.to|default:event.payload.to }}{% endif %}
+    <span class="inline-flex items-center gap-1 truncate">
+      {% if event.payload.from %}<span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded {{ event.payload.from|status_badge_class }}">{{ status_labels|get_item:event.payload.from|default:event.payload.from }}</span>{% endif %}
+      <span class="text-placeholder-foreground">→</span>
+      {% if event.payload.to %}<span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded {{ event.payload.to|status_badge_class }}">{{ status_labels|get_item:event.payload.to|default:event.payload.to }}</span>{% endif %}
     </span>
   {% elif event.event_type == "task.priority_changed" %}
     <span class="text-placeholder-foreground shrink-0">{% trans "changed priority" %}</span>
-    <span class="text-placeholder-foreground truncate">
-      {% if event.payload.from %}{{ priority_labels|get_item:event.payload.from }} {% endif %}→ {% if event.payload.to %}{{ priority_labels|get_item:event.payload.to }}{% endif %}
+    <span class="truncate">
+      {% if event.payload.from %}<span class="{{ event.payload.from|priority_text_class }}">{{ priority_labels|get_item:event.payload.from }}</span> {% endif %}→ {% if event.payload.to %}<span class="{{ event.payload.to|priority_text_class }}">{{ priority_labels|get_item:event.payload.to }}</span>{% endif %}
     </span>
   {% elif event.event_type == "task.due_changed" %}
     <span class="text-placeholder-foreground shrink-0">{% trans "changed due date" %}</span>
@@ -36,19 +38,30 @@ with ``truncate`` so the row never wraps.
     </span>
   {% elif event.event_type == "task.labels_changed" %}
     <span class="text-placeholder-foreground shrink-0">{% trans "changed labels" %}</span>
-    <span class="text-placeholder-foreground truncate">
-      {% if event.added_label_names %}+{{ event.added_label_names|join:", " }}{% endif %}
-      {% if event.added_label_names and event.removed_label_names %} · {% endif %}
-      {% if event.removed_label_names %}−{{ event.removed_label_names|join:", " }}{% endif %}
+    <span class="inline-flex items-center gap-1 flex-wrap min-w-0">
+      {% for l in event.added_labels %}<span class="acta-label-pill" style="--label-color: {{ l.color }};"><span class="acta-label-pill-dot" style="background-color: {{ l.color }};"></span>{{ l.name }}</span>{% endfor %}
+      {% for l in event.removed_labels %}<span class="acta-label-pill line-through opacity-60" style="--label-color: {{ l.color }};"><span class="acta-label-pill-dot" style="background-color: {{ l.color }};"></span>{{ l.name }}</span>{% endfor %}
     </span>
   {% elif event.event_type == "task.link_added" %}
     <span class="text-placeholder-foreground shrink-0">
       {% if event.payload.kind == "blocks" %}{% trans "now blocks" %}{% elif event.payload.kind == "blocked_by" %}{% trans "now blocked by" %}{% else %}{% trans "linked" %}{% endif %}
     </span>
-    <span class="text-placeholder-foreground truncate font-mono">{{ event.payload.target_slug }}</span>
+    <a class="acta-task-mention truncate min-w-0" href="{{ event.payload.target_slug|task_url_from_slug }}">{{ event.payload.target_slug }}{% if event.payload.target_title %} {{ event.payload.target_title }}{% endif %}</a>
   {% elif event.event_type == "task.link_removed" %}
     <span class="text-placeholder-foreground shrink-0">{% trans "unlinked" %}</span>
-    <span class="text-placeholder-foreground truncate font-mono">{{ event.payload.target_slug }}</span>
+    <a class="acta-task-mention truncate min-w-0" href="{{ event.payload.target_slug|task_url_from_slug }}">{{ event.payload.target_slug }}{% if event.payload.target_title %} {{ event.payload.target_title }}{% endif %}</a>
+  {% elif event.event_type == "comment.created" %}
+    {% url 'web:task_detail' slug_prefix=event.linked_task.project.slug_prefix number=event.linked_task.number as comment_task_url %}
+    <span class="text-placeholder-foreground shrink-0">{% trans "added a comment" %}</span>
+    {% if event.linked_task and event.payload.body_preview %}
+    <a href="{{ comment_task_url }}#comment-{{ event.target_id }}"
+       class="acta-comment-link border-l-2 border-border-strong pl-2 text-placeholder-foreground hover:text-foreground italic flex-1 min-w-0 truncate"
+       data-task-url="{{ comment_task_url }}" data-comment-id="{{ event.target_id }}">{{ event.payload.body_preview|strip_link_tokens|truncatechars:80 }}</a>
+    {% elif event.linked_task %}
+    <a href="{{ comment_task_url }}#comment-{{ event.target_id }}"
+       class="acta-comment-link text-placeholder-foreground hover:text-foreground shrink-0"
+       data-task-url="{{ comment_task_url }}" data-comment-id="{{ event.target_id }}">{% trans "open" %}</a>
+    {% endif %}
   {% elif event.event_type == "task.updated" %}
     {% if event.payload.changes.size %}
       <span class="text-placeholder-foreground shrink-0">{% trans "changed size" %}</span>

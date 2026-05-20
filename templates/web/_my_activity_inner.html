@@ -1,14 +1,14 @@
 {% load i18n %}
 {% load lucide %}
-{% load web_extras %}
 {% comment %}
-My Activity content — inbox-style tabs (Comments / Activity) over a
-single-column feed. Swapped whole (#my-activity-content, outerHTML) on
-tab clicks so the active tab + feed re-render together.
+My Activity content — tabs header (Comments / Activity) + a scrolling
+feed. Swapped whole (#my-activity-content, outerHTML) on tab clicks.
+The tabs sit in a non-scrolling header (shrink-0); only the feed
+scrolls, so the tabs stay pinned without sticky hacks.
 {% endcomment %}
-<div id="my-activity-content">
+<div id="my-activity-content" class="flex-1 flex flex-col min-h-0">
 
-  <div class="flex items-center border-b border-border mb-4">
+  <div class="flex items-center px-4 md:px-8 border-b border-border shrink-0">
     <a hx-get="{% url 'web:my_activity' %}?tab=comments" hx-target="#my-activity-content" hx-swap="outerHTML" hx-push-url="true"
        class="inline-flex items-center gap-2 px-3.5 py-2.5 text-[13px] cursor-pointer -mb-px border-b-2 {% if activity_tab == 'comments' %}text-brand-300 border-brand-500{% else %}text-placeholder-foreground border-transparent hover:text-foreground{% endif %}">
       {% lucide "message-square" "w-3.5 h-3.5" %}{% trans "Comments" %}
@@ -21,55 +21,7 @@ tab clicks so the active tab + feed re-render together.
     </a>
   </div>
 
-  {% if activity_tab == 'comments' %}
-  {% for c in my_comments %}
-  <div class="mb-3">
-    <div class="flex items-baseline gap-2 mb-1">
-      <a href="{% url 'web:task_detail' slug_prefix=c.task.project.slug_prefix number=c.task.number %}"
-         {% open_task_modal_attrs c.task %}
-         class="font-mono text-xs text-placeholder-foreground hover:text-foreground">{{ c.task.slug }}</a>
-      <span class="text-xs text-placeholder-foreground truncate">{{ c.task.title }}</span>
-    </div>
-    <ul>{% include "web/projects/_comment.html" with comment=c hide_author=True %}</ul>
+  <div class="flex-1 overflow-y-auto px-4 md:px-8 py-4">
+    {% include "web/_my_activity_items.html" %}
   </div>
-  {% empty %}
-  <div class="flex flex-col items-center justify-center gap-2.5 text-center px-6 py-16">
-    <span class="w-12 h-12 rounded-full bg-muted text-placeholder-foreground grid place-items-center">{% lucide "message-square" "w-6 h-6" %}</span>
-    <h2 class="text-[15px] font-semibold text-foreground">{% trans "No comments yet" %}</h2>
-    <p class="text-xs text-placeholder-foreground max-w-[280px] leading-relaxed">{% trans "Comments you post on tasks will show up here." %}</p>
-  </div>
-  {% endfor %}
-
-  {% else %}
-  {% comment %}
-  Consecutive events on the same task are grouped under one task header
-  with a left rail, so a run of edits reads like a timeline instead of
-  repeating the slug on every row. Each row reuses the canonical
-  _activity_event.html (diff + verb), with the actor hidden — it's
-  always the current user here.
-  {% endcomment %}
-  {% for g in my_event_groups %}
-  <div class="mb-4">
-    {% if g.task %}
-    <a href="{% url 'web:task_detail' slug_prefix=g.task.project.slug_prefix number=g.task.number %}"
-       {% open_task_modal_attrs g.task %}
-       class="group flex items-baseline gap-2 mb-1">
-      <span class="font-mono text-xs text-placeholder-foreground group-hover:text-foreground shrink-0">{{ g.task.slug }}</span>
-      <span class="text-xs text-subtle-foreground group-hover:text-foreground truncate">{{ g.task.title }}</span>
-    </a>
-    {% endif %}
-    <ul class="border-l border-border ml-1.5 pl-1.5 space-y-0.5">
-      {% for e in g.events %}
-      {% include "web/projects/_activity_event.html" with event=e hide_actor=True %}
-      {% endfor %}
-    </ul>
-  </div>
-  {% empty %}
-  <div class="flex flex-col items-center justify-center gap-2.5 text-center px-6 py-16">
-    <span class="w-12 h-12 rounded-full bg-muted text-placeholder-foreground grid place-items-center">{% lucide "activity" "w-6 h-6" %}</span>
-    <h2 class="text-[15px] font-semibold text-foreground">{% trans "No activity yet" %}</h2>
-    <p class="text-xs text-placeholder-foreground max-w-[280px] leading-relaxed">{% trans "Your actions across tasks will show up here." %}</p>
-  </div>
-  {% endfor %}
-  {% endif %}
 </div>

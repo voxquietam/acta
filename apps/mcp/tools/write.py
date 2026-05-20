@@ -305,7 +305,7 @@ def task_unlink(user: User, arguments: dict[str, Any]) -> Any:
             task=task,
             target=target,
             event_type="task.link_removed",
-            payload={"kind": kind, "target_slug": target.slug},
+            payload={"kind": kind, "target_slug": target.slug, "target_title": target.title},
             actor=user,
         )
     return serialize_task_summary(task)

@@ -1467,6 +1467,66 @@
     if (chip) hideTaskCard();
   });
 
+  // Dismiss any open hover card on navigation / scroll / Escape. A
+  // ``mouseout`` doesn't always fire when the hovered chip is covered or
+  // removed (e.g. opening the task modal), which otherwise leaves the
+  // card stranded on top of the new view.
+  function hideAllHoverCards() {
+    hideMentionCard();
+    hideTaskCard();
+  }
+  document.body.addEventListener("htmx:beforeSwap", hideAllHoverCards);
+  document.addEventListener("scroll", hideAllHoverCards, true);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") hideAllHoverCards();
+  });
+
+  // ----- Comment deep-link highlight ------------------------------
+  // Scroll to a comment and pulse a brand ring so the user spots it.
+  // Used both by a ``#comment-<id>`` hash (full-page deep link) and by
+  // the My Activity "added a comment" row which opens the task modal.
+  function highlightCommentById(id) {
+    const el = document.getElementById("comment-" + id);
+    if (!el) return false;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("acta-comment-highlight");
+    setTimeout(() => el.classList.remove("acta-comment-highlight"), 2500);
+    return true;
+  }
+  function highlightHashComment() {
+    const h = window.location.hash;
+    if (!h || !/^#comment-\d+$/.test(h)) return;
+    highlightCommentById(h.slice(9));
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", highlightHashComment);
+  } else {
+    highlightHashComment();
+  }
+  document.body.addEventListener("htmx:afterSettle", highlightHashComment);
+  window.addEventListener("hashchange", highlightHashComment);
+
+  // "added a comment" (My Activity) → open the task in the modal, then
+  // scroll to + highlight that comment inside it. ``htmx.ajax`` resolves
+  // after the swap settles, so we highlight in the promise callback.
+  // Modifier / middle clicks fall through to the native deep link.
+  document.addEventListener("click", (e) => {
+    const link = e.target.closest && e.target.closest("a.acta-comment-link");
+    if (!link) return;
+    if (e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
+    const taskUrl = link.getAttribute("data-task-url");
+    const commentId = link.getAttribute("data-comment-id");
+    if (!taskUrl || !window.htmx) return;
+    e.preventDefault();
+    window._actaModalReturnTo = window.location.href;
+    window.htmx
+      .ajax("GET", taskUrl + "?modal=1", { target: "#modal-root", swap: "innerHTML" })
+      .then(() => {
+        if (window.history && window.history.pushState) window.history.pushState({}, "", taskUrl);
+        setTimeout(() => highlightCommentById(commentId), 60);
+      });
+  });
+
   // Task-mention chip → open the task in the modal instead of a full
   // page nav. The chip is rendered server-side through bleach (which
   // strips ``hx-*``), so we intercept the click here and drive the same

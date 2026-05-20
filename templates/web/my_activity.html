@@ -2,8 +2,9 @@
 {% load i18n %}
 {% comment %}
 My Activity page — personal feed of the user's own comments + activity,
-with inbox-style tabs. The content (tabs + feed) lives in
-_my_activity_inner.html so tab clicks swap it whole over HTMX.
+with tabs. The container bleeds out of the main padding and pins to the
+viewport height so the tabs stay fixed while only the feed scrolls
+(see _my_activity_inner.html).
 {% endcomment %}
 
 {% block topbar_left %}
@@ -11,5 +12,7 @@ _my_activity_inner.html so tab clicks swap it whole over HTMX.
 {% endblock %}
 
 {% block app_main %}
-{% include "web/_my_activity_inner.html" %}
+<div class="-mx-4 md:-mx-8 -mt-5 -mb-6 flex flex-col h-[calc(100vh-3.5rem)]">
+  {% include "web/_my_activity_inner.html" %}
+</div>
 {% endblock %}

@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Acta 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-05-20 12:14+0000\n"
+"POT-Creation-Date: 2026-05-20 12:24+0000\n"
 "PO-Revision-Date: 2026-05-16 15:30+0000\n"
 "Last-Translator: Acta team\n"
 "Language-Team: Ukrainian\n"
@@ -252,7 +252,7 @@ msgstr "Сповіщення"
 msgid "Notifications"
 msgstr "Сповіщення"
 
-#: apps/projects/models.py:10 apps/web/views.py:3415
+#: apps/projects/models.py:10 apps/web/views.py:3421
 msgid "Slug prefix must be 2–6 uppercase Latin letters."
 msgstr "Префікс slug має містити 2–6 великих латинських літер."
 
@@ -262,7 +262,7 @@ msgstr "Префікс slug має містити 2–6 великих лати�
 msgid "Project"
 msgstr "Проєкт"
 
-#: apps/projects/models.py:131 apps/web/views.py:3433
+#: apps/projects/models.py:131 apps/web/views.py:3439
 msgid "Lead must be a member of the project's workspace."
 msgstr "Лід повинен бути учасником робочого простору проєкту."
 
@@ -434,22 +434,22 @@ msgid "changed status"
 msgstr "змінено статус"
 
 #: apps/web/templatetags/web_extras.py:212
-#: templates/web/projects/_activity_event.html:33
+#: templates/web/projects/_activity_event.html:35
 msgid "changed assignee"
 msgstr "змінено виконавця"
 
 #: apps/web/templatetags/web_extras.py:213
-#: templates/web/projects/_activity_event.html:28
+#: templates/web/projects/_activity_event.html:30
 msgid "changed due date"
 msgstr "змінено дедлайн"
 
 #: apps/web/templatetags/web_extras.py:214
-#: templates/web/projects/_activity_event.html:23
+#: templates/web/projects/_activity_event.html:25
 msgid "changed priority"
 msgstr "змінено пріоритет"
 
 #: apps/web/templatetags/web_extras.py:215
-#: templates/web/projects/_activity_event.html:38
+#: templates/web/projects/_activity_event.html:40
 msgid "changed labels"
 msgstr "змінено мітки"
 
@@ -462,22 +462,18 @@ msgid "updated fields"
 msgstr "оновлено поля"
 
 #: apps/web/templatetags/web_extras.py:218
-#| msgid "Archive task"
 msgid "archived the task"
 msgstr "архівував(ла) задачу"
 
 #: apps/web/templatetags/web_extras.py:219
-#| msgid "Archive task"
 msgid "unarchived the task"
 msgstr "розархівував(ла) задачу"
 
 #: apps/web/templatetags/web_extras.py:220
-#| msgid "Add link"
 msgid "added a link"
 msgstr "додав(ла) зв'язок"
 
 #: apps/web/templatetags/web_extras.py:221
-#| msgid "Remove link"
 msgid "removed a link"
 msgstr "прибрав(ла) зв'язок"
 
@@ -486,6 +482,8 @@ msgid "deleted the task"
 msgstr "видалено задачу"
 
 #: apps/web/templatetags/web_extras.py:223
+#: templates/web/projects/_activity_event.html:56
+#: templates/web/projects/_activity_event.html:58
 msgid "added a comment"
 msgstr "додано коментар"
 
@@ -509,116 +507,116 @@ msgstr "учасника виключено з простору"
 msgid "changed a member role"
 msgstr "змінено роль учасника"
 
-#: apps/web/views.py:3075 apps/web/views.py:3113 apps/web/views.py:3140
-#: apps/web/views.py:3238 apps/web/views.py:3270 apps/web/views.py:3295
+#: apps/web/views.py:3081 apps/web/views.py:3119 apps/web/views.py:3146
+#: apps/web/views.py:3244 apps/web/views.py:3276 apps/web/views.py:3301
 msgid "Admin or owner only"
 msgstr "Тільки для адміна або власника"
 
-#: apps/web/views.py:3078
+#: apps/web/views.py:3084
 msgid "Email is required"
 msgstr "Email обов'язковий"
 
-#: apps/web/views.py:3081 apps/web/views.py:3245 apps/web/views.py:3278
+#: apps/web/views.py:3087 apps/web/views.py:3251 apps/web/views.py:3284
 msgid "Invalid role"
 msgstr "Неправильна роль"
 
-#: apps/web/views.py:3090
+#: apps/web/views.py:3096
 #, python-format
 msgid "Invite sent to %(email)s."
 msgstr "Запрошення надіслано на %(email)s."
 
-#: apps/web/views.py:3093
+#: apps/web/views.py:3099
 msgid "Invite created but email failed — copy the link from the list."
 msgstr ""
 "Запрошення створено, але лист не надіслався — скопіюйте посилання зі списку."
 
-#: apps/web/views.py:3116
+#: apps/web/views.py:3122
 msgid "Invite not found"
 msgstr "Запрошення не знайдено"
 
-#: apps/web/views.py:3122
+#: apps/web/views.py:3128
 #, python-format
 msgid "Invite to %(email)s revoked."
 msgstr "Запрошення для %(email)s відкликано."
 
-#: apps/web/views.py:3143
+#: apps/web/views.py:3149
 msgid "Invite not found or already accepted"
 msgstr "Запрошення не знайдено або вже прийнято"
 
-#: apps/web/views.py:3146
+#: apps/web/views.py:3152
 #, python-format
 msgid "Invite re-sent to %(email)s."
 msgstr "Запрошення повторно надіслано на %(email)s."
 
-#: apps/web/views.py:3148
+#: apps/web/views.py:3154
 msgid "Resend failed — try again later."
 msgstr "Не вдалося надіслати повторно — спробуйте пізніше."
 
-#: apps/web/views.py:3242
+#: apps/web/views.py:3248
 msgid "Invalid user_id"
 msgstr "Неправильний user_id"
 
-#: apps/web/views.py:3250
+#: apps/web/views.py:3256
 msgid "Cannot add another owner"
 msgstr "Не можна додати ще одного власника"
 
-#: apps/web/views.py:3253
+#: apps/web/views.py:3259
 msgid "User not found"
 msgstr "Користувача не знайдено"
 
-#: apps/web/views.py:3255
+#: apps/web/views.py:3261
 msgid "User already a member"
 msgstr "Користувач вже є учасником"
 
-#: apps/web/views.py:3273 apps/web/views.py:3298
+#: apps/web/views.py:3279 apps/web/views.py:3304
 msgid "Not a member"
 msgstr "Не є учасником"
 
-#: apps/web/views.py:3275
+#: apps/web/views.py:3281
 msgid "Transfer ownership first"
 msgstr "Спочатку передай право власності"
 
-#: apps/web/views.py:3280
+#: apps/web/views.py:3286
 msgid "Ownership transfer not supported here"
 msgstr "Передача права власності тут не підтримується"
 
-#: apps/web/views.py:3300
+#: apps/web/views.py:3306
 msgid "Cannot remove owner"
 msgstr "Не можна видалити власника"
 
-#: apps/web/views.py:3399
+#: apps/web/views.py:3405
 msgid "Invalid workspace"
 msgstr "Неправильний робочий простір"
 
-#: apps/web/views.py:3405
+#: apps/web/views.py:3411
 msgid "Workspace not accessible"
 msgstr "Робочий простір недоступний"
 
-#: apps/web/views.py:3409 apps/web/views.py:3500
+#: apps/web/views.py:3415 apps/web/views.py:3506
 msgid "Name is required"
 msgstr "Ім'я обов'язкове"
 
-#: apps/web/views.py:3411 apps/web/views.py:3502
+#: apps/web/views.py:3417 apps/web/views.py:3508
 msgid "Name too long"
 msgstr "Назва задовга"
 
-#: apps/web/views.py:3417
+#: apps/web/views.py:3423
 msgid "Slug prefix already used in this workspace"
 msgstr "Префікс slug вже використовується в цьому робочому просторі"
 
-#: apps/web/views.py:3427
+#: apps/web/views.py:3433
 msgid "Invalid lead"
 msgstr "Неправильний лід"
 
-#: apps/web/views.py:3508
+#: apps/web/views.py:3514
 msgid "Invalid slug"
 msgstr "Неправильний slug"
 
-#: apps/web/views.py:3510
+#: apps/web/views.py:3516
 msgid "Slug already taken"
 msgstr "Slug вже зайнятий"
 
-#: apps/web/views.py:3519
+#: apps/web/views.py:3525
 msgid "Cannot generate unique slug"
 msgstr "Не вдалось згенерувати унікальний slug"
 
@@ -1428,42 +1426,40 @@ msgstr ""
 "Після додавання ця сторінка автоматично перетвориться на панель вашого "
 "робочого простору."
 
-#: templates/web/projects/_activity_event.html:30
-#: templates/web/projects/_activity_event.html:56
+#: templates/web/projects/_activity_event.html:32
+#: templates/web/projects/_activity_event.html:64
 msgid "cleared"
 msgstr "очищено"
 
-#: templates/web/projects/_activity_event.html:35
+#: templates/web/projects/_activity_event.html:37
 msgid "unassigned"
 msgstr "знято виконавця"
 
-#: templates/web/projects/_activity_event.html:46
+#: templates/web/projects/_activity_event.html:47
 msgid "now blocks"
 msgstr "тепер блокує"
 
-#: templates/web/projects/_activity_event.html:46
+#: templates/web/projects/_activity_event.html:47
 msgid "now blocked by"
 msgstr "тепер заблоковано"
 
-#: templates/web/projects/_activity_event.html:46
+#: templates/web/projects/_activity_event.html:47
 msgid "linked"
 msgstr "пов’язано"
 
-#: templates/web/projects/_activity_event.html:50
+#: templates/web/projects/_activity_event.html:51
 msgid "unlinked"
 msgstr "відв'язано"
 
-#: templates/web/projects/_activity_event.html:54
+#: templates/web/projects/_activity_event.html:62
 msgid "changed size"
 msgstr "змінено розмір"
 
-#: templates/web/projects/_activity_event.html:59
-#| msgid "Username"
+#: templates/web/projects/_activity_event.html:67
 msgid "renamed"
 msgstr "перейменував(ла)"
 
-#: templates/web/projects/_activity_event.html:61
-#| msgid "Write a description…"
+#: templates/web/projects/_activity_event.html:69
 msgid "edited description"
 msgstr "відредагував(ла) опис"
 

@@ -2,6 +2,7 @@
 
 import datetime
 import html
+import re
 
 from django import template
 from django.utils import timezone
@@ -326,3 +327,93 @@ def priority_label(value):
         return dict(Task.PRIORITY_CHOICES).get(int(value), value)
     except (TypeError, ValueError):
         return value
+
+
+# Status badge / priority text classes mirror ``_status_cell.html`` and
+# ``_priority_cell.html`` so the activity-feed diff highlights a status
+# or priority exactly like it renders on the task itself.
+_STATUS_BADGE_CLASS = {
+    "planned": "bg-muted text-subtle-foreground",
+    "to-do": "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300",
+    "in-progress": "bg-violet-100 dark:bg-violet-900 text-violet-700 dark:text-violet-300",
+    "in-review": "bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300",
+    "done": "bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300",
+}
+_PRIORITY_TEXT_CLASS = {
+    1: "text-red-400",
+    2: "text-orange-400",
+    3: "text-amber-400",
+    4: "text-[#a5b4d9]",
+    5: "text-placeholder-foreground",
+}
+
+
+@register.filter(name="status_badge_class")
+def status_badge_class(value):
+    """Return the badge bg+text classes for a status key.
+
+    Args:
+        value: A ``Task.STATUS_*`` key.
+
+    Returns:
+        A Tailwind class string matching the task's status badge.
+    """
+    return _STATUS_BADGE_CLASS.get(value, "bg-muted text-subtle-foreground")
+
+
+_LINK_TOKEN_RE = re.compile(r"\[([^\]]+)\]\((?:mention|task):\d+\)")
+
+
+@register.filter(name="strip_link_tokens")
+def strip_link_tokens(text):
+    """Collapse mention / task markdown tokens to their visible label.
+
+    ``[@admin](mention:1)`` → ``@admin``; ``[VND-2](task:5)`` → ``VND-2``.
+    Used for plain-text comment previews so the raw token doesn't leak.
+
+    Args:
+        text: Raw markdown snippet.
+
+    Returns:
+        The text with mention / task link tokens reduced to their label.
+    """
+    if not text:
+        return text
+    return _LINK_TOKEN_RE.sub(r"\1", text)
+
+
+@register.filter(name="task_url_from_slug")
+def task_url_from_slug(slug):
+    """Build a task-detail URL from a ``PREFIX-NUMBER`` slug.
+
+    Used by activity link events whose payload only carries the linked
+    task's slug. Returns ``"#"`` for a malformed slug.
+
+    Args:
+        slug: A task slug, e.g. ``"VND-2"``.
+
+    Returns:
+        ``/projects/<prefix>/<number>/`` or ``"#"``.
+    """
+    if not slug or "-" not in slug:
+        return "#"
+    prefix, _, number = slug.rpartition("-")
+    if not prefix or not number.isdigit():
+        return "#"
+    return f"/projects/{prefix}/{number}/"
+
+
+@register.filter(name="priority_text_class")
+def priority_text_class(value):
+    """Return the text-colour class for a priority value.
+
+    Args:
+        value: A ``Task.PRIORITY_*`` integer (or its string form).
+
+    Returns:
+        A Tailwind text-colour class matching the priority cell.
+    """
+    try:
+        return _PRIORITY_TEXT_CLASS.get(int(value), "text-placeholder-foreground")
+    except (TypeError, ValueError):
+        return "text-placeholder-foreground"

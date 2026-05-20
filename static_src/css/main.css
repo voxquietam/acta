@@ -890,6 +890,13 @@ html.dark .acta-mention {
   gap: 0.25rem;
 }
 
+/* Comment deep-link pulse — a brand ring when arriving at a
+   ``#comment-<id>`` anchor (e.g. from the My Activity feed). */
+.acta-comment-highlight {
+  box-shadow: 0 0 0 2px rgb(66 90 245 / 0.55);
+  transition: box-shadow 300ms ease;
+}
+
 /* Reset native focus outline on form controls — browsers default to a
    thick coloured outline (Firefox pink, Chrome blue, Safari blue) that
    clashes with our brand palette. Visual focus is delivered through the

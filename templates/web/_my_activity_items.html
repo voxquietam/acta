@@ -1,0 +1,64 @@
+{% load i18n %}
+{% load lucide %}
+{% load web_extras %}
+{% comment %}
+One page of My Activity feed items + a Load-more button. Returned on its
+own for ``?items=1`` load-more fetches (the button targets itself with
+an outerHTML swap, so the next page appends in place).
+{% endcomment %}
+{% if tab == 'comments' %}
+  {% for c in my_comments %}
+  <div class="mb-3">
+    <a href="{% url 'web:task_detail' slug_prefix=c.task.project.slug_prefix number=c.task.number %}"
+       {% open_task_modal_attrs c.task %}
+       class="group flex items-baseline gap-2 mb-1">
+      <span class="font-mono text-xs text-placeholder-foreground group-hover:text-foreground shrink-0">{{ c.task.slug }}</span>
+      <span class="text-xs text-subtle-foreground group-hover:text-foreground truncate">{{ c.task.title }}</span>
+    </a>
+    <ul>{% include "web/projects/_comment.html" with comment=c hide_author=True %}</ul>
+  </div>
+  {% empty %}
+  <div class="flex flex-col items-center justify-center gap-2.5 text-center px-6 py-16">
+    <span class="w-12 h-12 rounded-full bg-muted text-placeholder-foreground grid place-items-center">{% lucide "message-square" "w-6 h-6" %}</span>
+    <h2 class="text-[15px] font-semibold text-foreground">{% trans "No comments yet" %}</h2>
+    <p class="text-xs text-placeholder-foreground max-w-[280px] leading-relaxed">{% trans "Comments you post on tasks will show up here." %}</p>
+  </div>
+  {% endfor %}
+{% else %}
+  {% comment %}
+  Consecutive events on the same task group under one task header with a
+  left rail, so a run of edits reads like a timeline. Each row reuses
+  _activity_event.html (diff + verb) with the actor hidden — always me.
+  {% endcomment %}
+  {% for g in my_event_groups %}
+  <div class="mb-4">
+    {% if g.task %}
+    <a href="{% url 'web:task_detail' slug_prefix=g.task.project.slug_prefix number=g.task.number %}"
+       {% open_task_modal_attrs g.task %}
+       class="group flex items-baseline gap-2 mb-1">
+      <span class="font-mono text-xs text-placeholder-foreground group-hover:text-foreground shrink-0">{{ g.task.slug }}</span>
+      <span class="text-xs text-subtle-foreground group-hover:text-foreground truncate">{{ g.task.title }}</span>
+    </a>
+    {% endif %}
+    <ul class="border-l border-border ml-1.5 pl-1.5 space-y-0.5">
+      {% for e in g.events %}
+      {% include "web/projects/_activity_event.html" with event=e hide_actor=True %}
+      {% endfor %}
+    </ul>
+  </div>
+  {% empty %}
+  <div class="flex flex-col items-center justify-center gap-2.5 text-center px-6 py-16">
+    <span class="w-12 h-12 rounded-full bg-muted text-placeholder-foreground grid place-items-center">{% lucide "activity" "w-6 h-6" %}</span>
+    <h2 class="text-[15px] font-semibold text-foreground">{% trans "No activity yet" %}</h2>
+    <p class="text-xs text-placeholder-foreground max-w-[280px] leading-relaxed">{% trans "Your actions across tasks will show up here." %}</p>
+  </div>
+  {% endfor %}
+{% endif %}
+
+{% if has_more %}
+<button hx-get="{% url 'web:my_activity' %}?tab={{ tab }}&offset={{ next_offset }}&items=1"
+        hx-target="this" hx-swap="outerHTML"
+        class="block w-full text-center text-xs text-placeholder-foreground hover:text-foreground py-3 mt-1">
+  {% lucide "chevron-down" "w-3.5 h-3.5 inline" %} {% trans "Load more" %}
+</button>
+{% endif %}

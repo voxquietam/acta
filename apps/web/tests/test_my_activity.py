@@ -67,6 +67,54 @@ class TestMyActivity:
         events = resp.context["my_events"]
         assert any(e.linked_task and e.linked_task.id == task.id for e in events)
 
+    def test_activity_tab_no_n_plus_one(self, client, django_assert_max_num_queries):
+        """The activity feed must batch task / user / label resolution —
+        query count stays bounded regardless of how many events there are."""
+        from apps.labels.tests.factories import LabelFactory
+
+        ws = WorkspaceFactory()
+        other = WorkspaceMemberFactory(workspace=ws).user
+        label = LabelFactory(workspace=ws)
+        for _ in range(20):
+            project = ProjectFactory(workspace=ws)
+            task = TaskFactory(project=project)
+            log_event(
+                workspace=ws,
+                project=project,
+                actor=ws.owner,
+                event_type="task.assigned",
+                target_type=ActivityLog.TARGET_TASK,
+                target_id=task.id,
+                payload={"from_user_id": None, "to_user_id": other.id},
+            )
+            log_event(
+                workspace=ws,
+                project=project,
+                actor=ws.owner,
+                event_type="task.labels_changed",
+                target_type=ActivityLog.TARGET_TASK,
+                target_id=task.id,
+                payload={"added_ids": [label.id], "removed_ids": []},
+            )
+        client.force_login(ws.owner)
+        with django_assert_max_num_queries(20):
+            resp = client.get(reverse("web:my_activity"), {"tab": "activity"})
+            assert resp.status_code == 200
+
+    def test_comments_load_more_pagination(self, client):
+        ws = WorkspaceFactory()
+        project = ProjectFactory(workspace=ws)
+        task = TaskFactory(project=project)
+        Comment.objects.bulk_create([Comment(task=task, author=ws.owner, body=f"c{i}") for i in range(55)])
+        client.force_login(ws.owner)
+        first = client.get(reverse("web:my_activity"))
+        assert first.context["has_more"] is True
+        assert len(first.context["my_comments"]) == 50
+        second = client.get(reverse("web:my_activity"), {"tab": "comments", "offset": 50, "items": 1})
+        assert second.status_code == 200
+        assert len(second.context["my_comments"]) == 5
+        assert second.context["has_more"] is False
+
     def test_counts_in_context(self, client):
         ws = WorkspaceFactory()
         project = ProjectFactory(workspace=ws)
