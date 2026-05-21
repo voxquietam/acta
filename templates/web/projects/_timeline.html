@@ -206,15 +206,15 @@
   <div class="inline-flex bg-card border border-border rounded-md overflow-hidden">
     <button type="button" data-zoom="day"
             class="tl-zoom-btn font-mono text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 border-r border-border text-subtle-foreground hover:bg-muted hover:text-foreground transition">
-      {% trans "D" %}
+      {% trans "D" context "timeline zoom" %}
     </button>
     <button type="button" data-zoom="week"
             class="tl-zoom-btn font-mono text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 border-r border-border text-subtle-foreground hover:bg-muted hover:text-foreground transition">
-      {% trans "W" %}
+      {% trans "W" context "timeline zoom" %}
     </button>
     <button type="button" data-zoom="month"
             class="tl-zoom-btn font-mono text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 text-subtle-foreground hover:bg-muted hover:text-foreground transition">
-      {% trans "M" %}
+      {% trans "M" context "timeline zoom" %}
     </button>
   </div>
 
@@ -237,7 +237,7 @@
   {% comment %} Left sticky task-name column {% endcomment %}
   <div id="tl-left" class="flex flex-col border-r border-border bg-card z-10 shrink-0" style="width:260px">
     <div class="h-14 shrink-0 flex items-end px-3 pb-2 border-b border-border bg-muted">
-      <span class="font-mono text-[10px] font-bold uppercase tracking-wider text-subtle-foreground">{% trans "Task" %}</span>
+      <span class="font-mono text-[10px] font-bold uppercase tracking-wider text-subtle-foreground">{% trans "Task" context "timeline" %}</span>
     </div>
     <div id="tl-left-body" class="overflow-y-auto overflow-x-hidden scrollbar-none flex-1">
       {% for task in timeline_tasks %}
@@ -628,8 +628,8 @@ const ICO_CAL   = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" s
 function showTip(e, slug, title, start, due, overdue) {
   if (_tlDragging) return;  // never surface tooltip mid-drag
   tipTitle.textContent = `${slug} — ${title}`;
-  tipStart.innerHTML = `${ICO_CLOCK} {% trans "Start" %}: ${fmtDate(start)}`;
-  let endHtml = `${ICO_CAL} {% trans "Due" %}: ${fmtDate(due)}`;
+  tipStart.innerHTML = `${ICO_CLOCK} {% trans "Start" context "timeline" %}: ${fmtDate(start)}`;
+  let endHtml = `${ICO_CAL} {% trans "Due" context "timeline" %}: ${fmtDate(due)}`;
   if (overdue && due) {
     const d = diffDays(due, today);
     endHtml += ` <span style="color:rgb(248 113 113);font-weight:700;"> — ${d}d overdue</span>`;
