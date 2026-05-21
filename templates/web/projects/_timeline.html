@@ -353,7 +353,7 @@ filled by JS.
 <div id="tl-tip"
      class="bg-card border border-border rounded-lg shadow-xl p-2.5 min-w-[150px] max-w-[240px]"
      style="position:fixed;z-index:200;pointer-events:none;opacity:0;transform:translateY(-4px);">
-  <div id="tl-tip-title" class="text-xs font-semibold text-foreground mb-1.5 truncate"></div>
+  <div id="tl-tip-title" class="text-xs font-semibold text-foreground mb-1.5 leading-snug"></div>
   <div id="tl-tip-start" class="flex items-center gap-1 text-[11px] text-subtle-foreground"></div>
   <div id="tl-tip-end"   class="flex items-center gap-1 text-[11px] text-subtle-foreground mt-0.5"></div>
 </div>
@@ -389,13 +389,15 @@ const STATUS_COLOR = {
   'done':        'rgb(5 150 105)',
 };
 
-// ── theme-aware CSS variable values (read once at init) ────────────
-// These are used in JS-generated inline styles; CSS variables can't
-// be used directly in JS strings, so we resolve them at runtime.
-const _cs         = getComputedStyle(document.documentElement);
-const CSS_BORDER  = `rgb(${_cs.getPropertyValue('--border').trim()})`;
-const CSS_SFGD    = `rgb(${_cs.getPropertyValue('--subtle-foreground').trim()})`;
-const CSS_PFGD    = `rgb(${_cs.getPropertyValue('--placeholder-foreground').trim()})`;
+// ── theme tokens as LIVE CSS-var references ─────────────────────────
+// Inline ``rgb(var(--x))`` is re-resolved by the browser, so the
+// JS-built header cells track light/dark/midnight on every theme
+// switch. (Baking values via getComputedStyle froze them to whatever
+// theme was active at first render — dark theme then showed light
+// borders + invisible header text.)
+const CSS_BORDER  = 'rgb(var(--border))';
+const CSS_SFGD    = 'rgb(var(--subtle-foreground))';
+const CSS_PFGD    = 'rgb(var(--placeholder-foreground))';
 const CSS_BRAND   = 'rgb(66 90 245)';
 const CSS_BRAND_A = 'rgb(108 126 251)'; // brand-400
 
