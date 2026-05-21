@@ -52,7 +52,10 @@ class TestUserSettingsPost:
             reverse("accounts:settings"),
             {"first_name": user.first_name, "last_name": user.last_name, "language": target},
         )
-        assert resp.status_code == 302
+        # Language change asks HTMX for a full reload so the persistent
+        # shell (sidebar / topbar) re-renders in the new language.
+        assert resp.status_code == 204
+        assert resp["HX-Refresh"] == "true"
         user.refresh_from_db()
         assert user.language == target
         # Cookie is set on the response.

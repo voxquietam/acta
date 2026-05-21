@@ -3,7 +3,7 @@
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponseBadRequest, HttpResponseRedirect
+from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone, translation
@@ -172,9 +172,14 @@ def user_settings(request):
             lang_changed = True
         if updates:
             user.save(update_fields=updates)
-        response = HttpResponseRedirect(reverse("accounts:settings"))
         if lang_changed:
+            # The persistent shell (sidebar / topbar) lives outside the
+            # boosted ``#app-content`` swap, so a partial swap would leave
+            # it in the old language. Tell HTMX to do a full reload so the
+            # new language applies everywhere; the cookie rides along.
             translation.activate(lang)
+            response = HttpResponse(status=204)
+            response["HX-Refresh"] = "true"
             response.set_cookie(
                 settings.LANGUAGE_COOKIE_NAME,
                 lang,
@@ -185,7 +190,10 @@ def user_settings(request):
                 httponly=settings.LANGUAGE_COOKIE_HTTPONLY,
                 samesite=settings.LANGUAGE_COOKIE_SAMESITE,
             )
-        return response
+            return response
+        # Profile-only change: a redirect that the boosted form follows,
+        # swapping ``#app-content`` smoothly (no full-page reload / jump).
+        return HttpResponseRedirect(reverse("accounts:settings"))
     # ``api_tokens`` powers the API tokens section. ``created_secret``
     # is a one-shot flash value populated by ``create_api_token`` —
     # the plain token, shown ONCE on redirect back here, then cleared.

@@ -16,7 +16,13 @@
     <header class="flex items-center gap-3 mb-4">
       <h2 class="text-sm font-medium text-foreground">{% trans "Profile" %}</h2>
     </header>
-    <form method="post" action="{% url 'accounts:settings' %}" class="space-y-3">
+    <form method="post" action="{% url 'accounts:settings' %}"
+          hx-boost="true"
+          hx-target="#app-content"
+          hx-select="#app-content"
+          hx-swap="outerHTML show:top"
+          hx-push-url="true"
+          class="space-y-3">
       {% csrf_token %}
 
       <div class="flex items-center gap-3">

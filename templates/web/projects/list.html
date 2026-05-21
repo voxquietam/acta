@@ -41,6 +41,11 @@
     {% with total=project.total_task_count done=project.done_count|default:0 planned=project.planned_count|default:0 todo=project.todo_count|default:0 in_progress=project.in_progress_count|default:0 in_review=project.in_review_count|default:0 %}
     <div class="relative h-full">
     <a href="{% url 'web:project_detail' slug_prefix=project.slug_prefix %}"
+       hx-boost="true"
+       hx-target="#app-content"
+       hx-select="#app-content"
+       hx-swap="outerHTML show:top"
+       hx-push-url="true"
        class="h-full flex flex-col bg-card border border-border rounded-lg p-3.5 hover:border-border-strong transition
          {% if project.archived %}opacity-90{% endif %}">
 
