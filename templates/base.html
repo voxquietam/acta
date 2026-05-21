@@ -66,6 +66,40 @@
   <script defer src="https://unpkg.com/alpinejs@3"></script>
 </head>
 <body class="bg-background text-foreground min-h-screen">
+  {% comment %}
+  Full-window load overlay. Shown on the first paint of every full page
+  load (cold load, or an ``HX-Refresh`` reload such as a language change)
+  and faded out once Alpine has finished initializing — i.e. after
+  ``x-cloak`` has been applied and the view-panel ``x-show`` toggles have
+  settled — so the reflow never shows as a visible "jump". Boosted swaps
+  don't trigger a full load, so this stays out of their way. ``window.load``
+  + a hard timeout are fallbacks for pages without Alpine.
+  {% endcomment %}
+  <div id="acta-loader"
+       class="fixed inset-0 z-[200] flex items-center justify-center bg-background transition-opacity duration-300">
+    <div class="w-8 h-8 rounded-full border-2 border-border border-t-brand-500 animate-spin"></div>
+  </div>
+  <script>
+    (function () {
+      var el = document.getElementById("acta-loader");
+      if (!el) return;
+      var done = false;
+      function hide() {
+        if (done) return;
+        done = true;
+        el.style.opacity = "0";
+        el.style.pointerEvents = "none";
+        setTimeout(function () { el.remove(); }, 320);
+      }
+      // Primary: Alpine done → x-cloak applied → no more reflow.
+      document.addEventListener("alpine:initialized", function () {
+        requestAnimationFrame(hide);
+      });
+      // Fallbacks for pages without Alpine + a hard cap.
+      window.addEventListener("load", function () { setTimeout(hide, 120); });
+      setTimeout(hide, 2500);
+    })();
+  </script>
   {% block body %}{% endblock %}
 
   <script src="{% static 'js/acta.js' %}"></script>
