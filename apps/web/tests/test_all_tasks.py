@@ -88,29 +88,49 @@ def _table_body(html):
 
 @pytest.fixture
 def setup(db):
-    """Two workspaces both owned by the same user + one project each."""
+    """Two workspaces both owned by the same user + one project each.
+
+    ``ws1`` is the user's active workspace, so All Tasks (scoped to the
+    active workspace) shows ``p1`` tasks and hides ``p2`` until switched.
+    """
     user = UserFactory()
     ws1 = WorkspaceFactory(owner=user)
     ws2 = WorkspaceFactory(owner=user)
     WorkspaceMemberFactory(workspace=ws2, user=user)
     p1 = ProjectFactory(workspace=ws1)
     p2 = ProjectFactory(workspace=ws2)
+    user.active_workspace = ws1
+    user.save(update_fields=["active_workspace"])
     return user, ws1, ws2, p1, p2
 
 
 @pytest.mark.django_db
 class TestAllTasksScope:
-    """Only the user's workspaces' tasks are listed."""
+    """All Tasks is scoped to the user's active workspace."""
 
-    def test_lists_tasks_across_workspaces(self, client, setup):
-        user, ws1, ws2, p1, p2 = setup
+    def test_lists_only_active_workspace_tasks(self, client, setup):
+        """Tasks in the active workspace show; another workspace's tasks
+        are hidden until the user switches into it."""
+        user, ws1, ws2, p1, p2 = setup  # active workspace is ws1
         TaskFactory(project=p1, reporter=user, title="From WS1", status=Task.STATUS_TODO)
         TaskFactory(project=p2, reporter=user, title="From WS2", status=Task.STATUS_TODO)
         client.force_login(user)
         resp = client.get(reverse("web:all_tasks"))
         body = resp.content.decode()
         assert "From WS1" in body
+        assert "From WS2" not in body
+
+    def test_switching_workspace_changes_scope(self, client, setup):
+        """After switching to ws2, All Tasks shows ws2's tasks, not ws1's."""
+        user, ws1, ws2, p1, p2 = setup
+        TaskFactory(project=p1, reporter=user, title="From WS1", status=Task.STATUS_TODO)
+        TaskFactory(project=p2, reporter=user, title="From WS2", status=Task.STATUS_TODO)
+        user.active_workspace = ws2
+        user.save(update_fields=["active_workspace"])
+        client.force_login(user)
+        body = client.get(reverse("web:all_tasks")).content.decode()
         assert "From WS2" in body
+        assert "From WS1" not in body
 
     def test_foreign_workspace_tasks_excluded(self, client, setup):
         user, _, _, _, _ = setup
@@ -359,11 +379,13 @@ class TestAllTasksOrdering:
     def test_id_sort_groups_by_project_then_number(self, client, setup):
         """``?order=id`` groups cross-project rows by project slug and
         sorts numerically within each group."""
-        user, ws1, ws2, _, _ = setup
+        user, ws1, ws2, _, _ = setup  # active workspace is ws1
         # Explicit slug_prefixes so the order is deterministic regardless
-        # of factory sequence numbers.
+        # of factory sequence numbers. Both in the active workspace (ws1)
+        # — All Tasks is workspace-scoped, so cross-project ordering is
+        # tested within one workspace.
         p_a = ProjectFactory(workspace=ws1, slug_prefix="AAA")
-        p_b = ProjectFactory(workspace=ws2, slug_prefix="BBB")
+        p_b = ProjectFactory(workspace=ws1, slug_prefix="BBB")
         TaskFactory(project=p_a, reporter=user, title="t-AAA-2", number=2, status=Task.STATUS_TODO)
         TaskFactory(project=p_a, reporter=user, title="t-AAA-1", number=1, status=Task.STATUS_TODO)
         TaskFactory(project=p_b, reporter=user, title="t-BBB-1", number=1, status=Task.STATUS_TODO)

@@ -49,6 +49,7 @@ from .views import (
     set_task_status,
     set_task_title,
     set_workspace_member_role,
+    switch_workspace,
     task_activity_fragment,
     task_comments_fragment,
     task_description_fragment,
@@ -181,6 +182,11 @@ urlpatterns = [
         "projects/<str:slug_prefix>/favourite/",
         toggle_project_favourite,
         name="toggle_project_favourite",
+    ),
+    path(
+        "workspace/switch/<int:workspace_id>/",
+        switch_workspace,
+        name="switch_workspace",
     ),
     path(
         "projects/<str:slug_prefix>/members/toggle/",

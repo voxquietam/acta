@@ -1394,6 +1394,12 @@
     // unread count already excludes them, so the badge HTML in this very
     // event carries the unchanged number — ignoring it keeps them in sync.
     if (d && d.kind === "project_update") return;
+    // The inbox is scoped to the active workspace; a notification for a
+    // workspace the user isn't currently in must not bump the badge or
+    // inject a row. ``#app-content`` carries the active workspace id.
+    const appEl = document.getElementById("app-content");
+    const activeWs = appEl && appEl.dataset.activeWorkspace;
+    if (d && d.workspace_id != null && activeWs && String(d.workspace_id) !== String(activeWs)) return;
     // 1) Sidebar unread badge — replace its node, then pulse once.
     const badge = document.getElementById("inbox-badge");
     if (badge && d.badge_html) {

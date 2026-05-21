@@ -127,43 +127,64 @@ Pages extend this and override the `app_main` block.
       hasn't starred anything yet.
       {% endcomment %}
       <div id="sidebar-favourites">
-        {% for ws in nav_workspaces %}
-        {% if ws.favourite_projects %}
-        <div>
-          <div x-show="$store.sidebar.open" x-cloak
-               class="px-2 mb-1 flex items-center justify-between text-xs uppercase tracking-wider text-placeholder-foreground">
-            <span class="truncate">{{ ws.name }}</span>
-          </div>
-          <ul class="space-y-0.5">
-            {% for project in ws.favourite_projects %}
-            <li>
-              <a href="{% url 'web:project_detail' slug_prefix=project.slug_prefix %}"
-                 data-nav-prefix
-                 :class="!$store.sidebar.open && 'justify-center'"
-                 class="acta-rail-link group relative flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground">
-                <span class="shrink-0 {{ project.icon_color_class }}" data-project-icon-for="{{ project.slug_prefix }}">
-                  {% lucide project.icon|default:"folder" "w-3.5 h-3.5" %}
-                </span>
-                <span x-show="$store.sidebar.open" x-cloak class="font-mono text-xs text-subtle-foreground">{{ project.slug_prefix }}</span>
-                <span x-show="$store.sidebar.open" x-cloak class="truncate">{{ project.name }}</span>
-                <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{{ project.slug_prefix }} · {{ project.name }}</span>
-              </a>
-            </li>
-            {% endfor %}
-          </ul>
-        </div>
-        {% endif %}
-        {% endfor %}
-
-        {% if not nav_has_favourites %}
-        <div x-show="$store.sidebar.open" x-cloak
-             class="px-2 py-3 text-xs text-placeholder-foreground italic flex items-start gap-2">
-          {% lucide "star" "w-3.5 h-3.5 mt-0.5 shrink-0" %}
-          <span>{% trans "Star a project from the Projects page to pin it here." %}</span>
-        </div>
-        {% endif %}
+        {% include "web/_sidebar_favourites_inner.html" %}
       </div>
     </nav>
+
+    {% comment %}
+    Workspace switcher — Acta scopes everything (All Tasks / Projects /
+    My Work / Inbox / My Activity) to the ACTIVE workspace; this is the one
+    place to see and change it. Pinned just above the footer line. The
+    dropdown opens UPWARD (``bottom-full``) since it sits at the bottom of
+    the rail, and lists every workspace (check on the active one) — each a
+    POST to ``switch_workspace`` that reloads into it — plus the active
+    workspace's settings + create. Hidden when the user has no workspace.
+    {% endcomment %}
+    {% if active_workspace %}
+    <div class="relative px-3 pb-2"
+         x-data="{ wsOpen: false }"
+         @click.outside="wsOpen = false"
+         @keydown.escape.window="wsOpen = false">
+      <button type="button" @click="wsOpen = !wsOpen"
+              :class="!$store.sidebar.open && 'justify-center'"
+              aria-label="{% trans 'Switch workspace' %}"
+              class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted transition text-left">
+        <span class="shrink-0 w-6 h-6 rounded-md bg-brand-600 text-white grid place-items-center text-xs font-semibold">{{ active_workspace.name|first|upper }}</span>
+        <span x-show="$store.sidebar.open" x-cloak class="flex-1 min-w-0 truncate text-sm font-medium text-foreground">{{ active_workspace.name }}</span>
+        <span x-show="$store.sidebar.open" x-cloak class="shrink-0 text-placeholder-foreground">{% lucide "chevrons-up-down" "w-3.5 h-3.5" %}</span>
+      </button>
+
+      <div x-show="wsOpen" x-cloak x-transition.opacity.duration.100ms
+           class="absolute left-2 right-2 bottom-full mb-1 min-w-[13rem] z-30 bg-card border border-border rounded-lg shadow-lg py-1 max-h-80 overflow-y-auto">
+        <div class="px-2 py-1 text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Workspaces" %}</div>
+        {% for ws in nav_workspaces %}
+        <form method="post" action="{% url 'web:switch_workspace' workspace_id=ws.id %}">
+          {% csrf_token %}
+          <button type="submit"
+                  class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted transition text-left text-sm">
+            <span class="shrink-0 w-5 h-5 rounded bg-muted text-subtle-foreground grid place-items-center text-[10px] font-semibold">{{ ws.name|first|upper }}</span>
+            <span class="flex-1 min-w-0 truncate text-foreground">{{ ws.name }}</span>
+            {% if ws.id == active_workspace.id %}
+            <span class="shrink-0 text-brand-400">{% lucide "check" "w-3.5 h-3.5" %}</span>
+            {% endif %}
+          </button>
+        </form>
+        {% endfor %}
+        <div class="my-1 border-t border-border"></div>
+        <a href="{% url 'web:workspace_settings' slug=active_workspace.slug %}"
+           class="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted transition text-xs text-muted-foreground">
+          {% lucide "settings" "w-3.5 h-3.5 shrink-0" %}
+          <span>{% trans "Workspace settings" %}</span>
+        </a>
+        <button type="button"
+                @click="wsOpen = false; window.htmx && window.htmx.ajax('GET', '{% url 'web:create_workspace' %}', { target: '#modal-root', swap: 'innerHTML' })"
+                class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted transition text-xs text-muted-foreground text-left">
+          {% lucide "plus" "w-3.5 h-3.5 shrink-0" %}
+          <span>{% trans "Create workspace" %}</span>
+        </button>
+      </div>
+    </div>
+    {% endif %}
 
     <div class="px-3 py-3 border-t border-border text-xs text-placeholder-foreground space-y-2">
       <a href="{% url 'web:dashboard' %}"
@@ -173,34 +194,7 @@ Pages extend this and override the `app_main` block.
         <span x-show="$store.sidebar.open" x-cloak>{% trans "Dashboard" %}</span>
         <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "Dashboard" %}</span>
       </a>
-      {% comment %}
-      Manual ``htmx.ajax`` call rather than ``hx-get`` because the
-      surrounding ``<aside hx-boost="true" hx-select="#app-content">``
-      attributes inherit onto children. ``hx-select`` in particular
-      tries to extract ``#app-content`` from the modal fragment (which
-      has no such element) and ends up swapping nothing. The imperative
-      API call sets ``select: undefined`` so the entire response is
-      used — same fix without fighting inheritance rules.
-      {% endcomment %}
-      <button type="button"
-              @click="window.htmx && window.htmx.ajax('GET', '{% url 'web:create_workspace' %}', { target: '#modal-root', swap: 'innerHTML' })"
-              :class="!$store.sidebar.open && 'justify-center'"
-              class="w-full acta-rail-link group relative flex items-center gap-2 hover:text-foreground">
-        {% lucide "plus" "w-3.5 h-3.5 shrink-0" %}
-        <span x-show="$store.sidebar.open" x-cloak>{% trans "New workspace" %}</span>
-        <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "New workspace" %}</span>
-      </button>
-      {% if nav_workspaces %}
-      {% with primary_workspace=nav_workspaces.0 %}
-      <a href="{% url 'web:workspace_settings' slug=primary_workspace.slug %}"
-         :class="!$store.sidebar.open && 'justify-center'"
-         class="acta-rail-link group relative flex items-center gap-2 hover:text-foreground">
-        {% lucide "users" "w-3.5 h-3.5 shrink-0" %}
-        <span x-show="$store.sidebar.open" x-cloak>{% trans "Workspace settings" %}</span>
-        <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "Workspace settings" %}</span>
-      </a>
-      {% endwith %}
-      {% endif %}
+      {# Workspace switch / create / settings live in the switcher above. #}
       {# Django admin is reachable from the profile dropdown ``shield`` icon. #}
     </div>
   </aside>
@@ -216,7 +210,8 @@ Pages extend this and override the `app_main` block.
   htmx's own history is disabled (see base.html); the router in
   acta.js fetches and swaps this element's contents on Back/Forward.
   {% endcomment %}
-  <div id="app-content" class="flex-1 flex flex-col min-w-0">
+  <div id="app-content" class="flex-1 flex flex-col min-w-0"
+       data-active-workspace="{{ active_workspace.id|default:'' }}">
 
     {# ---------- Top bar ---------- #}
     <header class="relative h-14 shrink-0 flex items-center px-4 md:px-6 bg-background/70 backdrop-blur z-20 gap-3">

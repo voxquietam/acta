@@ -19,6 +19,7 @@ from django.db.models import Count, Exists, F, Max, OuterRef, Q, Subquery
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.template.loader import render_to_string
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.utils.translation import gettext_lazy as _
@@ -43,6 +44,7 @@ from apps.web.filters import (
     resolve_show_archived,
 )
 from apps.web.grouping import group_tasks
+from apps.web.nav import resolve_active_workspace, set_active_workspace
 from apps.workspaces.models import Workspace, WorkspaceMember
 
 User = get_user_model()
@@ -268,22 +270,25 @@ def _get_user_task_or_404(user, slug_prefix, number):
     )
 
 
-def _my_work_tasks(user, params):
+def _my_work_tasks(user, params, workspace):
     """Resolve the My Work task queryset for ``user``.
 
-    Querystring filters (``params``) narrow the base queryset — except
-    the assignee filter, which is implicit (``me``). Done tasks reach
-    the queryset via the page-specific
-    ``Q(status=DONE, updated_at>=cutoff)`` clause so the "Recently done"
-    bucket stays populated without showing ancient done rows. If the
-    user picks specific statuses in the sidebar, those override the
-    open/recently-done split (``apply_task_filters`` honours the
-    selection). Grouping into sections is delegated to
+    Scoped to ``workspace`` (the user's active workspace); ``None`` means
+    the user belongs to no workspace, so the list is empty. Querystring
+    filters (``params``) narrow the base queryset — except the assignee
+    filter, which is implicit (``me``). Done tasks reach the queryset via
+    the page-specific ``Q(status=DONE, updated_at>=cutoff)`` clause so the
+    "Recently done" bucket stays populated without showing ancient done
+    rows. If the user picks specific statuses in the sidebar, those
+    override the open/recently-done split (``apply_task_filters`` honours
+    the selection). Grouping into sections is delegated to
     :func:`apps.web.grouping.group_tasks`.
     """
+    if workspace is None:
+        return []
     done_cutoff = timezone.now() - datetime.timedelta(days=7)
     base = (
-        Task.objects.filter(assignee=user)
+        Task.objects.filter(assignee=user, project__workspace=workspace)
         .filter(
             Q(status__in=_OPEN_STATUSES) | Q(status=Task.STATUS_DONE, updated_at__gte=done_cutoff),
         )
@@ -341,6 +346,8 @@ class AllTasksView(LoginRequiredMixin, ListView):
         filtered set since both bodies render simultaneously.
         """
         qs = _user_task_qs(self.request.user)
+        active = resolve_active_workspace(self.request)
+        qs = qs.filter(project__workspace=active) if active else qs.none()
         params = _params_with_archive_cookie(self.request)
         qs = apply_task_filters(qs, params, request_user=self.request.user)
         return apply_task_ordering(qs, params)
@@ -489,7 +496,8 @@ class MyWorkView(LoginRequiredMixin, TemplateView):
         """
         ctx = super().get_context_data(**kwargs)
         params = _params_with_archive_cookie(self.request)
-        tasks = _my_work_tasks(self.request.user, params)
+        active = resolve_active_workspace(self.request)
+        tasks = _my_work_tasks(self.request.user, params, active)
         ctx["has_any_tasks"] = bool(tasks)
         list_axis_keys = ("deadline", "status", "priority", "project")
         list_axis = _resolve_list_axis(self.request, default="deadline", options=list_axis_keys)
@@ -508,12 +516,14 @@ class MyWorkView(LoginRequiredMixin, TemplateView):
         # tasks in — no point filtering My Work by a project with none.
         my_work_projects = list(
             Project.objects.filter(
-                workspace__memberships__user=self.request.user,
+                workspace=active,
                 tasks__assignee=self.request.user,
             )
             .select_related("workspace")
             .order_by("workspace__name", "name")
             .distinct()
+            if active
+            else []
         )
         ctx.update(
             filter_sidebar_context(
@@ -554,6 +564,12 @@ _INBOX_PAGE_SIZE = 100
 def _inbox_base_qs(user):
     """Active (non-archived) Notifications-tab notifications, render-ready.
 
+    Scoped to the user's active workspace (``user.active_workspace_id``):
+    the inbox only shows notifications for the workspace the user is
+    currently in. Callers that depend on a freshly-resolved active
+    workspace (the inbox views) call ``resolve_active_workspace`` first so
+    the in-memory ``user.active_workspace_id`` is valid here.
+
     Excludes ``PROJECT_UPDATE``: "X posted an update" is already surfaced
     by the dedicated Updates tab (read straight from ``ProjectUpdate``),
     so listing it here too would duplicate it. Filtering at the base qs
@@ -574,6 +590,7 @@ def _inbox_base_qs(user):
         Notification.objects.filter(
             recipient=user,
             archived_at__isnull=True,
+            workspace_id=user.active_workspace_id,
         )
         .exclude(kind=Notification.Kind.PROJECT_UPDATE)
         .select_related(
@@ -627,21 +644,23 @@ def _inbox_counts(user):
 def inbox_unread_count(user):
     """Return the active unread notification count for the sidebar badge.
 
-    Mirrors :func:`_inbox_base_qs`'s ``PROJECT_UPDATE`` exclude so the
-    badge never counts updates the Notifications tab won't show.
+    Scoped to the user's active workspace and mirrors
+    :func:`_inbox_base_qs`'s ``PROJECT_UPDATE`` exclude, so the badge
+    counts exactly what the Notifications tab will show.
 
     Args:
         user: The recipient :class:`User`.
 
     Returns:
-        The number of non-archived, unread notifications (excluding
-        project updates).
+        The number of non-archived, unread notifications in the active
+        workspace (excluding project updates).
     """
     return (
         Notification.objects.filter(
             recipient=user,
             archived_at__isnull=True,
             is_read=False,
+            workspace_id=user.active_workspace_id,
         )
         .exclude(kind=Notification.Kind.PROJECT_UPDATE)
         .count()
@@ -722,6 +741,9 @@ class InboxView(LoginRequiredMixin, TemplateView):
         """Build the active tab (Notifications / Updates) + its split panes."""
         ctx = super().get_context_data(**kwargs)
         user = self.request.user
+        # Resolve the active workspace first so the in-memory
+        # ``user.active_workspace_id`` the inbox helpers scope by is valid.
+        active = resolve_active_workspace(self.request)
         tab = self.request.GET.get("tab", "notifications")
         if tab not in {"notifications", "updates"}:
             tab = "notifications"
@@ -736,7 +758,7 @@ class InboxView(LoginRequiredMixin, TemplateView):
         # The strip only offers projects that actually have something on the
         # active tab — notifications for this user, or project updates —
         # so you can't filter to a project with nothing to show.
-        available_qs = Project.objects.filter(workspace__memberships__user=user)
+        available_qs = Project.objects.filter(workspace=active) if active else Project.objects.none()
         if tab == "updates":
             available_qs = available_qs.filter(updates__isnull=False)
         else:
@@ -749,9 +771,11 @@ class InboxView(LoginRequiredMixin, TemplateView):
         )
 
         counts = _inbox_counts(user)
-        updates_qs = ProjectUpdate.objects.filter(
-            project__workspace__memberships__user=user,
-        ).select_related("project", "author")
+        updates_qs = (
+            ProjectUpdate.objects.filter(project__workspace=active).select_related("project", "author")
+            if active
+            else ProjectUpdate.objects.none()
+        )
         ctx.update(
             active_tab=tab,
             inbox_counts=counts,
@@ -932,10 +956,12 @@ def read_all_notifications(request):
     Returns:
         Re-rendered ``_inbox_list.html`` + OOB badge fragment.
     """
+    active = resolve_active_workspace(request)
     Notification.objects.filter(
         recipient=request.user,
         archived_at__isnull=True,
         is_read=False,
+        workspace=active,
     ).update(is_read=True, read_at=timezone.now())
     return _render_inbox_list(request)
 
@@ -950,6 +976,7 @@ def _render_inbox_list(request):
         Rendered ``_inbox_list.html`` + OOB badge fragment.
     """
     user = request.user
+    resolve_active_workspace(request)  # ensure active_workspace_id is valid for scoping
     filter_key = request.GET.get("filter", "all")
     if filter_key not in _INBOX_FILTERS:
         filter_key = "all"
@@ -1072,14 +1099,19 @@ class MyActivityView(LoginRequiredMixin, TemplateView):
         page = _MY_ACTIVITY_PAGE_SIZE
         end = offset + page
 
-        comments_qs = Comment.objects.filter(
-            author=user,
-            task__project__workspace__memberships__user=user,
-        )
-        events_qs = ActivityLog.objects.filter(
-            actor=user,
-            workspace__memberships__user=user,
-        )
+        active = resolve_active_workspace(self.request)
+        if active is None:
+            comments_qs = Comment.objects.none()
+            events_qs = ActivityLog.objects.none()
+        else:
+            comments_qs = Comment.objects.filter(
+                author=user,
+                task__project__workspace=active,
+            )
+            events_qs = ActivityLog.objects.filter(
+                actor=user,
+                workspace=active,
+            )
         ctx["activity_tab"] = tab
         ctx["tab"] = tab
         ctx["next_offset"] = offset + page
@@ -1200,9 +1232,12 @@ class ProjectListView(LoginRequiredMixin, ListView):
         can render the 5-segment progress bar and breakdown chips
         without an N+1.
         """
+        active = resolve_active_workspace(self.request)
+        if active is None:
+            return Project.objects.none()
         latest = ProjectUpdate.objects.filter(project=OuterRef("pk")).order_by("-created_at").values("health")[:1]
         return (
-            Project.objects.filter(workspace__memberships__user=self.request.user)
+            Project.objects.filter(workspace=active)
             .select_related("workspace", "lead")
             .prefetch_related("members")
             .annotate(
@@ -1291,11 +1326,13 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
 
         Annotates ``is_favourite`` via an ``Exists`` subquery so the
         overview star renders without a separate favourites lookup
-        (keeps the page query count constant).
+        (keeps the page query count constant). Viewing a project also
+        pulls its workspace into focus (active-workspace switch) so the
+        sidebar and the scoped views stay consistent with what's on screen.
         """
         slug_prefix = self.kwargs["slug_prefix"]
         favourited = self.request.user.favourite_projects.filter(pk=OuterRef("pk"))
-        return get_object_or_404(
+        project = get_object_or_404(
             Project.objects.filter(
                 slug_prefix=slug_prefix,
                 workspace__memberships__user=self.request.user,
@@ -1303,6 +1340,8 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             .select_related("workspace", "lead")
             .annotate(is_favourite=Exists(favourited)),
         )
+        set_active_workspace(self.request, project.workspace)
+        return project
 
     def render_to_response(self, context, **response_kwargs):
         """Persist ``view_mode`` + ``show_archived`` + ``list_axis`` cookies."""
@@ -1500,7 +1539,6 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             filter_sidebar_context(
                 self.request,
                 hide_assignee=True,
-                hide_workspace=True,
                 hide_project=True,
                 hide_status=(view_mode == "kanban"),
                 htmx_target="#project-view-panel",
@@ -2853,6 +2891,37 @@ def set_task_start_date(request, slug_prefix, number):
 @login_required
 @require_POST
 @login_required
+def switch_workspace(request, workspace_id):
+    """Set the user's active workspace and reload into it.
+
+    Acta scopes All Tasks / Projects / My Work / Inbox / My Activity to a
+    single active workspace; the sidebar switcher POSTs here to change it.
+    Membership is enforced (a user can only switch into a workspace they
+    belong to). On success we persist ``User.active_workspace`` and send
+    the browser to that workspace's project list — via ``HX-Redirect`` so
+    a boosted form POST does a full reload (sidebar, favourites and the
+    unread badge all re-render for the new scope).
+
+    Args:
+        request: POST request.
+        workspace_id: PK of the workspace to switch into.
+    """
+    workspace = get_object_or_404(
+        Workspace.objects.filter(memberships__user=request.user),
+        pk=workspace_id,
+    )
+    request.user.active_workspace = workspace
+    request.user.save(update_fields=["active_workspace"])
+    target = reverse("web:project_list")
+    if request.headers.get("HX-Request") == "true":
+        resp = HttpResponse(status=204)
+        resp["HX-Redirect"] = target
+        return resp
+    return redirect(target)
+
+
+@require_POST
+@login_required
 def toggle_project_favourite(request, slug_prefix):
     """Star / unstar a project from the user's favourites.
 
@@ -2875,15 +2944,12 @@ def toggle_project_favourite(request, slug_prefix):
         {"project": project, "is_favourite": is_favourite, "oob": True},
         request=request,
     )
-    from apps.web.nav import get_nav_workspaces
-
-    nav = get_nav_workspaces(user)
+    # The favourites OOB reads ``active_workspace`` / ``nav_has_favourites``
+    # straight from the ``workspace_nav`` context processor (request passed),
+    # so it re-renders the active workspace's freshly-updated favourites.
     sidebar_oob = render_to_string(
         "web/_sidebar_favourites_oob.html",
-        {
-            "nav_workspaces": nav,
-            "nav_has_favourites": any(ws.favourite_projects for ws in nav),
-        },
+        {},
         request=request,
     )
     return HttpResponse(star_html + sidebar_oob)

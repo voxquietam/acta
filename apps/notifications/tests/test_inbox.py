@@ -5,15 +5,21 @@ from django.urls import reverse
 import pytest
 
 from apps.notifications.models import Notification
-from apps.workspaces.tests.factories import WorkspaceFactory
+from apps.workspaces.tests.factories import WorkspaceFactory, WorkspaceMemberFactory
 
 from .factories import NotificationFactory
 
 
 @pytest.fixture
 def user_ws(db):
-    """A workspace and its owner (a member, so the chrome renders)."""
+    """A workspace and its owner (a member, so the chrome renders).
+
+    The workspace is the owner's active workspace, since the inbox is
+    scoped to it.
+    """
     ws = WorkspaceFactory()
+    ws.owner.active_workspace = ws
+    ws.owner.save(update_fields=["active_workspace"])
     return ws.owner, ws
 
 
@@ -60,6 +66,21 @@ class TestInboxPage:
         client.force_login(user)
         resp = client.get(reverse("web:inbox"))
         assert resp.context["inbox_unread"] == 3
+
+    def test_inbox_scoped_to_active_workspace(self, client, user_ws):
+        """Notifications outside the active workspace are hidden and not
+        counted; the inbox shows only the active workspace's."""
+        user, ws = user_ws  # ws is the active workspace
+        other = WorkspaceFactory()
+        WorkspaceMemberFactory(workspace=other, user=user)
+        NotificationFactory(recipient=user, workspace=ws, is_read=False, preview="active-ws-notif")
+        NotificationFactory(recipient=user, workspace=other, is_read=False, preview="other-ws-notif")
+        client.force_login(user)
+        resp = client.get(reverse("web:inbox"))
+        body = resp.content.decode()
+        assert "active-ws-notif" in body
+        assert "other-ws-notif" not in body
+        assert resp.context["inbox_unread"] == 1
 
     def test_project_update_hidden_from_notifications_tab(self, client, user_ws):
         """``PROJECT_UPDATE`` notifications live in the Updates tab only —

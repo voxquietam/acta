@@ -1,0 +1,41 @@
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+Inner content of the sidebar favourites list — the ACTIVE workspace's
+starred projects (or an empty-state CTA). Favourites are scoped to the
+active workspace now that the switcher picks one; the workspace name is
+shown by the switcher above, so no per-workspace group header here.
+
+Shared by ``base_app.html`` (initial render) and
+``_sidebar_favourites_oob.html`` (the OOB swap after a star toggle) so
+the two never drift. Expects ``active_workspace`` (carrying
+``.favourite_projects``) and ``nav_has_favourites`` — both injected by
+the ``workspace_nav`` context processor.
+{% endcomment %}
+{% if active_workspace and active_workspace.favourite_projects %}
+<ul class="space-y-0.5">
+  {% for project in active_workspace.favourite_projects %}
+  <li>
+    <a href="{% url 'web:project_detail' slug_prefix=project.slug_prefix %}"
+       data-nav-prefix
+       :class="!$store.sidebar.open && 'justify-center'"
+       class="acta-rail-link group relative flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground">
+      <span class="shrink-0 {{ project.icon_color_class }}" data-project-icon-for="{{ project.slug_prefix }}">
+        {% lucide project.icon|default:"folder" "w-3.5 h-3.5" %}
+      </span>
+      <span x-show="$store.sidebar.open" x-cloak class="font-mono text-xs text-subtle-foreground">{{ project.slug_prefix }}</span>
+      <span x-show="$store.sidebar.open" x-cloak class="truncate">{{ project.name }}</span>
+      <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{{ project.slug_prefix }} · {{ project.name }}</span>
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+{% if not nav_has_favourites %}
+<div x-show="$store.sidebar.open" x-cloak
+     class="px-2 py-3 text-xs text-placeholder-foreground italic flex items-start gap-2">
+  {% lucide "star" "w-3.5 h-3.5 mt-0.5 shrink-0" %}
+  <span>{% trans "Star a project from the Projects page to pin it here." %}</span>
+</div>
+{% endif %}

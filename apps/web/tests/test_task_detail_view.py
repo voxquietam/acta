@@ -22,6 +22,8 @@ def task_setup(db):
     ws = WorkspaceFactory()
     project = ProjectFactory(workspace=ws)
     task = TaskFactory(project=project, reporter=ws.owner)
+    ws.owner.active_workspace = ws
+    ws.owner.save(update_fields=["active_workspace"])
     return ws.owner, project, task
 
 

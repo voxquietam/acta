@@ -80,25 +80,31 @@ def notify(
 
 
 def _unread_count(recipient_id: int) -> int:
-    """Return the recipient's active unread notification count.
+    """Return the recipient's active unread count for their active workspace.
 
-    Excludes ``PROJECT_UPDATE`` to match the Notifications tab and the
-    sidebar badge (see ``apps.web.views._inbox_base_qs``) — project
-    updates live in the Updates tab and never count as unread here, so
-    the live SSE badge stays consistent with a page reload.
+    Scoped to the recipient's ``active_workspace`` and excludes
+    ``PROJECT_UPDATE`` — matching the Notifications tab and the sidebar
+    badge (see ``apps.web.views._inbox_base_qs`` /
+    ``apps.web.context.workspace_nav``) so the live SSE badge stays
+    consistent with a page reload. A notification for a workspace the
+    recipient isn't currently in won't bump their badge.
 
     Args:
         recipient_id: The recipient user id.
 
     Returns:
-        Count of non-archived, unread notifications (excluding project
-        updates).
+        Count of non-archived, unread notifications in the recipient's
+        active workspace (excluding project updates).
     """
+    from django.contrib.auth import get_user_model
+
+    active_id = get_user_model().objects.filter(pk=recipient_id).values_list("active_workspace_id", flat=True).first()
     return (
         Notification.objects.filter(
             recipient_id=recipient_id,
             archived_at__isnull=True,
             is_read=False,
+            workspace_id=active_id,
         )
         .exclude(kind=Notification.Kind.PROJECT_UPDATE)
         .count()
@@ -137,6 +143,7 @@ def _broadcast_notification(notification: Notification) -> None:
         unread = _unread_count(recipient_id)
         payload = {
             "kind": row.kind,
+            "workspace_id": row.workspace_id,
             "unread": unread,
             "row_html": render_to_string("web/_notification_row.html", {"n": row}),
             "badge_html": render_to_string("web/_inbox_badge.html", {"inbox_unread": unread}),

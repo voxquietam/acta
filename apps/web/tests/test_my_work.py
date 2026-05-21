@@ -26,9 +26,11 @@ from apps.workspaces.tests.factories import WorkspaceFactory
 
 @pytest.fixture
 def setup(db):
-    """Workspace + project + member user fixture."""
+    """Workspace + project + member user fixture (workspace is active)."""
     ws = WorkspaceFactory()
     project = ProjectFactory(workspace=ws)
+    ws.owner.active_workspace = ws
+    ws.owner.save(update_fields=["active_workspace"])
     return ws.owner, project
 
 
@@ -78,8 +80,10 @@ class TestMyWorkScope:
         assert "Unassigned" not in body
         assert "Theirs" not in body
 
-    def test_cross_workspace_tasks_are_included(self, client, db):
-        """When the user is assigned in two workspaces, both show up."""
+    def test_scoped_to_active_workspace(self, client, db):
+        """My Work shows assigned tasks in the active workspace only;
+        assignments in another workspace are hidden until the user
+        switches into it."""
         ws1 = WorkspaceFactory()
         ws2 = WorkspaceFactory()
         from apps.workspaces.tests.factories import WorkspaceMemberFactory
@@ -89,11 +93,13 @@ class TestMyWorkScope:
         p2 = ProjectFactory(workspace=ws2)
         TaskFactory(project=p1, reporter=ws1.owner, assignee=ws1.owner, title="W1 task")
         TaskFactory(project=p2, reporter=ws2.owner, assignee=ws1.owner, title="W2 task")
-        client.force_login(ws1.owner)
-        resp = client.get(reverse("web:my_work"))
-        body = resp.content.decode()
+        user = ws1.owner
+        user.active_workspace = ws1
+        user.save(update_fields=["active_workspace"])
+        client.force_login(user)
+        body = client.get(reverse("web:my_work")).content.decode()
         assert "W1 task" in body
-        assert "W2 task" in body
+        assert "W2 task" not in body
 
 
 @pytest.mark.django_db

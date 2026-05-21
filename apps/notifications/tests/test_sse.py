@@ -17,6 +17,9 @@ class TestNotificationBroadcast:
         ws = WorkspaceFactory()
         project = ProjectFactory(workspace=ws)
         recipient = ws.owner
+        # The unread count is scoped to the recipient's active workspace.
+        recipient.active_workspace = ws
+        recipient.save(update_fields=["active_workspace"])
         actor = WorkspaceMemberFactory(workspace=ws).user
         task = TaskFactory(project=project, assignee=recipient, reporter=recipient)
         with patch("django_eventstream.send_event") as send:
