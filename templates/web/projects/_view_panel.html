@@ -35,8 +35,15 @@ no extra HTTP requests fire on tab change. Tabs themselves live in
     {% if view_mode == "list" %}{% include "web/projects/_list_panel.html" %}{% endif %}
   </div>
 
-  <div x-show="$store.viewMode.current === 'timeline'" x-cloak class="flex-1 min-h-0 flex flex-col">
-    {% include "web/projects/_timeline.html" %}
+  {% comment %}
+  Timeline is also expensive — a left column + a Gantt row + a date-math
+  ``<script>`` per task. Lazy-load it the same way as the list panel:
+  render inline only when the timeline tab is the active view on cold
+  load, otherwise leave an empty ``data-panel-slot="timeline"`` div that
+  ``acta.js`` fetches via ``?panel=timeline`` after first paint.
+  {% endcomment %}
+  <div x-show="$store.viewMode.current === 'timeline'" x-cloak data-panel-slot="timeline" class="flex-1 min-h-0 flex flex-col">
+    {% if view_mode == "timeline" %}{% include "web/projects/_timeline.html" %}{% endif %}
   </div>
 
 </div>

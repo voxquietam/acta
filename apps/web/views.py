@@ -85,6 +85,46 @@ def _is_htmx_partial(request):
     return True
 
 
+def _timeline_context(table_tasks, today):
+    """Build the timeline (Gantt) context from an already-filtered list.
+
+    Shared by ``AllTasksView`` and ``ProjectDetailView`` so both derive
+    the row order and chart window identically. Tasks sort by
+    ``start_date`` (nulls last), then ``due_date`` (nulls last). The
+    chart window spans the earliest..latest dated task padded by a week
+    each side, at least 90 days wide; it falls back to ``today`` when no
+    task carries a date.
+
+    Args:
+        table_tasks: The filtered task list (reused, not re-queried).
+        today: ``date`` used as the chart anchor / fallback window.
+
+    Returns:
+        A context dict with ``timeline_tasks`` + ``chart_start_iso`` /
+        ``chart_end_iso`` / ``today_iso``.
+    """
+    timeline_tasks = sorted(
+        table_tasks,
+        key=lambda t: (
+            t.start_date is None,
+            t.start_date or datetime.date.max,
+            t.due_date is None,
+            t.due_date or datetime.date.max,
+        ),
+    )
+    all_dates = [d for t in timeline_tasks for d in (t.start_date, t.due_date) if d]
+    raw_min = min(all_dates) if all_dates else today
+    raw_max = max(all_dates) if all_dates else today
+    chart_start = raw_min - datetime.timedelta(days=7)
+    chart_end = max(raw_max + datetime.timedelta(days=14), chart_start + datetime.timedelta(days=90))
+    return {
+        "timeline_tasks": timeline_tasks,
+        "chart_start_iso": chart_start.isoformat(),
+        "chart_end_iso": chart_end.isoformat(),
+        "today_iso": today.isoformat(),
+    }
+
+
 def _resolve_list_axis(request, *, default, options):
     """Resolve the List view group axis: querystring → cookie → default.
 
@@ -287,6 +327,8 @@ class AllTasksView(LoginRequiredMixin, ListView):
             return ["web/projects/_table.html"]
         if self.request.GET.get("panel") == "list":
             return ["web/projects/_list_panel.html"]
+        if self.request.GET.get("panel") == "timeline":
+            return ["web/projects/_timeline.html"]
         if _is_htmx_partial(self.request):
             return ["web/_all_tasks_inner.html"]
         return ["web/all_tasks.html"]
@@ -355,26 +397,14 @@ class AllTasksView(LoginRequiredMixin, ListView):
         ctx["table_tasks"] = table_tasks
         ctx["tasks"] = table_tasks
 
-        # Timeline context — same derivation as ProjectDetailView.
-        _today = ctx["today"]
-        timeline_tasks = sorted(
-            table_tasks,
-            key=lambda t: (
-                t.start_date is None,
-                t.start_date or datetime.date.max,
-                t.due_date is None,
-                t.due_date or datetime.date.max,
-            ),
-        )
-        ctx["timeline_tasks"] = timeline_tasks
-        _all_dates = [d for t in timeline_tasks for d in (t.start_date, t.due_date) if d]
-        _raw_min = min(_all_dates) if _all_dates else _today
-        _raw_max = max(_all_dates) if _all_dates else _today
-        _chart_start = _raw_min - datetime.timedelta(days=7)
-        _chart_end = max(_raw_max + datetime.timedelta(days=14), _chart_start + datetime.timedelta(days=90))
-        ctx["chart_start_iso"] = _chart_start.isoformat()
-        ctx["chart_end_iso"] = _chart_end.isoformat()
-        ctx["today_iso"] = _today.isoformat()
+        # Timeline context — shared derivation with ProjectDetailView.
+        ctx.update(_timeline_context(table_tasks, ctx["today"]))
+
+        # ``?panel=timeline`` is the lazy-load fetch for just the Gantt
+        # body — return now with only the timeline context, skipping the
+        # kanban sort + five list-axis groupings + filter sidebar build.
+        if self.request.GET.get("panel") == "timeline":
+            return ctx
 
         # Table-only HTMX swap (column sort header): we only render
         # ``_table.html`` so the kanban sort + five list-axis groupings
@@ -1233,6 +1263,8 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             return ["web/projects/_table.html"]
         if self.request.GET.get("panel") == "list":
             return ["web/projects/_list_panel.html"]
+        if self.request.GET.get("panel") == "timeline":
+            return ["web/projects/_timeline.html"]
         if _is_htmx_partial(self.request):
             return ["web/projects/_view_panel_wrapper.html"]
         return ["web/projects/detail.html"]
@@ -1405,6 +1437,11 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
                 key: group_tasks(table_tasks, key, request_user=self.request.user) for key in list_axis_keys
             }
             return ctx
+        # ``?panel=timeline`` — lazy fetch of just the Gantt body. Skip
+        # the kanban columns + list axes + filter sidebar build below.
+        if panel == "timeline":
+            ctx.update(_timeline_context(table_tasks, today))
+            return ctx
         if not table_only:
             # When the user hasn't picked a custom ``?order=`` the table
             # falls back to the same ordering kanban uses (status,
@@ -1461,30 +1498,8 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         )
         ctx["show_labels"] = True
 
-        # Timeline view: tasks sorted by start_date (nulls last), then
-        # due_date. Chart window anchored to the earliest start/due in the
-        # filtered set, padded by 7 days on each side, minimum 90 days wide.
-        timeline_tasks = sorted(
-            table_tasks,
-            key=lambda t: (
-                t.start_date is None,
-                t.start_date or datetime.date.max,
-                t.due_date is None,
-                t.due_date or datetime.date.max,
-            ),
-        )
-        ctx["timeline_tasks"] = timeline_tasks
-        all_dates = [d for t in timeline_tasks for d in (t.start_date, t.due_date) if d]
-        if all_dates:
-            raw_min = min(all_dates)
-            raw_max = max(all_dates)
-        else:
-            raw_min = raw_max = today
-        chart_start = raw_min - datetime.timedelta(days=7)
-        chart_end = max(raw_max + datetime.timedelta(days=14), chart_start + datetime.timedelta(days=90))
-        ctx["chart_start_iso"] = chart_start.isoformat()
-        ctx["chart_end_iso"] = chart_end.isoformat()
-        ctx["today_iso"] = today.isoformat()
+        # Timeline context — shared derivation with AllTasksView.
+        ctx.update(_timeline_context(table_tasks, today))
 
         return ctx
 
