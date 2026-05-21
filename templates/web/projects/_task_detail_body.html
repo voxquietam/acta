@@ -103,7 +103,14 @@ end of the xl breakpoint (around 1280px).
   viewport top so metadata is always visible. Stacks below on smaller
   screens.
   {% endcomment %}
-  <aside class="mt-8 xl:mt-0 space-y-4 text-sm xl:sticky xl:top-0 xl:max-h-[calc(100vh-4rem)] xl:overflow-y-auto xl:pb-4">
+  {% comment %}
+  ``overflow-x-hidden`` is required alongside ``overflow-y-auto``: per the
+  CSS overflow spec, setting one axis to ``auto`` forces the other from
+  ``visible`` to ``auto`` too, so without this the rail grew a phantom
+  horizontal scrollbar whenever any child was a hair too wide. Dropdowns
+  / pickers teleport to <body>, so clipping the rail's x-overflow is safe.
+  {% endcomment %}
+  <aside class="mt-8 xl:mt-0 space-y-4 text-sm min-w-0 xl:sticky xl:top-0 xl:max-h-[calc(100vh-4rem)] xl:overflow-y-auto xl:overflow-x-hidden xl:pb-4">
 
     {# Jump links — visible only on lg+ where the rail is sticky #}
     <div class="hidden lg:flex flex-wrap gap-3 text-[11px] text-placeholder-foreground">
