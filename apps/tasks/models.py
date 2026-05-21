@@ -109,6 +109,11 @@ class Task(models.Model):
         choices=SIZE_CHOICES,
         help_text="Story-point estimate. Restricted to the Fibonacci set 1, 2, 3, 5, 8, 13",
     )
+    start_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Work start date. Auto-set to today on first transition to in-progress when null",
+    )
     due_date = models.DateField(
         null=True,
         blank=True,
