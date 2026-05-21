@@ -188,9 +188,8 @@ rail are queued in [[project-todo-filter-sidebar-presets-views]]
           </span>
           <span class="flex-1 text-left">{% trans "Status" %}</span>
           {% with sc=selected_statuses|length xc=excluded_statuses|length %}
-          {% if sc|add:xc %}
-          <span class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-300 normal-case tracking-normal">{{ sc|add:xc }}</span>
-          {% endif %}
+          <span data-filter-section-count="status"
+                class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-300 normal-case tracking-normal{% if not sc|add:xc %} hidden{% endif %}">{{ sc|add:xc }}</span>
           {% endwith %}
         </button>
         <div x-show="open" x-cloak class="px-3 pb-3">
@@ -200,7 +199,6 @@ rail are queued in [[project-todo-filter-sidebar-presets-views]]
                    data-filter-name="status"
                    data-filter-value="{{ key }}"
                    x-data="{ state: '{% if key in excluded_statuses %}excluded{% elif key in selected_statuses %}included{% else %}none{% endif %}' }"
-                   title="{% trans 'Click to include, right-click to exclude.' %}"
                    @acta:filter-reset.window="state = 'none'"
                    @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $nextTick(() => document.getElementById('filter-form').requestSubmit())">
               <input type="checkbox"
@@ -242,9 +240,8 @@ rail are queued in [[project-todo-filter-sidebar-presets-views]]
           </span>
           <span class="flex-1 text-left">{% trans "Priority" %}</span>
           {% with sc=selected_priorities|length xc=excluded_priorities|length %}
-          {% if sc|add:xc %}
-          <span class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-300 normal-case tracking-normal">{{ sc|add:xc }}</span>
-          {% endif %}
+          <span data-filter-section-count="priority"
+                class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-300 normal-case tracking-normal{% if not sc|add:xc %} hidden{% endif %}">{{ sc|add:xc }}</span>
           {% endwith %}
         </button>
         <div x-show="open" x-cloak class="px-3 pb-3">
@@ -254,7 +251,6 @@ rail are queued in [[project-todo-filter-sidebar-presets-views]]
                    data-filter-name="priority"
                    data-filter-value="{{ key }}"
                    x-data="{ state: '{% if key in excluded_priorities %}excluded{% elif key in selected_priorities %}included{% else %}none{% endif %}' }"
-                   title="{% trans 'Click to include, right-click to exclude.' %}"
                    @acta:filter-reset.window="state = 'none'"
                    @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $nextTick(() => document.getElementById('filter-form').requestSubmit())">
               <input type="checkbox"
@@ -303,9 +299,8 @@ rail are queued in [[project-todo-filter-sidebar-presets-views]]
           </span>
           <span class="flex-1 text-left">{% trans "Project" %}</span>
           {% with sc=selected_projects|length xc=excluded_projects|length %}
-          {% if sc|add:xc %}
-          <span class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-300 normal-case tracking-normal">{{ sc|add:xc }}</span>
-          {% endif %}
+          <span data-filter-section-count="project"
+                class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-300 normal-case tracking-normal{% if not sc|add:xc %} hidden{% endif %}">{{ sc|add:xc }}</span>
           {% endwith %}
         </button>
         <div x-show="open" x-cloak class="px-3 pb-3">
@@ -362,9 +357,8 @@ rail are queued in [[project-todo-filter-sidebar-presets-views]]
           </span>
           <span class="flex-1 text-left">{% trans "Labels" %}</span>
           {% with sc=selected_labels|length xc=excluded_labels|length %}
-          {% if sc|add:xc %}
-          <span class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-300 normal-case tracking-normal">{{ sc|add:xc }}</span>
-          {% endif %}
+          <span data-filter-section-count="label"
+                class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-300 normal-case tracking-normal{% if not sc|add:xc %} hidden{% endif %}">{{ sc|add:xc }}</span>
           {% endwith %}
         </button>
         <div x-show="open" x-cloak class="px-3 pb-3 space-y-2">
@@ -387,7 +381,6 @@ rail are queued in [[project-todo-filter-sidebar-presets-views]]
                    data-filter-value="{{ label.id }}"
                    :class="q && !'{{ label.name|lower|escapejs }}'.includes(q.toLowerCase()) ? 'hidden' : ''"
                    x-data="{ state: '{% if label.id in excluded_labels %}excluded{% elif label.id in selected_labels %}included{% else %}none{% endif %}' }"
-                   title="{% trans 'Click to include, right-click to exclude.' %}"
                    @acta:filter-reset.window="state = 'none'"
                    @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $nextTick(() => document.getElementById('filter-form').requestSubmit())">
               <input type="checkbox"
@@ -426,9 +419,8 @@ rail are queued in [[project-todo-filter-sidebar-presets-views]]
           </span>
           <span class="flex-1 text-left">{% trans "Workspace" %}</span>
           {% with sc=selected_workspaces|length xc=excluded_workspaces|length %}
-          {% if sc|add:xc %}
-          <span class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-300 normal-case tracking-normal">{{ sc|add:xc }}</span>
-          {% endif %}
+          <span data-filter-section-count="workspace"
+                class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-300 normal-case tracking-normal{% if not sc|add:xc %} hidden{% endif %}">{{ sc|add:xc }}</span>
           {% endwith %}
         </button>
         <div x-show="open" x-cloak class="px-3 pb-3">
@@ -436,7 +428,6 @@ rail are queued in [[project-todo-filter-sidebar-presets-views]]
             {% for ws in available_workspaces %}
             <label class="cursor-pointer flex items-center"
                    x-data="{ state: '{% if ws.id in excluded_workspaces %}excluded{% elif ws.id in selected_workspaces %}included{% else %}none{% endif %}' }"
-                   title="{% trans 'Click to include, right-click to exclude.' %}"
                    @acta:filter-reset.window="state = 'none'"
                    @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $nextTick(() => document.getElementById('filter-form').requestSubmit())">
               <input type="checkbox"

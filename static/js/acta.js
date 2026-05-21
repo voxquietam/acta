@@ -341,6 +341,22 @@
       }
     });
     refreshFilterCountBadges(activeFilterCount(state));
+    // Per-section count badges (the "N" next to STATUS / PRIORITY / …).
+    // Server-rendered on cold load; recompute here so they track the
+    // client-side chip state. Each badge carries ``data-filter-section-
+    // count="<key>"``; the count is include + exclude for that section.
+    const sectionCounts = {
+      status: state.status.size + state.xstatus.size,
+      priority: state.priority.size + state.xpriority.size,
+      project: state.project.size + state.xproject.size,
+      workspace: state.workspace.size + state.xworkspace.size,
+      label: state.label.size + state.xlabel.size,
+    };
+    document.querySelectorAll("[data-filter-section-count]").forEach((el) => {
+      const n = sectionCounts[el.dataset.filterSectionCount] || 0;
+      el.textContent = String(n);
+      el.classList.toggle("hidden", n === 0);
+    });
     // Kanban column counts reflect visible cards, not the server-side
     // total — match the same logic the drag-and-drop handler uses
     // after a successful drop. List-view section counts are
