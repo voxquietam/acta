@@ -18,7 +18,9 @@
 */
 #tl-body       { position: relative; z-index: 1; }  /* traps bars under the header */
 #tl-header     { z-index: 20; }                      /* opaque date header, above body */
-#tl-today-line { z-index: 25; }                      /* thin rule over everything */
+/* today-line lives inside #tl-body: z between row backgrounds (auto) and
+   bars (z-index:2) so the line passes BEHIND the task bars. */
+#tl-today-line { z-index: 1; }
 
 /* Bar wrapper — positioned absolute inside .tl-row */
 .tl-gwrap {
@@ -200,7 +202,7 @@
 </style>
 
 {% comment %} Sub-toolbar: zoom group + today button + missing-dates badge {% endcomment %}
-<div class="flex items-center gap-2.5 px-4 py-2 border-b border-border bg-background shrink-0">
+<div class="flex items-center gap-2.5 px-4 py-2 bg-background shrink-0">
 
   <span class="font-mono text-[10px] font-bold uppercase tracking-wider text-subtle-foreground">{% trans "Zoom" %}</span>
   <div class="inline-flex bg-card border border-border rounded-md overflow-hidden">
@@ -232,14 +234,14 @@
 </div>
 
 {% comment %} Main two-pane layout {% endcomment %}
-<div class="flex flex-1 min-h-0 overflow-hidden bg-card border border-border rounded-lg mx-4 mb-4">
+<div class="flex flex-1 min-h-0 overflow-hidden bg-card border border-border rounded-lg mb-4">
 
   {% comment %} Left sticky task-name column {% endcomment %}
   <div id="tl-left" class="flex flex-col border-r border-border bg-card z-10 shrink-0" style="width:260px">
     <div class="h-14 shrink-0 flex items-end px-3 pb-2 border-b border-border bg-muted">
       <span class="font-mono text-[10px] font-bold uppercase tracking-wider text-subtle-foreground">{% trans "Task" context "timeline" %}</span>
     </div>
-    <div id="tl-left-body" class="overflow-y-auto overflow-x-hidden scrollbar-none flex-1">
+    <div id="tl-left-body" class="overflow-y-auto overflow-x-hidden scrollbar-none flex-1" style="overscroll-behavior:none;">
       {% for task in timeline_tasks %}
       <div class="flex items-center h-10 px-3 gap-1.5 border-b border-border hover:bg-muted/40 transition-colors cursor-default group/tlr"
            data-task-id="{{ task.id }}"
@@ -277,7 +279,7 @@
 
   {% comment %} Right scrollable Gantt area {% endcomment %}
   <div id="tl-right" class="flex-1 overflow-x-auto overflow-y-auto relative"
-       style="scrollbar-width:thin;scrollbar-color:rgb(var(--border-strong)) transparent;">
+       style="scrollbar-width:thin;scrollbar-color:rgb(var(--border-strong)) transparent;overscroll-behavior:none;">
     <div id="tl-gantt"
          data-chart-start="{{ chart_start_iso }}"
          data-chart-end="{{ chart_end_iso }}"
@@ -301,20 +303,20 @@
       <div id="tl-snap"></div>
 
       {% comment %}
-      Today line: 2 px brand-500 vertical rule. JS sets left + height.
-      ``z-[15]`` paints it above the header so the thin line + dot stay
-      visible across the date row. The ::before pseudo adds the dot.
-      {% endcomment %}
-      <div id="tl-today-line"
-           class="absolute top-0 pointer-events-none"
-           style="width:2px;background:rgb(66 90 245);display:none;"></div>
-
-      {% comment %}
       Gantt rows — one per task. ``relative z-[1]`` makes the body its own
       stacking layer below the header so absolutely-positioned bars inside
       can never paint over the sticky header.
       {% endcomment %}
       <div id="tl-body" class="relative">
+        {% comment %}
+        Today line lives INSIDE the body so its z-index sits between the row
+        backgrounds (below) and the bars (above): the line passes BEHIND task
+        bars instead of painting over them. JS sets left + height; the
+        ::before pseudo adds the dot at the body top, just under the header.
+        {% endcomment %}
+        <div id="tl-today-line"
+             class="absolute top-0 pointer-events-none"
+             style="width:2px;background:rgb(66 90 245);display:none;"></div>
         {% for task in timeline_tasks %}
         {% comment %}
         ``task_filter_attrs`` emits data-status/-priority/-assignee/etc.
@@ -448,9 +450,14 @@ function renderHeader(dayW) {
   monthsEl.innerHTML = '';
   unitsEl.innerHTML  = '';
 
+  // In week zoom every column is a full 7-day block, so render up to the
+  // next week boundary — the trailing days past chartEnd stay empty but
+  // keep all week columns uniform and the month row + body in lockstep.
+  const renderDays = (zoom === 'week') ? Math.ceil(totalDays / 7) * 7 : totalDays;
+
   // Month row
   let curMonth = -1, mEl = null;
-  for (let i = 0; i < totalDays; i++) {
+  for (let i = 0; i < renderDays; i++) {
     const d = addDays(chartStart, i);
     if (d.getMonth() !== curMonth) {
       curMonth = d.getMonth();
@@ -467,7 +474,7 @@ function renderHeader(dayW) {
 
   // Unit row
   if (zoom === 'week') {
-    for (let i = 0; i < totalDays; i += 7) {
+    for (let i = 0; i < renderDays; i += 7) {
       const d   = addDays(chartStart, i);
       const now = diffDays(chartStart, today) >= i && diffDays(chartStart, today) < i + 7;
       const el  = document.createElement('div');
@@ -511,7 +518,14 @@ function renderHeader(dayW) {
     }
   }
 
-  gantt.style.minWidth = (totalDays * dayW) + 'px';
+  // Pin BOTH the gantt and the body to the full chart width. Without an
+  // explicit min-width on the body its rows resolve ``width:auto`` against
+  // the viewport, not the (wider) gantt, so the last week renders with no
+  // row backgrounds. min-width (not width) lets ``min-w-full`` still floor
+  // it to the viewport when the chart is narrower than the screen.
+  const fullW = (renderDays * dayW) + 'px';
+  gantt.style.minWidth = fullW;
+  document.getElementById('tl-body').style.minWidth = fullW;
 }
 
 // ── render bars ────────────────────────────────────────────────────
@@ -563,7 +577,10 @@ function renderBars(dayW) {
           `<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>` +
         `</svg>` +
         `<span>{% trans "Set dates" %}</span>`;
-      noBar.addEventListener('click', e => openModal(e, row));
+      noBar.addEventListener('mouseenter', e => showTip(e, row.dataset.slug, title, null, null, false));
+      noBar.addEventListener('mousemove',  moveTip);
+      noBar.addEventListener('mouseleave', hideTip);
+      noBar.addEventListener('click',      e => openModal(e, row));
       row.appendChild(noBar);
 
     } else {
@@ -741,11 +758,11 @@ function renderTodayLine(dayW) {
   const snap  = document.getElementById('tl-snap');
   // Count only visible rows so the line shrinks with client-side filters.
   const rows  = document.querySelectorAll('#tl-body .tl-row:not([hidden])').length;
-  const bodyH = rows * 40 + 56;
   line.style.left    = (diffDays(chartStart, today) * dayW) + 'px';
-  line.style.height  = bodyH + 'px';
+  // Line is inside #tl-body (no header offset); snap spans gantt + header.
+  line.style.height  = (rows * 40) + 'px';
   line.style.display = 'block';
-  snap.style.height  = bodyH + 'px';
+  snap.style.height  = (rows * 40 + 56) + 'px';
 }
 
 // Re-run by acta.js applyClientFilters after a client-side filter pass:
@@ -757,19 +774,25 @@ window.__tlAfterFilter = () => {
 };
 
 // ── scroll sync ────────────────────────────────────────────────────
-// Mirror vertical scroll between the two panes. Only write when the
-// values actually differ — otherwise the right→left write echoes a
-// left scroll event that writes back to right, and the feedback loop
-// makes the wheel feel jerky. The guard also makes horizontal-only
-// scrolls on the right pane a no-op for the left.
+// Mirror vertical scroll between the two panes. A naive bidirectional
+// ``scrollTop = other.scrollTop`` feeds back on itself: trackpad scroll
+// gives fractional scrollTop, the two panes round it differently, and
+// each "fix" re-triggers the other's scroll handler — felt as a jitter /
+// jump. ``syncLock`` swallows exactly the one echo event the write
+// causes, so only genuine user scrolls propagate.
 const rightCol = document.getElementById('tl-right');
 const leftBody = document.getElementById('tl-left-body');
+let syncLock = 0; // 0 none · 1 right is source · 2 left is source
 
 rightCol.addEventListener('scroll', () => {
-  if (leftBody.scrollTop !== rightCol.scrollTop) leftBody.scrollTop = rightCol.scrollTop;
+  if (syncLock === 2) { syncLock = 0; return; }  // echo of a left→right write
+  syncLock = 1;
+  leftBody.scrollTop = rightCol.scrollTop;
 }, { passive: true });
 leftBody.addEventListener('scroll', () => {
-  if (rightCol.scrollTop !== leftBody.scrollTop) rightCol.scrollTop = leftBody.scrollTop;
+  if (syncLock === 1) { syncLock = 0; return; }  // echo of a right→left write
+  syncLock = 2;
+  rightCol.scrollTop = leftBody.scrollTop;
 }, { passive: true });
 
 // ── today button ───────────────────────────────────────────────────
