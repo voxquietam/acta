@@ -1481,6 +1481,11 @@
     root.querySelectorAll("[title]:not([data-tooltip])").forEach((el) => {
       const t = el.getAttribute("title");
       if (!t) return;
+      // Leave native ``title`` on anything inside a kanban card: the card
+      // is ``overflow-hidden`` and sits in a scrolling column, so a CSS
+      // ``::after`` pop clips whichever way it points. The OS tooltip
+      // renders un-clipped. Matches the intent in ``_task_link_badges.html``.
+      if (el.closest("[data-kanban-card]")) return;
       el.setAttribute("data-tooltip", t);
       if (!el.getAttribute("aria-label")) el.setAttribute("aria-label", t);
       el.removeAttribute("title");
