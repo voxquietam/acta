@@ -55,14 +55,20 @@
   {# utilities + project-specific rules) via ``npm run build:css``.     #}
   <link rel="stylesheet" href="{% static 'css/main.bundle.css' %}">
 
-  {# HTMX history: large pages (All Tasks ≈ 260 KB) overflow the history #}
-  {# snapshot cache, and the view-tab / filter ``history.pushState``     #}
-  {# calls add entries HTMX never snapshotted. On a cache miss, restore  #}
-  {# the page with a real full reload instead of an AJAX swap — the      #}
-  {# AJAX path mis-restores (Back → bare panel, Forward → URL changes    #}
-  {# but content stays put). A full reload always renders the correct    #}
-  {# page + shell for the URL.                                           #}
-  <meta name="htmx-config" content='{"refreshOnHistoryMiss": true}'>
+  {# HTMX history is DISABLED — Acta drives navigation itself.            #}
+  {#                                                                      #}
+  {# htmx's history (snapshot cache + restore-on-miss) can't keep up with #}
+  {# rapid Back/Forward on our boost + partial-swap + SSE setup: popstate #}
+  {# events outrun the async restore, htmx drops the last one, and        #}
+  {# ``#app-content`` shows a page that doesn't match the URL (Projects   #}
+  {# under ``/tasks/``). ``historyEnabled: false`` turns off htmx's       #}
+  {# snapshot / push / restore entirely; hx-boost still swaps             #}
+  {# ``#app-content`` for forward clicks. The router in acta.js then owns #}
+  {# the URL push (on boosted settle) and the Back/Forward restore, using #}
+  {# a monotonic nav token so only the latest navigation's response is    #}
+  {# applied — no stale content, no race. See "Own the history           #}
+  {# navigation" in static/js/acta.js.                                    #}
+  <meta name="htmx-config" content='{"historyEnabled": false}'>
 
   <script src="https://unpkg.com/htmx.org@2"></script>
   <script src="https://unpkg.com/htmx-ext-sse@2"></script>

@@ -83,6 +83,18 @@
   // first-paint time. Once loaded, switching tabs stays instant
   // because all three panels live in the DOM.
   function lazyLoadPanels(basePath) {
+    // Guard against a stale firing: the ``htmx:afterSettle`` listener
+    // schedules this on a 50ms delay, so a fast navigation can move us to
+    // another page before it runs. If ``basePath`` no longer matches the
+    // current URL, the slots on screen belong to a different page — skip,
+    // or we'd load (e.g.) ``/tasks/?panel=timeline`` into a project's slot.
+    if (basePath) {
+      try {
+        if (new URL(basePath, window.location.origin).pathname !== window.location.pathname) return;
+      } catch (_) {
+        return;
+      }
+    }
     const slots = document.querySelectorAll("[data-panel-slot]");
     slots.forEach((slot) => {
       if (slot.children.length > 0) return; // already filled
@@ -146,6 +158,140 @@
   refreshSidebarActive();
   document.body.addEventListener("htmx:afterSettle", refreshSidebarActive);
   window.addEventListener("popstate", refreshSidebarActive);
+
+  // ---- Own the history navigation (boost + Back/Forward) ----------------
+  //
+  // htmx's built-in history is disabled (``historyEnabled: false`` in the
+  // base.html htmx-config). Its async restore-on-miss couldn't keep up with
+  // rapid Back/Forward — it dropped the last restore and left ``#app-content``
+  // showing a page that didn't match the URL (Projects under ``/tasks/``). We
+  // drive navigation ourselves:
+  //
+  //   * ``pageCache`` (keyed by URL) makes Back/Forward instant. We snapshot
+  //     the page we're *leaving* synchronously, paired with the exact URL it
+  //     was shown under (``lastUrl``) — so unlike htmx's debounced save there
+  //     is no way to pair content with the wrong URL.
+  //   * ``navToken`` keeps the fetch path (cache miss) latest-wins: an
+  //     in-flight load is aborted and any late response ignored.
+  //
+  // hx-boost still swaps ``#app-content`` for forward clicks; we own the URL
+  // push, the leave-snapshot, and the Back/Forward restore.
+  let navToken = 0;
+  let navAbort = null;
+  let lastUrl = window.location.pathname + window.location.search;
+  const pageCache = new Map();
+  const PAGE_CACHE_MAX = 20;
+
+  function currentUrl() {
+    return window.location.pathname + window.location.search;
+  }
+
+  function snapshotInto(url) {
+    const el = document.getElementById("app-content");
+    if (!el || !url) return;
+    pageCache.delete(url); // re-insert to refresh LRU order
+    pageCache.set(url, el.innerHTML);
+    while (pageCache.size > PAGE_CACHE_MAX) {
+      pageCache.delete(pageCache.keys().next().value);
+    }
+  }
+
+  // ``htmx.swap`` runs the full afterSwap/afterSettle lifecycle, so lazy
+  // panels, SSE binding, icon render and active-nav all re-run on restore.
+  function swapAppContent(html) {
+    window.htmx.swap("#app-content", html, { swapStyle: "innerHTML" });
+  }
+
+  // Freshness guarantee: a cached snapshot is only safe to restore while the
+  // underlying data hasn't changed. Any data mutation — an incoming SSE event
+  // (someone else's edit, wired in ``initOneWorkspaceSse``) or our own write
+  // request below — drops the whole cache, so the next Back/Forward refetches
+  // instead of showing a stale snapshot. Whole-cache clear is intentional: a
+  // single task can appear on many pages and we can't cheaply tell which.
+  function invalidatePageCache() {
+    pageCache.clear();
+  }
+  window.__actaInvalidatePageCache = invalidatePageCache;
+
+  // Our own writes (PATCH/POST/DELETE via htmx) → invalidate. SSE self-events
+  // are dropped for DOM updates, so this is what catches edits that touch
+  // pages other than the one we're on.
+  document.body.addEventListener("htmx:afterRequest", (evt) => {
+    const cfg = evt.detail && evt.detail.requestConfig;
+    const verb = cfg && cfg.verb;
+    const ok = evt.detail && evt.detail.successful;
+    if (ok && verb && verb.toLowerCase() !== "get") invalidatePageCache();
+  });
+
+  function restorePage(url, token) {
+    if (navAbort) navAbort.abort(); // cancel any earlier in-flight load
+    // Instant path: we cached this page when we left it.
+    if (pageCache.has(url)) {
+      swapAppContent(pageCache.get(url));
+      lastUrl = url;
+      refreshSidebarActive();
+      return;
+    }
+    // Miss: fetch fresh; ignore the response if a newer nav supersedes us.
+    navAbort = new AbortController();
+    fetch(url, {
+      headers: { "HX-Request": "true", "HX-History-Restore-Request": "true" },
+      credentials: "same-origin",
+      signal: navAbort.signal,
+    })
+      .then((resp) => resp.text())
+      .then((html) => {
+        if (token !== navToken) return; // superseded
+        const doc = new DOMParser().parseFromString(html, "text/html");
+        const fresh = doc.getElementById("app-content");
+        if (!fresh || !window.htmx) {
+          window.location.assign(url); // can't extract → hard navigate
+          return;
+        }
+        if (doc.title) document.title = doc.title;
+        swapAppContent(fresh.innerHTML);
+        lastUrl = url;
+        snapshotInto(url);
+        refreshSidebarActive();
+      })
+      .catch((err) => {
+        if (err && err.name === "AbortError") return; // superseded → ignore
+        window.location.assign(url); // network error → hard navigate
+      });
+  }
+
+  // Browser Back/Forward.
+  window.addEventListener("popstate", () => {
+    snapshotInto(lastUrl); // save the page we're leaving (correct URL pairing)
+    restorePage(currentUrl(), ++navToken);
+  });
+
+  // Forward navigation via hx-boost: snapshot the outgoing page just before
+  // htmx replaces it. A boosted nav carries a ``requestConfig`` and targets
+  // ``#app-content``; our own ``htmx.swap`` (no ``requestConfig``) and
+  // lazy-panel swaps (target a slot) never trip this.
+  document.body.addEventListener("htmx:beforeSwap", (evt) => {
+    const d = evt.detail;
+    if (d && d.requestConfig && d.target && d.target.id === "app-content") {
+      snapshotInto(lastUrl);
+    }
+  });
+
+  // After a boosted swap settles, push the new URL ourselves (htmx history is
+  // off) and update ``lastUrl``.
+  document.body.addEventListener("htmx:afterSettle", (evt) => {
+    const cfg = evt.detail && evt.detail.requestConfig;
+    const target = evt.detail && evt.detail.target;
+    if (!cfg || !target || target.id !== "app-content") return;
+    const url = cfg.path || (evt.detail.pathInfo && evt.detail.pathInfo.requestPath);
+    if (!url) return;
+    if (url !== currentUrl()) {
+      navToken++; // forward nav supersedes any pending popstate load
+      window.history.pushState({ acta: true }, "", url);
+    }
+    lastUrl = url;
+    refreshSidebarActive();
+  });
 
   // Sidebar icon-rail tooltips. CSS gives them visual chrome only —
   // we set ``top`` / ``left`` here on mouseenter so the tip lines up
@@ -1016,6 +1162,11 @@
         } catch (_) {
           return;
         }
+        // Any event means data changed somewhere — drop the page cache so a
+        // Back/Forward to another page refetches instead of restoring a stale
+        // snapshot. Done before the self-event filter on purpose: our own
+        // edits can affect pages we're not currently looking at.
+        if (window.__actaInvalidatePageCache) window.__actaInvalidatePageCache();
         // Drop self-events to avoid double-rendering (kanban drag,
         // inline edits etc.) — *except* when the event came in via MCP
         // (Claude Desktop, Cursor, curl): those write through a different
@@ -1122,6 +1273,7 @@
         } catch (_) {
           return;
         }
+        if (window.__actaInvalidatePageCache) window.__actaInvalidatePageCache();
         applyTaskUpdate(d);
       });
     });
