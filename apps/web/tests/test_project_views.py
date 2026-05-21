@@ -73,6 +73,20 @@ class TestProjectDetailView:
         for status_label in Task.STATUS_LABELS.values():
             assert str(status_label) in body or str(status_label).lower() in body.lower()
 
+    def test_overview_star_renders_without_oob(self, client, member_user):
+        """The overview favourite star renders, with the right state, but
+        carries NO ``hx-swap-oob`` — that static attr would make htmx strip
+        the star during a boosted ``#app-content`` swap (gone until reload)."""
+        user, _, project = member_user
+        client.force_login(user)
+        resp = client.get(
+            reverse("web:project_detail", kwargs={"slug_prefix": project.slug_prefix}),
+        )
+        body = resp.content.decode()
+        assert resp.context["is_favourite"] is False
+        assert f"project-favourite-{project.slug_prefix}" in body
+        assert f"outerHTML:#project-favourite-{project.slug_prefix}" not in body
+
     def test_table_view_param_switches(self, client, member_user):
         user, _, project = member_user
         TaskFactory(project=project, reporter=user)

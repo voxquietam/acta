@@ -10,17 +10,24 @@ favourite ids without an extra query per row.
 Submits to ``toggle_project_favourite``; response includes this same
 partial (icon flips in place) plus an OOB swap of the sidebar nav so
 the newly starred project appears / disappears live in the rail.
+
+``hx-swap-oob`` is rendered ONLY in the toggle response (``oob`` flag),
+never on the page-rendered star. As a static attribute it would be
+processed during a boosted ``#app-content`` swap and — finding no
+existing target on the page we're navigating *to* — htmx would drop the
+element, so the star vanished until a full reload.
 {% endcomment %}
 <form id="project-favourite-{{ project.slug_prefix }}"
       hx-post="{% url 'web:toggle_project_favourite' slug_prefix=project.slug_prefix %}"
       hx-target="#project-favourite-{{ project.slug_prefix }}"
       hx-swap="outerHTML"
-      hx-swap-oob="outerHTML:#project-favourite-{{ project.slug_prefix }}"
+      {% if oob %}hx-swap-oob="outerHTML:#project-favourite-{{ project.slug_prefix }}"{% endif %}
       class="inline-flex">
   {% csrf_token %}
   <button type="submit"
           aria-label="{% if is_favourite %}{% trans 'Unstar project' %}{% else %}{% trans 'Star project' %}{% endif %}"
           data-tooltip="{% if is_favourite %}{% trans 'Unstar' %}{% else %}{% trans 'Star' %}{% endif %}"
+          {% if tooltip_pos %}data-tooltip-pos="{{ tooltip_pos }}"{% endif %}
           class="p-1 rounded-md hover:bg-muted transition
                  {% if is_favourite %}text-amber-400{% else %}text-placeholder-foreground hover:text-foreground{% endif %}">
     {% if is_favourite %}

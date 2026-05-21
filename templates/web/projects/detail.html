@@ -11,6 +11,7 @@
 <h1 class="text-base font-medium">
   <span class="font-mono text-xs text-placeholder-foreground mr-1">{{ project.slug_prefix }}</span>{{ project.name }}
 </h1>
+{% include "web/projects/_project_favourite_star.html" with tooltip_pos="below" %}
 {% endblock %}
 
 {% block topbar_mid %}

@@ -49,6 +49,14 @@ class TestToggleProjectFavourite:
         # Star form id matches the toggle target for outerHTML swap.
         assert f"project-favourite-{project.slug_prefix}".encode() in resp.content
 
+    def test_response_star_carries_oob(self, client, setup):
+        user, project = setup
+        client.force_login(user)
+        resp = client.post(_url(project))
+        # The toggle response (unlike the page-rendered star) carries the
+        # OOB attr so the clicked star updates in place.
+        assert f"outerHTML:#project-favourite-{project.slug_prefix}".encode() in resp.content
+
     def test_response_contains_sidebar_oob(self, client, setup):
         user, project = setup
         client.force_login(user)

@@ -15,7 +15,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
-from django.db.models import Count, F, Max, OuterRef, Q, Subquery
+from django.db.models import Count, Exists, F, Max, OuterRef, Q, Subquery
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.template.loader import render_to_string
@@ -1287,13 +1287,21 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         return ["web/projects/detail.html"]
 
     def get_object(self, queryset=None):
-        """Resolve the project by slug_prefix and enforce membership."""
+        """Resolve the project by slug_prefix and enforce membership.
+
+        Annotates ``is_favourite`` via an ``Exists`` subquery so the
+        overview star renders without a separate favourites lookup
+        (keeps the page query count constant).
+        """
         slug_prefix = self.kwargs["slug_prefix"]
+        favourited = self.request.user.favourite_projects.filter(pk=OuterRef("pk"))
         return get_object_or_404(
             Project.objects.filter(
                 slug_prefix=slug_prefix,
                 workspace__memberships__user=self.request.user,
-            ).select_related("workspace", "lead"),
+            )
+            .select_related("workspace", "lead")
+            .annotate(is_favourite=Exists(favourited)),
         )
 
     def render_to_response(self, context, **response_kwargs):
@@ -1349,6 +1357,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         from apps.projects.icons import PROJECT_ICON_COLORS, PROJECT_ICONS
 
         project = self.object
+        ctx["is_favourite"] = project.is_favourite  # annotated in get_object (no extra query)
         ctx["description_html"] = render_markdown(project.description) if project.description else ""
         ctx["members"] = list(
             project.members.order_by("first_name", "last_name", "username"),
@@ -2863,7 +2872,7 @@ def toggle_project_favourite(request, slug_prefix):
         is_favourite = True
     star_html = render_to_string(
         "web/projects/_project_favourite_star.html",
-        {"project": project, "is_favourite": is_favourite},
+        {"project": project, "is_favourite": is_favourite, "oob": True},
         request=request,
     )
     from apps.web.nav import get_nav_workspaces
