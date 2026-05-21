@@ -46,8 +46,14 @@ blocker that's still open (the thing actually blocking this task).
        }
      }">
 
-  <div class="flex items-center justify-between">
-    <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Links" %}</div>
+  <div class="flex items-center justify-between gap-2">
+    <div class="flex items-center gap-2 min-w-0">
+      <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Links" %}</div>
+      {% if not task.blocked_by.all and not task.blocks.all and not task.related.all %}
+      {# Empty state inline next to the header so the panel is a single row. #}
+      <span class="text-[11px] text-placeholder-foreground italic">{% trans "No links yet." %}</span>
+      {% endif %}
+    </div>
     <button type="button" @click="adding = !adding; if (adding) $nextTick(() => $refs.searchInput.focus())"
             class="text-placeholder-foreground hover:text-foreground p-0.5 rounded"
             data-tooltip="{% trans 'Add link' %}">
@@ -207,10 +213,6 @@ blocker that's still open (the thing actually blocking this task).
     </div>
     {% endfor %}
   </div>
-  {% endif %}
-
-  {% if not task.blocked_by.all and not task.blocks.all and not task.related.all %}
-  <p class="text-[11px] text-placeholder-foreground italic">{% trans "No links yet." %}</p>
   {% endif %}
 
   {% endwith %}
