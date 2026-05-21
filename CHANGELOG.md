@@ -7,6 +7,19 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Entries are hand-written from the Conventional Commit history for now.
 Automating this with `git-cliff` is deferred until `v1.0.0`.
 
+## [0.2.1] — 2026-05-21
+
+Patch release — sidebar version-link polish on top of v0.2.0.
+
+### Fixed
+
+- Sidebar version no longer wraps to its own line: the changelog link
+  is split out of the dashboard link (nested `<a>` is invalid HTML and
+  the browser broke it onto a new line).
+- Dropped the version-link tooltip that clipped off the top of the
+  window; the link keeps an `aria-label` for accessibility.
+- The `[0.2.0]` changelog heading now links to its release tag.
+
 ## [0.2.0] — 2026-05-21
 
 Second release. Adds collaboration (reactions, threaded comments,
@@ -161,5 +174,6 @@ Decisions captured in `docs/decisions/0001-0019`. Headline:
 - `master` is the deployable branch, `dev` is integration, history is
   linear (rebase, no merge commits).
 
+[0.2.1]: https://github.com/voxquietam/acta/releases/tag/v0.2.1
 [0.2.0]: https://github.com/voxquietam/acta/releases/tag/v0.2.0
 [0.1.0]: https://github.com/voxquietam/acta/releases/tag/v0.1.0
