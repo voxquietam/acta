@@ -5,5 +5,11 @@ Compact blocked / blocking indicators shown wherever a task appears
 (kanban card, table row, list row). Expects ``task`` with ``blocks``
 and ``blocked_by`` prefetched — ``is_blocked`` / ``is_blocking`` walk
 those sets. Render nothing when the task has no open dependency edges.
+
+Uses native ``title`` (not the themed ``data-tooltip``): every surface
+this renders on is a scrolling container (kanban column, table body,
+list), and a CSS ``::after`` tooltip gets clipped by the container's
+overflow no matter which way it points. Native tooltips render at the
+OS layer and never clip. Matches the rest of ``_task_card.html``.
 {% endcomment %}
-{% if task.is_blocked %}<span data-tooltip="{% trans 'Blocked by open tasks' %}" class="inline-flex items-center text-rose-400 shrink-0">{% lucide "lock" "w-3 h-3" %}</span>{% endif %}{% if task.is_blocking %}<span data-tooltip="{% trans 'Blocking other tasks' %}" class="inline-flex items-center text-amber-400 shrink-0">{% lucide "git-branch" "w-3 h-3" %}</span>{% endif %}
+{% if task.is_blocked %}<span title="{% trans 'Blocked by open tasks' %}" class="inline-flex items-center text-rose-400 shrink-0">{% lucide "lock" "w-3 h-3" %}</span>{% endif %}{% if task.is_blocking %}<span title="{% trans 'Blocking other tasks' %}" class="inline-flex items-center text-amber-400 shrink-0">{% lucide "git-branch" "w-3 h-3" %}</span>{% endif %}
