@@ -51,18 +51,24 @@ Pages extend this and override the `app_main` block.
     sidebar is in icon-rail mode so the row aligns vertically with
     the icon-only nav below.
     {% endcomment %}
-    <a href="{% url 'web:dashboard' %}"
-       :class="$store.sidebar.open ? 'px-5 py-4 gap-2' : 'p-3 justify-center'"
-       class="flex items-center">
-      <img src="{% static 'img/brand/logo-mark.svg' %}" alt="Acta"
-           class="w-7 h-7 shrink-0">
-      <span x-show="$store.sidebar.open" x-cloak class="flex items-baseline gap-2">
-        <span class="text-lg font-semibold tracking-tight">Acta</span>
-        <a href="{{ changelog_url }}" target="_blank" rel="noopener"
-           title="{% trans 'Changelog' %}"
-           class="font-mono text-[10px] uppercase tracking-wider text-placeholder-foreground hover:text-foreground transition">v{{ acta_version }}</a>
-      </span>
-    </a>
+    {% comment %}
+    Logo + name link to the dashboard; the version is a SEPARATE link to
+    the changelog. They must be sibling anchors — an ``<a>`` nested inside
+    another ``<a>`` is invalid HTML and the browser splits it onto its own
+    line.
+    {% endcomment %}
+    <div :class="$store.sidebar.open ? 'px-5 py-4 gap-2' : 'p-3 justify-center'"
+         class="flex items-center">
+      <a href="{% url 'web:dashboard' %}" class="flex items-center gap-2 min-w-0">
+        <img src="{% static 'img/brand/logo-mark.svg' %}" alt="Acta"
+             class="w-7 h-7 shrink-0">
+        <span x-show="$store.sidebar.open" x-cloak class="text-lg font-semibold tracking-tight">Acta</span>
+      </a>
+      <a href="{{ changelog_url }}" target="_blank" rel="noopener"
+         x-show="$store.sidebar.open" x-cloak
+         title="{% trans 'Changelog' %}"
+         class="font-mono text-[10px] uppercase tracking-wider text-placeholder-foreground hover:text-foreground transition">v{{ acta_version }}</a>
+    </div>
 
     <div class="px-3 pt-4 pb-3 space-y-0.5 text-sm border-b border-border/60">
       {% with current=request.resolver_match.url_name %}
