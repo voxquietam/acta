@@ -1,0 +1,28 @@
+{% load i18n %}
+{% load web_extras %}
+{% comment %}
+One reply inside a task-comment thread card — author header + Markdown
+body + reaction bar, indented under the parent with a top divider. Used
+both in the thread-card reply loop and as the fragment ``post_comment``
+returns when a reply is posted (appended to ``#replies-<parent id>``).
+Expects ``comment`` (a reply).
+{% endcomment %}
+<div id="comment-{{ comment.id }}" class="border-t border-border px-3 py-2.5 pl-8 scroll-mt-20">
+  <div class="flex items-center gap-2 text-xs text-placeholder-foreground mb-1.5">
+    <span class="w-5 h-5 rounded-full text-white grid place-items-center font-medium text-[10px]"
+          style="background-color: {{ comment.author.avatar_color }};">
+      {{ comment.author.display_name|slice:":1"|upper }}
+    </span>
+    <span class="text-muted-foreground">{{ comment.author.display_name }}</span>
+    {% if comment.was_edited %}
+    <span class="italic">({% trans "edited" %})</span>
+    {% endif %}
+    <span class="ml-auto">{{ comment.created_at|date:"M j, H:i" }}</span>
+  </div>
+  <div class="prose dark:prose-invert prose-sm max-w-none text-muted-foreground">
+    {{ comment.body|markdown }}
+  </div>
+  <div class="mt-2">
+    {% include "web/_reaction_bar.html" with target_type="comment" target_id=comment.id reactions=comment.reaction_summary can_react=True %}
+  </div>
+</div>

@@ -29,23 +29,47 @@ is a click into the task away.
   </span>
 </li>
 {% else %}
-<li id="comment-{{ comment.id }}" class="bg-card border border-border rounded-lg p-3 scroll-mt-20">
-  <div class="flex items-center gap-2 text-xs text-placeholder-foreground mb-1.5">
-    <span class="w-5 h-5 rounded-full text-white grid place-items-center font-medium text-[10px]"
-          style="background-color: {{ comment.author.avatar_color }};">
-      {{ comment.author.display_name|slice:":1"|upper }}
-    </span>
-    <span class="text-muted-foreground">{{ comment.author.display_name }}</span>
-    {% if comment.was_edited %}
-    <span class="italic">({% trans "edited" %})</span>
-    {% endif %}
-    <span class="ml-auto">{{ comment.created_at|date:"M j, H:i" }}</span>
+{% comment %}
+Linear-style thread card: the top-level comment, its one-level replies
+(divided, indented), a "Reply" trigger that lazily loads the TipTap reply
+composer into ``#reply-form-<id>``, and a slot for that composer. Replies
+post into ``#replies-<id>`` (beforeend). ``post_comment`` returns this
+card for a new top-level comment; replies append via ``_comment_reply``.
+{% endcomment %}
+<li id="comment-{{ comment.id }}" class="bg-card border border-border rounded-lg overflow-hidden scroll-mt-20">
+  <div class="p-3">
+    <div class="flex items-center gap-2 text-xs text-placeholder-foreground mb-1.5">
+      <span class="w-5 h-5 rounded-full text-white grid place-items-center font-medium text-[10px]"
+            style="background-color: {{ comment.author.avatar_color }};">
+        {{ comment.author.display_name|slice:":1"|upper }}
+      </span>
+      <span class="text-muted-foreground">{{ comment.author.display_name }}</span>
+      {% if comment.was_edited %}
+      <span class="italic">({% trans "edited" %})</span>
+      {% endif %}
+      <span class="ml-auto">{{ comment.created_at|date:"M j, H:i" }}</span>
+    </div>
+    <div class="prose dark:prose-invert prose-sm max-w-none text-muted-foreground">
+      {{ comment.body|markdown }}
+    </div>
+    <div class="mt-2 flex items-center gap-3">
+      {% include "web/_reaction_bar.html" with target_type="comment" target_id=comment.id reactions=comment.reaction_summary can_react=True %}
+      <button type="button"
+              hx-get="{% url 'web:comment_reply_form' slug_prefix=comment.task.project.slug_prefix number=comment.task.number comment_id=comment.id %}"
+              hx-target="#reply-form-{{ comment.id }}"
+              hx-swap="innerHTML"
+              class="ml-auto shrink-0 text-[11px] text-placeholder-foreground hover:text-foreground transition">
+        {% trans "Reply" %}
+      </button>
+    </div>
   </div>
-  <div class="prose dark:prose-invert prose-sm max-w-none text-muted-foreground">
-    {{ comment.body|markdown }}
+
+  <div id="replies-{{ comment.id }}">
+    {% for reply in comment.replies.all %}
+    {% include "web/projects/_comment_reply.html" with comment=reply %}
+    {% endfor %}
   </div>
-  <div class="mt-2">
-    {% include "web/_reaction_bar.html" with target_type="comment" target_id=comment.id reactions=comment.reaction_summary can_react=True %}
-  </div>
+
+  <div id="reply-form-{{ comment.id }}"></div>
 </li>
 {% endif %}

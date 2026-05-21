@@ -265,13 +265,14 @@ def notify_description_mentions(*, old_text, new_text, task, actor) -> None:
 
 
 def notify_comment_created(*, comment, actor) -> None:
-    """Fan a new comment out to mentions, then assignee + reporter.
+    """Fan a new comment out to mentions, then assignee + reporter (+ parent author).
 
     Called right after the ``comment.created`` activity event at every
     surface that posts comments (web, DRF, MCP). ``@``-mentions in the
-    body get a ``MENTION`` notification first; the assignee / reporter
-    get a ``COMMENT`` notification, minus anyone already mentioned (so a
-    mentioned assignee gets the higher-signal mention, not a duplicate).
+    body get a ``MENTION`` notification first; the assignee / reporter —
+    and, when the comment is a reply, the parent comment's author — get a
+    ``COMMENT`` notification, minus anyone already mentioned (so a
+    mentioned recipient gets the higher-signal mention, not a duplicate).
 
     Args:
         comment: The freshly created :class:`Comment`.
@@ -291,6 +292,8 @@ def notify_comment_created(*, comment, actor) -> None:
     )
 
     involved = {task.assignee_id, task.reporter_id}
+    if comment.parent_id is not None:
+        involved.add(comment.parent.author_id)
     involved.discard(None)
     involved -= mentioned
     for recipient_id in involved:

@@ -1,0 +1,52 @@
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+Lazy TipTap reply composer for one task comment, styled to match the
+project-update reply composer: avatar + a borderless, transparent inline
+editor + a round arrow-up send button (no boxed input, no separate
+Cancel/Reply buttons). Loaded on demand via ``hx-get`` (``comment_reply_form``)
+into ``#reply-form-<parent id>`` when the user clicks "Reply", so the page
+never carries a live editor per comment; the editor bundle mounts it on
+``htmx:afterSwap``.
+
+Same rich editor as the top-level composer (``_comment_form``):
+``data-no-autosave`` (explicit submit only) + @mentions. Posts the reply
+to ``post_comment?parent=<id>``, appended into ``#replies-<id>``; on
+success the editor clears so a follow-up reply is ready. Expects ``task``
++ ``parent``.
+{% endcomment %}
+<form x-data="{ empty: true }"
+      @editor:change="empty = $event.detail.empty"
+      hx-post="{% url 'web:post_comment' slug_prefix=task.project.slug_prefix number=task.number %}?parent={{ parent.id }}"
+      hx-target="#replies-{{ parent.id }}"
+      hx-swap="beforeend"
+      @htmx:after-request="
+        if ($event.detail.successful) {
+          const ed = $el.querySelector('[data-description-editor]')?._editor;
+          if (ed) ed.commands.clearContent();
+        }
+      "
+      class="flex items-end gap-2 px-3 py-2.5 pl-8 border-t border-border">
+  {% csrf_token %}
+  {% if user.is_authenticated %}
+  <span class="w-6 h-6 rounded-full text-white grid place-items-center font-medium text-[11px] shrink-0"
+        style="background-color: {{ user.avatar_color }};">{{ user.display_name|slice:":1"|upper }}</span>
+  {% endif %}
+  <div data-description-editor
+       data-no-autosave
+       data-mention-url="{% url 'web:mention_search' slug_prefix=task.project.slug_prefix %}"
+       data-placeholder="{% trans 'Write a reply…' %}"
+       class="flex-1 min-w-0">
+    <input type="hidden" name="body" value="" data-editor-output>
+    <textarea class="description-editor-source hidden" readonly></textarea>
+    {% include "web/projects/_editor_toolbar.html" %}
+    <div class="description-editor-mount text-sm text-foreground py-1 max-h-40 overflow-y-auto"></div>
+  </div>
+  <button type="submit"
+          :disabled="empty"
+          data-tooltip="{% trans 'Reply' %}"
+          data-tooltip-pos="below-left"
+          class="shrink-0 w-7 h-7 grid place-items-center rounded-full bg-brand-600 text-white hover:bg-brand-500 transition disabled:opacity-40 disabled:cursor-not-allowed">
+    {% lucide "arrow-up" "w-3.5 h-3.5" %}
+  </button>
+</form>

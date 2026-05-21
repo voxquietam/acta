@@ -141,6 +141,19 @@ class TestCommentFanout:
         assert n.preview == "store this body"
         assert n.comment_id == comment.id
 
+    def test_reply_notifies_parent_author(self, trio):
+        project, assignee, reporter, actor = trio
+        # Parent comment authored by a member who is neither assignee nor
+        # reporter, so the only reason they'd be notified is the reply.
+        parent_author = WorkspaceMemberFactory(workspace=project.workspace).user
+        task = TaskFactory(project=project, assignee=assignee, reporter=reporter)
+        parent = Comment.objects.create(task=task, author=parent_author, body="top")
+        reply = Comment.objects.create(task=task, author=actor, parent=parent, body="re")
+        notify_comment_created(comment=reply, actor=actor)
+        recipients = set(Notification.objects.values_list("recipient_id", flat=True))
+        assert parent_author.id in recipients
+        assert recipients == {assignee.id, reporter.id, parent_author.id}
+
 
 @pytest.mark.django_db
 class TestMentionFanout:

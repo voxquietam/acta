@@ -630,6 +630,72 @@ class TestPostComment:
         assert resp.status_code == 404
         assert Comment.objects.filter(task=foreign_task).count() == 0
 
+    def test_reply_sets_parent(self, client, setup):
+        user, project, task = setup
+        top = Comment.objects.create(task=task, author=user, body="top")
+        client.force_login(user)
+        resp = client.post(self._url(project, task) + f"?parent={top.id}", {"body": "a reply"})
+        assert resp.status_code == 200
+        reply = Comment.objects.get(task=task, parent=top)
+        assert reply.task_id == task.id
+        assert reply.body == "a reply"
+        assert "a reply" in resp.content.decode()
+
+    def test_reply_to_reply_rejected(self, client, setup):
+        user, project, task = setup
+        top = Comment.objects.create(task=task, author=user, body="top")
+        reply = Comment.objects.create(task=task, author=user, parent=top, body="r1")
+        client.force_login(user)
+        resp = client.post(self._url(project, task) + f"?parent={reply.id}", {"body": "nested"})
+        assert resp.status_code == 400
+
+    def test_reply_to_foreign_task_comment_rejected(self, client, setup):
+        user, project, task = setup
+        other_task = TaskFactory(project=project, reporter=user)
+        foreign_parent = Comment.objects.create(task=other_task, author=user, body="elsewhere")
+        client.force_login(user)
+        resp = client.post(self._url(project, task) + f"?parent={foreign_parent.id}", {"body": "x"})
+        assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+class TestCommentReplyForm:
+    """``GET .../comments/<id>/reply-form/`` returns the lazy reply composer."""
+
+    def _url(self, project, task, comment):
+        return reverse(
+            "web:comment_reply_form",
+            kwargs={"slug_prefix": project.slug_prefix, "number": task.number, "comment_id": comment.id},
+        )
+
+    def test_returns_composer(self, client, setup):
+        user, project, task = setup
+        top = Comment.objects.create(task=task, author=user, body="top")
+        client.force_login(user)
+        resp = client.get(self._url(project, task, top))
+        assert resp.status_code == 200
+        body = resp.content.decode()
+        assert "data-description-editor" in body
+        assert f"parent={top.id}" in body
+
+    def test_non_top_level_parent_404(self, client, setup):
+        user, project, task = setup
+        top = Comment.objects.create(task=task, author=user, body="top")
+        reply = Comment.objects.create(task=task, author=user, parent=top, body="r1")
+        client.force_login(user)
+        resp = client.get(self._url(project, task, reply))
+        assert resp.status_code == 404
+
+    def test_foreign_task_404(self, client, setup):
+        user, _, _ = setup
+        foreign_ws = WorkspaceFactory()
+        foreign_project = ProjectFactory(workspace=foreign_ws)
+        foreign_task = TaskFactory(project=foreign_project, reporter=foreign_ws.owner)
+        foreign_comment = Comment.objects.create(task=foreign_task, author=foreign_ws.owner, body="x")
+        client.force_login(user)
+        resp = client.get(self._url(foreign_project, foreign_task, foreign_comment))
+        assert resp.status_code == 404
+
 
 @pytest.mark.django_db
 class TestTaskRowFragment:

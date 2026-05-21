@@ -15,6 +15,7 @@ from .views import (
     archive_notification,
     archive_task,
     bulk_notifications,
+    comment_reply_form,
     create_project,
     create_task,
     create_workspace,
@@ -216,6 +217,11 @@ urlpatterns = [
         "projects/<str:slug_prefix>/<int:number>/comments/",
         post_comment,
         name="post_comment",
+    ),
+    path(
+        "projects/<str:slug_prefix>/<int:number>/comments/<int:comment_id>/reply-form/",
+        comment_reply_form,
+        name="comment_reply_form",
     ),
     path(
         "projects/<str:slug_prefix>/<int:number>/archive/",

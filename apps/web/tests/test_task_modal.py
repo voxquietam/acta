@@ -231,6 +231,18 @@ class TestBuildTimeline:
         assert len(timeline) == 1
         assert timeline[0][0] == "comment"
 
+    def test_replies_excluded_from_timeline_and_nested(self, setup):
+        """Replies don't get their own timeline row — they nest under the
+        top-level comment via ``replies``."""
+        _, project, task = setup
+        top = CommentFactory(task=task, author=task.reporter, body="top")
+        CommentFactory(task=task, author=task.reporter, parent=top, body="reply")
+        timeline = _build_timeline(task, task.reporter_id)
+        comment_rows = [item for kind, item in timeline if kind == "comment"]
+        assert len(comment_rows) == 1
+        assert comment_rows[0].id == top.id
+        assert [r.body for r in comment_rows[0].replies.all()] == ["reply"]
+
 
 @pytest.mark.django_db
 class TestModalFragmentEndpoints:

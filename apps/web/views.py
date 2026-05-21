@@ -1478,16 +1478,13 @@ class TaskDetailView(LoginRequiredMixin, DetailView):
         ctx["subtasks"] = list(
             task.subtasks.select_related("assignee").order_by("number"),
         )
-        ctx["comments"] = list(
-            task.comments.select_related("author").order_by("created_at"),
-        )
         user_id = self.request.user.id
+        ctx["comments"] = _task_comments(task, user_id)
         task.reaction_summary = summarize_reactions(
             target_field="task",
             ids=[task.id],
             user_id=user_id,
         ).get(task.id, [])
-        attach_reactions(objs=ctx["comments"], target_field="comment", user_id=user_id)
         ctx["activity"] = _task_activity(task)
         non_comment_activity = [e for e in ctx["activity"] if not (e.event_type or "").startswith("comment.")]
         ctx["timeline"] = sorted(
@@ -1559,8 +1556,7 @@ def task_comments_fragment(request, slug_prefix, number):
     list.
     """
     task = _get_user_task_or_404(request.user, slug_prefix, number)
-    comments = list(task.comments.select_related("author").order_by("created_at"))
-    attach_reactions(objs=comments, target_field="comment", user_id=request.user.id)
+    comments = _task_comments(task, request.user.id)
     rows = "".join(render_to_string("web/projects/_comment.html", {"comment": c}, request=request) for c in comments)
     return HttpResponse(rows)
 
@@ -1608,8 +1604,7 @@ def task_timeline_fragment(request, slug_prefix, number):
     inner ``<ul>`` so peer-driven updates land without a full reload.
     """
     task = _get_user_task_or_404(request.user, slug_prefix, number)
-    comments = list(task.comments.select_related("author").order_by("created_at"))
-    attach_reactions(objs=comments, target_field="comment", user_id=request.user.id)
+    comments = _task_comments(task, request.user.id)
     activity = _task_activity(task)
     non_comment_activity = [e for e in activity if not (e.event_type or "").startswith("comment.")]
     timeline = sorted(
@@ -1917,15 +1912,48 @@ def _inline_edit_response(request, task, primary_template, primary_context):
     return HttpResponse(primary_html + activity_html)
 
 
-def _build_timeline(task, user_id):
-    """Merge comments + non-comment activity events into the unified
-    timeline tuple list consumed by ``_task_detail_timeline.html``.
+def _task_comments(task, user_id):
+    """Top-level task comments, replies prefetched + reactions attached.
 
-    Comments are decorated with ``reaction_summary`` (one extra query)
+    Only top-level comments (``parent__isnull=True``) are returned — the
+    unified timeline shows them as cards, with their one-level replies
+    rendered nested inside each card (mirroring the project-update
+    threads). Both the top-level rows and their replies are decorated
+    with ``reaction_summary`` in a single reaction query (no N+1).
+
+    Args:
+        task: The :class:`Task` whose comments to load.
+        user_id: The viewer's id (highlights their own reactions).
+
+    Returns:
+        A list of top-level :class:`Comment` rows ordered oldest-first,
+        each reply-prefetched and reaction-decorated.
+    """
+    comments = list(
+        task.comments.filter(parent__isnull=True)
+        .select_related("author")
+        .prefetch_related("replies__author")
+        .order_by("created_at")
+    )
+    decorated = []
+    for comment in comments:
+        # Reuse the already-loaded task (with its project) so the reply
+        # URL in the template doesn't lazy-load ``comment.task`` per row.
+        comment.task = task
+        decorated.append(comment)
+        decorated.extend(comment.replies.all())
+    attach_reactions(objs=decorated, target_field="comment", user_id=user_id)
+    return comments
+
+
+def _build_timeline(task, user_id):
+    """Merge top-level comments + non-comment activity events into the
+    unified timeline tuple list consumed by ``_task_detail_timeline.html``.
+
+    Comments (and their replies) are decorated with ``reaction_summary``
     so the OOB timeline refresh keeps their reaction bars intact.
     """
-    comments = list(task.comments.select_related("author").order_by("created_at"))
-    attach_reactions(objs=comments, target_field="comment", user_id=user_id)
+    comments = _task_comments(task, user_id)
     activity = _task_activity(task)
     non_comment = [e for e in activity if not (e.event_type or "").startswith("comment.")]
     return sorted(
@@ -2869,26 +2897,40 @@ def archive_task(request, slug_prefix, number):
 @require_POST
 @login_required
 def post_comment(request, slug_prefix, number):
-    """Create a comment on the task and return the new comment fragment.
+    """Create a comment (or one-level reply) on the task.
 
-    Designed for HTMX append-only flow: the response renders a single
-    ``<li>`` that gets inserted at the end of the comments list. Emits
-    a ``comment.created`` activity event via :func:`log_event`.
+    Reads a Markdown ``body`` and an optional ``parent`` (a top-level
+    comment id on the same task). Top-level comments use the inline-edit
+    response (new card appended to the timeline + OOB timeline refresh);
+    replies append surgically into the parent card's reply list, leaving
+    other in-progress inputs untouched. Either way a ``comment.created``
+    activity event fires and :func:`notify_comment_created` fans out —
+    a reply notifies exactly like a top-level comment, plus the parent
+    comment's author.
 
     Args:
-        request: Django request carrying a ``body`` form field.
+        request: Django request carrying ``body`` + optional ``parent``.
         slug_prefix: Project slug prefix from the URL.
         number: Task number within the project.
 
     Returns:
-        Rendered ``_comment.html`` for the new comment, or 400 if the
-        body is empty.
+        Rendered ``_comment.html`` (top-level, via the inline-edit
+        response) or ``_comment_reply.html`` (reply), 400 on an empty
+        body / bad parent, or 404 for a foreign / missing task.
     """
     task = _get_user_task_or_404(request.user, slug_prefix, number)
     body = (request.POST.get("body") or "").strip()
     if not body:
         return HttpResponseBadRequest("body required")
-    comment = Comment.objects.create(task=task, author=request.user, body=body)
+    parent = None
+    parent_raw = (request.GET.get("parent") or request.POST.get("parent") or "").strip()
+    if parent_raw:
+        if not parent_raw.isdigit():
+            return HttpResponseBadRequest("invalid parent")
+        parent = task.comments.filter(parent__isnull=True, pk=int(parent_raw)).first()
+        if parent is None:
+            return HttpResponseBadRequest("invalid parent")
+    comment = Comment.objects.create(task=task, author=request.user, parent=parent, body=body)
     log_event(
         workspace=task.project.workspace,
         project=task.project,
@@ -2900,11 +2942,43 @@ def post_comment(request, slug_prefix, number):
     )
     notify_comment_created(comment=comment, actor=request.user)
     comment.reaction_summary = []
+    if parent is not None:
+        return HttpResponse(render_to_string("web/projects/_comment_reply.html", {"comment": comment}, request=request))
     return _inline_edit_response(
         request,
         task,
         "web/projects/_comment.html",
         {"comment": comment},
+    )
+
+
+@login_required
+def comment_reply_form(request, slug_prefix, number, comment_id):
+    """Render the lazy TipTap reply composer for one task comment.
+
+    Loaded on demand via ``hx-get`` when the user clicks "Reply", so the
+    page doesn't carry a live TipTap editor per comment (they're heavy).
+    The returned fragment is mounted by the editor bundle's
+    ``htmx:afterSwap`` hook.
+
+    Args:
+        request: The current request.
+        slug_prefix: Project slug prefix from the URL.
+        number: Task number within the project.
+        comment_id: PK of the top-level comment being replied to.
+
+    Returns:
+        Rendered ``_comment_reply_form.html``, or 404 for a foreign /
+        missing task or a non-top-level / foreign parent comment.
+    """
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    parent = get_object_or_404(task.comments, parent__isnull=True, pk=comment_id)
+    return HttpResponse(
+        render_to_string(
+            "web/projects/_comment_reply_form.html",
+            {"task": task, "parent": parent},
+            request=request,
+        ),
     )
 
 
