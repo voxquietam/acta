@@ -3817,6 +3817,7 @@ def _create_task_post(request):
                 "target": "#app-content",
                 "select": "#app-content",
                 "swap": "outerHTML show:top",
+                "headers": {"HX-Boosted": "true"},
             }
         )
     else:
@@ -4364,6 +4365,7 @@ def _create_project_post(request):
             "target": "#app-content",
             "select": "#app-content",
             "swap": "outerHTML show:top",
+            "headers": {"HX-Boosted": "true"},
         }
     )
     return response
@@ -4464,6 +4466,7 @@ def _create_workspace_post(request):
             "target": "#app-content",
             "select": "#app-content",
             "swap": "outerHTML show:top",
+            "headers": {"HX-Boosted": "true"},
         }
     )
     return response

@@ -212,6 +212,9 @@ class TestCreateTaskPost:
         assert task.project.slug_prefix in loc
         assert str(task.number) in loc
         assert "#app-content" in loc
+        # HX-Boosted so the GET returns the full shell (with #app-content),
+        # not the inner partial — otherwise the swap lands empty.
+        assert "HX-Boosted" in loc
         assert resp.headers.get("HX-Trigger") == "acta:task-created"
 
     def test_creates_activity_event(self, client, setup):

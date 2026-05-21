@@ -79,6 +79,7 @@ class TestCreateProjectPost:
         assert "HX-Redirect" not in resp.headers
         assert "/projects/AUD/" in resp["HX-Location"]
         assert "#app-content" in resp["HX-Location"]
+        assert "HX-Boosted" in resp["HX-Location"]
         assert resp["HX-Trigger"] == "acta:project-created"
         project = Project.objects.get(workspace=workspace, slug_prefix="AUD")
         assert project.name == "Audit pilot"
