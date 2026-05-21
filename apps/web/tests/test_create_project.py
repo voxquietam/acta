@@ -75,7 +75,11 @@ class TestCreateProjectPost:
             },
         )
         assert resp.status_code == 204
-        assert resp["HX-Redirect"] == "/projects/AUD/"
+        # Boosted client-side nav (no full reload) + modal-close trigger.
+        assert "HX-Redirect" not in resp.headers
+        assert "/projects/AUD/" in resp["HX-Location"]
+        assert "#app-content" in resp["HX-Location"]
+        assert resp["HX-Trigger"] == "acta:project-created"
         project = Project.objects.get(workspace=workspace, slug_prefix="AUD")
         assert project.name == "Audit pilot"
         assert project.lead is None

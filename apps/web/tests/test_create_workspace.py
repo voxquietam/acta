@@ -53,7 +53,11 @@ class TestCreateWorkspacePost:
         ws = Workspace.objects.get(name="Acta Team")
         assert ws.slug == "acta-team"
         assert ws.owner_id == user.id
-        assert resp["HX-Redirect"] == f"/workspaces/{ws.slug}/settings/"
+        # Boosted client-side nav (no full reload) + modal-close trigger.
+        assert "HX-Redirect" not in resp.headers
+        assert f"/workspaces/{ws.slug}/settings/" in resp["HX-Location"]
+        assert "#app-content" in resp["HX-Location"]
+        assert resp["HX-Trigger"] == "acta:workspace-created"
 
     def test_create_seeds_owner_membership(self, client, user):
         client.force_login(user)

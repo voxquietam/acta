@@ -3804,14 +3804,21 @@ def _create_task_post(request):
     response = HttpResponse(status=204)
     open_after = request.POST.get("open_after_create") == "1"
     if open_after:
-        # ``HX-Redirect`` alone — no companion ``acta:task-created``
-        # event. Firing the event in the same response causes panel
-        # listeners on the current page (kanban / table / my-work) to
-        # refetch their fragment in the brief moment before the browser
-        # navigates, which flashes a stale-then-fresh view through the
-        # closing modal. The real fix for "open task feels slow" lives
-        # in [[project-todo-task-modal]] — partial swap, no reload.
-        response["HX-Redirect"] = detail_url
+        # Boosted client-side navigation (``HX-Location``) instead of a
+        # full-page ``HX-Redirect`` — the new task opens by swapping
+        # ``#app-content`` only, no reload / loader flash. ``acta:task-created``
+        # closes the modal; the panel-refetch it also triggers on the
+        # current page is harmless here since ``#app-content`` (panels
+        # included) is being replaced wholesale by the swap.
+        response["HX-Trigger"] = "acta:task-created"
+        response["HX-Location"] = json.dumps(
+            {
+                "path": detail_url,
+                "target": "#app-content",
+                "select": "#app-content",
+                "swap": "outerHTML show:top",
+            }
+        )
     else:
         # No redirect: stay on the current page, but tell the page to
         # refresh its task list. Connected HTMX listeners on
@@ -4345,8 +4352,20 @@ def _create_project_post(request):
             lead=lead,
         )
 
+    # Boosted client-side nav (no full-page reload / loader): swap
+    # ``#app-content`` to the new project and close the modal via
+    # ``acta:project-created``. The new project isn't a favourite yet, so
+    # the sidebar (favourites only) needs no refresh.
     response = HttpResponse(status=204)
-    response["HX-Redirect"] = f"/projects/{project.slug_prefix}/"
+    response["HX-Trigger"] = "acta:project-created"
+    response["HX-Location"] = json.dumps(
+        {
+            "path": f"/projects/{project.slug_prefix}/",
+            "target": "#app-content",
+            "select": "#app-content",
+            "swap": "outerHTML show:top",
+        }
+    )
     return response
 
 
@@ -4434,6 +4453,17 @@ def _create_workspace_post(request):
             role=WorkspaceMember.OWNER,
         )
 
+    # Boosted client-side nav (no full reload): swap ``#app-content`` to
+    # the new workspace's settings and close the modal via
+    # ``acta:workspace-created``.
     response = HttpResponse(status=204)
-    response["HX-Redirect"] = f"/workspaces/{workspace.slug}/settings/"
+    response["HX-Trigger"] = "acta:workspace-created"
+    response["HX-Location"] = json.dumps(
+        {
+            "path": f"/workspaces/{workspace.slug}/settings/",
+            "target": "#app-content",
+            "select": "#app-content",
+            "swap": "outerHTML show:top",
+        }
+    )
     return response

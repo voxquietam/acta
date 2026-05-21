@@ -193,7 +193,7 @@ class TestCreateTaskPost:
         assert task.reporter == user
         assert task.status == Task.STATUS_PLANNED
 
-    def test_open_after_create_returns_redirect(self, client, setup):
+    def test_open_after_create_navigates_boosted(self, client, setup):
         ws, project, user = setup
         client.force_login(user)
         resp = client.post(
@@ -205,10 +205,14 @@ class TestCreateTaskPost:
             },
         )
         assert resp.status_code == 204
-        assert "HX-Redirect" in resp.headers
+        # Boosted client-side nav (no full-page HX-Redirect) + modal close.
+        assert "HX-Redirect" not in resp.headers
+        loc = resp.headers["HX-Location"]
         task = Task.objects.get(title="Open me")
-        assert task.project.slug_prefix in resp.headers["HX-Redirect"]
-        assert str(task.number) in resp.headers["HX-Redirect"]
+        assert task.project.slug_prefix in loc
+        assert str(task.number) in loc
+        assert "#app-content" in loc
+        assert resp.headers.get("HX-Trigger") == "acta:task-created"
 
     def test_creates_activity_event(self, client, setup):
         ws, project, user = setup
