@@ -32,6 +32,18 @@ class User(AbstractUser):
             "list page renders a toggle star on every card to maintain the set"
         ),
     )
+    active_workspace = models.ForeignKey(
+        "workspaces.Workspace",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        help_text=(
+            "Workspace the user is currently scoped into. The sidebar switcher sets "
+            "it; All Tasks / Projects / My Work / Inbox / My Activity are filtered to "
+            "it. Null falls back to the user's first workspace by name"
+        ),
+    )
 
     class Meta(AbstractUser.Meta):
         verbose_name = _("User")
