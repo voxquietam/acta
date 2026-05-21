@@ -55,6 +55,15 @@
   {# utilities + project-specific rules) via ``npm run build:css``.     #}
   <link rel="stylesheet" href="{% static 'css/main.bundle.css' %}">
 
+  {# HTMX history: large pages (All Tasks ≈ 260 KB) overflow the history #}
+  {# snapshot cache, and the view-tab / filter ``history.pushState``     #}
+  {# calls add entries HTMX never snapshotted. On a cache miss, restore  #}
+  {# the page with a real full reload instead of an AJAX swap — the      #}
+  {# AJAX path mis-restores (Back → bare panel, Forward → URL changes    #}
+  {# but content stays put). A full reload always renders the correct    #}
+  {# page + shell for the URL.                                           #}
+  <meta name="htmx-config" content='{"refreshOnHistoryMiss": true}'>
+
   <script src="https://unpkg.com/htmx.org@2"></script>
   <script src="https://unpkg.com/htmx-ext-sse@2"></script>
   {# Idiomorph — DOM diff/merge for HTMX swaps. Used by per-row SSE  #}

@@ -68,8 +68,21 @@ def _is_htmx_partial(request):
     fragment from a shell-aware response. Only un-boosted HTMX requests
     (filter form submit, kanban sort, panel refresh on ``acta:*``
     events) want the inner-only partial.
+
+    History restores also carry ``HX-Request: true`` but set
+    ``HX-History-Restore-Request: true``: HTMX is rebuilding the whole
+    history element (``<body>``) from a cache miss, so it needs the
+    **full** page. Serving the partial there drops the body to just the
+    swapped fragment — the page renders as the bare panel with no shell
+    (the "timeline goes fullscreen, sidebar disappears on Back" bug).
     """
-    return request.headers.get("HX-Request") == "true" and request.headers.get("HX-Boosted") != "true"
+    if request.headers.get("HX-Request") != "true":
+        return False
+    if request.headers.get("HX-Boosted") == "true":
+        return False
+    if request.headers.get("HX-History-Restore-Request") == "true":
+        return False
+    return True
 
 
 def _resolve_list_axis(request, *, default, options):

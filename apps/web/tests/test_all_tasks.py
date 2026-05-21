@@ -51,6 +51,27 @@ class TestHtmxBoostTemplateSelection:
         assert 'id="app-content"' in body
         assert "<html" in body
 
+    def test_history_restore_returns_full_shell(self, client):
+        """Back/forward history restore must rebuild the whole page.
+
+        On a history-cache miss HTMX re-fetches the URL with
+        ``HX-History-Restore-Request: true`` to repopulate ``<body>``.
+        Serving the inner partial there leaves the page as the bare
+        panel with no sidebar / topbar (the "timeline goes fullscreen
+        on Back" bug), so the response must be the full shell.
+        """
+        ws = WorkspaceFactory()
+        ProjectFactory(workspace=ws)
+        client.force_login(ws.owner)
+        resp = client.get(
+            reverse("web:all_tasks"),
+            HTTP_HX_REQUEST="true",
+            HTTP_HX_HISTORY_RESTORE_REQUEST="true",
+        )
+        body = resp.content.decode()
+        assert "<html" in body
+        assert 'id="app-content"' in body
+
 
 def _table_body(html):
     """Return the substring covering the table body so ordering asserts
