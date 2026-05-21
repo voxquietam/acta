@@ -645,6 +645,15 @@ html.dark .acta-checkbox {
   right: 0;
   transform: none;
 }
+/* Tooltip above + left-aligned — for actions hugging a left edge inside
+   an ``overflow-hidden`` card (the reaction bar in comments / updates).
+   A centered tooltip there spills past the card's left border and gets
+   clipped; anchoring the tooltip's left edge to the trigger keeps it
+   inside, extending rightward. */
+[data-tooltip][data-tooltip-pos="above-left"]::after {
+  left: 0;
+  transform: none;
+}
 
 /* ---- Inbox live arrival (SSE) ----------------------------------- */
 /* A notification that lands over the per-user SSE stream slides in from
