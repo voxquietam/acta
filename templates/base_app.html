@@ -58,7 +58,9 @@ Pages extend this and override the `app_main` block.
            class="w-7 h-7 shrink-0">
       <span x-show="$store.sidebar.open" x-cloak class="flex items-baseline gap-2">
         <span class="text-lg font-semibold tracking-tight">Acta</span>
-        <span class="font-mono text-[10px] uppercase tracking-wider text-placeholder-foreground">v0.1</span>
+        <a href="{{ changelog_url }}" target="_blank" rel="noopener"
+           title="{% trans 'Changelog' %}"
+           class="font-mono text-[10px] uppercase tracking-wider text-placeholder-foreground hover:text-foreground transition">v{{ acta_version }}</a>
       </span>
     </a>
 

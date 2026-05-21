@@ -128,6 +128,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "apps.web.context.workspace_nav",
+                "acta.context_processors.app_version",
             ],
         },
     },
@@ -177,6 +178,9 @@ EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER") or ""
 EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD") or ""
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL") or (EMAIL_HOST_USER or "no-reply@actaspace.com")
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
+
+# Public changelog link (sidebar version kicker). Override for forks.
+CHANGELOG_URL = os.environ.get("ACTA_CHANGELOG_URL") or "https://github.com/voxquietam/acta/blob/master/CHANGELOG.md"
 
 # allauth
 ACCOUNT_LOGIN_METHODS = {"email", "username"}

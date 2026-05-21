@@ -18,11 +18,12 @@ from asgiref.sync import sync_to_async
 from mcp.server import Server
 from mcp.types import TextContent, Tool
 
+from acta.version import get_version
 from apps.mcp.auth import AuthenticationError, RateLimitExceeded, authenticate_from_env, enforce_rate_limit
 from apps.mcp.context import mcp_request_scope
 from apps.mcp.tools import CALLABLES, TOOLS
 
-ACTA_MCP_VERSION = "0.1.0"
+ACTA_MCP_VERSION = get_version()
 
 
 _PING_TOOL = Tool(
