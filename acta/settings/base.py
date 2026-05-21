@@ -59,6 +59,9 @@ DJANGO_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.sites",
+    # ``naturaltime`` for relative timestamps (e.g. "25 days ago") in the
+    # activity log / comment timeline; ships uk translations.
+    "django.contrib.humanize",
 ]
 
 THIRD_PARTY_APPS = [

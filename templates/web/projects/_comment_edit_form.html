@@ -1,0 +1,48 @@
+{% load i18n %}
+{% comment %}
+Inline edit composer for one task comment. Loaded via ``hx-get`` into the
+comment's ``#comment-body-<id>`` region (innerHTML), so the header above
+(avatar / author / date) stays put and the card barely shifts — only the
+body turns editable (Linear-style). The editor mounts on
+``htmx:afterSwap``, pre-filled from the Markdown body via the
+``.description-editor-source`` textarea.
+
+Save posts to ``edit_comment`` and replaces the whole card
+(``#comment-<id>`` outerHTML) with the refreshed render (header then shows
+the ``(edited)`` marker). Cancel re-fetches the unchanged card via
+``comment_fragment`` (also tearing the editor down cleanly). Expects
+``task`` + ``comment``.
+{% endcomment %}
+<form x-data="{ empty: false }"
+      @editor:change="empty = $event.detail.empty"
+      hx-post="{% url 'web:edit_comment' slug_prefix=task.project.slug_prefix number=task.number comment_id=comment.id %}"
+      hx-target="#comment-{{ comment.id }}"
+      hx-swap="outerHTML"
+      class="space-y-2">
+  {% csrf_token %}
+  <div data-description-editor
+       data-no-autosave
+       data-mention-url="{% url 'web:mention_search' slug_prefix=task.project.slug_prefix %}"
+       data-placeholder="{% trans 'Edit comment…' %}">
+    <input type="hidden" name="body" value="" data-editor-output>
+    <textarea class="description-editor-source hidden" readonly>{{ comment.body }}</textarea>
+    {% include "web/projects/_editor_toolbar.html" %}
+    {# Borderless, transparent — same prose look as the rendered comment, so #}
+    {# clicking Edit turns the text editable in place without any box or shift. #}
+    <div class="description-editor-mount prose dark:prose-invert prose-sm max-w-none text-muted-foreground max-h-60 overflow-y-auto focus:outline-none"></div>
+  </div>
+  <div class="flex items-center justify-end gap-2">
+    <button type="button"
+            hx-get="{% url 'web:comment_fragment' slug_prefix=task.project.slug_prefix number=task.number comment_id=comment.id %}"
+            hx-target="#comment-{{ comment.id }}"
+            hx-swap="outerHTML"
+            class="px-3 py-1.5 text-xs rounded-md text-placeholder-foreground hover:text-foreground transition">
+      {% trans "Cancel" %}
+    </button>
+    <button type="submit"
+            :disabled="empty"
+            class="px-3 py-1.5 text-xs rounded-md bg-brand-600 text-white hover:bg-brand-500 disabled:opacity-40 disabled:cursor-not-allowed">
+      {% trans "Save" %}
+    </button>
+  </div>
+</form>

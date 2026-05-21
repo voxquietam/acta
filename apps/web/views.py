@@ -12,12 +12,14 @@ from urllib.parse import urlencode
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Count, F, Max, OuterRef, Q, Subquery
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.template.loader import render_to_string
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_POST
 from django.views.generic import DetailView, ListView, TemplateView
@@ -1486,11 +1488,8 @@ class TaskDetailView(LoginRequiredMixin, DetailView):
             user_id=user_id,
         ).get(task.id, [])
         ctx["activity"] = _task_activity(task)
-        non_comment_activity = [e for e in ctx["activity"] if not (e.event_type or "").startswith("comment.")]
-        ctx["timeline"] = sorted(
-            [("comment", c) for c in ctx["comments"]] + [("event", e) for e in non_comment_activity],
-            key=lambda kv: kv[1].created_at,
-        )
+        non_comment_activity = [e for e in ctx["activity"] if _timeline_event(e)]
+        ctx["timeline"] = _sort_timeline(ctx["comments"], non_comment_activity)
         ctx["status_labels"] = Task.STATUS_LABELS
         ctx["priority_labels"] = dict(Task.PRIORITY_CHOICES)
         ctx["workspace_members"] = _workspace_members(task)
@@ -1606,11 +1605,8 @@ def task_timeline_fragment(request, slug_prefix, number):
     task = _get_user_task_or_404(request.user, slug_prefix, number)
     comments = _task_comments(task, request.user.id)
     activity = _task_activity(task)
-    non_comment_activity = [e for e in activity if not (e.event_type or "").startswith("comment.")]
-    timeline = sorted(
-        [("comment", c) for c in comments] + [("event", e) for e in non_comment_activity],
-        key=lambda kv: kv[1].created_at,
-    )
+    non_comment_activity = [e for e in activity if _timeline_event(e)]
+    timeline = _sort_timeline(comments, non_comment_activity)
     return HttpResponse(
         render_to_string(
             "web/projects/_task_detail_timeline.html",
@@ -1912,22 +1908,68 @@ def _inline_edit_response(request, task, primary_template, primary_context):
     return HttpResponse(primary_html + activity_html)
 
 
+def _is_workspace_admin(user_id, workspace_id):
+    """Return True if the user is an owner/admin of the workspace.
+
+    Args:
+        user_id: The acting user's id.
+        workspace_id: The workspace to check membership role in.
+
+    Returns:
+        True iff the user has the OWNER or ADMIN role in that workspace.
+    """
+    return WorkspaceMember.objects.filter(
+        workspace_id=workspace_id,
+        user_id=user_id,
+        role__in=[
+            WorkspaceMember.OWNER,
+            WorkspaceMember.ADMIN,
+        ],
+    ).exists()
+
+
+def _decorate_comments(comments, task, user_id):
+    """Attach ``task`` / ``can_modify`` / ``reaction_summary`` to comments.
+
+    Decorates the given top-level comments AND their prefetched replies in
+    place: each gets the already-loaded ``task`` (so the reply / edit URLs
+    don't lazy-load it), a ``can_modify`` flag (author or workspace
+    admin/owner — drives the edit/delete affordances), and a
+    ``reaction_summary`` (all in one reaction query, no N+1).
+
+    Args:
+        comments: Iterable of top-level :class:`Comment` rows.
+        task: The owning :class:`Task` (with its project loaded).
+        user_id: The viewer's id.
+    """
+    user_is_admin = _is_workspace_admin(user_id, task.project.workspace_id)
+    decorated = []
+    for comment in comments:
+        comment.task = task
+        decorated.append(comment)
+        for reply in comment.replies.all():
+            reply.task = task
+            decorated.append(reply)
+    for item in decorated:
+        item.can_modify = user_is_admin or item.author_id == user_id
+    attach_reactions(objs=decorated, target_field="comment", user_id=user_id)
+
+
 def _task_comments(task, user_id):
-    """Top-level task comments, replies prefetched + reactions attached.
+    """Top-level task comments, replies prefetched + decorated.
 
     Only top-level comments (``parent__isnull=True``) are returned — the
     unified timeline shows them as cards, with their one-level replies
     rendered nested inside each card (mirroring the project-update
-    threads). Both the top-level rows and their replies are decorated
-    with ``reaction_summary`` in a single reaction query (no N+1).
+    threads). Each row + reply is decorated via :func:`_decorate_comments`
+    (task, ``can_modify``, ``reaction_summary``).
 
     Args:
         task: The :class:`Task` whose comments to load.
-        user_id: The viewer's id (highlights their own reactions).
+        user_id: The viewer's id.
 
     Returns:
-        A list of top-level :class:`Comment` rows ordered oldest-first,
-        each reply-prefetched and reaction-decorated.
+        A list of top-level :class:`Comment` rows ordered oldest-first.
     """
     comments = list(
         task.comments.filter(parent__isnull=True)
@@ -1935,15 +1977,101 @@ def _task_comments(task, user_id):
         .prefetch_related("replies__author")
         .order_by("created_at")
     )
-    decorated = []
-    for comment in comments:
-        # Reuse the already-loaded task (with its project) so the reply
-        # URL in the template doesn't lazy-load ``comment.task`` per row.
-        comment.task = task
-        decorated.append(comment)
-        decorated.extend(comment.replies.all())
-    attach_reactions(objs=decorated, target_field="comment", user_id=user_id)
+    _decorate_comments(comments, task, user_id)
     return comments
+
+
+def _render_comment_card(request, task, comment_id):
+    """Render one comment's card/row fresh, fully decorated.
+
+    Used by the edit (save) and cancel paths to re-render a single comment
+    in place. Picks ``_comment.html`` for a top-level comment (replies
+    nested) or ``_comment_reply.html`` for a reply.
+
+    Args:
+        request: The current request (its user drives ``can_modify``).
+        task: The owning :class:`Task`.
+        comment_id: PK of the comment to render.
+
+    Returns:
+        An :class:`HttpResponse` with the rendered fragment.
+    """
+    comment = get_object_or_404(
+        task.comments.select_related("author").prefetch_related("replies__author"),
+        pk=comment_id,
+    )
+    _decorate_comments([comment], task, request.user.id)
+    template = "web/projects/_comment_reply.html" if comment.parent_id else "web/projects/_comment.html"
+    return HttpResponse(render_to_string(template, {"comment": comment}, request=request))
+
+
+def _can_modify_comment(user, comment, task):
+    """Return True if ``user`` may edit/delete ``comment`` on ``task``.
+
+    Allowed for the comment's author or any workspace owner/admin.
+    """
+    return comment.author_id == user.id or _is_workspace_admin(user.id, task.project.workspace_id)
+
+
+def _timeline_event(event):
+    """Return True if an activity event should be its own timeline row.
+
+    ``comment.created`` / ``comment.edited`` are dropped — the comment
+    card itself (with its ``(edited)`` marker) already conveys them.
+    ``comment.deleted`` is kept: the comment is gone, so the event is its
+    only remaining trace in the timeline.
+
+    Args:
+        event: An :class:`ActivityLog` row.
+
+    Returns:
+        True to render the event as a timeline row.
+    """
+    return (event.event_type or "") not in (
+        "comment.created",
+        "comment.edited",
+    )
+
+
+def _timeline_sort_key(kind, item):
+    """Return the timestamp a timeline row should sort by.
+
+    Normally an item's own ``created_at``. A ``comment.deleted`` event,
+    though, is created at deletion time but should appear where the
+    comment originally sat — so it sorts by the ``comment_created_at``
+    stashed in its payload (falling back to its own time).
+
+    Args:
+        kind: ``"comment"`` or ``"event"``.
+        item: The :class:`Comment` or :class:`ActivityLog` row.
+
+    Returns:
+        A ``datetime`` to sort the timeline by.
+    """
+    if kind == "event" and (item.event_type or "") == "comment.deleted":
+        raw = (item.payload or {}).get("comment_created_at")
+        if raw:
+            parsed = parse_datetime(raw)
+            if parsed is not None:
+                return parsed
+    return item.created_at
+
+
+def _sort_timeline(comments, events):
+    """Merge + sort timeline rows, handling the deleted-comment position.
+
+    Args:
+        comments: Top-level :class:`Comment` rows (already decorated).
+        events: The :class:`ActivityLog` rows to show as their own rows.
+
+    Returns:
+        A list of ``(kind, item)`` tuples sorted ascending by
+        :func:`_timeline_sort_key`.
+    """
+    return sorted(
+        [("comment", c) for c in comments] + [("event", e) for e in events],
+        key=lambda kv: _timeline_sort_key(kv[0], kv[1]),
+    )
 
 
 def _build_timeline(task, user_id):
@@ -1955,11 +2083,8 @@ def _build_timeline(task, user_id):
     """
     comments = _task_comments(task, user_id)
     activity = _task_activity(task)
-    non_comment = [e for e in activity if not (e.event_type or "").startswith("comment.")]
-    return sorted(
-        [("comment", c) for c in comments] + [("event", e) for e in non_comment],
-        key=lambda kv: kv[1].created_at,
-    )
+    non_comment = [e for e in activity if _timeline_event(e)]
+    return _sort_timeline(comments, non_comment)
 
 
 # ---------------------------------------------------------------------
@@ -2942,6 +3067,7 @@ def post_comment(request, slug_prefix, number):
     )
     notify_comment_created(comment=comment, actor=request.user)
     comment.reaction_summary = []
+    comment.can_modify = True
     if parent is not None:
         return HttpResponse(render_to_string("web/projects/_comment_reply.html", {"comment": comment}, request=request))
     return _inline_edit_response(
@@ -2977,6 +3103,149 @@ def comment_reply_form(request, slug_prefix, number, comment_id):
         render_to_string(
             "web/projects/_comment_reply_form.html",
             {"task": task, "parent": parent},
+            request=request,
+        ),
+    )
+
+
+@login_required
+def comment_fragment(request, slug_prefix, number, comment_id):
+    """Re-render one task comment's card/row (used by the edit Cancel).
+
+    Args:
+        request: The current request.
+        slug_prefix: Project slug prefix from the URL.
+        number: Task number within the project.
+        comment_id: PK of the comment to render.
+
+    Returns:
+        Rendered ``_comment.html`` / ``_comment_reply.html`` fragment, or
+        404 for a foreign / missing task or comment.
+    """
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    return _render_comment_card(request, task, comment_id)
+
+
+@login_required
+def comment_edit_form(request, slug_prefix, number, comment_id):
+    """Render the lazy TipTap edit composer for one task comment.
+
+    Loaded via ``hx-get`` when the author (or a workspace admin) clicks
+    "Edit"; it replaces the comment card in place. The editor pre-fills
+    from the comment's Markdown body.
+
+    Args:
+        request: The current request.
+        slug_prefix: Project slug prefix from the URL.
+        number: Task number within the project.
+        comment_id: PK of the comment to edit.
+
+    Returns:
+        Rendered ``_comment_edit_form.html``, 403 if the user may not edit
+        it, or 404 for a foreign / missing task or comment.
+    """
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    comment = get_object_or_404(task.comments.select_related("author"), pk=comment_id)
+    if not _can_modify_comment(request.user, comment, task):
+        raise PermissionDenied()
+    return HttpResponse(
+        render_to_string(
+            "web/projects/_comment_edit_form.html",
+            {"task": task, "comment": comment},
+            request=request,
+        ),
+    )
+
+
+@require_POST
+@login_required
+def edit_comment(request, slug_prefix, number, comment_id):
+    """Save an edit to a task comment and return its refreshed card.
+
+    Allowed for the comment's author or a workspace admin/owner. Emits a
+    ``comment.edited`` activity event (kept in the audit log but filtered
+    out of the visible timeline — the comment's ``(edited)`` marker
+    conveys it). The body is required.
+
+    Args:
+        request: Django request carrying the new ``body``.
+        slug_prefix: Project slug prefix from the URL.
+        number: Task number within the project.
+        comment_id: PK of the comment to edit.
+
+    Returns:
+        The refreshed comment fragment, 400 on empty body, 403 if not
+        permitted, or 404 for a foreign / missing task or comment.
+    """
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    comment = get_object_or_404(task.comments.select_related("author"), pk=comment_id)
+    if not _can_modify_comment(request.user, comment, task):
+        raise PermissionDenied()
+    body = (request.POST.get("body") or "").strip()
+    if not body:
+        return HttpResponseBadRequest("body required")
+    comment.body = body
+    comment.save(update_fields=["body", "updated_at"])
+    log_event(
+        workspace=task.project.workspace,
+        project=task.project,
+        actor=request.user,
+        event_type="comment.edited",
+        target_type=ActivityLog.TARGET_COMMENT,
+        target_id=comment.id,
+        payload={"task_id": task.id},
+    )
+    return _render_comment_card(request, task, comment.id)
+
+
+@require_POST
+@login_required
+def delete_comment(request, slug_prefix, number, comment_id):
+    """Delete a task comment and refresh the timeline.
+
+    Allowed for the comment's author or a workspace admin/owner. Emits a
+    ``comment.deleted`` activity event, which DOES show in the timeline
+    (the comment is gone, so the event is its only trace). Replies cascade
+    with their parent. Returns the OOB timeline refresh so the card
+    disappears and the deleted-event row appears in one swap.
+
+    Args:
+        request: Django POST request.
+        slug_prefix: Project slug prefix from the URL.
+        number: Task number within the project.
+        comment_id: PK of the comment to delete.
+
+    Returns:
+        The OOB-swapped timeline fragment, 403 if not permitted, or 404
+        for a foreign / missing task or comment.
+    """
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    comment = get_object_or_404(task.comments.select_related("author"), pk=comment_id)
+    if not _can_modify_comment(request.user, comment, task):
+        raise PermissionDenied()
+    deleted_id = comment.id
+    # Keep the original post time so the timeline can slot the "deleted a
+    # comment" marker where the comment used to sit, not at "now".
+    original_created_at = comment.created_at.isoformat()
+    comment.delete()
+    log_event(
+        workspace=task.project.workspace,
+        project=task.project,
+        actor=request.user,
+        event_type="comment.deleted",
+        target_type=ActivityLog.TARGET_COMMENT,
+        target_id=deleted_id,
+        payload={"task_id": task.id, "comment_created_at": original_created_at},
+    )
+    return HttpResponse(
+        render_to_string(
+            "web/projects/_activity_oob.html",
+            {
+                "task": task,
+                "timeline": _build_timeline(task, request.user.id),
+                "status_labels": Task.STATUS_LABELS,
+                "priority_labels": dict(Task.PRIORITY_CHOICES),
+            },
             request=request,
         ),
     )

@@ -1,0 +1,12 @@
+{% load humanize %}
+{% comment %}
+A relative timestamp that turns into the exact date+time on hover (no
+tooltip): ``3 days ago`` by default, ``May 19, 2026, 08:35`` while the
+cursor is over it. Scoped via the named group ``group/date`` so only
+hovering this element flips it. Expects ``dt`` (a datetime). Font size /
+colour are inherited from the surrounding context.
+{% endcomment %}
+<span class="group/date cursor-default whitespace-nowrap">
+  <span class="group-hover/date:hidden">{{ dt|naturaltime }}</span>
+  <span class="hidden group-hover/date:inline">{{ dt|date:"M j, Y, H:i" }}</span>
+</span>

@@ -7,16 +7,20 @@ inline edits and comment posting (:mod:`apps.web.views`).
 import datetime
 
 from django.urls import reverse
+from django.utils import timezone
 
 import pytest
 
 from apps.accounts.tests.factories import UserFactory
 from apps.activity.models import ActivityLog
+from apps.activity.services import log_event
 from apps.comments.models import Comment
 from apps.labels.tests.factories import LabelFactory
 from apps.projects.tests.factories import ProjectFactory
 from apps.tasks.models import Task
 from apps.tasks.tests.factories import TaskFactory
+from apps.web.views import _build_timeline
+from apps.workspaces.models import WorkspaceMember
 from apps.workspaces.tests.factories import WorkspaceFactory, WorkspaceMemberFactory
 
 
@@ -695,6 +699,131 @@ class TestCommentReplyForm:
         client.force_login(user)
         resp = client.get(self._url(foreign_project, foreign_task, foreign_comment))
         assert resp.status_code == 404
+
+
+@pytest.mark.django_db
+class TestEditDeleteComment:
+    """Edit + delete on task comments (author or workspace admin/owner)."""
+
+    def _edit_url(self, project, task, comment):
+        return reverse(
+            "web:edit_comment",
+            kwargs={"slug_prefix": project.slug_prefix, "number": task.number, "comment_id": comment.id},
+        )
+
+    def _delete_url(self, project, task, comment):
+        return reverse(
+            "web:delete_comment",
+            kwargs={"slug_prefix": project.slug_prefix, "number": task.number, "comment_id": comment.id},
+        )
+
+    def test_author_edits_comment(self, client, setup):
+        user, project, task = setup
+        c = Comment.objects.create(task=task, author=user, body="orig")
+        client.force_login(user)
+        resp = client.post(self._edit_url(project, task, c), {"body": "updated body"})
+        assert resp.status_code == 200
+        c.refresh_from_db()
+        assert c.body == "updated body"
+        assert "updated body" in resp.content.decode()
+        assert ActivityLog.objects.filter(event_type="comment.edited", target_id=c.id).count() == 1
+
+    def test_edit_empty_body_400(self, client, setup):
+        user, project, task = setup
+        c = Comment.objects.create(task=task, author=user, body="orig")
+        client.force_login(user)
+        resp = client.post(self._edit_url(project, task, c), {"body": "  "})
+        assert resp.status_code == 400
+        c.refresh_from_db()
+        assert c.body == "orig"
+
+    def test_non_author_member_cannot_edit(self, client, setup):
+        user, project, task = setup
+        c = Comment.objects.create(task=task, author=user, body="orig")
+        member = UserFactory()
+        WorkspaceMemberFactory(workspace=project.workspace, user=member)
+        client.force_login(member)
+        resp = client.post(self._edit_url(project, task, c), {"body": "hax"})
+        assert resp.status_code == 403
+        c.refresh_from_db()
+        assert c.body == "orig"
+
+    def test_workspace_admin_can_edit_others_comment(self, client, setup):
+        user, project, task = setup
+        c = Comment.objects.create(task=task, author=user, body="orig")
+        admin = UserFactory()
+        WorkspaceMemberFactory(workspace=project.workspace, user=admin, role=WorkspaceMember.ADMIN)
+        client.force_login(admin)
+        resp = client.post(self._edit_url(project, task, c), {"body": "moderated"})
+        assert resp.status_code == 200
+        c.refresh_from_db()
+        assert c.body == "moderated"
+
+    def test_author_deletes_comment(self, client, setup):
+        user, project, task = setup
+        c = Comment.objects.create(task=task, author=user, body="bye")
+        client.force_login(user)
+        resp = client.post(self._delete_url(project, task, c))
+        assert resp.status_code == 200
+        assert not Comment.objects.filter(id=c.id).exists()
+        assert ActivityLog.objects.filter(event_type="comment.deleted", target_id=c.id).count() == 1
+
+    def test_non_author_member_cannot_delete(self, client, setup):
+        user, project, task = setup
+        c = Comment.objects.create(task=task, author=user, body="keep")
+        member = UserFactory()
+        WorkspaceMemberFactory(workspace=project.workspace, user=member)
+        client.force_login(member)
+        resp = client.post(self._delete_url(project, task, c))
+        assert resp.status_code == 403
+        assert Comment.objects.filter(id=c.id).exists()
+
+    def test_deleted_comment_appears_in_timeline(self, client, setup):
+        user, project, task = setup
+        c = Comment.objects.create(task=task, author=user, body="trace me")
+        client.force_login(user)
+        client.post(self._delete_url(project, task, c))
+        timeline = _build_timeline(task, user.id)
+        deleted_events = [item for kind, item in timeline if kind == "event" and item.event_type == "comment.deleted"]
+        assert len(deleted_events) == 1
+
+    def test_deleted_comment_keeps_original_timeline_position(self, client, setup):
+        user, project, task = setup
+        old = Comment.objects.create(task=task, author=user, body="old")
+        old_time = timezone.now() - datetime.timedelta(days=7)
+        Comment.objects.filter(pk=old.id).update(created_at=old_time)
+        # A newer activity event posted "now", after the old comment.
+        log_event(
+            workspace=project.workspace,
+            project=project,
+            actor=user,
+            event_type="task.status_changed",
+            target_type=ActivityLog.TARGET_TASK,
+            target_id=task.id,
+            payload={"from": "to-do", "to": "done"},
+        )
+        client.force_login(user)
+        client.post(self._delete_url(project, task, old))
+        timeline = _build_timeline(task, user.id)
+        types = [item.event_type for kind, item in timeline if kind == "event"]
+        # The deletion marker sorts to ~7 days ago (the comment's original
+        # time), so it lands BEFORE the recent status change, not at the end.
+        assert types.index("comment.deleted") < types.index("task.status_changed")
+
+    def test_edit_form_prefilled(self, client, setup):
+        user, project, task = setup
+        c = Comment.objects.create(task=task, author=user, body="orig text")
+        client.force_login(user)
+        resp = client.get(
+            reverse(
+                "web:comment_edit_form",
+                kwargs={"slug_prefix": project.slug_prefix, "number": task.number, "comment_id": c.id},
+            ),
+        )
+        assert resp.status_code == 200
+        body = resp.content.decode()
+        assert "orig text" in body
+        assert "data-description-editor" in body
 
 
 @pytest.mark.django_db

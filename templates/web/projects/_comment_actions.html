@@ -1,0 +1,44 @@
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+Edit + delete affordances for one task comment — hover-revealed, shown
+only to the author or a workspace admin/owner (``comment.can_modify``).
+Edit swaps the comment card in place with the inline edit composer;
+delete confirms, then removes the comment (the timeline then shows the
+``comment.deleted`` event). Expects ``comment`` with ``task`` +
+``can_modify`` set.
+{% endcomment %}
+{% if comment.can_modify %}
+{% comment %}
+Hover-reveal cluster: collapsed to zero width so the date sits flush
+right; on card hover (``group``) it animates open (max-width + fade +
+left margin), nudging the date left and sliding the buttons in. Stays
+open while a delete is being confirmed even if the cursor leaves.
+{% endcomment %}
+<div class="flex items-center gap-0.5 max-w-0 opacity-0 overflow-hidden transition-all duration-200 ease-out group-hover:max-w-[10rem] group-hover:opacity-100 group-hover:ml-1.5 focus-within:max-w-[10rem] focus-within:opacity-100 focus-within:ml-1.5"
+     :class="confirming && '!max-w-[10rem] !opacity-100 !ml-1.5'"
+     x-data="{ confirming: false }">
+  <button type="button"
+          hx-get="{% url 'web:comment_edit_form' slug_prefix=comment.task.project.slug_prefix number=comment.task.number comment_id=comment.id %}"
+          hx-target="#comment-body-{{ comment.id }}"
+          hx-swap="innerHTML"
+          data-tooltip="{% trans 'Edit' %}"
+          class="p-1 rounded text-placeholder-foreground hover:text-foreground hover:bg-muted transition">
+    {% lucide "pencil" "w-3.5 h-3.5" %}
+  </button>
+  <button x-show="!confirming" type="button" @click="confirming = true"
+          data-tooltip="{% trans 'Delete' %}"
+          class="p-1 rounded text-placeholder-foreground hover:text-rose-400 hover:bg-muted transition">
+    {% lucide "trash-2" "w-3.5 h-3.5" %}
+  </button>
+  <form x-show="confirming" x-cloak
+        hx-post="{% url 'web:delete_comment' slug_prefix=comment.task.project.slug_prefix number=comment.task.number comment_id=comment.id %}"
+        hx-swap="none"
+        class="inline-flex items-center gap-1">
+    {% csrf_token %}
+    <span class="text-rose-400 text-[11px]">{% trans "Delete?" %}</span>
+    <button type="submit" class="text-emerald-400 hover:text-emerald-300 p-0.5">{% lucide "check" "w-3.5 h-3.5" %}</button>
+    <button type="button" @click="confirming = false" class="text-placeholder-foreground hover:text-foreground p-0.5">{% lucide "x" "w-3.5 h-3.5" %}</button>
+  </form>
+</div>
+{% endif %}

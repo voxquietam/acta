@@ -163,9 +163,10 @@ class TestTaskDetailQueryCount:
         # +1 over the prior cap for the sidebar inbox-unread badge COUNT
         # added by the context processor (ADR 0021); +2 for the task's own
         # reaction summary and the comment-reaction batch; +1 for the
-        # comment-replies prefetch. All single queries regardless of row
-        # count — constant, not N+1.
-        with django_assert_max_num_queries(24):
+        # comment-replies prefetch; +1 for the workspace-admin role check
+        # (drives the comment edit/delete affordances). All single queries
+        # regardless of row count — constant, not N+1.
+        with django_assert_max_num_queries(25):
             client.get(
                 reverse(
                     "web:task_detail",
