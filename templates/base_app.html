@@ -244,11 +244,12 @@ Pages extend this and override the `app_main` block.
 
       <div class="flex items-center gap-3 flex-1 justify-end">
         {% block topbar_right_prepend %}{% endblock %}
-        {# New task — global ``+`` button. Without a project context. #}
+        {% comment %}
+        New task — global ``+``. The opener in acta.js pre-selects the
+        current project when the URL is inside one; no context elsewhere.
+        {% endcomment %}
         <button type="button"
-                hx-get="{% url 'web:create_task' %}"
-                hx-target="#modal-root"
-                hx-swap="innerHTML"
+                data-create-task-trigger
                 data-tooltip="{% trans 'New task' %} (c)"
                 data-tooltip-pos="below"
                 aria-label="{% trans 'New task' %}"

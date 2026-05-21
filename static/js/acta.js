@@ -835,22 +835,40 @@
     const tag = el.tagName;
     return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
   }
+  // Open the Create Task modal, pre-selecting the project the user is
+  // currently inside. The slug is derived from the URL
+  // (``/projects/<slug>/…`` — covers the project detail page and a full
+  // task page) so there's one source of truth; the create-task GET view
+  // reads ``?project=<slug>`` and marks that option ``selected`` (still
+  // changeable). Pages with no project context (All Tasks, My Work,
+  // Inbox, the projects list) open the picker with no prefill.
+  function openCreateTaskModal() {
+    const root = document.getElementById("modal-root");
+    if (!root || root.innerHTML.trim() !== "") return; // a modal is already open
+    const shell = document.querySelector("[data-create-task-url]");
+    if (!shell || !window.htmx) return;
+    let url = shell.dataset.createTaskUrl;
+    const m = window.location.pathname.match(/^\/projects\/([^/]+)\//);
+    if (m) url += (url.includes("?") ? "&" : "?") + "project=" + encodeURIComponent(m[1]);
+    // Object form is the documented htmx 2.x signature for target+swap;
+    // bare-string target works in practice but the explicit form is
+    // less surprising when you read the code later.
+    window.htmx.ajax("GET", url, { target: "#modal-root", swap: "innerHTML" });
+  }
   document.addEventListener("keydown", function onCreateTaskHotkey(evt) {
     if (evt.key !== "c" && evt.key !== "C") return;
     if (evt.metaKey || evt.ctrlKey || evt.altKey) return;
     if (isTypingTarget(evt.target)) return;
-    const root = document.getElementById("modal-root");
-    if (!root || root.innerHTML.trim() !== "") return;
-    const shell = document.querySelector("[data-create-task-url]");
-    if (!shell || !window.htmx) return;
     evt.preventDefault();
-    // Object form is the documented htmx 2.x signature for target+swap;
-    // bare-string target works in practice but the explicit form is
-    // less surprising when you read the code later.
-    window.htmx.ajax("GET", shell.dataset.createTaskUrl, {
-      target: "#modal-root",
-      swap: "innerHTML",
-    });
+    openCreateTaskModal();
+  });
+  // Topbar global ``+`` button (declarative hx-get would skip the
+  // project prefill, so it routes through the opener instead).
+  document.addEventListener("click", function onCreateTaskClick(evt) {
+    const trigger = evt.target.closest && evt.target.closest("[data-create-task-trigger]");
+    if (!trigger) return;
+    evt.preventDefault();
+    openCreateTaskModal();
   });
 
   // Lucide icons used to be ``<i data-lucide="...">`` placeholders
