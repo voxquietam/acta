@@ -161,4 +161,5 @@ Decisions captured in `docs/decisions/0001-0019`. Headline:
 - `master` is the deployable branch, `dev` is integration, history is
   linear (rebase, no merge commits).
 
+[0.2.0]: https://github.com/voxquietam/acta/releases/tag/v0.2.0
 [0.1.0]: https://github.com/voxquietam/acta/releases/tag/v0.1.0
