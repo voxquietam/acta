@@ -1,0 +1,1286 @@
+<!DOCTYPE html>
+<!--
+  Acta — Timeline / Gantt view mockup
+  ─────────────────────────────────────────────────────────────────
+  Design-system prototype for the third project tab (Overview /
+  Kanban / Table / List / Timeline).
+
+  Mirrors the existing dark-theme tokens from static_src/css/main.css
+  and the component patterns from _kanban.html / _table.html.
+
+  Inter + JetBrains Mono  ·  brand-500 = #425af5
+  Status palette: zinc / blue / violet / amber / emerald
+
+  Ref: docs/spec/ · TODO: [[project_todo_timeline_view]]
+-->
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Timeline — Acta mockup</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+<style>
+/* ── CSS variable tokens (mirrors static_src/css/main.css dark theme) ── */
+:root {
+  --background: 9 9 11;
+  --card: 24 24 27;
+  --muted: 39 39 42;
+  --subtle: 24 24 27;
+  --foreground: 244 244 245;
+  --muted-foreground: 212 212 216;
+  --subtle-foreground: 161 161 170;
+  --placeholder-foreground: 82 82 91;
+  --border: 39 39 42;
+  --border-strong: 63 63 70;
+  --ring: 66 90 245;
+
+  --brand-300: 148 163 255;
+  --brand-400: 108 126 251;
+  --brand-500: 66 90 245;
+  --brand-600: 46 68 214;
+
+  /* Gantt geometry */
+  --left-col: 260px;
+  --row-h: 40px;
+  --day-w-day: 44px;
+  --day-w-week: 20px;
+  --day-w-month: 9px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: rgb(var(--background));
+  color: rgb(var(--foreground));
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+.font-mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+.text-xs   { font-size: 11px; }
+.text-2xs  { font-size: 10px; }
+
+/* ── Page chrome — simulate the Acta shell ── */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Fake topbar */
+#topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  height: 48px;
+  border-bottom: 1px solid rgb(var(--border));
+  background: rgb(var(--card));
+  flex-shrink: 0;
+}
+.topbar-logo {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -.3px;
+  color: rgb(var(--foreground));
+  opacity: .9;
+}
+.topbar-logo span { color: rgb(var(--brand-400)); }
+.topbar-project {
+  font-size: 12px;
+  color: rgb(var(--subtle-foreground));
+}
+.topbar-sep {
+  color: rgb(var(--border-strong));
+  font-size: 16px;
+  opacity: .6;
+}
+.topbar-project-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgb(var(--foreground));
+}
+.spacer { flex: 1; }
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgb(var(--subtle-foreground));
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.btn-ghost:hover {
+  background: rgb(var(--muted));
+  color: rgb(var(--foreground));
+}
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #fff;
+  background: rgb(var(--brand-600));
+  border: none;
+  cursor: pointer;
+  transition: background .12s;
+}
+.btn-primary:hover { background: rgb(var(--brand-500)); }
+
+/* ── View tabs (mirrors _view_tabs.html) ── */
+#view-tabs {
+  display: inline-flex;
+  align-items: center;
+  background: rgb(var(--card));
+  border: 1px solid rgb(var(--border));
+  border-radius: 8px;
+  padding: 3px;
+  gap: 2px;
+}
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgb(var(--subtle-foreground));
+  cursor: pointer;
+  transition: background .12s, color .12s;
+  text-decoration: none;
+  user-select: none;
+  border: none;
+  background: transparent;
+}
+.tab:hover {
+  background: rgb(var(--muted) / .5);
+  color: rgb(var(--foreground));
+}
+.tab.active {
+  background: rgba(var(--brand-500), .15);
+  color: rgb(var(--brand-300));
+  box-shadow: inset 0 0 0 1px rgba(var(--brand-500), .3);
+}
+.tab.disabled {
+  color: rgb(var(--placeholder-foreground));
+  cursor: not-allowed;
+  opacity: .6;
+  pointer-events: none;
+}
+
+/* ── Sub-toolbar (zoom + today button) ── */
+#sub-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  border-bottom: 1px solid rgb(var(--border));
+  background: rgb(var(--background));
+  flex-shrink: 0;
+}
+.zoom-group {
+  display: inline-flex;
+  align-items: center;
+  background: rgb(var(--card));
+  border: 1px solid rgb(var(--border));
+  border-radius: 6px;
+  overflow: hidden;
+}
+.zoom-btn {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: rgb(var(--subtle-foreground));
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background .1s, color .1s;
+  border-right: 1px solid rgb(var(--border));
+}
+.zoom-btn:last-child { border-right: none; }
+.zoom-btn:hover {
+  background: rgb(var(--muted));
+  color: rgb(var(--foreground));
+}
+.zoom-btn.active {
+  background: rgba(var(--brand-500), .12);
+  color: rgb(var(--brand-300));
+}
+.label-group {
+  font-size: 10px;
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: rgb(var(--subtle-foreground));
+}
+#missing-count {
+  font-size: 10px;
+  font-family: "JetBrains Mono", monospace;
+  color: rgb(var(--placeholder-foreground));
+}
+
+/* ── Main split layout ── */
+#timeline-root {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+  background: rgb(var(--card));
+  border: 1px solid rgb(var(--border));
+  border-radius: 10px;
+  margin: 0 16px 16px;
+}
+
+/* Left: sticky task-name column */
+#left-col {
+  width: var(--left-col);
+  min-width: var(--left-col);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid rgb(var(--border));
+  z-index: 10;
+  background: rgb(var(--card));
+  position: relative;
+}
+#left-header {
+  height: 56px;
+  flex-shrink: 0;
+  border-bottom: 1px solid rgb(var(--border));
+  display: flex;
+  align-items: flex-end;
+  padding: 0 12px 8px;
+  background: rgba(var(--muted), .5);
+  backdrop-filter: blur(4px);
+}
+#left-header span {
+  font-size: 10px;
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: rgb(var(--subtle-foreground));
+}
+#left-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+#left-body::-webkit-scrollbar { display: none; }
+
+/* Task rows in left column */
+.task-row-left {
+  display: flex;
+  align-items: center;
+  height: var(--row-h);
+  padding: 0 10px 0 12px;
+  gap: 7px;
+  border-bottom: 1px solid rgb(var(--border));
+  cursor: default;
+  transition: background .1s;
+}
+.task-row-left:hover { background: rgba(var(--muted), .5); }
+.task-row-left.no-dates { opacity: .7; }
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.status-dot.planned    { background: rgb(113 113 122); }
+.status-dot.todo       { background: rgb(59 130 246); }
+.status-dot.inprogress { background: rgb(139 92 246); }
+.status-dot.inreview   { background: rgb(245 158 11); }
+.status-dot.done       { background: rgb(16 185 129); }
+
+.task-slug {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  font-weight: 500;
+  color: rgb(var(--placeholder-foreground));
+  flex-shrink: 0;
+  min-width: 56px;
+}
+.task-title {
+  font-size: 12px;
+  color: rgb(var(--foreground));
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.task-title.done-task {
+  text-decoration: line-through;
+  color: rgb(var(--placeholder-foreground));
+}
+.avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  color: white;
+  font-size: 9px;
+  font-weight: 600;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+/* ── Right: Gantt scrollable area ── */
+#right-col {
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: auto;
+  position: relative;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--border-strong)) transparent;
+}
+#right-col::-webkit-scrollbar { height: 6px; width: 6px; }
+#right-col::-webkit-scrollbar-track { background: transparent; }
+#right-col::-webkit-scrollbar-thumb {
+  background: rgb(var(--border-strong));
+  border-radius: 3px;
+}
+
+#gantt-wrap {
+  min-width: 100%;
+  position: relative;
+}
+
+/* Date header */
+#gantt-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: rgba(var(--muted), .92);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid rgb(var(--border));
+}
+#month-row {
+  display: flex;
+  height: 24px;
+  border-bottom: 1px solid rgb(var(--border));
+}
+#unit-row {
+  display: flex;
+  height: 32px;
+}
+.month-cell {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  font-size: 10px;
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: rgb(var(--subtle-foreground));
+  border-right: 1px solid rgb(var(--border));
+  overflow: hidden;
+}
+.unit-cell {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 500;
+  color: rgb(var(--subtle-foreground));
+  border-right: 1px solid rgb(var(--border));
+  position: relative;
+}
+.unit-cell.today-unit {
+  color: rgb(var(--brand-400));
+  font-weight: 700;
+}
+.unit-cell.weekend {
+  background: rgba(var(--muted), .3);
+  color: rgb(var(--placeholder-foreground));
+}
+
+/* Gantt body */
+#gantt-body { position: relative; }
+.task-row-right {
+  height: var(--row-h);
+  border-bottom: 1px solid rgb(var(--border));
+  position: relative;
+}
+/* Alternating column zebra lines */
+.col-shade {
+  position: absolute;
+  top: 0; bottom: 0;
+  background: rgba(var(--muted), .18);
+  pointer-events: none;
+  z-index: 0;
+}
+/* Alternating weekend overlay */
+.col-weekend {
+  position: absolute;
+  top: 0; bottom: 0;
+  background: rgba(var(--muted), .25);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Today vertical line */
+#today-line {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 2px;
+  background: rgba(var(--brand-500), .6);
+  z-index: 4;
+  pointer-events: none;
+}
+#today-line::before {
+  content: '';
+  position: absolute;
+  top: 0; left: -3px;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: rgb(var(--brand-400));
+}
+
+/* ── Gantt bars ── */
+.gantt-bar-wrap {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 22px;
+  z-index: 2;
+  cursor: pointer;
+}
+.gantt-bar {
+  width: 100%;
+  height: 100%;
+  border-radius: 5px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  overflow: hidden;
+  transition: filter .12s;
+  user-select: none;
+}
+.gantt-bar:hover { filter: brightness(1.15); }
+
+.gantt-bar .bar-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255,255,255,.85);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+/* Drag handles */
+.drag-handle {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 10px;
+  cursor: col-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity .15s;
+  z-index: 3;
+}
+.gantt-bar-wrap:hover .drag-handle { opacity: 1; }
+.drag-handle.left  { left: 0; border-radius: 5px 0 0 5px; }
+.drag-handle.right { right: 0; border-radius: 0 5px 5px 0; }
+.drag-handle::after {
+  content: '';
+  width: 2px;
+  height: 10px;
+  border-radius: 1px;
+  background: rgba(255,255,255,.5);
+  box-shadow: 3px 0 0 0 rgba(255,255,255,.5);
+}
+.drag-handle.left::after  { margin-left: 2px; }
+.drag-handle.right::after { margin-right: 2px; }
+
+/* Status bar colours */
+.bar-planned    { background: linear-gradient(90deg, rgb(82 82 91),    rgb(63 63 70)); }
+.bar-todo       { background: linear-gradient(90deg, rgb(37 99 235),   rgb(29 78 216)); }
+.bar-inprogress { background: linear-gradient(90deg, rgb(124 58 237),  rgb(109 40 217)); }
+.bar-inreview   { background: linear-gradient(90deg, rgb(217 119 6),   rgb(180 83 9)); }
+.bar-done       { background: linear-gradient(90deg, rgb(5 150 105),   rgb(4 120 87)); }
+.bar-overdue    { background: linear-gradient(90deg, rgb(225 29 72),   rgb(190 18 60)); }
+
+/* Overdue hatching extension */
+.gantt-bar.overdue::after {
+  content: '';
+  position: absolute;
+  right: 0; top: 0; bottom: 0;
+  width: 28px;
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(255,255,255,.08) 0,
+    rgba(255,255,255,.08) 2px,
+    transparent 2px,
+    transparent 5px
+  );
+  border-radius: 0 5px 5px 0;
+}
+
+/* ── No-dates placeholder row ── */
+.no-dates-bar {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 22px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1.5px dashed rgb(var(--border-strong));
+  border-radius: 5px;
+  cursor: pointer;
+  transition: border-color .12s, background .12s;
+  z-index: 2;
+}
+.no-dates-bar:hover {
+  border-color: rgb(var(--brand-400));
+  background: rgba(var(--brand-500), .06);
+}
+.no-dates-bar span {
+  font-size: 10px;
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: rgb(var(--placeholder-foreground));
+}
+.no-dates-bar:hover span { color: rgb(var(--brand-400)); }
+
+/* One-sided-date placeholder (has start OR due but not both) */
+.partial-bar {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 22px;
+  display: flex;
+  align-items: center;
+  border-radius: 5px;
+  z-index: 2;
+  overflow: hidden;
+}
+
+/* Edge fade gradients for right-side scroll */
+#fade-right {
+  pointer-events: none;
+  position: absolute;
+  right: 0; top: 0; bottom: 0;
+  width: 40px;
+  background: linear-gradient(to right, transparent, rgb(var(--background)));
+  z-index: 20;
+  opacity: 0;
+  transition: opacity .2s;
+}
+#fade-right.visible { opacity: 1; }
+
+/* ── Tooltip ── */
+#tooltip {
+  position: fixed;
+  z-index: 100;
+  background: rgb(var(--card));
+  border: 1px solid rgb(var(--border-strong));
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.5);
+  padding: 8px 10px;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity .12s, transform .12s;
+  min-width: 140px;
+  max-width: 220px;
+}
+#tooltip.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.tt-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgb(var(--foreground));
+  margin-bottom: 4px;
+}
+.tt-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: rgb(var(--subtle-foreground));
+  margin-top: 2px;
+}
+
+/* ── Snap indicator ── */
+#snap-indicator {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 1px;
+  background: rgba(var(--brand-400), .5);
+  z-index: 6;
+  pointer-events: none;
+  display: none;
+}
+
+/* ── Empty state ── */
+#empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 48px;
+  display: none;
+}
+#empty-state p {
+  font-size: 13px;
+  color: rgb(var(--placeholder-foreground));
+  font-style: italic;
+}
+</style>
+</head>
+
+<body>
+<div id="app">
+
+  <!-- ── Fake topbar ── -->
+  <div id="topbar">
+    <div class="topbar-logo">ac<span>ta</span></div>
+    <span class="topbar-sep">/</span>
+    <span class="topbar-project">Audit Platform</span>
+    <span class="topbar-sep">/</span>
+    <span class="topbar-project-name">Acta Dev</span>
+
+    <div class="spacer"></div>
+
+    <!-- View tabs (mirrors _view_tabs.html) -->
+    <div id="view-tabs">
+      <button class="tab" title="Overview">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Overview
+      </button>
+      <button class="tab" title="Kanban">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 5v11"/><path d="M12 5v6"/><path d="M18 5v14"/></svg>
+        Kanban
+      </button>
+      <button class="tab" title="Table">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg>
+        Table
+      </button>
+      <button class="tab" title="List">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        List
+      </button>
+      <button class="tab active" title="Timeline">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Timeline
+      </button>
+    </div>
+
+    <button class="btn-primary">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      New task
+    </button>
+  </div>
+
+  <!-- ── Sub-toolbar ── -->
+  <div id="sub-toolbar">
+    <span class="label-group">Zoom</span>
+    <div class="zoom-group">
+      <button class="zoom-btn" data-zoom="day">D</button>
+      <button class="zoom-btn active" data-zoom="week">W</button>
+      <button class="zoom-btn" data-zoom="month">M</button>
+    </div>
+
+    <div style="width:1px; height:16px; background:rgb(var(--border)); margin:0 4px;"></div>
+
+    <button class="btn-ghost" id="today-btn">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/></svg>
+      Today
+    </button>
+
+    <div class="spacer"></div>
+
+    <span id="missing-count"></span>
+
+    <div style="width:1px; height:16px; background:rgb(var(--border)); margin:0 4px;"></div>
+
+    <!-- mini legend -->
+    <div style="display:flex;align-items:center;gap:10px;font-size:10px;font-family:'JetBrains Mono',monospace;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:rgb(var(--subtle-foreground))">
+      <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:rgb(82 82 91)"></span>Planned</span>
+      <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:rgb(59 130 246)"></span>To-do</span>
+      <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:rgb(139 92 246)"></span>In progress</span>
+      <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:rgb(245 158 11)"></span>In review</span>
+      <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:rgb(16 185 129)"></span>Done</span>
+      <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:rgb(225 29 72)"></span>Overdue</span>
+    </div>
+  </div>
+
+  <!-- ── Timeline main ── -->
+  <div style="flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;padding:0 0 16px;">
+  <div id="timeline-root">
+
+    <!-- Left sticky column -->
+    <div id="left-col">
+      <div id="left-header">
+        <span>Task</span>
+      </div>
+      <div id="left-body">
+        <!-- rows injected by JS -->
+      </div>
+    </div>
+
+    <!-- Right Gantt area -->
+    <div id="right-col">
+      <div id="gantt-wrap">
+        <div id="gantt-header">
+          <div id="month-row"><!-- injected --></div>
+          <div id="unit-row"><!-- injected --></div>
+        </div>
+        <div id="gantt-body"><!-- injected --></div>
+        <div id="today-line"></div>
+        <div id="snap-indicator"></div>
+      </div>
+      <div id="fade-right"></div>
+    </div>
+
+  </div>
+  </div>
+
+</div><!-- #app -->
+
+<!-- Tooltip -->
+<div id="tooltip">
+  <div class="tt-title" id="tt-title"></div>
+  <div class="tt-row" id="tt-start"></div>
+  <div class="tt-row" id="tt-end"></div>
+  <div class="tt-row" id="tt-assignee"></div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+//  Acta Timeline mockup — vanilla JS
+// ══════════════════════════════════════════════════════════════════
+
+// ── Data ─────────────────────────────────────────────────────────
+const TODAY = new Date(2026, 4, 21); // May 21, 2026 (month 0-indexed)
+const D = (y,m,d) => new Date(y,m-1,d);
+
+const TASKS = [
+  { id:1,  slug:'AUD-3',  title:'Design system tokens & theme switching',
+    status:'done',       start:D(2026,5,5),  due:D(2026,5,19), assignee:{name:'Maya B',  color:'#6d28d9'} },
+  { id:2,  slug:'AUD-7',  title:'User authentication (allauth + OAuth)',
+    status:'done',       start:D(2026,5,8),  due:D(2026,5,17), assignee:{name:'Vox Q',   color:'#0369a1'} },
+  { id:3,  slug:'AUD-12', title:'Emoji reactions (polymorphic model)',
+    status:'done',       start:D(2026,5,15), due:D(2026,5,21), assignee:{name:'Vox Q',   color:'#0369a1'} },
+  { id:4,  slug:'AUD-14', title:'Comment edit / delete + relative timestamps',
+    status:'done',       start:D(2026,5,17), due:D(2026,5,21), assignee:{name:'Vox Q',   color:'#0369a1'} },
+  { id:5,  slug:'AUD-15', title:'Notifications & Inbox build (persistent)',
+    status:'in-progress',start:D(2026,5,18), due:D(2026,6,6),  assignee:{name:'Vox Q',   color:'#0369a1'} },
+  { id:6,  slug:'AUD-16', title:'Timeline / Gantt view',
+    status:'to-do',      start:D(2026,5,22), due:D(2026,6,12), assignee:{name:'Vox Q',   color:'#0369a1'} },
+  { id:7,  slug:'AUD-18', title:'Invite-based signup (email tokens)',
+    status:'planned',    start:D(2026,6,3),  due:D(2026,6,20), assignee:{name:'Maya B',  color:'#6d28d9'} },
+  { id:8,  slug:'AUD-20', title:'Woodpecker CI pipelines (PR + master + tag)',
+    status:'to-do',      start:D(2026,6,1),  due:D(2026,6,15), assignee:{name:'Alex T',  color:'#b45309'} },
+  { id:9,  slug:'AUD-22', title:'WIP limits per kanban column',
+    status:'to-do',      start:null,         due:D(2026,6,8),  assignee:{name:'Maya B',  color:'#6d28d9'} },
+  { id:10, slug:'AUD-23', title:'Bulk action groups (Status / Assign / Label)',
+    status:'planned',    start:null,         due:null,          assignee:null },
+  { id:11, slug:'AUD-9',  title:'Project overview edit / delete updates',
+    status:'in-review',  start:D(2026,5,19), due:D(2026,5,23), assignee:{name:'Vox Q',   color:'#0369a1'} },
+  { id:12, slug:'AUD-5',  title:'Boosted navigation (HX-Location + shell)',
+    status:'done',       start:D(2026,5,12), due:D(2026,5,21), assignee:{name:'Vox Q',   color:'#0369a1'} },
+  { id:13, slug:'AUD-2',  title:'API test coverage — DRF viewsets',
+    status:'planned',    start:D(2026,6,15), due:D(2026,6,30), assignee:null },
+  // Overdue example
+  { id:14, slug:'AUD-1',  title:'Postgres port migration to 5433',
+    status:'in-progress',start:D(2026,5,1),  due:D(2026,5,14), assignee:{name:'Alex T',  color:'#b45309'} },
+];
+
+// ── Zoom config ───────────────────────────────────────────────────
+const ZOOM = {
+  day:   { dayW: 44, unitLabel: d => d.getDate(), isMajor: () => false, unitDays: 1,
+            isWeekend: d => d.getDay()===0||d.getDay()===6 },
+  week:  { dayW: 20, unitLabel: d => `W${weekNum(d)}`, isMajor: d => d.getDay()===1, unitDays: 7,
+            isWeekend: () => false },
+  month: { dayW: 9,  unitLabel: d => months[d.getMonth()].slice(0,3), isMajor: d => d.getDate()===1, unitDays: 30,
+            isWeekend: () => false },
+};
+const months = ['January','February','March','April','May','June',
+                 'July','August','September','October','November','December'];
+
+function weekNum(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+  return Math.ceil((((d - yearStart) / 86400000) + 1)/7);
+}
+
+let currentZoom = 'week';
+
+// ── Date helpers ─────────────────────────────────────────────────
+function addDays(d, n) {
+  const r = new Date(d); r.setDate(r.getDate() + n); return r;
+}
+function diffDays(a, b) {
+  return Math.round((b - a) / 86400000);
+}
+function fmtDate(d) {
+  if (!d) return '—';
+  return `${months[d.getMonth()].slice(0,3)} ${d.getDate()}`;
+}
+function isOverdue(task) {
+  return task.due && task.due < TODAY && task.status !== 'done';
+}
+
+// ── Compute chart window ──────────────────────────────────────────
+function computeWindow() {
+  const allDates = TASKS.flatMap(t => [t.start, t.due]).filter(Boolean);
+  const minD = allDates.reduce((a,b) => a<b?a:b, addDays(TODAY, -30));
+  const maxD = allDates.reduce((a,b) => a>b?a:b, addDays(TODAY, 60));
+  // pad
+  const start = addDays(minD, -7);
+  const end   = addDays(maxD, 14);
+  return { start, end, days: diffDays(start, end) };
+}
+
+// ── Render ────────────────────────────────────────────────────────
+let chartWindow;
+
+function render() {
+  chartWindow = computeWindow();
+  const zc = ZOOM[currentZoom];
+  const totalW = chartWindow.days * zc.dayW;
+
+  renderHeader(zc, totalW);
+  renderRows(zc, totalW);
+  renderTodayLine(zc);
+  updateMissingCount();
+
+  // Sync scroll of left and right body
+  syncScroll();
+
+  // Scroll to "today - some days" so today is visible
+  setTimeout(() => {
+    const offsetToToday = diffDays(chartWindow.start, TODAY) * zc.dayW;
+    const rc = document.getElementById('right-col');
+    const targetScroll = Math.max(0, offsetToToday - rc.clientWidth * 0.35);
+    rc.scrollLeft = targetScroll;
+    updateFade();
+  }, 0);
+}
+
+function renderHeader(zc, totalW) {
+  const monthRow = document.getElementById('month-row');
+  const unitRow  = document.getElementById('unit-row');
+  monthRow.innerHTML = '';
+  unitRow.innerHTML  = '';
+
+  // Month spans
+  let curMonth = -1;
+  let curMonthEl = null;
+  for (let i = 0; i < chartWindow.days; i++) {
+    const d = addDays(chartWindow.start, i);
+    if (d.getMonth() !== curMonth) {
+      curMonth = d.getMonth();
+      curMonthEl = document.createElement('div');
+      curMonthEl.className = 'month-cell';
+      curMonthEl.textContent = `${months[curMonth]} ${d.getFullYear()}`;
+      curMonthEl.style.width = '0px';
+      monthRow.appendChild(curMonthEl);
+    }
+    const w = parseFloat(curMonthEl.style.width) || 0;
+    curMonthEl.style.width = (w + zc.dayW) + 'px';
+  }
+
+  // Unit cells
+  if (currentZoom === 'week') {
+    // Group by week
+    let i = 0;
+    while (i < chartWindow.days) {
+      const d = addDays(chartWindow.start, i);
+      // Snap to Monday
+      const dow = d.getDay();
+      const offset = dow === 0 ? 1 : (8 - dow) % 7;
+      let weekStart = i;
+      const isToday = diffDays(chartWindow.start, TODAY) >= i &&
+                      diffDays(chartWindow.start, TODAY) < i + 7;
+      const el = document.createElement('div');
+      el.className = 'unit-cell' + (isToday ? ' today-unit' : '');
+      el.style.width = (7 * zc.dayW) + 'px';
+      const wd = addDays(chartWindow.start, i);
+      el.textContent = `W${weekNum(wd)}`;
+      unitRow.appendChild(el);
+      i += 7;
+    }
+  } else if (currentZoom === 'month') {
+    // Group by month
+    let prevMonth = -1;
+    let el = null;
+    for (let i = 0; i < chartWindow.days; i++) {
+      const d = addDays(chartWindow.start, i);
+      if (d.getMonth() !== prevMonth) {
+        prevMonth = d.getMonth();
+        el = document.createElement('div');
+        el.className = 'unit-cell';
+        el.style.width = '0';
+        const isToday = d.getMonth() === TODAY.getMonth() && d.getFullYear() === TODAY.getFullYear();
+        if (isToday) el.classList.add('today-unit');
+        el.textContent = months[d.getMonth()].slice(0,3);
+        unitRow.appendChild(el);
+      }
+      const w = parseFloat(el.style.width) || 0;
+      el.style.width = (w + zc.dayW) + 'px';
+    }
+  } else {
+    // Day zoom — one cell per day
+    for (let i = 0; i < chartWindow.days; i++) {
+      const d = addDays(chartWindow.start, i);
+      const isToday = diffDays(chartWindow.start, TODAY) === i;
+      const isWE = d.getDay() === 0 || d.getDay() === 6;
+      const el = document.createElement('div');
+      el.className = 'unit-cell' + (isToday ? ' today-unit' : '') + (isWE ? ' weekend' : '');
+      el.style.width = zc.dayW + 'px';
+      el.textContent = d.getDate();
+      unitRow.appendChild(el);
+    }
+  }
+
+  // Set total width on gantt-wrap
+  document.getElementById('gantt-wrap').style.minWidth = totalW + 'px';
+}
+
+function statusClass(status, overdue) {
+  if (overdue) return 'bar-overdue';
+  const map = { planned:'bar-planned', 'to-do':'bar-todo',
+                'in-progress':'bar-inprogress', 'in-review':'bar-inreview', done:'bar-done' };
+  return map[status] || 'bar-planned';
+}
+function dotClass(status) {
+  const map = { planned:'planned', 'to-do':'todo',
+                'in-progress':'inprogress', 'in-review':'inreview', done:'done' };
+  return map[status] || 'planned';
+}
+
+function renderRows(zc, totalW) {
+  const leftBody  = document.getElementById('left-body');
+  const ganttBody = document.getElementById('gantt-body');
+  leftBody.innerHTML  = '';
+  ganttBody.innerHTML = '';
+
+  // Weekend / alternate column shading (day zoom only)
+  if (currentZoom === 'day') {
+    for (let i = 0; i < chartWindow.days; i++) {
+      const d = addDays(chartWindow.start, i);
+      if (d.getDay() === 0 || d.getDay() === 6) {
+        const shade = document.createElement('div');
+        shade.className = 'col-weekend';
+        shade.style.cssText = `left:${i*zc.dayW}px; width:${zc.dayW}px; height:${TASKS.length*40}px;`;
+        ganttBody.appendChild(shade);
+      }
+    }
+  }
+
+  TASKS.forEach((task, idx) => {
+    const overdue = isOverdue(task);
+
+    // ── Left row ──
+    const lr = document.createElement('div');
+    lr.className = 'task-row-left' + (!task.start && !task.due ? ' no-dates' : '');
+    lr.innerHTML = `
+      <span class="status-dot ${dotClass(task.status)}"></span>
+      <span class="task-slug font-mono">${task.slug}</span>
+      <span class="task-title${task.status==='done'?' done-task':''}" title="${task.title}">${task.title}</span>
+      ${task.assignee
+        ? `<span class="avatar" style="background:${task.assignee.color}" title="${task.assignee.name}">${task.assignee.name[0]}</span>`
+        : `<span class="avatar" style="background:rgb(var(--muted));color:rgb(var(--placeholder-foreground))">?</span>`
+      }
+    `;
+    leftBody.appendChild(lr);
+
+    // ── Right row ──
+    const rr = document.createElement('div');
+    rr.className = 'task-row-right';
+
+    if (task.start && task.due) {
+      const startOff = diffDays(chartWindow.start, task.start);
+      const endOff   = diffDays(chartWindow.start, task.due) + 1;
+      const left  = startOff * zc.dayW;
+      const width = Math.max((endOff - startOff) * zc.dayW, zc.dayW * 2);
+
+      const barWrap = document.createElement('div');
+      barWrap.className = 'gantt-bar-wrap';
+      barWrap.style.cssText = `left:${left}px; width:${width}px;`;
+      barWrap.dataset.taskId = task.id;
+
+      barWrap.innerHTML = `
+        <div class="gantt-bar ${statusClass(task.status, overdue)}${overdue?' overdue':''}">
+          <div class="drag-handle left" data-handle="left"></div>
+          <span class="bar-label">${task.title}</span>
+          <div class="drag-handle right" data-handle="right"></div>
+        </div>
+      `;
+
+      // Tooltip
+      barWrap.addEventListener('mouseenter', (e) => showTooltip(e, task));
+      barWrap.addEventListener('mouseleave', hideTooltip);
+      barWrap.addEventListener('mousemove', moveTooltip);
+
+      // Drag
+      attachDrag(barWrap, task, zc);
+
+      rr.appendChild(barWrap);
+
+    } else if (!task.start && !task.due) {
+      // No dates at all — floating placeholder centred near today
+      const todayOff = diffDays(chartWindow.start, TODAY);
+      const plLeft = (todayOff - 5) * zc.dayW;
+      const plWidth = Math.max(10 * zc.dayW, 120);
+
+      const pl = document.createElement('div');
+      pl.className = 'no-dates-bar';
+      pl.style.cssText = `left:${plLeft}px; width:${plWidth}px;`;
+      pl.innerHTML = `
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span>Set dates</span>
+      `;
+      pl.title = `${task.slug}: no start or due date`;
+      rr.appendChild(pl);
+
+    } else {
+      // Has one date — render a partial bar / handle
+      const hasStart = !!task.start;
+      const anchor = hasStart ? task.start : task.due;
+      const anchorOff = diffDays(chartWindow.start, anchor);
+      const left = anchorOff * zc.dayW;
+
+      const partial = document.createElement('div');
+      partial.className = 'gantt-bar-wrap';
+      partial.style.cssText = `left:${left}px; width:${Math.max(zc.dayW * 5, 60)}px;`;
+
+      partial.innerHTML = `
+        <div class="gantt-bar ${statusClass(task.status, overdue)}" style="opacity:.6;border:1.5px dashed rgba(255,255,255,.25);">
+          <span class="bar-label">${hasStart ? '→' : '←'} ${fmtDate(anchor)}</span>
+        </div>
+      `;
+      partial.addEventListener('mouseenter', (e) => showTooltip(e, task));
+      partial.addEventListener('mouseleave', hideTooltip);
+      partial.addEventListener('mousemove', moveTooltip);
+      rr.appendChild(partial);
+    }
+
+    ganttBody.appendChild(rr);
+  });
+}
+
+function renderTodayLine(zc) {
+  const todayOff = diffDays(chartWindow.start, TODAY);
+  const x = todayOff * zc.dayW;
+  const line = document.getElementById('today-line');
+  line.style.left = x + 'px';
+  line.style.height = (TASKS.length * 40 + 56) + 'px'; // rows + header
+}
+
+// ── Drag ─────────────────────────────────────────────────────────
+function attachDrag(barWrap, task, zc) {
+  const bar = barWrap.querySelector('.gantt-bar');
+  let dragging = false;
+  let dragHandle = null; // 'left', 'right', 'body'
+  let startX = 0;
+  let origLeft = 0;
+  let origWidth = 0;
+
+  barWrap.addEventListener('pointerdown', (e) => {
+    if (e.target.dataset.handle) {
+      dragHandle = e.target.dataset.handle;
+    } else if (!e.target.classList.contains('drag-handle')) {
+      dragHandle = 'body';
+    }
+    dragging = true;
+    startX = e.clientX;
+    origLeft  = parseInt(barWrap.style.left);
+    origWidth = parseInt(barWrap.style.width);
+    barWrap.setPointerCapture(e.pointerId);
+    barWrap.style.zIndex = 10;
+    bar.style.boxShadow = '0 0 0 2px rgba(66,90,245,.5)';
+    e.preventDefault();
+  });
+
+  barWrap.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const dx = e.clientX - startX;
+    const snapDx = Math.round(dx / zc.dayW) * zc.dayW; // snap to day
+
+    if (dragHandle === 'left') {
+      const newLeft  = origLeft + snapDx;
+      const newWidth = origWidth - snapDx;
+      if (newWidth >= zc.dayW * 2) {
+        barWrap.style.left  = newLeft + 'px';
+        barWrap.style.width = newWidth + 'px';
+      }
+    } else if (dragHandle === 'right') {
+      const newWidth = origWidth + snapDx;
+      if (newWidth >= zc.dayW * 2) {
+        barWrap.style.width = newWidth + 'px';
+      }
+    } else {
+      barWrap.style.left = (origLeft + snapDx) + 'px';
+    }
+
+    // Update snap indicator
+    const si = document.getElementById('snap-indicator');
+    const snapLeft = parseInt(barWrap.style.left);
+    si.style.display = 'block';
+    si.style.left = (dragHandle === 'right' ? snapLeft + parseInt(barWrap.style.width) : snapLeft) + 'px';
+    si.style.height = document.getElementById('gantt-body').offsetHeight + 'px';
+  });
+
+  barWrap.addEventListener('pointerup', () => {
+    if (!dragging) return;
+    dragging = false;
+    barWrap.style.zIndex = '';
+    bar.style.boxShadow = '';
+    document.getElementById('snap-indicator').style.display = 'none';
+
+    // In production: PATCH task dates via fetch()
+    // const daysMoved = Math.round((parseInt(barWrap.style.left) - origLeft) / zc.dayW);
+    // fetch(`/api/v1/tasks/${task.id}/`, { method:'PATCH', body: JSON.stringify({ ... }) });
+  });
+}
+
+// ── Tooltip ───────────────────────────────────────────────────────
+function showTooltip(e, task) {
+  const tt = document.getElementById('tooltip');
+  document.getElementById('tt-title').textContent = `${task.slug} — ${task.title}`;
+
+  const startIcon = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`;
+  const endIcon   = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`;
+
+  const startEl = document.getElementById('tt-start');
+  const endEl   = document.getElementById('tt-end');
+  const assignEl= document.getElementById('tt-assignee');
+
+  startEl.innerHTML = task.start ? `${startIcon} Start: ${fmtDate(task.start)}` : `${startIcon} No start date`;
+  endEl.innerHTML   = task.due   ? `${endIcon} Due: ${fmtDate(task.due)}`   : `${endIcon} No due date`;
+  assignEl.innerHTML = task.assignee
+    ? `<span style="width:14px;height:14px;border-radius:50%;background:${task.assignee.color};display:inline-grid;place-items:center;font-size:8px;font-weight:700;color:#fff;">${task.assignee.name[0]}</span> ${task.assignee.name}`
+    : `<span style="color:rgb(var(--placeholder-foreground))">Unassigned</span>`;
+
+  if (isOverdue(task)) {
+    const days = diffDays(task.due, TODAY);
+    endEl.innerHTML += ` <span style="color:#f87171;font-weight:700;"> — ${days}d overdue</span>`;
+  }
+
+  tt.classList.add('visible');
+  moveTooltip(e);
+}
+function moveTooltip(e) {
+  const tt = document.getElementById('tooltip');
+  const x = e.clientX + 12;
+  const y = e.clientY - tt.offsetHeight / 2;
+  tt.style.left = Math.min(x, window.innerWidth - tt.offsetWidth - 8) + 'px';
+  tt.style.top  = Math.max(8, y) + 'px';
+}
+function hideTooltip() {
+  document.getElementById('tooltip').classList.remove('visible');
+}
+
+// ── Scroll sync ───────────────────────────────────────────────────
+function syncScroll() {
+  const leftBody = document.getElementById('left-body');
+  const rightCol = document.getElementById('right-col');
+
+  rightCol.addEventListener('scroll', () => {
+    leftBody.scrollTop = rightCol.scrollTop;
+    updateFade();
+  });
+  leftBody.addEventListener('scroll', () => {
+    rightCol.scrollTop = leftBody.scrollTop;
+  });
+}
+
+function updateFade() {
+  const rc = document.getElementById('right-col');
+  const fade = document.getElementById('fade-right');
+  const scrollEnd = rc.scrollWidth - rc.clientWidth;
+  fade.classList.toggle('visible', rc.scrollLeft < scrollEnd - 10);
+}
+
+// ── Missing count ─────────────────────────────────────────────────
+function updateMissingCount() {
+  const missing = TASKS.filter(t => !t.start || !t.due).length;
+  const el = document.getElementById('missing-count');
+  el.textContent = missing > 0 ? `${missing} task${missing>1?'s':''} without dates` : '';
+}
+
+// ── Zoom switch ───────────────────────────────────────────────────
+document.querySelectorAll('.zoom-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.zoom-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentZoom = btn.dataset.zoom;
+    document.documentElement.style.setProperty('--day-w',
+      currentZoom === 'day' ? '44px' : currentZoom === 'week' ? '20px' : '9px');
+    render();
+  });
+});
+
+// ── Today button ─────────────────────────────────────────────────
+document.getElementById('today-btn').addEventListener('click', () => {
+  const zc = ZOOM[currentZoom];
+  const rc = document.getElementById('right-col');
+  const offsetToToday = diffDays(chartWindow.start, TODAY) * zc.dayW;
+  rc.scrollTo({ left: Math.max(0, offsetToToday - rc.clientWidth * 0.35), behavior: 'smooth' });
+});
+
+// ── Tab clicks (visual only) ──────────────────────────────────────
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+  });
+});
+
+// ── Init ─────────────────────────────────────────────────────────
+render();
+
+// Observe resize
+if (window.ResizeObserver) {
+  new ResizeObserver(() => updateFade())
+    .observe(document.getElementById('right-col'));
+}
+window.addEventListener('load', updateFade);
+</script>
+</body>
+</html>

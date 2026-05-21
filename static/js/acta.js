@@ -379,6 +379,10 @@
       const qs = params.toString();
       window.history.replaceState({}, "", window.location.pathname + (qs ? "?" + qs : ""));
     }
+    // Timeline view keeps a two-pane layout the generic row loop already
+    // hid (both left + gantt rows carry the filter attrs). Let it
+    // recompute the today-line height against the now-visible row count.
+    if (window.__tlAfterFilter) window.__tlAfterFilter();
     return visible;
   }
   window.actaApplyFilters = applyClientFilters;
@@ -1730,7 +1734,7 @@
     // view toggle in ``_view_panel.html`` calls ``set(...)`` so the
     // sidebar (Status section in particular) re-evaluates without
     // waiting for a full page reload.
-    const VIEW_MODES = new Set(["overview", "kanban", "table", "list"]);
+    const VIEW_MODES = new Set(["overview", "kanban", "table", "list", "timeline"]);
     function readViewModeCookie() {
       const m = document.cookie.match(/(?:^|;\s*)acta_view_mode=([^;]+)/);
       const value = m ? m[1] : "";

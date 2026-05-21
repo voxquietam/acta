@@ -55,7 +55,7 @@ _OPEN_STATUSES = [
 ]
 
 
-_VIEW_MODES = {"overview", "kanban", "table", "list"}
+_VIEW_MODES = {"overview", "kanban", "table", "list", "timeline"}
 
 
 def _is_htmx_partial(request):
@@ -341,6 +341,27 @@ class AllTasksView(LoginRequiredMixin, ListView):
         table_tasks = list(ctx["tasks"])
         ctx["table_tasks"] = table_tasks
         ctx["tasks"] = table_tasks
+
+        # Timeline context — same derivation as ProjectDetailView.
+        _today = ctx["today"]
+        timeline_tasks = sorted(
+            table_tasks,
+            key=lambda t: (
+                t.start_date is None,
+                t.start_date or datetime.date.max,
+                t.due_date is None,
+                t.due_date or datetime.date.max,
+            ),
+        )
+        ctx["timeline_tasks"] = timeline_tasks
+        _all_dates = [d for t in timeline_tasks for d in (t.start_date, t.due_date) if d]
+        _raw_min = min(_all_dates) if _all_dates else _today
+        _raw_max = max(_all_dates) if _all_dates else _today
+        _chart_start = _raw_min - datetime.timedelta(days=7)
+        _chart_end = max(_raw_max + datetime.timedelta(days=14), _chart_start + datetime.timedelta(days=90))
+        ctx["chart_start_iso"] = _chart_start.isoformat()
+        ctx["chart_end_iso"] = _chart_end.isoformat()
+        ctx["today_iso"] = _today.isoformat()
 
         # Table-only HTMX swap (column sort header): we only render
         # ``_table.html`` so the kanban sort + five list-axis groupings
@@ -1426,6 +1447,32 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             )
         )
         ctx["show_labels"] = True
+
+        # Timeline view: tasks sorted by start_date (nulls last), then
+        # due_date. Chart window anchored to the earliest start/due in the
+        # filtered set, padded by 7 days on each side, minimum 90 days wide.
+        timeline_tasks = sorted(
+            table_tasks,
+            key=lambda t: (
+                t.start_date is None,
+                t.start_date or datetime.date.max,
+                t.due_date is None,
+                t.due_date or datetime.date.max,
+            ),
+        )
+        ctx["timeline_tasks"] = timeline_tasks
+        all_dates = [d for t in timeline_tasks for d in (t.start_date, t.due_date) if d]
+        if all_dates:
+            raw_min = min(all_dates)
+            raw_max = max(all_dates)
+        else:
+            raw_min = raw_max = today
+        chart_start = raw_min - datetime.timedelta(days=7)
+        chart_end = max(raw_max + datetime.timedelta(days=14), chart_start + datetime.timedelta(days=90))
+        ctx["chart_start_iso"] = chart_start.isoformat()
+        ctx["chart_end_iso"] = chart_end.isoformat()
+        ctx["today_iso"] = today.isoformat()
+
         return ctx
 
 
@@ -2136,7 +2183,17 @@ def set_task_status(request, slug_prefix, number):
     new_status = request.POST.get("status", "")
     if new_status not in Task.STATUS_VALUES:
         return HttpResponseBadRequest("invalid status")
-    _apply_task_field_change(task, "status", new_status, request.user)
+    with transaction.atomic():
+        old = snapshot_task(task)
+        task.status = new_status
+        # Auto-set start_date on the first transition to in-progress so
+        # the timeline view has an anchor without the user needing to set
+        # it manually. Not cleared on status revert — the date reflects
+        # when work actually started, not the current status.
+        if new_status == Task.STATUS_IN_PROGRESS and task.start_date is None:
+            task.start_date = timezone.localdate()
+        task.save()
+        emit_task_diff_events(old_state=old, task=task, actor=request.user)
     return _inline_edit_response(
         request,
         task,
@@ -2706,6 +2763,36 @@ def set_task_due_date(request, slug_prefix, number):
         "web/projects/_due_date_cell.html",
         {"task": task},
     )
+
+
+@require_POST
+@login_required
+def set_task_start_date(request, slug_prefix, number):
+    """Inline start-date change; used by the timeline drag-resize handler.
+
+    Accepts ``start_date`` as an ISO-8601 date string or empty string
+    (clears the field). Returns 200 with no body on success — the
+    timeline bar already moved optimistically on the client.
+
+    Args:
+        request: Django request with a ``start_date`` POST field.
+        slug_prefix: Project slug prefix from the URL.
+        number: Task number within the project.
+
+    Returns:
+        ``HttpResponse(status=200)`` on success.
+    """
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    raw = (request.POST.get("start_date") or "").strip()
+    if raw == "":
+        new_start_date = None
+    else:
+        try:
+            new_start_date = datetime.date.fromisoformat(raw)
+        except ValueError:
+            return HttpResponseBadRequest("invalid start_date")
+    _apply_task_field_change(task, "start_date", new_start_date, request.user)
+    return HttpResponse(status=200)
 
 
 @require_POST
