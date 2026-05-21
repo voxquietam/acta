@@ -346,8 +346,6 @@
       xassignee: new Set(multi("xassignee")),
       project: new Set(multi("project")),
       xproject: new Set(multi("xproject")),
-      workspace: new Set(multi("workspace")),
-      xworkspace: new Set(multi("xworkspace")),
       label: new Set(multi("label")),
       xlabel: new Set(multi("xlabel")),
       q: (fd.get("q") || "").toString().trim().toLowerCase(),
@@ -390,10 +388,6 @@
     const proj = row.dataset.projectId || "";
     if (state.project.size && !state.project.has(proj)) return false;
     if (state.xproject.size && state.xproject.has(proj)) return false;
-    // Workspace
-    const ws = row.dataset.workspaceId || "";
-    if (state.workspace.size && !state.workspace.has(ws)) return false;
-    if (state.xworkspace.size && state.xworkspace.has(ws)) return false;
     // Labels — ``data-label-ids`` is space-separated.
     if (state.label.size || state.xlabel.size) {
       const rowLabels = new Set((row.dataset.labelIds || "").split(/\s+/).filter(Boolean));
@@ -424,8 +418,6 @@
       state.xassignee.size +
       state.project.size +
       state.xproject.size +
-      state.workspace.size +
-      state.xworkspace.size +
       state.label.size +
       state.xlabel.size +
       (state.q ? 1 : 0) +
@@ -495,7 +487,6 @@
       status: state.status.size + state.xstatus.size,
       priority: state.priority.size + state.xpriority.size,
       project: state.project.size + state.xproject.size,
-      workspace: state.workspace.size + state.xworkspace.size,
       label: state.label.size + state.xlabel.size,
     };
     document.querySelectorAll("[data-filter-section-count]").forEach((el) => {
@@ -524,7 +515,7 @@
       // Replace filter-related keys; preserve everything else (sort,
       // view, axis).
       const keys = ["status", "xstatus", "priority", "xpriority", "assignee",
-        "xassignee", "project", "xproject", "workspace", "xworkspace",
+        "xassignee", "project", "xproject",
         "label", "xlabel", "q", "show_archived"];
       keys.forEach((k) => params.delete(k));
       const fd = new FormData(form);

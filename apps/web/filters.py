@@ -14,6 +14,7 @@ from django.utils import timezone
 from apps.labels.models import Label
 from apps.projects.models import Project
 from apps.tasks.models import Task
+from apps.web.nav import resolve_active_workspace
 
 
 def apply_task_filters(qs, params, *, request_user, default_show_done=True):
@@ -39,13 +40,9 @@ def apply_task_filters(qs, params, *, request_user, default_show_done=True):
     qs = _filter_status(qs, params, default_show_done=default_show_done)
     qs = _filter_int_field(qs, params, field="priority", include="priority", exclude="xpriority")
     qs = _filter_int_field(qs, params, field="project_id", include="project", exclude="xproject")
-    qs = _filter_int_field(
-        qs,
-        params,
-        field="project__workspace_id",
-        include="workspace",
-        exclude="xworkspace",
-    )
+    # Workspace is no longer a filter axis — it's the global active-workspace
+    # scope (see apps.web.nav.resolve_active_workspace); the queryset reaching
+    # here is already scoped to one workspace.
     qs = _filter_assignee(qs, params, request_user)
     qs = _filter_labels(qs, params)
     qs = _filter_search(qs, params)
@@ -290,11 +287,9 @@ def filter_sidebar_context(
     request,
     *,
     available_projects=None,
-    available_workspaces=None,
     available_labels=None,
     available_assignees=None,
     hide_assignee=False,
-    hide_workspace=False,
     hide_project=False,
     hide_status=False,
     preserved_params=None,
@@ -305,12 +300,15 @@ def filter_sidebar_context(
 ):
     """Build the context dict the ``_filters_sidebar.html`` partial expects.
 
+    Workspace is NOT a filter axis — it's the global active-workspace scope
+    (see :func:`apps.web.nav.resolve_active_workspace`); the project / label
+    / assignee options below are all scoped to that active workspace.
+
     Args:
         request: The active ``HttpRequest``.
-        available_projects / workspaces / labels: Optional querysets /
-            lists. If ``None``, computed from the user's accessible
-            data.
-        hide_assignee / hide_workspace / hide_project / hide_status:
+        available_projects / labels: Optional querysets / lists. If
+            ``None``, computed (scoped to the active workspace).
+        hide_assignee / hide_project / hide_status:
             Sections the sidebar should not render (e.g. assignee on
             My Work, status on kanban view where columns already group
             by status).
@@ -335,20 +333,21 @@ def filter_sidebar_context(
     # toggle state reflects them. Falls back to ``request.GET`` when
     # the caller doesn't provide a merged view.
     params = effective_params if effective_params is not None else request.GET
+    active = resolve_active_workspace(request)
 
     if available_projects is None:
-        available_projects = list(
-            Project.objects.filter(workspace__memberships__user=user)
-            .select_related("workspace")
-            .order_by("workspace__name", "name")
-            .distinct(),
+        available_projects = (
+            list(
+                Project.objects.filter(workspace=active)
+                .select_related("workspace")
+                .order_by("workspace__name", "name")
+                .distinct(),
+            )
+            if active
+            else []
         )
-    if available_workspaces is None:
-        available_workspaces = list(user.workspaces.order_by("name").distinct())
     if available_labels is None:
-        available_labels = list(
-            Label.objects.filter(workspace__memberships__user=user).order_by("name").distinct(),
-        )
+        available_labels = list(Label.objects.filter(workspace=active).order_by("name").distinct()) if active else []
     if available_assignees is None:
         User = get_user_model()
         # The strip shows two groups: current members of any shared
@@ -367,20 +366,24 @@ def filter_sidebar_context(
         # queries here.
         active_member_ids = set(
             User.objects.filter(
-                workspace_memberships__workspace__memberships__user=user,
+                workspace_memberships__workspace=active,
             )
             .exclude(pk=user.pk)
             .values_list("pk", flat=True)
             .distinct()
+            if active
+            else []
         )
         former_assignee_ids = set(
             User.objects.filter(
-                assigned_tasks__project__workspace__memberships__user=user,
+                assigned_tasks__project__workspace=active,
             )
             .exclude(pk=user.pk)
             .exclude(pk__in=active_member_ids)
             .values_list("pk", flat=True)
             .distinct()
+            if active
+            else []
         )
         all_ids = active_member_ids | former_assignee_ids
         available_assignees = list(
@@ -396,7 +399,6 @@ def filter_sidebar_context(
     selected_statuses = set(params.getlist("status"))
     selected_priorities = {int(p) for p in params.getlist("priority") if p.isdigit()}
     selected_projects = {int(p) for p in params.getlist("project") if p.isdigit()}
-    selected_workspaces = {int(w) for w in params.getlist("workspace") if w.isdigit()}
     selected_labels = {int(i) for i in params.getlist("label") if i.isdigit()}
     selected_assignees = set(params.getlist("assignee"))
     show_archived = "1" in params.getlist("show_archived")
@@ -407,7 +409,6 @@ def filter_sidebar_context(
     excluded_statuses = set(params.getlist("xstatus"))
     excluded_priorities = {int(p) for p in params.getlist("xpriority") if p.isdigit()}
     excluded_projects = {int(p) for p in params.getlist("xproject") if p.isdigit()}
-    excluded_workspaces = {int(w) for w in params.getlist("xworkspace") if w.isdigit()}
     excluded_labels = {int(i) for i in params.getlist("xlabel") if i.isdigit()}
     excluded_assignees = set(params.getlist("xassignee"))
 
@@ -418,13 +419,11 @@ def filter_sidebar_context(
         + len(selected_assignees)
         + len(selected_statuses)
         + len(selected_priorities)
-        + len(selected_workspaces)
         + len(selected_projects)
         + len(selected_labels)
         + len(excluded_assignees)
         + len(excluded_statuses)
         + len(excluded_priorities)
-        + len(excluded_workspaces)
         + len(excluded_projects)
         + len(excluded_labels)
         + (1 if show_archived else 0)
@@ -448,25 +447,21 @@ def filter_sidebar_context(
         "filter_htmx_target": htmx_target or "#task-list-wrapper",
         "filter_preserved_pairs": preserved_pairs,
         "filter_hide_assignee": hide_assignee,
-        "filter_hide_workspace": hide_workspace,
         "filter_hide_project": hide_project,
         "filter_hide_status": hide_status,
         "selected_statuses": selected_statuses,
         "selected_priorities": selected_priorities,
         "selected_projects": selected_projects,
-        "selected_workspaces": selected_workspaces,
         "selected_labels": selected_labels,
         "selected_assignees": selected_assignees,
         "excluded_statuses": excluded_statuses,
         "excluded_priorities": excluded_priorities,
         "excluded_projects": excluded_projects,
-        "excluded_workspaces": excluded_workspaces,
         "excluded_labels": excluded_labels,
         "excluded_assignees": excluded_assignees,
         "show_archived": show_archived,
         "q": q,
         "available_projects": available_projects,
-        "available_workspaces": available_workspaces,
         "available_labels": available_labels,
         "available_assignees": available_assignees,
         "active_filter_count": active_filter_count,
