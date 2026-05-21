@@ -919,11 +919,13 @@
   // ``data.actor_id`` vs ``data-current-user-id`` on the wrapper —
   // skip our own change since the originating HTTP response already
   // refreshed the UI.
-  // Kanban-card selector. ``<a data-task-id>`` is the card element
-  // rendered by ``_task_card.html``. The selector deliberately
-  // excludes other elements carrying ``data-task-id`` (the activity
-  // panel uses ``data-activity-for-task`` to avoid the clash).
-  const KANBAN_CARD = (id) => `a[data-task-id="${id}"]`;
+  // Kanban-card selector. The card is a ``<div data-kanban-card>``
+  // rendered by ``_task_card.html`` (a plain div, not an anchor, so
+  // native drag doesn't race the browser's link-drag). ``data-kanban-
+  // card`` deliberately excludes other ``data-task-id`` carriers — the
+  // list-view ``<a data-task-id>`` rows, table ``<tr data-task-id>``,
+  // and activity rows (which use ``data-activity-for-task``).
+  const KANBAN_CARD = (id) => `[data-kanban-card][data-task-id="${id}"]`;
 
   function applyCardReplace(taskId, cardHtml) {
     if (!cardHtml) return;

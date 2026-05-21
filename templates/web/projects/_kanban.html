@@ -157,6 +157,26 @@ hides the native scrollbar without losing the "you can scroll" cue.
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <script>
   (function () {
+    // Cards are ``<div>``s (no ``href``), so "open in new tab" is wired by
+    // hand: middle-click or Ctrl/Cmd+click opens the task page in a new tab.
+    // The HTMX modal trigger ignores modifier / middle clicks, so these
+    // never also open the modal. Delegated on ``#kanban`` so SSE-inserted
+    // cards are covered too.
+    const board = document.getElementById("kanban");
+    if (board) {
+      const openInNewTab = (e) => {
+        const card = e.target.closest("[data-kanban-card]");
+        if (!card || !card.dataset.taskUrl) return;
+        const middle = e.type === "auxclick" && e.button === 1;
+        const modified = e.type === "click" && (e.ctrlKey || e.metaKey);
+        if (!middle && !modified) return;
+        e.preventDefault();
+        window.open(card.dataset.taskUrl, "_blank", "noopener");
+      };
+      board.addEventListener("click", openInNewTab);
+      board.addEventListener("auxclick", openInNewTab);
+    }
+
     const columns = document.querySelectorAll(".kanban-column");
     columns.forEach((col) => {
       new Sortable(col, {
