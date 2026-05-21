@@ -64,9 +64,15 @@ Pages extend this and override the `app_main` block.
              class="w-7 h-7 shrink-0">
         <span x-show="$store.sidebar.open" x-cloak class="text-lg font-semibold tracking-tight">Acta</span>
       </a>
+      {% comment %}
+      No ``title``/``data-tooltip`` here — the trigger sits at the very
+      top edge of the sidebar where a tooltip clips off-screen (above) or
+      under the cursor (below). The link affordance (colour change + new
+      tab) is enough; ``aria-label`` keeps it accessible without a tip.
+      {% endcomment %}
       <a href="{{ changelog_url }}" target="_blank" rel="noopener"
          x-show="$store.sidebar.open" x-cloak
-         title="{% trans 'Changelog' %}"
+         aria-label="{% trans 'Changelog' %}"
          class="font-mono text-[10px] uppercase tracking-wider text-placeholder-foreground hover:text-foreground transition">v{{ acta_version }}</a>
     </div>
 
