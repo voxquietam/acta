@@ -5,7 +5,7 @@ One project status update card. Used both in the overview Updates list
 loop and as the response fragment when a new update is posted (prepended
 to ``#overview-updates-list``). Expects ``update`` + ``health_labels``.
 {% endcomment %}
-<div class="bg-background border border-border rounded-lg p-4">
+<div id="overview-update-{{ update.id }}" class="group bg-background border border-border rounded-lg p-4">
   <div class="flex items-center gap-2 mb-2">
     {% if update.author %}
     <span class="w-[22px] h-[22px] rounded-full text-white grid place-items-center font-medium text-[11px]"
@@ -16,13 +16,26 @@ to ``#overview-updates-list``). Expects ``update`` + ``health_labels``.
     <span class="text-[12px] text-placeholder-foreground italic">{% trans "unknown" %}</span>
     {% endif %}
     <span class="text-[10.5px] text-placeholder-foreground">{% blocktrans with t=update.created_at|timesince %}posted {{ t }} ago{% endblocktrans %}</span>
-    <span class="ml-auto">{% include "web/_health_pill.html" with health=update.health %}</span>
+    {% if update.was_edited %}
+    <span class="text-[10.5px] text-placeholder-foreground italic">({% trans "edited" %})</span>
+    {% endif %}
+    <div class="ml-auto flex items-center">
+      {% include "web/_health_pill.html" with health=update.health %}
+      {% include "web/projects/_update_actions.html" %}
+    </div>
   </div>
-  <div class="prose prose-sm dark:prose-invert max-w-none text-[12.5px] leading-relaxed text-muted-foreground">
-    {{ update.body|markdown }}
+  {% comment %}
+  Body region. Edit swaps just this in place with the composer (the header
+  above — author/date/health — stays put, so the card doesn't collapse).
+  Save/Cancel re-render the whole card.
+  {% endcomment %}
+  <div id="update-body-{{ update.id }}">
+    <div class="prose prose-sm dark:prose-invert max-w-none text-[12.5px] leading-relaxed text-muted-foreground">
+      {{ update.body|markdown }}
+    </div>
+    <div class="mt-2.5">
+      {% include "web/_reaction_bar.html" with target_type="update" target_id=update.id reactions=update.reaction_summary can_react=True %}
+    </div>
+    {% include "web/projects/_update_comments.html" with update=update %}
   </div>
-  <div class="mt-2.5">
-    {% include "web/_reaction_bar.html" with target_type="update" target_id=update.id reactions=update.reaction_summary can_react=True %}
-  </div>
-  {% include "web/projects/_update_comments.html" with update=update %}
 </div>

@@ -6,6 +6,7 @@ endpoints (or from `/api/v1/...` for JSON-only consumers).
 """
 
 import datetime
+import json
 import re
 from urllib.parse import urlencode
 
@@ -1319,6 +1320,9 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             user_id = self.request.user.id
             _attach_update_reactions(ctx["overview_latest_updates"], user_id)
             _attach_update_thread_reactions(ctx["overview_latest_updates"][0], user_id)
+            user_is_admin = _is_workspace_admin(user_id, project.workspace_id)
+            for update in ctx["overview_latest_updates"]:
+                update.can_modify = user_is_admin or update.author_id == user_id
         ctx["overview_project_age_days"] = (today - project.created_at.date()).days
         ctx["health_labels"] = dict(ProjectUpdate.HEALTH_CHOICES)
         ctx["latest_health"] = ctx["overview_latest_updates"][0].health if ctx["overview_latest_updates"] else None
@@ -2913,6 +2917,7 @@ def post_project_update(request, slug_prefix):
     )
     notify_project_update_created(update=update, actor=request.user)
     update.reaction_summary = []
+    update.can_modify = True
     return HttpResponse(
         render_to_string(
             "web/projects/_overview_update_card.html",
@@ -2923,6 +2928,139 @@ def post_project_update(request, slug_prefix):
             request=request,
         ),
     )
+
+
+def _get_user_update_or_404(user, pk):
+    """Resolve a project update scoped to the user's workspaces.
+
+    Args:
+        user: The acting :class:`User`.
+        pk: ProjectUpdate primary key.
+
+    Returns:
+        The :class:`ProjectUpdate` with project + author preloaded.
+
+    Raises:
+        Http404: If the update is missing or in another workspace.
+    """
+    return get_object_or_404(
+        ProjectUpdate.objects.select_related("project__workspace", "author").filter(
+            project__workspace__memberships__user=user,
+        ),
+        pk=pk,
+    )
+
+
+def _can_modify_update(user, update):
+    """Return True if ``user`` may edit/delete ``update`` (author or ws admin)."""
+    return update.author_id == user.id or _is_workspace_admin(user.id, update.project.workspace_id)
+
+
+def _render_overview_update_card(request, update):
+    """Render one overview update card, fully decorated (reactions + thread)."""
+    user_id = request.user.id
+    _attach_update_reactions([update], user_id)
+    _attach_update_thread_reactions(update, user_id)
+    update.can_modify = _can_modify_update(request.user, update)
+    return render_to_string(
+        "web/projects/_overview_update_card.html",
+        {
+            "update": update,
+            "health_labels": dict(ProjectUpdate.HEALTH_CHOICES),
+        },
+        request=request,
+    )
+
+
+@login_required
+def update_edit_form(request, pk):
+    """Render the in-place edit composer (health chips + TipTap) for an update.
+
+    Loaded via ``hx-get`` into the overview card's ``#update-edit-<pk>``
+    slot; the editor mounts on ``htmx:afterSwap``, pre-filled from the
+    update body.
+
+    Returns:
+        Rendered ``_update_edit_form.html``, 403 if not permitted, or 404
+        for a foreign / missing update.
+    """
+    update = _get_user_update_or_404(request.user, pk)
+    if not _can_modify_update(request.user, update):
+        raise PermissionDenied()
+    return HttpResponse(
+        render_to_string(
+            "web/projects/_update_edit_form.html",
+            {
+                "update": update,
+                "health_labels": dict(ProjectUpdate.HEALTH_CHOICES),
+            },
+            request=request,
+        ),
+    )
+
+
+@login_required
+def update_card_fragment(request, pk):
+    """Re-render one overview update card (used by the edit Cancel)."""
+    update = _get_user_update_or_404(request.user, pk)
+    return HttpResponse(_render_overview_update_card(request, update))
+
+
+@require_POST
+@login_required
+def edit_project_update(request, pk):
+    """Save an edit to a project update; return its refreshed overview card.
+
+    Allowed for the author or a workspace admin/owner. Reads ``health`` +
+    ``body``; ``updated_at`` bumps so the card shows ``(edited)``. Updates
+    are not on the activity log (ADR 0009), so no event is emitted.
+
+    Returns:
+        The refreshed ``_overview_update_card.html``, 400 on bad health /
+        empty body, 403 if not permitted, or 404 for a foreign update.
+    """
+    update = _get_user_update_or_404(request.user, pk)
+    if not _can_modify_update(request.user, update):
+        raise PermissionDenied()
+    health = (request.POST.get("health") or "").strip()
+    if health not in {key for key, _ in ProjectUpdate.HEALTH_CHOICES}:
+        return HttpResponseBadRequest("invalid health")
+    body = (request.POST.get("body") or "").strip()
+    if not body:
+        return HttpResponseBadRequest("body required")
+    update.health = health
+    update.body = body
+    update.save(update_fields=["health", "body", "updated_at"])
+    return HttpResponse(_render_overview_update_card(request, update))
+
+
+@require_POST
+@login_required
+def delete_project_update(request, pk):
+    """Delete a project update and re-render the overview latest-update slot.
+
+    Allowed for the author or a workspace admin/owner. Comments cascade.
+    The overview shows only the latest update, so the response is the
+    re-rendered ``#overview-updates-list`` (the new latest card, or empty)
+    plus an ``HX-Trigger`` flipping the panel's ``hasUpdates`` so the
+    empty-state shows when the last update is gone.
+
+    Returns:
+        The re-rendered list fragment, 403 if not permitted, or 404 for a
+        foreign / missing update.
+    """
+    update = _get_user_update_or_404(request.user, pk)
+    if not _can_modify_update(request.user, update):
+        raise PermissionDenied()
+    project = update.project
+    update.delete()
+    latest = list(project.updates.select_related("author").order_by("-created_at")[:1])
+    html = ""
+    if latest:
+        html = _render_overview_update_card(request, latest[0])
+    response = HttpResponse(html)
+    response["HX-Trigger"] = json.dumps({"updates-changed": {"hasUpdates": bool(latest)}})
+    return response
 
 
 @require_POST

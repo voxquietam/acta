@@ -23,7 +23,9 @@ from .views import (
     create_workspace,
     create_workspace_invite,
     delete_comment,
+    delete_project_update,
     edit_comment,
+    edit_project_update,
     inbox_update_preview,
     mention_search,
     open_notification,
@@ -60,6 +62,8 @@ from .views import (
     toggle_project_member,
     toggle_reaction_view,
     toggle_task_label,
+    update_card_fragment,
+    update_edit_form,
 )
 
 app_name = "web"
@@ -136,6 +140,26 @@ urlpatterns = [
         "updates/<int:pk>/comment/",
         post_update_comment,
         name="post_update_comment",
+    ),
+    path(
+        "updates/<int:pk>/edit-form/",
+        update_edit_form,
+        name="update_edit_form",
+    ),
+    path(
+        "updates/<int:pk>/card/",
+        update_card_fragment,
+        name="update_card_fragment",
+    ),
+    path(
+        "updates/<int:pk>/edit/",
+        edit_project_update,
+        name="edit_project_update",
+    ),
+    path(
+        "updates/<int:pk>/delete/",
+        delete_project_update,
+        name="delete_project_update",
     ),
     path(
         "reactions/<str:target_type>/<int:target_id>/toggle/",

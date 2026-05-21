@@ -1,0 +1,44 @@
+{% load i18n %}
+{% comment %}
+In-place edit composer for one project update (overview card). Loaded via
+``hx-get`` into the card's ``#update-body-<id>`` region (innerHTML) so the
+TipTap editor mounts reliably on ``htmx:afterSwap`` and the card header
+(author / date / health) stays put — no collapse. Health chips default to
+the update's current health, pre-filled from the body.
+
+Save posts to ``edit_project_update`` and replaces the whole card
+(``#overview-update-<id>`` outerHTML) with the refreshed render. Cancel
+re-fetches the unchanged card via ``update_card_fragment``. Expects
+``update`` + ``health_labels``.
+{% endcomment %}
+<form x-data="{ empty: false }"
+      @editor:change="empty = $event.detail.empty"
+      hx-post="{% url 'web:edit_project_update' pk=update.id %}"
+      hx-target="#overview-update-{{ update.id }}"
+      hx-swap="outerHTML"
+      class="space-y-2.5 pt-1">
+  {% csrf_token %}
+  {% include "web/projects/_health_chips.html" with selected=update.health %}
+  <div data-description-editor
+       data-no-autosave
+       data-placeholder="{% trans 'Write an update…' %}">
+    <input type="hidden" name="body" value="" data-editor-output>
+    <textarea class="description-editor-source hidden" readonly>{{ update.body }}</textarea>
+    {% include "web/projects/_editor_toolbar.html" %}
+    <div class="description-editor-mount min-h-[3rem] bg-card border border-border rounded-lg p-3"></div>
+  </div>
+  <div class="flex items-center justify-end gap-2">
+    <button type="button"
+            hx-get="{% url 'web:update_card_fragment' pk=update.id %}"
+            hx-target="#overview-update-{{ update.id }}"
+            hx-swap="outerHTML"
+            class="px-3 py-1.5 text-xs rounded-md text-subtle-foreground hover:text-foreground hover:bg-muted transition">
+      {% trans "Cancel" %}
+    </button>
+    <button type="submit"
+            :disabled="empty"
+            class="px-3 py-1.5 text-xs rounded-md bg-brand-600 text-white hover:bg-brand-500 disabled:opacity-40 disabled:cursor-not-allowed">
+      {% trans "Save" %}
+    </button>
+  </div>
+</form>

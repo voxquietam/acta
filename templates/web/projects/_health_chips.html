@@ -1,0 +1,18 @@
+{% load i18n %}
+{% comment %}
+Health radio chips for the project-update composer + editor. One ``health``
+radio per choice; the checked one pops in its colour (tinted fill + solid
+border + ring), the rest are neutral grey with just a colour dot. Expects
+``health_labels`` and an optional ``selected`` key (defaults to on_track).
+{% endcomment %}
+<div class="flex flex-wrap items-center gap-1.5">
+  {% for key, label in health_labels.items %}
+  <label class="cursor-pointer">
+    <input type="radio" name="health" value="{{ key }}" {% if key == selected|default:'on_track' %}checked{% endif %} class="peer sr-only">
+    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] border border-border text-placeholder-foreground hover:text-foreground transition peer-checked:font-medium peer-checked:ring-1 {% if key == 'on_track' %}peer-checked:bg-emerald-500/15 peer-checked:border-emerald-500 peer-checked:text-emerald-700 dark:peer-checked:text-emerald-300 peer-checked:ring-emerald-500/50{% elif key == 'at_risk' %}peer-checked:bg-amber-500/15 peer-checked:border-amber-500 peer-checked:text-amber-700 dark:peer-checked:text-amber-300 peer-checked:ring-amber-500/50{% elif key == 'off_track' %}peer-checked:bg-rose-500/15 peer-checked:border-rose-500 peer-checked:text-rose-700 dark:peer-checked:text-rose-300 peer-checked:ring-rose-500/50{% else %}peer-checked:bg-sky-500/15 peer-checked:border-sky-500 peer-checked:text-sky-700 dark:peer-checked:text-sky-300 peer-checked:ring-sky-500/50{% endif %}">
+      <span class="w-1.5 h-1.5 rounded-full {% if key == 'on_track' %}bg-emerald-500{% elif key == 'at_risk' %}bg-amber-500{% elif key == 'off_track' %}bg-rose-500{% else %}bg-sky-500{% endif %}"></span>
+      {{ label }}
+    </span>
+  </label>
+  {% endfor %}
+</div>

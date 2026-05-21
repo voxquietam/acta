@@ -250,6 +250,23 @@ class ProjectUpdate(models.Model):
         """Return project, health, and date for the update."""
         return f"{self.project} · {self.health} · {self.created_at:%Y-%m-%d}"
 
+    @property
+    def was_edited(self) -> bool:
+        """Return True if the update was edited after it was posted.
+
+        Mirrors :attr:`apps.comments.models.Comment.was_edited`: the
+        ``auto_now_add`` / ``auto_now`` timestamps differ by microseconds
+        on the initial INSERT, so a one-second tolerance avoids marking a
+        freshly posted update as ``(edited)``.
+
+        Returns:
+            True iff ``updated_at`` is more than one second after
+            ``created_at``.
+        """
+        if self.created_at is None or self.updated_at is None:
+            return False
+        return (self.updated_at - self.created_at).total_seconds() > 1
+
     @cached_property
     def top_level_comments(self):
         """Return this update's top-level comments, replies prefetched.
