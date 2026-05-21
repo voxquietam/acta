@@ -82,17 +82,27 @@ def notify(
 def _unread_count(recipient_id: int) -> int:
     """Return the recipient's active unread notification count.
 
+    Excludes ``PROJECT_UPDATE`` to match the Notifications tab and the
+    sidebar badge (see ``apps.web.views._inbox_base_qs``) — project
+    updates live in the Updates tab and never count as unread here, so
+    the live SSE badge stays consistent with a page reload.
+
     Args:
         recipient_id: The recipient user id.
 
     Returns:
-        Count of non-archived, unread notifications.
+        Count of non-archived, unread notifications (excluding project
+        updates).
     """
-    return Notification.objects.filter(
-        recipient_id=recipient_id,
-        archived_at__isnull=True,
-        is_read=False,
-    ).count()
+    return (
+        Notification.objects.filter(
+            recipient_id=recipient_id,
+            archived_at__isnull=True,
+            is_read=False,
+        )
+        .exclude(kind=Notification.Kind.PROJECT_UPDATE)
+        .count()
+    )
 
 
 def _broadcast_notification(notification: Notification) -> None:

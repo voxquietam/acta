@@ -234,3 +234,18 @@ class TestProjectUpdateFanout:
         update = ProjectUpdateFactory(project=project, author=ws.owner, body="x")
         notify_project_update_created(update=update, actor=ws.owner)
         assert not Notification.objects.filter(recipient=outsider).exists()
+
+    def test_project_update_not_counted_as_unread(self):
+        """The unread count (sidebar badge + live SSE badge) skips project
+        updates — they surface in the Updates tab, not Notifications."""
+        from apps.notifications.services import _unread_count
+
+        ws = WorkspaceFactory()
+        project = ProjectFactory(workspace=ws)
+        member = WorkspaceMemberFactory(workspace=ws).user
+        update = ProjectUpdateFactory(project=project, author=ws.owner, body="recap")
+        notify_project_update_created(update=update, actor=ws.owner)
+        # The member has exactly one (unread) PROJECT_UPDATE notification…
+        assert Notification.objects.filter(recipient=member, is_read=False).count() == 1
+        # …but it must not count toward the unread badge.
+        assert _unread_count(member.id) == 0

@@ -61,6 +61,32 @@ class TestInboxPage:
         resp = client.get(reverse("web:inbox"))
         assert resp.context["inbox_unread"] == 3
 
+    def test_project_update_hidden_from_notifications_tab(self, client, user_ws):
+        """``PROJECT_UPDATE`` notifications live in the Updates tab only —
+        they must not appear in the Notifications list nor count as unread."""
+        user, ws = user_ws
+        NotificationFactory(
+            recipient=user,
+            workspace=ws,
+            is_read=False,
+            kind=Notification.Kind.COMMENT,
+            preview="comment-shows",
+        )
+        NotificationFactory(
+            recipient=user,
+            workspace=ws,
+            is_read=False,
+            kind=Notification.Kind.PROJECT_UPDATE,
+            preview="update-hidden",
+        )
+        client.force_login(user)
+        resp = client.get(reverse("web:inbox"))
+        body = resp.content.decode()
+        assert "comment-shows" in body
+        assert "update-hidden" not in body
+        # Badge counts the comment only — not the project update.
+        assert resp.context["inbox_unread"] == 1
+
     def test_inbox_list_no_n_plus_one(self, client, user_ws):
         """Rendering the inbox is constant-query: adding rows must not add SELECTs."""
         from django.db import connection

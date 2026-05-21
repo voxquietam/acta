@@ -1389,6 +1389,11 @@
   const INBOX_KIND_FILTER = { mentions: "mention", assigned: "assigned", due: "due", comments: "comment" };
 
   function onNotificationCreated(d) {
+    // Project updates surface only in the Updates tab, not Notifications,
+    // so skip the live badge bump + row injection here. The server's
+    // unread count already excludes them, so the badge HTML in this very
+    // event carries the unchanged number — ignoring it keeps them in sync.
+    if (d && d.kind === "project_update") return;
     // 1) Sidebar unread badge — replace its node, then pulse once.
     const badge = document.getElementById("inbox-badge");
     if (badge && d.badge_html) {

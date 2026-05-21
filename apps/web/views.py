@@ -552,7 +552,16 @@ _INBOX_PAGE_SIZE = 100
 
 
 def _inbox_base_qs(user):
-    """Active (non-archived) notifications for a user, render-ready.
+    """Active (non-archived) Notifications-tab notifications, render-ready.
+
+    Excludes ``PROJECT_UPDATE``: "X posted an update" is already surfaced
+    by the dedicated Updates tab (read straight from ``ProjectUpdate``),
+    so listing it here too would duplicate it. Filtering at the base qs
+    drops it from the list *and* the filter-chip counts in one place; the
+    sidebar badge is kept in sync by the matching exclude in
+    :func:`inbox_unread_count` / ``notifications.services._unread_count``.
+    The rows are still created (a future "unread updates" indicator can
+    use them) — they're just invisible in the Notifications tab.
 
     Args:
         user: The recipient :class:`User`.
@@ -566,11 +575,11 @@ def _inbox_base_qs(user):
             recipient=user,
             archived_at__isnull=True,
         )
+        .exclude(kind=Notification.Kind.PROJECT_UPDATE)
         .select_related(
             "task__project",
             "actor",
             "comment",
-            "project_update__project",
         )
         .order_by("-created_at")
     )
@@ -618,17 +627,25 @@ def _inbox_counts(user):
 def inbox_unread_count(user):
     """Return the active unread notification count for the sidebar badge.
 
+    Mirrors :func:`_inbox_base_qs`'s ``PROJECT_UPDATE`` exclude so the
+    badge never counts updates the Notifications tab won't show.
+
     Args:
         user: The recipient :class:`User`.
 
     Returns:
-        The number of non-archived, unread notifications.
+        The number of non-archived, unread notifications (excluding
+        project updates).
     """
-    return Notification.objects.filter(
-        recipient=user,
-        archived_at__isnull=True,
-        is_read=False,
-    ).count()
+    return (
+        Notification.objects.filter(
+            recipient=user,
+            archived_at__isnull=True,
+            is_read=False,
+        )
+        .exclude(kind=Notification.Kind.PROJECT_UPDATE)
+        .count()
+    )
 
 
 def _inbox_badge_oob(user):
