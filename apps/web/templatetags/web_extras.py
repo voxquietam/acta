@@ -105,12 +105,12 @@ def open_task_modal_attrs(task):
     Plain click → ``HX-Get`` the task URL with ``?modal=1`` and swap
     the response into ``#modal-root``. Ctrl/Cmd/Shift/middle-click
     fail the ``hx-trigger`` filter, so HTMX skips the request and the
-    surrounding ``<a href="…">`` falls through to native browser
-    behaviour (open in new tab, etc.).
+    surrounding element's own new-tab handler / ``href`` takes over.
 
-    ``hx-push-url`` is the bare task URL (no ``?modal=1``) so the
-    address bar reflects the task while the modal is open; closing
-    the modal pops the entry and returns to the previous view.
+    No ``hx-push-url``: the modal is a pure overlay and intentionally
+    never touches the address bar (htmx history is off anyway — ADR 0024).
+    A shareable task URL comes from the modal's expand button or opening
+    the task in a new tab, not from the modal itself.
 
     Args:
         task: A :class:`Task` instance (needs ``project.slug_prefix``
@@ -125,7 +125,6 @@ def open_task_modal_attrs(task):
         f'hx-get="{url}?modal=1" '
         f'hx-target="#modal-root" '
         f'hx-swap="innerHTML" '
-        f'hx-push-url="{url}" '
         f'hx-trigger="click[!ctrlKey&amp;&amp;!metaKey&amp;&amp;!shiftKey]"'
     )
     return mark_safe(attrs)

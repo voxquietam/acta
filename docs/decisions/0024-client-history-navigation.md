@@ -106,13 +106,15 @@ the 50 ms delay, so its slots belong to another page.
   instant from the page cache and provably matches the URL; the only
   network cost is the first visit to a page and the first revisit after a
   data change.
-- **Modal URL push regressed.** `historyEnabled: false` also kills
-  `hx-push-url` on the task-detail modal (`open_task_modal_attrs`). Opening
-  a task from a board/table still works, but the address bar no longer
-  reflects the open task (no deep-link / refresh-into / Back-to-close). If
-  we want it back, route the modal URL through native `pushState` the way
-  the comment-link and mention-chip handlers already do, and teach the
-  router to treat a task URL with an open modal as "close on Back".
+- **The task-detail modal is a pure overlay — no URL.** `historyEnabled:
+  false` kills `hx-push-url`, so `open_task_modal_attrs` dropped it. We do
+  *not* re-add a URL by other means: opening a task in the modal swaps into
+  `#modal-root` and leaves the address bar on the page behind it; closing
+  just clears `#modal-root`. A shareable task URL comes from the modal's
+  expand button (full page) or opening the card in a new tab
+  (Ctrl / middle-click), not from the modal. This kept the modal fully
+  decoupled from the history router and retired the `_actaModalReturnTo`
+  bookkeeping the old `replaceState`-on-close needed.
 - **Cache is per-tab and in-memory.** Cleared on a full reload; that's
   fine — a full reload re-renders from the server anyway.
 - **Coarse invalidation.** A busy workspace with constant SSE traffic will

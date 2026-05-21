@@ -14,12 +14,13 @@ SSE + inline-edit wiring works unchanged: it relies on element ids /
 ``data-*`` attrs that are identical in either layout.
 
 Behaviour:
-* Backdrop click + ``Esc`` → ``close()`` (via shell).
-* Expand button (top-right) → ``history.replaceState`` to the bare
-  task URL and reload, landing the user on the full-page chrome.
-* Close pops the URL back to wherever the user came from (saved by
-  ``acta.js`` capture listener as ``_actaModalReturnTo``); falls back
-  to the project detail URL when missing.
+* The modal is a pure overlay — it never touches the address bar. Opening
+  it swaps into ``#modal-root``; the URL stays on the page behind it. To
+  get a real, shareable task URL, use the expand button or open the task
+  in a new tab (Ctrl / middle-click a card).
+* Backdrop click + ``Esc`` → ``close()`` (via shell): just clears
+  ``#modal-root`` after the fade.
+* Expand button (top-right) → navigate to the full task page.
 {% endcomment %}
 
 {% block root_attrs %}
@@ -31,12 +32,7 @@ x-data="{
     setTimeout(() => {
       const root = document.getElementById('modal-root');
       if (root) root.innerHTML = '';
-      const back = window._actaModalReturnTo || '{% url 'web:project_detail' slug_prefix=task.project.slug_prefix %}';
-      if (back !== window.location.href) {
-        history.replaceState({}, '', back);
-      }
-      window._actaModalReturnTo = null;
-    }, 80);
+    }, 120);
   },
   expand() {
     window.location.assign('{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}');

@@ -1448,28 +1448,6 @@
   }
   document.body.addEventListener("htmx:afterSwap", initUserSse);
 
-  // Remember the URL we came from any time a click is about to open a
-  // modal-root surface. The task-detail modal shell uses this on close
-  // to ``history.replaceState`` back without triggering popstate
-  // (which would conflict with hx-boost on the sidebar). We capture
-  // on ``click`` in the capture phase — runs *before* HTMX intercepts
-  // the click and before ``hx-push-url`` rewrites the address bar, so
-  // ``window.location.href`` is still the original page (project list,
-  // all tasks, full task page, wherever the user came from).
-  //
-  // We save on every modal-root opener — create-task / bulk-archive
-  // close paths don't read this variable, so the harmless write is OK.
-  document.body.addEventListener(
-    "click",
-    (evt) => {
-      const opener = evt.target.closest && evt.target.closest('[hx-target="#modal-root"]');
-      if (!opener) return;
-      if (evt.ctrlKey || evt.metaKey || evt.shiftKey || evt.button !== 0) return;
-      window._actaModalReturnTo = window.location.href;
-    },
-    true,
-  );
-
   // Themed tooltips — convert every ``title="…"`` to ``data-tooltip``
   // (+ ``aria-label`` if unset) so the CSS rule in ``main.css`` renders
   // a card-coloured pop on hover instead of the OS's default black /
@@ -1695,8 +1673,9 @@
 
   // "added a comment" (My Activity) → open the task in the modal, then
   // scroll to + highlight that comment inside it. ``htmx.ajax`` resolves
-  // after the swap settles, so we highlight in the promise callback.
-  // Modifier / middle clicks fall through to the native deep link.
+  // after the swap settles, so we highlight in the promise callback. The
+  // modal is a pure overlay — we don't touch the address bar. Modifier /
+  // middle clicks fall through to the native deep link.
   document.addEventListener("click", (e) => {
     const link = e.target.closest && e.target.closest("a.acta-comment-link");
     if (!link) return;
@@ -1705,11 +1684,9 @@
     const commentId = link.getAttribute("data-comment-id");
     if (!taskUrl || !window.htmx) return;
     e.preventDefault();
-    window._actaModalReturnTo = window.location.href;
     window.htmx
       .ajax("GET", taskUrl + "?modal=1", { target: "#modal-root", swap: "innerHTML" })
       .then(() => {
-        if (window.history && window.history.pushState) window.history.pushState({}, "", taskUrl);
         setTimeout(() => highlightCommentById(commentId), 60);
       });
   });
@@ -1717,8 +1694,9 @@
   // Task-mention chip → open the task in the modal instead of a full
   // page nav. The chip is rendered server-side through bleach (which
   // strips ``hx-*``), so we intercept the click here and drive the same
-  // ``?modal=1`` → ``#modal-root`` flow the kanban cards use. Modifier /
-  // middle clicks fall through to the native link (open in new tab).
+  // ``?modal=1`` → ``#modal-root`` overlay flow the kanban cards use (no
+  // address-bar change). Modifier / middle clicks fall through to the
+  // native link (open in new tab).
   document.addEventListener("click", (e) => {
     const chip = e.target.closest && e.target.closest("a.acta-task-mention");
     if (!chip) return;
@@ -1726,11 +1704,7 @@
     const href = chip.getAttribute("href");
     if (!href || href === "#" || !window.htmx) return;
     e.preventDefault();
-    window._actaModalReturnTo = window.location.href;
     window.htmx.ajax("GET", href + "?modal=1", { target: "#modal-root", swap: "innerHTML" });
-    if (window.history && window.history.pushState) {
-      window.history.pushState({}, "", href);
-    }
   });
 
   // Shared Alpine store for the filter sidebar's open / collapsed state.

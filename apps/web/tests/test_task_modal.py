@@ -308,7 +308,9 @@ class TestOpenTaskModalAttrs:
         assert f'hx-get="{expected_url}?modal=1"' in out
         assert 'hx-target="#modal-root"' in out
         assert 'hx-swap="innerHTML"' in out
-        assert f'hx-push-url="{expected_url}"' in out
+        # No ``hx-push-url``: htmx history is off (ADR 0024); the address
+        # bar is pushed by the modal-root afterSettle handler in acta.js.
+        assert "hx-push-url" not in out
         # ``&&`` is HTML-encoded so the attribute parses cleanly. HTMX
         # decodes it before evaluating the trigger filter.
         assert "hx-trigger=" in out
