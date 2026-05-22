@@ -29,12 +29,12 @@ Acta is a 3–4 week vibe-coding sprint, built alongside an existing job (`ksu24
 - **In-app notifications** — events relevant to the current user (assigned to you, comment on your task, your task moved by someone else, @-mentions, project updates). Originally scoped as ephemeral toasts ([0017](0017-notifications.md)); shipped as a **persistent per-user inbox** at `/inbox/` (Notifications + Updates tabs, read/unread/archive). See [0021](0021-notification-inbox.md).
 - **@-mentions in comments and descriptions** *(amended 2026-05-20 — moved in-scope from "Out of MVP")*. `@user` and `@task` mentions in the TipTap editor, surviving the markdown round-trip; `@user` mentions raise a `mention` notification. See [0023](0023-mentions.md).
 - **My Activity page** — a personal feed of events the current user is involved in. Shipped alongside the inbox.
+- **File attachments & media** *(amended 2026-05-22 — moved in-scope from "Out of MVP")*. Task & comment attachments, inline editor images in task/project descriptions, and user avatars. Local `FileSystemStorage` on the VM (swappable), auth-gated serving. See [0025](0025-file-storage.md).
 
 ### Out of MVP
 
 - **Outgoing webhooks** — no concrete consumer in scope yet (Vox is mostly a *receiver* of webhooks from Kaneo). Deferred until a real integration appears, so the event contract can be designed for actual needs.
 - **Cycles / sprints**
-- **File attachments**
 - **WebSocket bi-directional protocols** — SSE is one-way (server → client). Sufficient for MVP; WebSocket reserved for cases that need client → server pushes outside of normal HTTP requests (none in MVP).
 - **Browser desktop notifications** (Notification API). In-app toasts only.
 - **Email notifications.**
