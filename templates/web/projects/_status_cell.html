@@ -45,7 +45,7 @@ without parsing the labels.
        @click.outside="open = false"
        x-init="$nextTick(() => window.htmx && window.htmx.process($el))"
        x-cloak
-       :style="`position:fixed; top:${rect.bottom + 4}px; left:${rect.left}px; width:11rem;`"
+       :style="`position:fixed; top:${rect.bottom + 4}px; left:${Math.min(rect.left, window.innerWidth - 184)}px; width:11rem;`"
        class="bg-card border border-border rounded-lg shadow-lg overflow-hidden z-50">
     {% for status_key, status_label in status_labels.items %}
     <form method="post"

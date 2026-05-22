@@ -83,7 +83,7 @@ dropdown focused on member selection rather than mixing in a no-op
        x-init="$nextTick(() => window.htmx && window.htmx.process($el))"
        x-effect="if (open) $nextTick(() => $refs.search.focus())"
        x-cloak
-       :style="`position:fixed; top:${rect.bottom + 4}px; left:${rect.left}px; width:15rem;`"
+       :style="`position:fixed; top:${rect.bottom + 4}px; left:${Math.min(rect.left, window.innerWidth - 248)}px; width:15rem;`"
        class="bg-card border border-border rounded-lg shadow-lg overflow-hidden z-50">
 
     <div class="p-2 border-b border-border">
