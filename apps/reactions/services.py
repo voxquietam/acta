@@ -40,7 +40,7 @@ def summarize_reactions(*, target_field: str, ids: Iterable[int], user_id: int |
     ids = list(ids)
     if not ids:
         return {}
-    rows = Reaction.objects.filter(**{f"{target_field}__in": ids}).select_related("user").order_by("created_at")
+    rows = Reaction.objects.filter(**{f"{target_field}__in": ids}).select_related("user").order_by("created_at", "id")
     summary: dict[int, OrderedDict] = {}
     for reaction in rows:
         target_id = getattr(reaction, f"{target_field}_id")
