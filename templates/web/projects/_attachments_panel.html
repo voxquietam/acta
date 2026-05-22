@@ -42,12 +42,12 @@ _links_panel structure and design tokens.
   {% endif %}
 
   {% if atts %}
-  <div class="space-y-1.5">
+  <div class="space-y-1.5" data-image-gallery>
     {% for a in atts %}
     <div class="group/att flex items-center gap-2 text-xs">
       {% if a.is_image %}
       <img src="{% url 'web:serve_attachment' pk=a.id %}" alt="{{ a.original_name }}"
-           onclick="window.dispatchEvent(new CustomEvent('lightbox:open', { detail: { src: this.src, alt: this.alt } }))"
+           onclick="window.actaLightbox(this)"
            class="w-9 h-9 rounded object-cover border border-border shrink-0 cursor-zoom-in">
       {% else %}
       <span class="w-9 h-9 rounded bg-muted border border-border grid place-items-center shrink-0 text-placeholder-foreground">

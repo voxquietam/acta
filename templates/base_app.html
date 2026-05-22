@@ -325,19 +325,36 @@ Pages extend this and override the `app_main` block.
   images inside the task modal open over it. Documents are NOT shown here —
   only images (best practice: docs download, images preview inline).
   {% endcomment %}
-  <div x-data="{ open: false, src: '', alt: '' }"
+  <div x-data="{
+         open: false,
+         images: [],
+         i: 0,
+         get cur() { return this.images[this.i] || { src: '', alt: '' }; },
+         prev() { if (this.images.length > 1) this.i = (this.i - 1 + this.images.length) % this.images.length; },
+         next() { if (this.images.length > 1) this.i = (this.i + 1) % this.images.length; }
+       }"
        x-show="open"
        x-cloak
-       @lightbox:open.window="src = $event.detail.src; alt = $event.detail.alt; open = true"
+       @lightbox:open.window="images = $event.detail.images || [{ src: $event.detail.src, alt: $event.detail.alt }]; i = $event.detail.index || 0; open = true"
        @keydown.escape.window="if (open) { $event.preventDefault(); $event.stopImmediatePropagation(); open = false }"
+       @keydown.arrow-left.window="if (open) prev()"
+       @keydown.arrow-right.window="if (open) next()"
        @click="open = false"
        class="fixed inset-0 z-[70] bg-black/80 flex items-center justify-center p-6 cursor-zoom-out">
-    <img :src="src" :alt="alt" @click.stop
+    <button type="button" x-show="images.length > 1" @click.stop="prev()" aria-label="{% trans 'Previous' %}"
+            class="absolute left-3 top-1/2 -translate-y-1/2 text-white/70 hover:text-white">
+      {% lucide "chevron-left" "w-8 h-8" %}
+    </button>
+    <img :src="cur.src" :alt="cur.alt" @click.stop
          class="max-w-full max-h-full rounded-lg shadow-2xl cursor-default">
-    <a :href="src" target="_blank" rel="noopener" @click.stop
-       class="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-white/70 hover:text-white">
-      {% trans "Open original" %}
-    </a>
+    <button type="button" x-show="images.length > 1" @click.stop="next()" aria-label="{% trans 'Next' %}"
+            class="absolute right-3 top-1/2 -translate-y-1/2 text-white/70 hover:text-white">
+      {% lucide "chevron-right" "w-8 h-8" %}
+    </button>
+    <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3 text-xs text-white/70">
+      <span x-show="images.length > 1" x-text="(i + 1) + ' / ' + images.length"></span>
+      <a :href="cur.src" target="_blank" rel="noopener" @click.stop class="hover:text-white">{% trans "Open original" %}</a>
+    </div>
     <button type="button" @click="open = false" aria-label="{% trans 'Close' %}"
             class="absolute top-4 right-4 text-white/70 hover:text-white">
       {% lucide "x" "w-6 h-6" %}

@@ -1504,22 +1504,32 @@
   // tree (event fires after each Alpine ``x-init`` / DOM change).
   document.addEventListener("alpine:initialized", () => themeTooltips(document.body));
 
-  // ----- Inline-image lightbox (delegated) ------------------------
-  // Images embedded in RENDERED markdown (comment bodies, etc.) are
-  // plain ``<img>`` with no per-element handler — bleach strips any
-  // ``onclick``. Delegate a click so they open in the shared lightbox,
-  // matching the attachment thumbnails. Skip images inside the TipTap
-  // editor (``.ProseMirror`` / contenteditable — there a click edits,
-  // not previews) and any image that already carries its own trigger.
+  // ----- Image lightbox (delegated) -------------------------------
+  // Open ``img`` in the shared lightbox as a gallery: the siblings in its
+  // nearest gallery root (an explicit ``[data-image-gallery]`` — attachment
+  // panels — else the rendered ``.prose`` block, else the parent) become
+  // the prev/next set, starting at the clicked image. Exposed globally so
+  // the per-thumbnail ``onclick`` handlers can reuse it.
+  window.actaLightbox = function (img) {
+    const root = img.closest("[data-image-gallery]") || img.closest(".prose") || img.parentElement;
+    const imgs = root ? Array.from(root.querySelectorAll("img")) : [img];
+    const images = imgs.map((el) => ({ src: el.currentSrc || el.src, alt: el.alt || "" }));
+    let index = imgs.indexOf(img);
+    if (index < 0) index = 0;
+    window.dispatchEvent(new CustomEvent("lightbox:open", { detail: { images, index } }));
+  };
+  // Rendered markdown images (comment bodies, etc.) are plain ``<img>`` with
+  // no per-element handler — bleach strips any ``onclick``. Delegate a
+  // click. Skip images inside the TipTap editor (``.ProseMirror`` /
+  // contenteditable — there a click edits, not previews) and any image that
+  // already carries its own trigger.
   document.addEventListener("click", (evt) => {
     const img = evt.target.closest("img");
     if (!img || !img.closest(".prose")) return;
     if (img.closest(".ProseMirror, [contenteditable='true']")) return;
     if (img.hasAttribute("onclick")) return;
     evt.preventDefault();
-    window.dispatchEvent(
-      new CustomEvent("lightbox:open", { detail: { src: img.currentSrc || img.src, alt: img.alt || "" } }),
-    );
+    window.actaLightbox(img);
   });
   // Inside the TipTap editor (descriptions) a single click selects the
   // image for editing, so previewing is bound to DOUBLE-click instead —
@@ -1528,9 +1538,7 @@
     const img = evt.target.closest(".ProseMirror img");
     if (!img) return;
     evt.preventDefault();
-    window.dispatchEvent(
-      new CustomEvent("lightbox:open", { detail: { src: img.currentSrc || img.src, alt: img.alt || "" } }),
-    );
+    window.actaLightbox(img);
   });
 
 
