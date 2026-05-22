@@ -65,12 +65,12 @@ hides the native scrollbar without losing the "you can scroll" cue.
         {% endcomment %}
         {% if project %}
         {# Per-project board: count doubles as the WIP-limit setter. #}
-        <div x-data="{ open: false }" class="relative shrink-0 ml-auto">
+        <div x-data="{ open: false }" class="relative shrink-0 ml-auto mr-1">
           <button type="button"
                   @click="open = !open"
                   data-tooltip="{% trans 'WIP limit' %}"
-                  class="font-mono text-[11px] px-1 py-0.5 rounded hover:bg-muted/60 transition {% if col.over_limit %}text-rose-300{% else %}text-subtle-foreground{% endif %}">
-            <span data-column-count class="{% if col.over_limit %}text-rose-400 font-semibold{% endif %}">{{ col.tasks|length }}</span>{% if col.limit %} <span>/ {{ col.limit }}</span>{% endif %}
+                  class="font-mono text-[11px] cursor-pointer hover:text-foreground transition {% if col.over_limit %}text-rose-300{% else %}text-subtle-foreground{% endif %}">
+            <span data-column-count class="{% if col.over_limit %}text-rose-400 font-semibold{% endif %}">{{ col.tasks|length }}</span>{% if col.limit %}<span class="text-placeholder-foreground"> / {{ col.limit }}</span>{% endif %}
           </button>
           <div x-show="open" x-cloak
                @click.outside="open = false"
