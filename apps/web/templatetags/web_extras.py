@@ -5,6 +5,7 @@ import html
 import re
 
 from django import template
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.safestring import mark_safe
 from django.utils.translation import gettext_lazy as _
@@ -30,6 +31,7 @@ def task_filter_attrs(context, task):
     * ``data-status`` — internal status key (``planned`` / ``to-do``…)
     * ``data-priority`` — integer 0..4
     * ``data-size`` — Fibonacci estimate or empty (no size)
+    * ``data-context-menu-url`` — URL of the right-click menu fragment
     * ``data-assignee-id`` — ``Task.assignee_id`` or empty
     * ``data-assignee-me`` — ``"1"`` when assigned to ``request.user``
     * ``data-project-id`` — ``Task.project_id``
@@ -61,10 +63,15 @@ def task_filter_attrs(context, task):
     week_cutoff = timezone.now() - datetime.timedelta(days=7)
     is_overdue = "1" if (task.due_date and task.due_date < today and task.status != "done") else "0"
     is_done_this_week = "1" if (task.status == "done" and task.updated_at and task.updated_at >= week_cutoff) else "0"
+    menu_url = reverse(
+        "web:task_context_menu",
+        kwargs={"slug_prefix": task.project.slug_prefix, "number": task.number},
+    )
     attrs = (
         f'data-status="{html.escape(task.status or "")}" '
         f'data-priority="{task.priority or 0}" '
         f'data-size="{task.size or ""}" '
+        f'data-context-menu-url="{menu_url}" '
         f'data-assignee-id="{task.assignee_id or ""}" '
         f'data-assignee-me="{is_me}" '
         f'data-project-id="{task.project_id}" '

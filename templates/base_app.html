@@ -317,6 +317,12 @@ Pages extend this and override the `app_main` block.
   <div id="modal-root"></div>
 
   {% comment %}
+  Right-click context-menu mount. acta.js fetches the per-task menu
+  fragment here and positions it at the cursor; emptied on close.
+  {% endcomment %}
+  <div id="context-menu-root" class="fixed z-[75]" style="display:none;"></div>
+
+  {% comment %}
   Image lightbox — a global overlay any image opens by dispatching a
   ``lightbox:open`` window event with ``{ src, alt }``. Triggers use a
   native ``onclick`` so they fire outside any Alpine scope (e.g. inside a
@@ -446,13 +452,17 @@ Pages extend this and override the `app_main` block.
 
     <span class="w-px self-stretch bg-border-strong mx-1 my-1"></span>
 
+    {% comment %}
+    "Actions" opens the same selection menu as right-clicking a selected
+    task (``_bulk_context_menu.html``) — one action surface, two triggers.
+    Positioned above the bar (it sits bottom-centre). Archive / Delete /
+    the field pickers all live inside that menu now.
+    {% endcomment %}
     <button type="button"
-            @click="$dispatch('acta:bulk-archive-confirm')"
+            @click="const r = $el.getBoundingClientRect(); window.actaOpenBulkMenu && window.actaOpenBulkMenu(r.left, r.top)"
             class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-subtle-foreground hover:bg-muted hover:text-foreground transition text-xs">
-      <span class="text-placeholder-foreground group-hover:text-foreground">
-        {% lucide "archive" "w-3.5 h-3.5" %}
-      </span>
-      {% trans "Archive" %}
+      {% lucide "list-plus" "w-3.5 h-3.5" %}
+      {% trans "Actions" %}
     </button>
 
     <span class="w-px self-stretch bg-border-strong mx-1 my-1"></span>
@@ -465,9 +475,6 @@ Pages extend this and override the `app_main` block.
       <kbd class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-muted border border-border text-placeholder-foreground">esc</kbd>
     </button>
   </div>
-
-  {# Bulk-archive confirm modal — partial extracted to share modal shell. #}
-  {% include "web/_bulk_archive_confirm.html" %}
 </div>
 
 <style>

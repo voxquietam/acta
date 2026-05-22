@@ -37,7 +37,7 @@ from apps.notifications.models import Notification
 from apps.notifications.services import notify_comment_created, notify_project_update_created
 from apps.projects.models import Project, ProjectUpdate
 from apps.reactions.services import TARGET_TYPES, attach_reactions, summarize_reactions, toggle_reaction
-from apps.tasks.events import broadcast_link_change, emit_task_diff_events, snapshot_task
+from apps.tasks.events import broadcast_link_change, broadcast_task_events, emit_task_diff_events, snapshot_task
 from apps.tasks.models import Task
 from apps.web.filters import (
     SORTABLE_COLUMNS,
@@ -3760,6 +3760,131 @@ def cancel_task(request, slug_prefix, number):
             "workspace_projects": _workspace_projects(task),
             "attached_label_ids": set(task.labels.values_list("id", flat=True)),
         },
+    )
+
+
+@require_POST
+@login_required
+def delete_task(request, slug_prefix, number):
+    """Hard-delete a task and its subtasks, emitting ``task.deleted``.
+
+    Mirrors the bulk-delete path (``apps.tasks.bulk._run_bulk_delete``):
+    one ``task.deleted`` activity row per removed task (parent +
+    cascaded subtasks), each carrying a snapshot so the timeline / audit
+    survives the row deletion, then a single SSE broadcast with no
+    ``card_html`` so connected boards drop the matching cards.
+
+    The acting client's own board refetches via the ``acta:task-changed``
+    event the context menu fires after this returns (SSE self-events are
+    filtered out for the originator). Used by the right-click context
+    menu; irreversible, so the menu gates it behind an inline confirm.
+
+    Returns:
+        ``204 No Content`` — the caller removes the row / refetches.
+    """
+    task = get_object_or_404(
+        _user_task_qs(request.user).prefetch_related("subtasks"),
+        project__slug_prefix=slug_prefix,
+        number=number,
+    )
+    with transaction.atomic():
+        workspace = task.project.workspace
+        project = task.project
+        targets = [task, *task.subtasks.all()]
+        events = [
+            ActivityLog(
+                workspace=workspace,
+                project=project,
+                actor=request.user,
+                event_type="task.deleted",
+                target_type=ActivityLog.TARGET_TASK,
+                target_id=t.id,
+                payload={
+                    "snapshot": {
+                        "title": t.title,
+                        "project_id": t.project_id,
+                        "number": t.number,
+                        "status": t.status,
+                    },
+                },
+            )
+            for t in targets
+        ]
+        # Cascade delete (parent FK is on_delete=CASCADE) removes the
+        # subtasks; activity rows survive since target_id is a plain int.
+        Task.objects.filter(pk=task.pk).delete()
+        ActivityLog.objects.bulk_create(events)
+        broadcast_task_events(events, {}, request.user)
+    return HttpResponse(status=204)
+
+
+@login_required
+def task_context_menu(request, slug_prefix, number):
+    """Render the right-click context menu fragment for one task.
+
+    Server-renders the whole menu (with every submenu's options
+    pre-populated — statuses, priorities, the workspace's members /
+    projects / labels) so the client just positions it at the cursor.
+    Each action posts to the existing ``set_task_*`` / ``cancel_task`` /
+    ``archive_task`` / ``delete_task`` endpoints; the menu fires
+    ``acta:task-changed`` afterwards so the board refetches.
+    """
+    task = get_object_or_404(
+        _user_task_qs(request.user).select_related("reporter").prefetch_related("labels"),
+        project__slug_prefix=slug_prefix,
+        number=number,
+    )
+    return HttpResponse(
+        render_to_string(
+            "web/projects/_task_context_menu.html",
+            {
+                "task": task,
+                "status_labels": Task.STATUS_LABELS,
+                "priority_labels": dict(Task.PRIORITY_CHOICES),
+                "size_values": Task.SIZE_VALUES,
+                "workspace_members": _workspace_members(task),
+                "workspace_projects": _workspace_projects(task),
+                "workspace_labels": _workspace_labels(task),
+                "attached_label_ids": set(task.labels.values_list("id", flat=True)),
+            },
+            request=request,
+        ),
+    )
+
+
+@login_required
+def bulk_context_menu(request):
+    """Render the bulk context-menu fragment for the current selection.
+
+    Selection-aware right-click (and the bulk bar's Actions button) open
+    this when 2+ tasks are selected. Unlike the per-task menu it isn't
+    scoped to one task — its pickers come from the **active workspace**
+    (members / projects / labels), and its actions post to the bulk
+    endpoint (``actaBulkPatch`` / ``actaBulkDelete``) against the ids in
+    the client-side selection store. The "N tasks" count is filled in
+    client-side from that store.
+    """
+    workspace = resolve_active_workspace(request)
+    members, projects, labels = [], [], []
+    if workspace:
+        members = list(
+            WorkspaceMember.objects.filter(workspace=workspace).select_related("user").order_by("user__username"),
+        )
+        projects = list(Project.objects.filter(workspace=workspace).order_by("name"))
+        labels = list(Label.objects.filter(workspace=workspace).order_by("name"))
+    return HttpResponse(
+        render_to_string(
+            "web/projects/_bulk_context_menu.html",
+            {
+                "status_labels": Task.STATUS_LABELS,
+                "priority_labels": dict(Task.PRIORITY_CHOICES),
+                "size_values": Task.SIZE_VALUES,
+                "workspace_members": members,
+                "workspace_projects": projects,
+                "workspace_labels": labels,
+            },
+            request=request,
+        ),
     )
 
 

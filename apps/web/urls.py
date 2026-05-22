@@ -14,6 +14,7 @@ from .views import (
     add_workspace_member,
     archive_notification,
     archive_task,
+    bulk_context_menu,
     bulk_notifications,
     cancel_task,
     comment_edit_form,
@@ -26,6 +27,7 @@ from .views import (
     delete_attachment,
     delete_comment,
     delete_project_update,
+    delete_task,
     edit_comment,
     edit_project_update,
     inbox_update_preview,
@@ -57,6 +59,7 @@ from .views import (
     switch_workspace,
     task_activity_fragment,
     task_comments_fragment,
+    task_context_menu,
     task_description_fragment,
     task_link_search,
     task_meta_compact_fragment,
@@ -91,6 +94,7 @@ urlpatterns = [
     path("inbox/<int:pk>/archive/", archive_notification, name="notification_archive"),
     path("tasks/", AllTasksView.as_view(), name="all_tasks"),
     path("tasks/new/", create_task, name="create_task"),
+    path("tasks/bulk-menu/", bulk_context_menu, name="bulk_context_menu"),
     path("tasks/<int:task_id>/row/", task_row_fragment, name="task_row_fragment"),
     path("workspaces/new/", create_workspace, name="create_workspace"),
     path(
@@ -230,6 +234,16 @@ urlpatterns = [
         "projects/<str:slug_prefix>/<int:number>/cancel/",
         cancel_task,
         name="cancel_task",
+    ),
+    path(
+        "projects/<str:slug_prefix>/<int:number>/delete/",
+        delete_task,
+        name="delete_task",
+    ),
+    path(
+        "projects/<str:slug_prefix>/<int:number>/context-menu/",
+        task_context_menu,
+        name="task_context_menu",
     ),
     path(
         "projects/<str:slug_prefix>/<int:number>/assignee/",

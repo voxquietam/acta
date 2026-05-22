@@ -1059,6 +1059,113 @@ class TestSetTaskProject:
 
 
 @pytest.mark.django_db
+class TestDeleteTask:
+    """Hard-delete endpoint — removes the task + subtasks, logs task.deleted."""
+
+    def _url(self, project, task):
+        return reverse(
+            "web:delete_task",
+            kwargs={"slug_prefix": project.slug_prefix, "number": task.number},
+        )
+
+    def test_delete_removes_task_and_logs_event(self, client, setup):
+        user, project, task = setup
+        task_id = task.id
+        client.force_login(user)
+        resp = client.post(self._url(project, task))
+        assert resp.status_code == 204
+        assert not Task.objects.filter(id=task_id).exists()
+        evt = ActivityLog.objects.get(target_id=task_id, event_type="task.deleted")
+        assert evt.payload["snapshot"]["number"] == task.number
+
+    def test_delete_cascades_subtasks(self, client, setup):
+        user, project, task = setup
+        child = TaskFactory(project=project, parent=task, reporter=user)
+        child_id = child.id
+        client.force_login(user)
+        resp = client.post(self._url(project, task))
+        assert resp.status_code == 204
+        assert not Task.objects.filter(id=child_id).exists()
+        assert ActivityLog.objects.filter(target_id=child_id, event_type="task.deleted").exists()
+
+
+@pytest.mark.django_db
+class TestContextMenu:
+    """The right-click menu fragment renders for a task with its actions."""
+
+    def _url(self, project, task):
+        return reverse(
+            "web:task_context_menu",
+            kwargs={"slug_prefix": project.slug_prefix, "number": task.number},
+        )
+
+    def test_renders_actions(self, client, setup):
+        user, project, task = setup
+        client.force_login(user)
+        resp = client.get(self._url(project, task))
+        assert resp.status_code == 200
+        body = resp.content.decode()
+        assert task.slug in body
+        assert "Set status" in body
+        assert "Delete" in body
+        assert "Move to project" in body  # top-level task → move row present
+
+    def test_subtask_hides_move(self, client, setup):
+        user, project, task = setup
+        child = TaskFactory(project=project, parent=task, reporter=user)
+        client.force_login(user)
+        resp = client.get(self._url(project, child))
+        assert resp.status_code == 200
+        assert "Move to project" not in resp.content.decode()
+
+    def test_no_n_plus_one(self, client, setup, django_assert_max_num_queries):
+        """Menu render stays constant-query as members / projects / labels grow."""
+        user, project, task = setup
+        for _ in range(6):
+            WorkspaceMemberFactory(workspace=project.workspace)
+        for _ in range(6):
+            ProjectFactory(workspace=project.workspace)
+        for _ in range(6):
+            LabelFactory(workspace=project.workspace)
+        client.force_login(user)
+        # task + members + projects + labels + attached-ids + auth/session/
+        # workspace-context queries — all constant, none scaling with rows.
+        with django_assert_max_num_queries(15):
+            resp = client.get(self._url(project, task))
+        assert resp.status_code == 200
+
+
+@pytest.mark.django_db
+class TestBulkContextMenu:
+    """The selection (bulk) menu fragment renders with workspace pickers."""
+
+    def test_renders_bulk_actions(self, client, setup):
+        user, project, task = setup
+        client.force_login(user)
+        resp = client.get(reverse("web:bulk_context_menu"))
+        assert resp.status_code == 200
+        body = resp.content.decode()
+        assert "Set status" in body
+        assert "Move to project" in body
+        assert "Delete" in body
+        # project from the active workspace surfaces in the move picker
+        assert project.slug_prefix in body
+
+    def test_no_n_plus_one(self, client, setup, django_assert_max_num_queries):
+        user, project, task = setup
+        for _ in range(6):
+            WorkspaceMemberFactory(workspace=project.workspace)
+        for _ in range(6):
+            ProjectFactory(workspace=project.workspace)
+        for _ in range(6):
+            LabelFactory(workspace=project.workspace)
+        client.force_login(user)
+        with django_assert_max_num_queries(15):
+            resp = client.get(reverse("web:bulk_context_menu"))
+        assert resp.status_code == 200
+
+
+@pytest.mark.django_db
 class TestArchivedFilter:
     """``apply_task_filters`` hides archived rows unless
     ``?show_archived=1``."""

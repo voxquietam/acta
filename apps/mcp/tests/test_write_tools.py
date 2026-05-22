@@ -171,6 +171,33 @@ class TestTaskUpdate:
         with pytest.raises(ValueError, match="not found or not accessible"):
             CALLABLES["acta_task_update"](intruder, {"slug": task.slug, "title": "hacked"})
 
+    def test_move_project_renumbers_and_cascades(self, project_setup):
+        user, ws, project = project_setup
+        dst = ProjectFactory(workspace=ws, slug_prefix="HRW")
+        parent = TaskFactory(project=project, reporter=user)
+        child = TaskFactory(project=project, reporter=user, parent=parent)
+        result = CALLABLES["acta_task_update"](user, {"slug": parent.slug, "project": "HRW"})
+        assert result["slug"].startswith("HRW-")
+        parent.refresh_from_db()
+        child.refresh_from_db()
+        assert parent.project_id == dst.id
+        assert child.project_id == dst.id  # subtask cascades with its parent
+
+    def test_move_cross_workspace_rejected(self, project_setup):
+        user, _, project = project_setup
+        other_ws = WorkspaceFactory()
+        WorkspaceMember.objects.create(user=user, workspace=other_ws)
+        ProjectFactory(workspace=other_ws, slug_prefix="OTH")
+        task = TaskFactory(project=project, reporter=user)
+        with pytest.raises(ValueError, match="[Cc]ross-workspace"):
+            CALLABLES["acta_task_update"](user, {"slug": task.slug, "project": "OTH"})
+
+    def test_set_cancelled_status(self, project_setup):
+        user, _, project = project_setup
+        task = TaskFactory(project=project, reporter=user, status=Task.STATUS_TODO)
+        result = CALLABLES["acta_task_update"](user, {"slug": task.slug, "status": "cancelled"})
+        assert result["status"] == "cancelled"
+
 
 @pytest.mark.django_db
 class TestTaskArchive:

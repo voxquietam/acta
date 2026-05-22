@@ -1,0 +1,352 @@
+{% load i18n %}
+{% load lucide %}
+{% load web_extras %}
+{% comment %}
+Right-click context-menu fragment for one task, matching the design
+system's ``comp-context-menu`` spec: a single blurred card whose content
+SWAPS IN PLACE between the root action list and each picker (submenus do
+NOT cascade to the right — they replace the menu body with a ``‹ slug ›
+Section`` back-breadcrumb at the top, per the design's touch/edge
+rationale). acta.js injects this into ``#context-menu-root`` and positions
+it at the cursor.
+
+Each action posts to the existing ``set_task_*`` / ``cancel_task`` /
+``archive_task`` / ``delete_task`` / ``toggle_task_label`` endpoints with
+``hx-swap="none"``; the root ``@htmx:after-request`` fires
+``acta:task-changed`` (board refetch) and closes. Label toggles keep the
+menu open for multi-select. Keyboard: Esc backs out / closes; L/D/M open
+submenus; ↵ opens modal; ⌫ deletes; ⌘C / ⌘⇧C copy; 1-9 pick inside a
+picker. Expects ``task``, ``status_labels``, ``priority_labels``,
+``size_values``, ``workspace_members``, ``workspace_projects``,
+``workspace_labels``, ``attached_label_ids``.
+{% endcomment %}
+{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number as detail_path %}
+<div x-data="{
+       view: 'root',
+       confirmDelete: false,
+       q: '',
+       close() { document.body.dispatchEvent(new CustomEvent('acta:close-context-menu', { bubbles: true })); },
+       copySlug() { navigator.clipboard && navigator.clipboard.writeText('{{ task.slug|escapejs }}'); this.close(); },
+       copyUrl() { navigator.clipboard && navigator.clipboard.writeText(window.location.origin + '{{ detail_path|escapejs }}'); this.close(); },
+       openModal() { window.htmx && window.htmx.ajax('GET', '{{ detail_path|escapejs }}?modal=1', { target: '#modal-root', swap: 'innerHTML' }); this.close(); },
+       matches(name) { return name.toLowerCase().includes(this.q.toLowerCase()); },
+       onKey(e) {
+         if (e.key === 'Escape') { if (this.view !== 'root') { this.view = 'root'; } else { this.close(); } return; }
+         if (e.target.matches && e.target.matches('input, textarea')) return;
+         if (this.view === 'root') {
+           if (e.metaKey || e.ctrlKey) { if (e.key.toLowerCase() === 'c') { e.preventDefault(); e.shiftKey ? this.copyUrl() : this.copySlug(); } return; }
+           const k = e.key.toLowerCase();
+           if (k === 'l') { e.preventDefault(); this.view = 'label'; }
+           else if (k === 'd') { e.preventDefault(); this.view = 'due'; }
+           else if (k === 'm') { const m = document.querySelector('#context-menu-root [data-open=\'project\']'); if (m) { e.preventDefault(); this.view = 'project'; } }
+           else if (e.key === 'Enter') { e.preventDefault(); this.openModal(); }
+           else if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); this.confirmDelete = true; }
+           return;
+         }
+         if (/^[1-9]$/.test(e.key)) {
+           const btn = document.querySelector(`#context-menu-root [data-view='${this.view}'] [data-mk='${e.key}']`);
+           if (btn) { e.preventDefault(); btn.click(); }
+         }
+       },
+     }"
+     @htmx:before-request="window.actaForceApplySelfEvent && window.actaForceApplySelfEvent({{ task.id }})"
+     @htmx:after-request="if ($event.detail.successful) close()"
+     @keydown.window="onKey($event)"
+     x-init="$nextTick(() => window.htmx && window.htmx.process($el))"
+     class="w-60 bg-card/95 backdrop-blur-md border border-border-strong rounded-[10px] p-1 text-[12.5px] text-muted-foreground shadow-2xl ring-1 ring-inset ring-brand-500/20">
+
+  {# ============ ROOT VIEW ============ #}
+  <div x-show="view === 'root'">
+    <div class="flex items-center gap-2 px-2.5 py-1.5 -mx-1 border-b border-border mb-1">
+      <span class="font-mono text-[11px] text-placeholder-foreground shrink-0">{{ task.slug }}</span>
+      <span class="flex-1 min-w-0 truncate text-foreground text-[11.5px]">{{ task.title }}</span>
+    </div>
+
+    <button type="button" @click="view = 'status'" class="group w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left hover:bg-muted/40 hover:text-foreground transition">
+      <span class="text-placeholder-foreground group-hover:text-foreground inline-flex shrink-0">{% lucide "clock" "w-3.5 h-3.5" %}</span>
+      <span class="flex-1">{% trans "Set status" %}</span>
+      <span class="text-placeholder-foreground inline-flex">{% lucide "chevron-right" "w-3 h-3" %}</span>
+    </button>
+    <button type="button" @click="view = 'priority'" class="group w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left hover:bg-muted/40 hover:text-foreground transition">
+      <span class="text-placeholder-foreground group-hover:text-foreground inline-flex shrink-0">{% lucide "signal" "w-3.5 h-3.5" %}</span>
+      <span class="flex-1">{% trans "Set priority" %}</span>
+      <span class="text-placeholder-foreground inline-flex">{% lucide "chevron-right" "w-3 h-3" %}</span>
+    </button>
+    <button type="button" @click="view = 'assignee'; $nextTick(() => $refs.asearch && $refs.asearch.focus())" class="group w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left hover:bg-muted/40 hover:text-foreground transition">
+      <span class="text-placeholder-foreground group-hover:text-foreground inline-flex shrink-0">{% lucide "user" "w-3.5 h-3.5" %}</span>
+      <span class="flex-1">{% trans "Assign to…" %}</span>
+      <span class="text-placeholder-foreground inline-flex">{% lucide "chevron-right" "w-3 h-3" %}</span>
+    </button>
+    <button type="button" @click="view = 'size'" class="group w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left hover:bg-muted/40 hover:text-foreground transition">
+      <span class="text-placeholder-foreground group-hover:text-foreground inline-flex shrink-0">{% lucide "gauge" "w-3.5 h-3.5" %}</span>
+      <span class="flex-1">{% trans "Set size" %}</span>
+      <span class="text-placeholder-foreground inline-flex">{% lucide "chevron-right" "w-3 h-3" %}</span>
+    </button>
+    <button type="button" @click="view = 'label'" class="group w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left hover:bg-muted/40 hover:text-foreground transition">
+      <span class="text-placeholder-foreground group-hover:text-foreground inline-flex shrink-0">{% lucide "tag" "w-3.5 h-3.5" %}</span>
+      <span class="flex-1">{% trans "Labels…" %}</span>
+      <span class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-muted border border-border text-placeholder-foreground">L</span>
+    </button>
+    <button type="button" @click="view = 'due'" class="group w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left hover:bg-muted/40 hover:text-foreground transition">
+      <span class="text-placeholder-foreground group-hover:text-foreground inline-flex shrink-0">{% lucide "calendar" "w-3.5 h-3.5" %}</span>
+      <span class="flex-1">{% trans "Set due date…" %}</span>
+      <span class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-muted border border-border text-placeholder-foreground">D</span>
+    </button>
+
+    <div class="-mx-1 my-1 border-t border-border"></div>
+
+    {# Cancel / Reopen #}
+    <form hx-post="{% url 'web:cancel_task' slug_prefix=task.project.slug_prefix number=task.number %}" hx-swap="none">
+      {% csrf_token %}
+      {% if task.status == 'cancelled' %}
+      <input type="hidden" name="reopen" value="1">
+      <button type="submit" class="group w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left hover:bg-muted/40 hover:text-blue-300 transition">
+        <span class="text-placeholder-foreground group-hover:text-blue-300 inline-flex shrink-0">{% lucide "rotate-ccw" "w-3.5 h-3.5" %}</span>
+        <span class="flex-1">{% trans "Reopen" %}</span>
+      </button>
+      {% else %}
+      <button type="submit" class="group w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left hover:bg-muted/40 hover:text-foreground transition">
+        <span class="text-placeholder-foreground group-hover:text-foreground inline-flex shrink-0">{% lucide "ban" "w-3.5 h-3.5" %}</span>
+        <span class="flex-1">{% trans "Cancel task" %}</span>
+      </button>
+      {% endif %}
+    </form>
+    {# Archive / Unarchive #}
+    <form hx-post="{% url 'web:archive_task' slug_prefix=task.project.slug_prefix number=task.number %}" hx-swap="none">
+      {% csrf_token %}
+      {% if task.archived_at %}
+      <input type="hidden" name="unarchive" value="1">
+      <button type="submit" class="group w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left hover:bg-muted/40 hover:text-amber-300 transition">
+        <span class="text-placeholder-foreground group-hover:text-amber-300 inline-flex shrink-0">{% lucide "archive-restore" "w-3.5 h-3.5" %}</span>
+        <span class="flex-1">{% trans "Unarchive" %}</span>
+      </button>
+      {% else %}
+      <button type="submit" class="group w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left hover:bg-muted/40 hover:text-amber-300 transition">
+        <span class="text-placeholder-foreground group-hover:text-amber-300 inline-flex shrink-0">{% lucide "archive" "w-3.5 h-3.5" %}</span>
+        <span class="flex-1">{% trans "Archive" %}</span>
+      </button>
+      {% endif %}
+    </form>
+
+    <div class="-mx-1 my-1 border-t border-border"></div>
+
+    <button type="button" @click="copySlug()" class="group w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left hover:bg-muted/40 hover:text-foreground transition">
+      <span class="text-placeholder-foreground group-hover:text-foreground inline-flex shrink-0">{% lucide "copy" "w-3.5 h-3.5" %}</span>
+      <span class="flex-1">{% trans "Copy slug" %}</span>
+      <span class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-muted border border-border text-placeholder-foreground">⌘C</span>
+    </button>
+    <button type="button" @click="copyUrl()" class="group w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left hover:bg-muted/40 hover:text-foreground transition">
+      <span class="text-placeholder-foreground group-hover:text-foreground inline-flex shrink-0">{% lucide "link" "w-3.5 h-3.5" %}</span>
+      <span class="flex-1">{% trans "Copy URL" %}</span>
+      <span class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-muted border border-border text-placeholder-foreground">⌘⇧C</span>
+    </button>
+    <button type="button" @click="openModal()" class="group w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left hover:bg-muted/40 hover:text-foreground transition">
+      <span class="text-placeholder-foreground group-hover:text-foreground inline-flex shrink-0">{% lucide "maximize-2" "w-3.5 h-3.5" %}</span>
+      <span class="flex-1">{% trans "Open in modal" %}</span>
+      <span class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-muted border border-border text-placeholder-foreground">↵</span>
+    </button>
+    <a href="{{ detail_path }}" @click="close()" class="group w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left hover:bg-muted/40 hover:text-foreground transition">
+      <span class="text-placeholder-foreground group-hover:text-foreground inline-flex shrink-0">{% lucide "external-link" "w-3.5 h-3.5" %}</span>
+      <span class="flex-1">{% trans "Open full page" %}</span>
+    </a>
+    {% if not task.parent_id %}
+    <button type="button" data-open="project" @click="view = 'project'" class="group w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left hover:bg-muted/40 hover:text-foreground transition">
+      <span class="text-placeholder-foreground group-hover:text-foreground inline-flex shrink-0">{% lucide "folder" "w-3.5 h-3.5" %}</span>
+      <span class="flex-1">{% trans "Move to project…" %}</span>
+      <span class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-muted border border-border text-placeholder-foreground">M</span>
+    </button>
+    {% endif %}
+
+    <div class="-mx-1 my-1 border-t border-border"></div>
+
+    <template x-if="!confirmDelete">
+      <button type="button" @click="confirmDelete = true" class="group w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left hover:bg-rose-500/10 hover:text-rose-300 transition">
+        <span class="text-placeholder-foreground group-hover:text-rose-300 inline-flex shrink-0">{% lucide "trash-2" "w-3.5 h-3.5" %}</span>
+        <span class="flex-1">{% trans "Delete…" %}</span>
+        <span class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-muted border border-border text-placeholder-foreground">⌫</span>
+      </button>
+    </template>
+    <template x-if="confirmDelete">
+      <div class="flex items-center gap-2 px-2.5 py-1.5">
+        <span class="text-xs text-rose-400 flex-1">{% trans "Delete this task?" %}</span>
+        <form hx-post="{% url 'web:delete_task' slug_prefix=task.project.slug_prefix number=task.number %}"
+              hx-swap="none" class="contents"
+              @htmx:after-request="if ($event.detail.successful) document.body.dispatchEvent(new CustomEvent('acta:task-changed', { bubbles: true }))">
+          {% csrf_token %}
+          <button type="submit" class="text-xs font-medium text-rose-400 hover:text-rose-300">{% trans "Delete" %}</button>
+        </form>
+        <button type="button" @click="confirmDelete = false" class="text-xs text-placeholder-foreground hover:text-foreground">{% trans "No" %}</button>
+      </div>
+    </template>
+  </div>
+
+  {# ============ STATUS SUBMENU ============ #}
+  <div x-show="view === 'status'" x-cloak data-view="status">
+    <button type="button" @click="view = 'root'" class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[11px] text-placeholder-foreground hover:bg-muted/40 hover:text-foreground mb-1">
+      {% lucide "chevron-left" "w-3 h-3" %}<span class="text-subtle-foreground">{{ task.slug }} <span class="text-placeholder-foreground">›</span> <b class="text-foreground font-medium">{% trans "Status" %}</b></span>
+    </button>
+    {% for key, label in status_labels.items %}
+    <form hx-post="{% url 'web:set_task_status' slug_prefix=task.project.slug_prefix number=task.number %}" hx-swap="none">
+      {% csrf_token %}<input type="hidden" name="status" value="{{ key }}">
+      <button type="submit" data-mk="{{ forloop.counter }}" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left text-xs hover:bg-muted/40 {% if key == task.status %}text-brand-500{% else %}text-muted-foreground hover:text-foreground{% endif %}">
+        <span class="w-[7px] h-[7px] rounded-full
+          {% if key == 'planned' %}bg-zinc-500{% elif key == 'to-do' %}bg-blue-500{% elif key == 'in-progress' %}bg-violet-500{% elif key == 'in-review' %}bg-amber-500{% elif key == 'done' %}bg-emerald-500{% else %}bg-zinc-600{% endif %}"></span>
+        <span class="flex-1 {% if key == 'cancelled' %}line-through{% endif %}">{{ label }}</span>
+        {% if key == task.status %}<span class="inline-flex">{% lucide "check" "w-3 h-3" %}</span>{% endif %}
+        <span class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-muted border border-border text-placeholder-foreground">{{ forloop.counter }}</span>
+      </button>
+    </form>
+    {% endfor %}
+  </div>
+
+  {# ============ PRIORITY SUBMENU ============ #}
+  <div x-show="view === 'priority'" x-cloak data-view="priority">
+    <button type="button" @click="view = 'root'" class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[11px] text-placeholder-foreground hover:bg-muted/40 hover:text-foreground mb-1">
+      {% lucide "chevron-left" "w-3 h-3" %}<span class="text-subtle-foreground">{{ task.slug }} <span class="text-placeholder-foreground">›</span> <b class="text-foreground font-medium">{% trans "Priority" %}</b></span>
+    </button>
+    {% for key, label in priority_labels.items %}
+    <form hx-post="{% url 'web:set_task_priority' slug_prefix=task.project.slug_prefix number=task.number %}" hx-swap="none">
+      {% csrf_token %}<input type="hidden" name="priority" value="{{ key }}">
+      <button type="submit" data-mk="{{ forloop.counter }}" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left text-xs hover:bg-muted/40 {% if key == task.priority %}text-brand-500{% else %}text-muted-foreground hover:text-foreground{% endif %}">
+        <span class="{{ key|priority_text_class }} inline-flex">
+          {% if key == 1 %}{% lucide "chevrons-up" "w-3.5 h-3.5" %}{% elif key == 2 %}{% lucide "chevron-up" "w-3.5 h-3.5" %}{% elif key == 3 %}{% lucide "minus" "w-3.5 h-3.5" %}{% elif key == 4 %}{% lucide "chevron-down" "w-3.5 h-3.5" %}{% else %}{% lucide "circle-dashed" "w-3.5 h-3.5" %}{% endif %}
+        </span>
+        <span class="flex-1">{{ label }}</span>
+        {% if key == task.priority %}<span class="inline-flex">{% lucide "check" "w-3 h-3" %}</span>{% endif %}
+        <span class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-muted border border-border text-placeholder-foreground">{{ forloop.counter }}</span>
+      </button>
+    </form>
+    {% endfor %}
+  </div>
+
+  {# ============ ASSIGNEE SUBMENU (type-to-search) ============ #}
+  <div x-show="view === 'assignee'" x-cloak data-view="assignee">
+    <button type="button" @click="view = 'root'" class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[11px] text-placeholder-foreground hover:bg-muted/40 hover:text-foreground mb-1">
+      {% lucide "chevron-left" "w-3 h-3" %}<span class="text-subtle-foreground">{{ task.slug }} <span class="text-placeholder-foreground">›</span> <b class="text-foreground font-medium">{% trans "Assign" %}</b></span>
+    </button>
+    <div class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-muted/40 border border-border mb-1">
+      <span class="text-placeholder-foreground inline-flex">{% lucide "search" "w-3 h-3" %}</span>
+      <input x-ref="asearch" x-model="q" type="text" placeholder="{% trans 'Type to search…' %}"
+             class="flex-1 bg-transparent border-none outline-none text-foreground text-[11.5px] placeholder-zinc-500">
+    </div>
+    <div class="max-h-60 overflow-y-auto">
+      {% for member in workspace_members %}
+      <form hx-post="{% url 'web:set_task_assignee' slug_prefix=task.project.slug_prefix number=task.number %}" hx-swap="none"
+            x-show="matches('{{ member.user.display_name|escapejs }}')">
+        {% csrf_token %}<input type="hidden" name="assignee_id" value="{{ member.user.id }}">
+        <button type="submit" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left text-xs hover:bg-muted/40 {% if task.assignee_id == member.user.id %}font-medium text-foreground{% else %}text-muted-foreground hover:text-foreground{% endif %}">
+          {% include "web/_user_avatar.html" with user=member.user class="w-[18px] h-[18px]" text_class="text-[10px]" %}
+          <span class="flex-1 truncate">{{ member.user.display_name }}</span>
+          {% if task.assignee_id == member.user.id %}<span class="inline-flex">{% lucide "check" "w-3 h-3" %}</span>{% endif %}
+        </button>
+      </form>
+      {% endfor %}
+    </div>
+    <div class="-mx-1 my-1 border-t border-border"></div>
+    <form hx-post="{% url 'web:set_task_assignee' slug_prefix=task.project.slug_prefix number=task.number %}" hx-swap="none">
+      {% csrf_token %}<input type="hidden" name="assignee_id" value="">
+      <button type="submit" class="group w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left text-xs hover:bg-rose-500/10 hover:text-rose-300 {% if not task.assignee_id %}text-brand-500{% else %}text-muted-foreground{% endif %}">
+        <span class="text-placeholder-foreground group-hover:text-rose-300 inline-flex">{% lucide "x" "w-3.5 h-3.5" %}</span>
+        <span class="flex-1">{% trans "Unassign" %}</span>
+      </button>
+    </form>
+  </div>
+
+  {# ============ SIZE SUBMENU ============ #}
+  <div x-show="view === 'size'" x-cloak data-view="size">
+    <button type="button" @click="view = 'root'" class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[11px] text-placeholder-foreground hover:bg-muted/40 hover:text-foreground mb-1">
+      {% lucide "chevron-left" "w-3 h-3" %}<span class="text-subtle-foreground">{{ task.slug }} <span class="text-placeholder-foreground">›</span> <b class="text-foreground font-medium">{% trans "Size" %}</b></span>
+    </button>
+    <form hx-post="{% url 'web:set_task_size' slug_prefix=task.project.slug_prefix number=task.number %}" hx-swap="none">
+      {% csrf_token %}<input type="hidden" name="size" value="">
+      <button type="submit" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left text-xs hover:bg-muted/40 {% if not task.size %}text-brand-500{% else %}text-muted-foreground hover:text-foreground{% endif %}">
+        <span class="flex-1">{% trans "No size" %}</span>
+      </button>
+    </form>
+    {% for value in size_values %}
+    <form hx-post="{% url 'web:set_task_size' slug_prefix=task.project.slug_prefix number=task.number %}" hx-swap="none">
+      {% csrf_token %}<input type="hidden" name="size" value="{{ value }}">
+      <button type="submit" data-mk="{{ forloop.counter }}" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left text-xs hover:bg-muted/40 {% if value == task.size %}text-brand-500{% else %}text-muted-foreground hover:text-foreground{% endif %}">
+        <span class="text-placeholder-foreground inline-flex">{% lucide "gauge" "w-3.5 h-3.5" %}</span>
+        <span class="flex-1 font-mono">{{ value }}</span>
+        {% if value == task.size %}<span class="inline-flex">{% lucide "check" "w-3 h-3" %}</span>{% endif %}
+        <span class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-muted border border-border text-placeholder-foreground">{{ forloop.counter }}</span>
+      </button>
+    </form>
+    {% endfor %}
+  </div>
+
+  {# ============ PROJECT (MOVE) SUBMENU ============ #}
+  {% if not task.parent_id %}
+  <div x-show="view === 'project'" x-cloak data-view="project">
+    <button type="button" @click="view = 'root'" class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[11px] text-placeholder-foreground hover:bg-muted/40 hover:text-foreground mb-1">
+      {% lucide "chevron-left" "w-3 h-3" %}<span class="text-subtle-foreground">{{ task.slug }} <span class="text-placeholder-foreground">›</span> <b class="text-foreground font-medium">{% trans "Move" %}</b></span>
+    </button>
+    <div class="max-h-60 overflow-y-auto">
+      {% for project in workspace_projects %}
+      <form hx-post="{% url 'web:set_task_project' slug_prefix=task.project.slug_prefix number=task.number %}" hx-swap="none">
+        {% csrf_token %}<input type="hidden" name="project_id" value="{{ project.id }}">
+        <button type="submit" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left text-xs hover:bg-muted/40 {% if project.id == task.project_id %}font-medium text-foreground{% else %}text-muted-foreground hover:text-foreground{% endif %}">
+          <span class="font-mono text-[11px] text-placeholder-foreground">{{ project.slug_prefix }}</span>
+          <span class="flex-1 truncate">{{ project.name }}</span>
+          {% if project.id == task.project_id %}<span class="inline-flex">{% lucide "check" "w-3 h-3" %}</span>{% endif %}
+        </button>
+      </form>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {# ============ LABELS SUBMENU (stays open for multi-toggle) ============ #}
+  <div x-show="view === 'label'" x-cloak data-view="label">
+    <button type="button" @click="view = 'root'" class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[11px] text-placeholder-foreground hover:bg-muted/40 hover:text-foreground mb-1">
+      {% lucide "chevron-left" "w-3 h-3" %}<span class="text-subtle-foreground">{{ task.slug }} <span class="text-placeholder-foreground">›</span> <b class="text-foreground font-medium">{% trans "Labels" %}</b></span>
+    </button>
+    <div class="max-h-60 overflow-y-auto">
+      {% for label in workspace_labels %}
+      {% comment %}
+      Label toggle keeps the menu open for multi-select: ``.stop`` halts
+      the ``htmx:after-request`` before it reaches the root's close
+      handler. The row itself updates instantly over SSE (the task id is
+      already force-applied via the root's before-request). The checkmark
+      below reflects the state at open time; reopen to re-sync it.
+      {% endcomment %}
+      <form hx-post="{% url 'web:toggle_task_label' slug_prefix=task.project.slug_prefix number=task.number %}"
+            hx-swap="none"
+            x-data="{ on: {% if label.id in attached_label_ids %}true{% else %}false{% endif %} }"
+            @htmx:after-request.stop="if ($event.detail.successful) on = !on">
+        {% csrf_token %}<input type="hidden" name="label_id" value="{{ label.id }}">
+        <button type="submit" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left text-xs hover:bg-muted/40"
+                :class="on ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'">
+          <span class="w-2 h-2 rounded-full" style="background-color: {{ label.color }};"></span>
+          <span class="flex-1 truncate">{{ label.name }}</span>
+          <span x-show="on" class="text-brand-500 inline-flex">{% lucide "check" "w-3 h-3" %}</span>
+        </button>
+      </form>
+      {% empty %}
+      <div class="px-2.5 py-1.5 text-xs text-placeholder-foreground italic">{% trans "No labels in this workspace" %}</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# ============ DUE DATE SUBMENU ============ #}
+  <div x-show="view === 'due'" x-cloak data-view="due">
+    <button type="button" @click="view = 'root'" class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[11px] text-placeholder-foreground hover:bg-muted/40 hover:text-foreground mb-1">
+      {% lucide "chevron-left" "w-3 h-3" %}<span class="text-subtle-foreground">{{ task.slug }} <span class="text-placeholder-foreground">›</span> <b class="text-foreground font-medium">{% trans "Due date" %}</b></span>
+    </button>
+    <div class="p-1.5 space-y-1.5">
+      <form hx-post="{% url 'web:set_task_due_date' slug_prefix=task.project.slug_prefix number=task.number %}" hx-swap="none">
+        {% csrf_token %}
+        <input type="date" name="due_date" value="{{ task.due_date|date:'Y-m-d' }}"
+               @change="$el.form.requestSubmit()"
+               class="w-full bg-muted border border-border-strong rounded px-2 py-1 text-xs text-foreground focus:outline-none focus:border-brand-500">
+      </form>
+      {% if task.due_date %}
+      <form hx-post="{% url 'web:set_task_due_date' slug_prefix=task.project.slug_prefix number=task.number %}" hx-swap="none">
+        {% csrf_token %}<input type="hidden" name="due_date" value="">
+        <button type="submit" class="w-full text-left text-xs text-placeholder-foreground hover:text-rose-400 px-1 py-0.5">{% trans "Clear due date" %}</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</div>

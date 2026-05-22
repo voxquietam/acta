@@ -1196,8 +1196,18 @@
         // inline edits etc.) — *except* when the event came in via MCP
         // (Claude Desktop, Cursor, curl): those write through a different
         // client process the local tab doesn't know about, so the local
-        // tab must apply the SSE swap to stay in sync.
-        if (String(data.actor_id) === meId && !data.via_mcp) return;
+        // tab must apply the SSE swap to stay in sync. The context menu
+        // also opts a task in (``actaForceApplySelfEvents``) because it
+        // posts with ``hx-swap="none"`` — the HTTP response doesn't touch
+        // the row, so the SSE swap is the only thing that updates it.
+        if (String(data.actor_id) === meId && !data.via_mcp) {
+          const tid = Number(data.target_id);
+          if (window.__actaForceApplySelf && window.__actaForceApplySelf.has(tid)) {
+            window.__actaForceApplySelf.delete(tid);
+          } else {
+            return;
+          }
+        }
         fn(data);
       });
     };
@@ -1796,6 +1806,103 @@
     window.htmx.ajax("GET", href + "?modal=1", { target: "#modal-root", swap: "innerHTML" });
   });
 
+  // Right-click context menu on task rows / cards. One global menu lives
+  // in ``#context-menu-root``; the per-task fragment is fetched on demand
+  // (server-rendered with every submenu pre-populated) and positioned at
+  // the cursor with viewport edge-flipping. Actions inside post to the
+  // ``set_task_*`` endpoints and the menu fires ``acta:task-changed`` so
+  // the board panel refetches.
+  // Tasks whose next self-event the SSE handler should apply rather than
+  // drop — populated by the context menu (which posts ``hx-swap="none"``,
+  // so only the SSE swap updates the row). Entries auto-expire so a stale
+  // id never force-applies an unrelated later edit.
+  window.__actaForceApplySelf = window.__actaForceApplySelf || new Set();
+  window.actaForceApplySelfEvent = function (id) {
+    const n = Number(id);
+    window.__actaForceApplySelf.add(n);
+    setTimeout(() => window.__actaForceApplySelf.delete(n), 4000);
+  };
+
+  (function initTaskContextMenu() {
+    const root = document.getElementById("context-menu-root");
+    if (!root) return;
+
+    function closeMenu() {
+      if (root.style.display === "none") return;
+      root.style.display = "none";
+      root.innerHTML = "";
+    }
+
+    function positionMenu(clientX, clientY) {
+      const menu = root.firstElementChild;
+      root.style.left = "0px";
+      root.style.top = "0px";
+      root.style.display = "block";
+      const mw = menu ? menu.offsetWidth : 240;
+      const mh = menu ? menu.offsetHeight : 360;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      // Submenus swap in place (no right cascade), so we only clamp the
+      // single card to the viewport — flip left / up when it would spill.
+      let left = clientX;
+      if (clientX + mw > vw) left = clientX - mw;
+      left = Math.max(8, Math.min(left, vw - mw - 8));
+      let top = clientY;
+      if (clientY + mh > vh) top = vh - mh - 8;
+      top = Math.max(8, top);
+      root.style.left = left + "px";
+      root.style.top = top + "px";
+    }
+
+    function openMenu(url, x, y) {
+      if (!url || !window.htmx) return;
+      window.htmx.ajax("GET", url, { target: "#context-menu-root", swap: "innerHTML" }).then(() => positionMenu(x, y));
+    }
+    // Bulk bar's "Actions" button opens the same selection menu anchored
+    // above it (positionMenu flips up since the bar sits at the bottom).
+    window.actaOpenBulkMenu = (x, y) => openMenu("/tasks/bulk-menu/", x, y);
+
+    document.addEventListener("contextmenu", (e) => {
+      // Leave the native menu alone inside text inputs / editors.
+      if (e.target.closest && e.target.closest("input, textarea, [contenteditable], .ProseMirror")) return;
+      const row = e.target.closest && e.target.closest("[data-task-id][data-context-menu-url]");
+      if (!row || !window.htmx) return;
+      e.preventDefault();
+      // Selection-aware: right-clicking a task that's part of a 2+
+      // selection acts on the WHOLE selection (bulk menu); otherwise it's
+      // the single-task menu. Right-clicking an unselected task never
+      // touches the current selection.
+      const taskId = Number(row.dataset.taskId);
+      const store = window.Alpine && window.Alpine.store("selection");
+      const bulk = store && store.size >= 2 && store.has(taskId);
+      const url = bulk ? "/tasks/bulk-menu/" : row.getAttribute("data-context-menu-url");
+      openMenu(url, e.clientX, e.clientY);
+    });
+
+    document.body.addEventListener("acta:close-context-menu", closeMenu);
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeMenu();
+    });
+    document.addEventListener("mousedown", (e) => {
+      if (root.style.display === "none") return;
+      if (!root.contains(e.target)) closeMenu();
+    });
+    // Capture-phase scroll fires for the menu's own scrollable submenus
+    // too — only close when the scroll happened OUTSIDE the menu (i.e. the
+    // page scrolled under it), never when scrolling a submenu list.
+    window.addEventListener(
+      "scroll",
+      (e) => {
+        if (root.style.display === "none") return;
+        if (e.target && root.contains(e.target)) return;
+        closeMenu();
+      },
+      true,
+    );
+    window.addEventListener("resize", closeMenu);
+    window.addEventListener("popstate", closeMenu);
+  })();
+
   // Shared Alpine store for the filter sidebar's open / collapsed state.
   // Drives both the sidebar itself (collapsed button vs full form) and
   // the page-content wrapper that needs to reserve right padding for the
@@ -2051,44 +2158,54 @@
       },
     });
 
-    // Bulk-archive driver used by the action bar in ``base_app.html``.
-    // Fires a single PATCH ``/api/v1/tasks/bulk/`` with ``archived=true``
-    // for every selected id, then reloads the page so all caches (row
-    // list, sidebar counters, kanban) reflect the change. The bulk
-    // endpoint contract is in ``docs/decisions/0012-bulk-operations.md``.
-    window.actaBulkArchive = async function actaBulkArchive() {
+    // Bulk drivers hitting ``/api/v1/tasks/bulk/`` for every selected id.
+    // Used by the floating action bar AND the bulk context menu (right-
+    // click on a selected task). The endpoint contract is in
+    // docs/decisions/0012-bulk-operations.md. On success we clear the
+    // selection and fire ``acta:bulk-changed`` (+ legacy
+    // ``acta:bulk-archived``); page panels listen via ``hx-trigger`` and
+    // refetch their fragment, so the board reflects the change without a
+    // full reload / SSE reconnect.
+    function csrfToken() {
+      const m = document.cookie.match(/csrftoken=([^;]+)/);
+      return m ? decodeURIComponent(m[1]) : "";
+    }
+    async function bulkRequest(method, body, failLabel, opts) {
       const store = window.Alpine.store("selection");
-      if (!store || store.size === 0) return;
+      if (!store || store.size === 0) return false;
       const ids = [...store.ids];
-      const csrfMatch = document.cookie.match(/csrftoken=([^;]+)/);
-      const csrfToken = csrfMatch ? decodeURIComponent(csrfMatch[1]) : "";
       const resp = await fetch("/api/v1/tasks/bulk/", {
-        method: "PATCH",
+        method,
         credentials: "same-origin",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": csrfToken,
-        },
-        body: JSON.stringify({ ids, updates: { archived: true } }),
+        headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken() },
+        body: JSON.stringify({ ids, ...body }),
       });
       if (resp.ok) {
-        store.clear();
-        // Fire a custom event the page panels listen to via
-        // ``hx-trigger="acta:bulk-archived from:body"``. The listener
-        // re-fetches its own fragment, so the rows disappear without
-        // a full page reload (no scroll jump, no SSE reconnect).
+        // Keep the selection for repeatable actions (e.g. toggling several
+        // labels in a row); otherwise the operation is terminal and we
+        // clear it so the bulk bar / menu dismiss.
+        if (!(opts && opts.keepSelection)) store.clear();
+        document.body.dispatchEvent(new CustomEvent("acta:bulk-changed", { bubbles: true }));
         document.body.dispatchEvent(new CustomEvent("acta:bulk-archived", { bubbles: true }));
-      } else {
-        let detail = "";
-        try {
-          const data = await resp.json();
-          detail = data.detail || JSON.stringify(data);
-        } catch (_) {
-          detail = resp.statusText;
-        }
-        window.actaToast("Bulk archive failed: " + detail, "error");
+        return true;
       }
-    };
+      let detail = "";
+      try {
+        const data = await resp.json();
+        detail = data.detail || JSON.stringify(data);
+      } catch (_) {
+        detail = resp.statusText;
+      }
+      window.actaToast(failLabel + ": " + detail, "error");
+      return false;
+    }
+    // Apply a field map (e.g. ``{status: 'done'}``, ``{archived: true}``,
+    // ``{labels_add: [3]}``) to every selected task. Pass
+    // ``{keepSelection: true}`` to leave the selection intact (labels).
+    window.actaBulkPatch = (updates, opts) => bulkRequest("PATCH", { updates }, "Bulk update failed", opts);
+    // Hard-delete every selected task.
+    window.actaBulkDelete = () => bulkRequest("DELETE", {}, "Bulk delete failed");
+    window.actaBulkArchive = () => window.actaBulkPatch({ archived: true });
 
     window.Alpine.store("kanban", {
       collapsed: new Set(collapsed),

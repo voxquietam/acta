@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Acta 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-05-21 17:49+0000\n"
+"POT-Creation-Date: 2026-05-22 15:22+0000\n"
 "PO-Revision-Date: 2026-05-16 15:30+0000\n"
 "Last-Translator: Acta team\n"
 "Language-Team: Ukrainian\n"
@@ -15,107 +15,106 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=4; plural=(n % 1 == 0 && n % 10 == 1 && n % 100 != "
-"11 ? 0 : n % 1 == 0 && n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % "
-"100 > 14) ? 1 : n % 1 == 0 && (n % 10 ==0 || (n % 10 >=5 && n % 10 <=9) || "
-"(n % 100 >=11 && n % 100 <=14 )) ? 2: 3);\n"
+"Plural-Forms: nplurals=4; plural=(n % 1 == 0 && n % 10 == 1 && n % 100 != 11 ? 0 : n % 1 == 0 && n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 1 : n % 1 == 0 && (n % 10 ==0 || (n % 10 >=5 && n % 10 <=9) || (n % 100 >=11 && n % 100 <=14 )) ? 2: 3);\n"
 
-#: acta/settings/base.py:243
+#: acta/settings/base.py:244
 msgid "English"
 msgstr "Англійська"
 
-#: acta/settings/base.py:244
+#: acta/settings/base.py:245
 msgid "Ukrainian"
 msgstr "Українська"
 
-#: acta/settings/base.py:293 apps/workspaces/models.py:56
+#: acta/settings/base.py:400 apps/workspaces/models.py:56
 #: templates/web/_create_project_modal.html:71
-#: templates/web/_filters_sidebar.html:429
 msgid "Workspace"
 msgstr "Робочий простір"
 
-#: acta/settings/base.py:297 apps/workspaces/models.py:57
+#: acta/settings/base.py:404 apps/workspaces/models.py:57
+#: templates/base_app.html:167
 msgid "Workspaces"
 msgstr "Робочі простори"
 
-#: acta/settings/base.py:302 templates/web/projects/_overview_panel.html:279
+#: acta/settings/base.py:409 templates/web/projects/_overview_panel.html:289
 #: templates/web/workspaces/settings.html:29
 msgid "Members"
 msgstr "Учасники"
 
-#: acta/settings/base.py:307 templates/web/workspaces/settings.html:40
+#: acta/settings/base.py:414 templates/web/workspaces/settings.html:40
 msgid "Invites"
 msgstr "Запрошення"
 
-#: acta/settings/base.py:314 acta/settings/base.py:318
+#: acta/settings/base.py:421 acta/settings/base.py:425
 #: apps/projects/models.py:106 templates/base_app.html:120
 #: templates/base_app.html:121 templates/web/projects/detail.html:8
 #: templates/web/projects/list.html:5 templates/web/projects/list.html:8
 msgid "Projects"
 msgstr "Проєкти"
 
-#: acta/settings/base.py:323 apps/projects/models.py:244
+#: acta/settings/base.py:430 apps/projects/models.py:244
 msgid "Project updates"
 msgstr "Оновлення проєктів"
 
-#: acta/settings/base.py:330 acta/settings/base.py:334
+#: acta/settings/base.py:437 acta/settings/base.py:441
 msgid "Tasks"
 msgstr "Задачі"
 
-#: acta/settings/base.py:339 apps/comments/models.py:62 apps/web/views.py:1034
+#: acta/settings/base.py:446 apps/comments/models.py:62 apps/web/views.py:1064
 #: templates/web/_inbox_list.html:44 templates/web/_my_activity_inner.html:14
 #: templates/web/projects/_update_comments.html:14
 msgid "Comments"
 msgstr "Коментарі"
 
-#: acta/settings/base.py:344 apps/labels/models.py:94 apps/web/views.py:1033
-#: templates/web/_create_task_modal.html:147
-#: templates/web/_filters_sidebar.html:366
+#: acta/settings/base.py:451 apps/labels/models.py:94 apps/web/views.py:1063
+#: templates/web/_create_task_modal.html:150
+#: templates/web/_filters_sidebar.html:412
+#: templates/web/projects/_bulk_context_menu.html:201
 #: templates/web/projects/_table.html:70
-#: templates/web/projects/_task_meta.html:86
+#: templates/web/projects/_task_context_menu.html:303
+#: templates/web/projects/_task_meta.html:109
 msgid "Labels"
 msgstr "Мітки"
 
-#: acta/settings/base.py:349 apps/labels/models.py:41
+#: acta/settings/base.py:456 apps/labels/models.py:41
 msgid "Label groups"
 msgstr "Групи міток"
 
-#: acta/settings/base.py:356 templates/web/_my_activity_inner.html:19
-#: templates/web/projects/_task_detail_body.html:85
-#: templates/web/projects/_task_detail_body.html:126
-#: templates/web/projects/_task_detail_modal_body.html:82
+#: acta/settings/base.py:463 templates/web/_my_activity_inner.html:19
+#: templates/web/projects/_task_detail_body.html:80
+#: templates/web/projects/_task_detail_body.html:121
+#: templates/web/projects/_task_detail_modal_body.html:77
 msgid "Activity"
 msgstr "Активність"
 
-#: acta/settings/base.py:360 apps/activity/models.py:79
+#: acta/settings/base.py:467 apps/activity/models.py:80
 msgid "Activity log"
 msgstr "Журнал активності"
 
-#: acta/settings/base.py:367 apps/notifications/models.py:30
+#: acta/settings/base.py:474 apps/notifications/models.py:30
 msgid "System"
 msgstr "Система"
 
-#: acta/settings/base.py:372 apps/accounts/models.py:38
+#: acta/settings/base.py:479 apps/accounts/models.py:79
 msgid "Users"
 msgstr "Користувачі"
 
-#: acta/settings/base.py:377
+#: acta/settings/base.py:484
 msgid "Groups"
 msgstr "Групи"
 
-#: acta/settings/base.py:383
+#: acta/settings/base.py:490
 msgid "Sites"
 msgstr "Сайти"
 
-#: acta/settings/base.py:389
+#: acta/settings/base.py:496
 msgid "Email addresses"
 msgstr "Електронні адреси"
 
-#: acta/settings/base.py:395
+#: acta/settings/base.py:502
 msgid "Social apps"
 msgstr "Соціальні застосунки"
 
-#: acta/settings/base.py:401
+#: acta/settings/base.py:508
 msgid "Social accounts"
 msgstr "Соціальні акаунти"
 
@@ -135,70 +134,138 @@ msgstr "Токен відкликано"
 msgid "User account is inactive"
 msgstr "Обліковий запис неактивний"
 
-#: apps/accounts/models.py:37
+#: apps/accounts/models.py:78
 msgid "User"
 msgstr "Користувач"
 
-#: apps/accounts/models.py:123
+#: apps/accounts/models.py:164
 msgid "API token"
 msgstr "API токен"
 
-#: apps/accounts/models.py:124 templates/accounts/settings.html:97
+#: apps/accounts/models.py:165 templates/accounts/settings.html:122
 msgid "API tokens"
 msgstr "API токени"
 
-#: apps/accounts/views.py:73
+#: apps/accounts/views.py:76
 #, python-format
 msgid "Email does not match the invite — it was issued to %(expected)s."
 msgstr "Email не збігається із запрошенням — його видано для %(expected)s."
 
-#: apps/accounts/views.py:107
+#: apps/accounts/views.py:110
 msgid "Unsupported language"
 msgstr "Непідтримувана мова"
 
-#: apps/accounts/views.py:234
+#: apps/accounts/views.py:237
 msgid "Token name is required."
 msgstr "Потрібно вказати назву токена."
 
-#: apps/accounts/views.py:268
+#: apps/accounts/views.py:271
 #, python-format
 msgid "Token “%(name)s” revoked."
 msgstr "Токен «%(name)s» відкликано."
 
-#: apps/accounts/views.py:291
+#: apps/accounts/views.py:294
 #, python-format
 msgid "Token “%(name)s” deleted."
 msgstr "Токен «%(name)s» видалено."
 
-#: apps/accounts/views.py:319
-msgid ""
-"You're already signed in — share the invite link with someone who needs an "
-"account."
-msgstr ""
-"Ви вже увійшли — поділіться посиланням-запрошенням з тим, кому потрібен "
-"акаунт."
+#: apps/accounts/views.py:322
+msgid "You're already signed in — share the invite link with someone who needs an account."
+msgstr "Ви вже увійшли — поділіться посиланням-запрошенням з тим, кому потрібен акаунт."
 
-#: apps/accounts/views.py:326
+#: apps/accounts/views.py:329
 msgid "That invite link is not valid."
 msgstr "Це посилання-запрошення недійсне."
 
-#: apps/accounts/views.py:331
+#: apps/accounts/views.py:334
 msgid "That invite link has already been used."
 msgstr "Це посилання-запрошення вже використано."
 
-#: apps/accounts/views.py:333
+#: apps/accounts/views.py:336
 msgid "That invite link has expired — ask the admin to resend it."
-msgstr ""
-"Термін дії посилання-запрошення минув — попросіть адміністратора надіслати "
-"його ще раз."
+msgstr "Термін дії посилання-запрошення минув — попросіть адміністратора надіслати його ще раз."
 
-#: apps/activity/models.py:78
+#: apps/accounts/views.py:364
+#, fuzzy
+#| msgid "Latest update"
+msgid "Avatar updated."
+msgstr "Останній апдейт"
+
+#: apps/accounts/views.py:374
+msgid "Avatar removed."
+msgstr ""
+
+#: apps/activity/models.py:79
 msgid "Activity log entry"
 msgstr "Запис журналу активності"
 
+#: apps/attachments/models.py:54
+msgid "File attachment"
+msgstr ""
+
+#: apps/attachments/models.py:55
+#, fuzzy
+#| msgid "Inline code"
+msgid "Inline editor image"
+msgstr "Код у тексті"
+
+#: apps/attachments/models.py:129
+msgid "Attachment"
+msgstr ""
+
+#: apps/attachments/models.py:130
+#: templates/web/projects/_attachments_panel.html:16
+msgid "Attachments"
+msgstr ""
+
+#: apps/attachments/models.py:188
+#, fuzzy
+#| msgid "A comment must target exactly one of a task or a project update."
+msgid "An attachment must target exactly one of a task, a comment, or a project."
+msgstr "Коментар має стосуватися рівно одного: задачі або апдейту проєкту."
+
+#: apps/attachments/services.py:75
+#, python-format
+msgid "Files of type “.%(ext)s” are not allowed."
+msgstr ""
+
+#: apps/attachments/services.py:80
+#, python-format
+msgid "“%(name)s” is too large — the limit for this type is %(mb)s MB."
+msgstr ""
+
+#: apps/attachments/services.py:102
+#, python-format
+msgid "“%(name)s” does not look like a valid .%(ext)s file."
+msgstr ""
+
+#: apps/attachments/services.py:111
+#, python-format
+msgid "“%(name)s” is not a readable image."
+msgstr ""
+
+#: apps/attachments/services.py:246
+msgid "Your avatar must be a PNG, JPG, GIF, or WebP image."
+msgstr ""
+
+#: apps/attachments/services.py:250
+#, python-format
+msgid "That image is too large — the avatar limit is %(mb)s MB."
+msgstr ""
+
+#: apps/attachments/services.py:254
+#, fuzzy
+#| msgid "That invite link has already been used."
+msgid "That file is not a readable image."
+msgstr "Це посилання-запрошення вже використано."
+
+#: apps/attachments/services.py:308
+msgid "Only PNG, JPG, GIF, or WebP images can be embedded."
+msgstr ""
+
 #: apps/comments/models.py:61 apps/notifications/models.py:26
 #: templates/web/_inbox_preview.html:52
-#: templates/web/projects/_update_comments.html:31
+#: templates/web/projects/_update_comments.html:22
 msgid "Comment"
 msgstr "Коментар"
 
@@ -212,19 +279,15 @@ msgstr "Відповіді не можуть мати власних відпо�
 
 #: apps/comments/models.py:97
 msgid "A reply must belong to the same target as its parent."
-msgstr ""
-"Відповідь має належати до того самого об'єкта, що й батьківський коментар."
+msgstr "Відповідь має належати до того самого об'єкта, що й батьківський коментар."
 
 #: apps/comments/serializers.py:69
 msgid "You are not a member of this task's workspace."
 msgstr "Ви не є учасником робочого простору цієї задачі."
 
 #: apps/labels/models.py:7
-msgid ""
-"Color must be a hex code: #RRGGBB or #RRGGBBAA (e.g. #a855f7 for purple)."
-msgstr ""
-"Колір має бути hex-кодом: #RRGGBB або #RRGGBBAA (наприклад #a855f7 — "
-"фіолетовий)."
+msgid "Color must be a hex code: #RRGGBB or #RRGGBBAA (e.g. #a855f7 for purple)."
+msgstr "Колір має бути hex-кодом: #RRGGBB або #RRGGBBAA (наприклад #a855f7 — фіолетовий)."
 
 #: apps/labels/models.py:40
 msgid "Label group"
@@ -241,8 +304,7 @@ msgstr "Ви не є учасником цього робочого просто
 
 #: apps/labels/serializers.py:93
 msgid "Label group must belong to the same workspace as the label."
-msgstr ""
-"Група міток повинна належати тому ж робочому простору, що й сама мітка."
+msgstr "Група міток повинна належати тому ж робочому простору, що й сама мітка."
 
 #: apps/notifications/models.py:23
 msgid "Mention"
@@ -276,18 +338,19 @@ msgstr "Сповіщення"
 msgid "Notifications"
 msgstr "Сповіщення"
 
-#: apps/projects/models.py:11 apps/web/views.py:4460
+#: apps/projects/models.py:11 apps/web/views.py:5069
 msgid "Slug prefix must be 2–6 uppercase Latin letters."
 msgstr "Префікс slug має містити 2–6 великих латинських літер."
 
 #: apps/projects/models.py:105 templates/web/_create_task_modal.html:52
-#: templates/web/_filters_sidebar.html:308 templates/web/_inbox_preview.html:29
+#: templates/web/_filters_sidebar.html:354 templates/web/_inbox_preview.html:29
 #: templates/web/_inbox_update_preview.html:20
 #: templates/web/_project_strip.html:10 templates/web/projects/_table.html:80
+#: templates/web/projects/_task_meta.html:15
 msgid "Project"
 msgstr "Проєкт"
 
-#: apps/projects/models.py:132 apps/web/views.py:4478
+#: apps/projects/models.py:132 apps/web/views.py:5087
 msgid "Lead must be a member of the project's workspace."
 msgstr "Лід повинен бути учасником робочого простору проєкту."
 
@@ -322,8 +385,7 @@ msgstr "@Згадки"
 #: apps/reactions/models.py:120
 #, fuzzy
 #| msgid "A comment must target exactly one of a task or a project update."
-msgid ""
-"A reaction must target exactly one of a task, a comment, or a project update."
+msgid "A reaction must target exactly one of a task, a comment, or a project update."
 msgstr "Коментар має стосуватися рівно одного: задачі або апдейту проєкту."
 
 #: apps/tasks/bulk.py:93
@@ -375,33 +437,35 @@ msgstr "Проєкт %(id)s не знайдено"
 #: apps/tasks/bulk.py:402
 #, python-format
 msgid "Cross-workspace bulk move not allowed for tasks: %(ids)s"
-msgstr ""
-"Масове переміщення задач між робочими просторами не дозволено: %(ids)sМасове "
-"переміщення між робочими просторами заборонене для задач: %(ids)s"
+msgstr "Масове переміщення задач між робочими просторами не дозволено: %(ids)sМасове переміщення між робочими просторами заборонене для задач: %(ids)s"
 
 #: apps/tasks/bulk.py:548 apps/tasks/bulk.py:574
 msgid "Permission denied for one or more tasks in the batch."
 msgstr "Доступ заборонено для однієї або кількох задач у пакеті."
 
-#: apps/tasks/models.py:49
+#: apps/tasks/models.py:66
 msgid "Planned"
 msgstr "Заплановано"
 
-#: apps/tasks/models.py:50
+#: apps/tasks/models.py:67
 msgid "To do"
 msgstr "До виконання"
 
-#: apps/tasks/models.py:51
+#: apps/tasks/models.py:68
 msgid "In progress"
 msgstr "У роботі"
 
-#: apps/tasks/models.py:52
+#: apps/tasks/models.py:69
 msgid "In review"
 msgstr "На рев'ю"
 
-#: apps/tasks/models.py:53
+#: apps/tasks/models.py:70
 msgid "Done"
 msgstr "Готово"
+
+#: apps/tasks/models.py:71
+msgid "Cancelled"
+msgstr "Скасовано"
 
 #: apps/tasks/serializers.py:84
 msgid "You are not a member of this project's workspace."
@@ -418,8 +482,7 @@ msgstr "Підзадача має бути в тому ж проєкті, що �
 
 #: apps/tasks/serializers.py:139
 msgid "Subtasks cannot have their own subtasks (depth limit 1)."
-msgstr ""
-"Підзадачі не можуть мати власних підзадач (максимальна вкладеність — 1)."
+msgstr "Підзадачі не можуть мати власних підзадач (максимальна вкладеність — 1)."
 
 #: apps/tasks/serializers.py:146
 #, python-format
@@ -431,265 +494,278 @@ msgstr "Мітки %(ids)s не належать робочому простор
 msgid "User %(user)s is not a member of this project's workspace."
 msgstr "Користувач %(user)s не є учасником робочого простору цього проєкту."
 
-#: apps/web/grouping.py:111
+#: apps/web/grouping.py:112
 msgid "Overdue"
 msgstr "Прострочено"
 
-#: apps/web/grouping.py:112 templates/web/projects/_timeline.html:229
+#: apps/web/grouping.py:113 templates/web/projects/_timeline.html:229
 msgid "Today"
 msgstr "Сьогодні"
 
-#: apps/web/grouping.py:113
+#: apps/web/grouping.py:114
 msgid "This week"
 msgstr "Цього тижня"
 
-#: apps/web/grouping.py:114
+#: apps/web/grouping.py:115
 msgid "Later"
 msgstr "Пізніше"
 
-#: apps/web/grouping.py:115
+#: apps/web/grouping.py:116
 msgid "No deadline"
 msgstr "Без дедлайну"
 
-#: apps/web/grouping.py:118
+#: apps/web/grouping.py:119
 msgid "Recently done"
 msgstr "Нещодавно завершено"
 
-#: apps/web/grouping.py:184 templates/web/_assignee_strip.html:96
-#: templates/web/_task_row.html:116
-#: templates/web/projects/_assignee_cell.html:62
+#: apps/web/grouping.py:189 templates/web/_assignee_strip.html:105
+#: templates/web/_task_row.html:126
+#: templates/web/projects/_assignee_cell.html:59
 #: templates/web/projects/_table_row.html:166
 #: templates/web/projects/_table_row.html:167
-#: templates/web/projects/_task_card.html:104
+#: templates/web/projects/_task_card.html:126
 msgid "Unassigned"
 msgstr "Без виконавця"
 
-#: apps/web/templatetags/web_extras.py:210
+#: apps/web/templatetags/web_extras.py:219
 msgid "created the task"
 msgstr "створено задачу"
 
-#: apps/web/templatetags/web_extras.py:211
+#: apps/web/templatetags/web_extras.py:220
 #: templates/web/projects/_activity_event.html:18
 msgid "changed status"
 msgstr "змінено статус"
 
-#: apps/web/templatetags/web_extras.py:212
+#: apps/web/templatetags/web_extras.py:221
 #: templates/web/projects/_activity_event.html:35
 msgid "changed assignee"
 msgstr "змінено виконавця"
 
-#: apps/web/templatetags/web_extras.py:213
+#: apps/web/templatetags/web_extras.py:222
 #: templates/web/projects/_activity_event.html:30
 msgid "changed due date"
 msgstr "змінено дедлайн"
 
-#: apps/web/templatetags/web_extras.py:214
+#: apps/web/templatetags/web_extras.py:223
 #: templates/web/projects/_activity_event.html:25
 msgid "changed priority"
 msgstr "змінено пріоритет"
 
-#: apps/web/templatetags/web_extras.py:215
-#: templates/web/projects/_activity_event.html:40
+#: apps/web/templatetags/web_extras.py:224
+#: templates/web/projects/_activity_event.html:47
 msgid "changed labels"
 msgstr "змінено мітки"
 
-#: apps/web/templatetags/web_extras.py:216
+#: apps/web/templatetags/web_extras.py:225
 msgid "changed parent"
 msgstr "змінено батьківську задачу"
 
-#: apps/web/templatetags/web_extras.py:217
+#: apps/web/templatetags/web_extras.py:226
 msgid "updated fields"
 msgstr "оновлено поля"
 
-#: apps/web/templatetags/web_extras.py:218
+#: apps/web/templatetags/web_extras.py:227
 msgid "archived the task"
 msgstr "архівував(ла) задачу"
 
-#: apps/web/templatetags/web_extras.py:219
+#: apps/web/templatetags/web_extras.py:228
 msgid "unarchived the task"
 msgstr "розархівував(ла) задачу"
 
-#: apps/web/templatetags/web_extras.py:220
+#: apps/web/templatetags/web_extras.py:229
 msgid "added a link"
 msgstr "додав(ла) зв'язок"
 
-#: apps/web/templatetags/web_extras.py:221
+#: apps/web/templatetags/web_extras.py:230
 msgid "removed a link"
 msgstr "прибрав(ла) зв'язок"
 
-#: apps/web/templatetags/web_extras.py:222
+#: apps/web/templatetags/web_extras.py:231
 msgid "deleted the task"
 msgstr "видалено задачу"
 
-#: apps/web/templatetags/web_extras.py:223
-#: templates/web/projects/_activity_event.html:55
+#: apps/web/templatetags/web_extras.py:232
+#: templates/web/projects/_activity_event.html:62
 msgid "added a comment"
 msgstr "додано коментар"
 
-#: apps/web/templatetags/web_extras.py:224
+#: apps/web/templatetags/web_extras.py:233
 msgid "edited a comment"
 msgstr "відредаговано коментар"
 
-#: apps/web/templatetags/web_extras.py:225
+#: apps/web/templatetags/web_extras.py:234
 msgid "deleted a comment"
 msgstr "видалено коментар"
 
-#: apps/web/templatetags/web_extras.py:226
+#: apps/web/templatetags/web_extras.py:235
+msgid "attached a file"
+msgstr ""
+
+#: apps/web/templatetags/web_extras.py:236
+#, fuzzy
+#| msgid "removed a member"
+msgid "removed an attachment"
+msgstr "учасника виключено з простору"
+
+#: apps/web/templatetags/web_extras.py:237
 msgid "added a member"
 msgstr "додано учасника"
 
-#: apps/web/templatetags/web_extras.py:227
+#: apps/web/templatetags/web_extras.py:238
 msgid "removed a member"
 msgstr "учасника виключено з простору"
 
-#: apps/web/templatetags/web_extras.py:228
+#: apps/web/templatetags/web_extras.py:239
 msgid "changed a member role"
 msgstr "змінено роль учасника"
 
-#: apps/web/views.py:1029 templates/web/_create_task_modal.html:104
-#: templates/web/_filters_sidebar.html:196
+#: apps/web/views.py:1059 templates/web/_create_task_modal.html:105
+#: templates/web/_filters_sidebar.html:195
+#: templates/web/projects/_bulk_context_menu.html:114
 #: templates/web/projects/_table.html:61
-#: templates/web/projects/_task_meta.html:15
+#: templates/web/projects/_task_context_menu.html:186
+#: templates/web/projects/_task_meta.html:20
 msgid "Status"
 msgstr "Статус"
 
-#: apps/web/views.py:1030 templates/web/_create_task_modal.html:113
+#: apps/web/views.py:1060 templates/web/_create_task_modal.html:116
 #: templates/web/_filters_sidebar.html:248
-#: templates/web/projects/_task_meta.html:20
+#: templates/web/projects/_bulk_context_menu.html:128
+#: templates/web/projects/_task_context_menu.html:205
+#: templates/web/projects/_task_meta.html:25
 msgid "Priority"
 msgstr "Пріоритет"
 
-#: apps/web/views.py:1031 templates/web/_assignee_strip.html:13
-#: templates/web/_create_task_modal.html:131
+#: apps/web/views.py:1061 templates/web/_assignee_strip.html:13
+#: templates/web/_create_task_modal.html:134
 #: templates/web/projects/_table.html:74
-#: templates/web/projects/_task_meta.html:34
+#: templates/web/projects/_task_meta.html:35
 msgid "Assignee"
 msgstr "Виконавець"
 
-#: apps/web/views.py:1032 templates/web/_inbox_list.html:40
+#: apps/web/views.py:1062 templates/web/_inbox_list.html:40
 #: templates/web/projects/_table.html:86
 #: templates/web/projects/_task_card.html:88
 msgid "Due"
 msgstr "Дедлайн"
 
-#: apps/web/views.py:1035 templates/web/projects/_links_panel.html:51
+#: apps/web/views.py:1065 templates/web/projects/_links_panel.html:51
 msgid "Links"
 msgstr "Зв'язки"
 
-#: apps/web/views.py:1036
+#: apps/web/views.py:1066
 msgid "Edits"
 msgstr "Правки"
 
-#: apps/web/views.py:4120 apps/web/views.py:4158 apps/web/views.py:4185
-#: apps/web/views.py:4283 apps/web/views.py:4315 apps/web/views.py:4340
+#: apps/web/views.py:4729 apps/web/views.py:4767 apps/web/views.py:4794
+#: apps/web/views.py:4892 apps/web/views.py:4924 apps/web/views.py:4949
 msgid "Admin or owner only"
 msgstr "Тільки для адміна або власника"
 
-#: apps/web/views.py:4123
+#: apps/web/views.py:4732
 msgid "Email is required"
 msgstr "Email обов'язковий"
 
-#: apps/web/views.py:4126 apps/web/views.py:4290 apps/web/views.py:4323
+#: apps/web/views.py:4735 apps/web/views.py:4899 apps/web/views.py:4932
 msgid "Invalid role"
 msgstr "Неправильна роль"
 
-#: apps/web/views.py:4135
+#: apps/web/views.py:4744
 #, python-format
 msgid "Invite sent to %(email)s."
 msgstr "Запрошення надіслано на %(email)s."
 
-#: apps/web/views.py:4138
+#: apps/web/views.py:4747
 msgid "Invite created but email failed — copy the link from the list."
-msgstr ""
-"Запрошення створено, але лист не надіслався — скопіюйте посилання зі списку."
+msgstr "Запрошення створено, але лист не надіслався — скопіюйте посилання зі списку."
 
-#: apps/web/views.py:4161
+#: apps/web/views.py:4770
 msgid "Invite not found"
 msgstr "Запрошення не знайдено"
 
-#: apps/web/views.py:4167
+#: apps/web/views.py:4776
 #, python-format
 msgid "Invite to %(email)s revoked."
 msgstr "Запрошення для %(email)s відкликано."
 
-#: apps/web/views.py:4188
+#: apps/web/views.py:4797
 msgid "Invite not found or already accepted"
 msgstr "Запрошення не знайдено або вже прийнято"
 
-#: apps/web/views.py:4191
+#: apps/web/views.py:4800
 #, python-format
 msgid "Invite re-sent to %(email)s."
 msgstr "Запрошення повторно надіслано на %(email)s."
 
-#: apps/web/views.py:4193
+#: apps/web/views.py:4802
 msgid "Resend failed — try again later."
 msgstr "Не вдалося надіслати повторно — спробуйте пізніше."
 
-#: apps/web/views.py:4287
+#: apps/web/views.py:4896
 msgid "Invalid user_id"
 msgstr "Неправильний user_id"
 
-#: apps/web/views.py:4295
+#: apps/web/views.py:4904
 msgid "Cannot add another owner"
 msgstr "Не можна додати ще одного власника"
 
-#: apps/web/views.py:4298
+#: apps/web/views.py:4907
 msgid "User not found"
 msgstr "Користувача не знайдено"
 
-#: apps/web/views.py:4300
+#: apps/web/views.py:4909
 msgid "User already a member"
 msgstr "Користувач вже є учасником"
 
-#: apps/web/views.py:4318 apps/web/views.py:4343
+#: apps/web/views.py:4927 apps/web/views.py:4952
 msgid "Not a member"
 msgstr "Не є учасником"
 
-#: apps/web/views.py:4320
+#: apps/web/views.py:4929
 msgid "Transfer ownership first"
 msgstr "Спочатку передай право власності"
 
-#: apps/web/views.py:4325
+#: apps/web/views.py:4934
 msgid "Ownership transfer not supported here"
 msgstr "Передача права власності тут не підтримується"
 
-#: apps/web/views.py:4345
+#: apps/web/views.py:4954
 msgid "Cannot remove owner"
 msgstr "Не можна видалити власника"
 
-#: apps/web/views.py:4444
+#: apps/web/views.py:5053
 msgid "Invalid workspace"
 msgstr "Неправильний робочий простір"
 
-#: apps/web/views.py:4450
+#: apps/web/views.py:5059
 msgid "Workspace not accessible"
 msgstr "Робочий простір недоступний"
 
-#: apps/web/views.py:4454 apps/web/views.py:4558
+#: apps/web/views.py:5063 apps/web/views.py:5167
 msgid "Name is required"
 msgstr "Ім'я обов'язкове"
 
-#: apps/web/views.py:4456 apps/web/views.py:4560
+#: apps/web/views.py:5065 apps/web/views.py:5169
 msgid "Name too long"
 msgstr "Назва задовга"
 
-#: apps/web/views.py:4462
+#: apps/web/views.py:5071
 msgid "Slug prefix already used in this workspace"
 msgstr "Префікс slug вже використовується в цьому робочому просторі"
 
-#: apps/web/views.py:4472
+#: apps/web/views.py:5081
 msgid "Invalid lead"
 msgstr "Неправильний лід"
 
-#: apps/web/views.py:4566
+#: apps/web/views.py:5175
 msgid "Invalid slug"
 msgstr "Неправильний slug"
 
-#: apps/web/views.py:4568
+#: apps/web/views.py:5177
 msgid "Slug already taken"
 msgstr "Slug вже зайнятий"
 
-#: apps/web/views.py:4577
+#: apps/web/views.py:5186
 msgid "Cannot generate unique slug"
 msgstr "Не вдалось згенерувати унікальний slug"
 
@@ -698,7 +774,7 @@ msgid "Owner"
 msgstr "Власник"
 
 #: apps/workspaces/models.py:76 apps/workspaces/models.py:161
-#: templates/base_app.html:311
+#: templates/base_app.html:306
 msgid "Admin"
 msgstr "Адміністратор"
 
@@ -759,20 +835,18 @@ msgstr "Створіть свій акаунт"
 #, python-format
 msgid ""
 "\n"
-"    You're joining <span class=\"text-foreground\">%(workspace)s</span> as "
-"<span class=\"text-foreground\">%(role)s</span>.\n"
+"    You're joining <span class=\"text-foreground\">%(workspace)s</span> as <span class=\"text-foreground\">%(role)s</span>.\n"
 "    "
 msgstr ""
 "\n"
-"    Ви приєднуєтесь до <span class=\"text-foreground\">%(workspace)s</span> "
-"як <span class=\"text-foreground\">%(role)s</span>.\n"
+"    Ви приєднуєтесь до <span class=\"text-foreground\">%(workspace)s</span> як <span class=\"text-foreground\">%(role)s</span>.\n"
 "    "
 
 #: templates/account/signup.html:26
 msgid "Sign up for an Acta account."
 msgstr "Зареєструйте акаунт Acta."
 
-#: templates/account/signup.html:40 templates/accounts/settings.html:55
+#: templates/account/signup.html:40 templates/accounts/settings.html:80
 msgid "Email"
 msgstr "Email"
 
@@ -797,19 +871,15 @@ msgid "Registration is closed"
 msgstr "Реєстрація закрита"
 
 #: templates/account/signup_closed.html:20
-msgid ""
-"Acta accounts are created by administrators. Reach out to an admin to be "
-"added to a workspace."
-msgstr ""
-"Акаунти Acta створюють адміністратори. Звернись до адміністратора, щоб тебе "
-"додали до робочого простору."
+msgid "Acta accounts are created by administrators. Reach out to an admin to be added to a workspace."
+msgstr "Акаунти Acta створюють адміністратори. Звернись до адміністратора, щоб тебе додали до робочого простору."
 
 #: templates/account/signup_closed.html:24
 msgid "Back to login"
 msgstr "Повернутись до входу"
 
 #: templates/accounts/settings.html:5 templates/accounts/settings.html:8
-#: templates/base_app.html:306
+#: templates/base_app.html:301
 msgid "Settings"
 msgstr "Налаштування"
 
@@ -817,51 +887,55 @@ msgstr "Налаштування"
 msgid "Profile"
 msgstr "Профіль"
 
-#: templates/accounts/settings.html:34
-msgid "Avatar colour is derived from your username."
-msgstr "Колір аватара визначається за іменем користувача."
+#: templates/accounts/settings.html:36
+msgid "Upload photo"
+msgstr ""
 
-#: templates/accounts/settings.html:41
+#: templates/accounts/settings.html:43
+#, fuzzy
+#| msgid "Remove?"
+msgid "Remove"
+msgstr "Видалити?"
+
+#: templates/accounts/settings.html:49
+msgid "JPG, PNG, GIF or WebP, up to 3 MB. Square-cropped automatically."
+msgstr ""
+
+#: templates/accounts/settings.html:66
 msgid "First name"
 msgstr "Ім'я"
 
-#: templates/accounts/settings.html:47
+#: templates/accounts/settings.html:72
 msgid "Last name"
 msgstr "Прізвище"
 
-#: templates/accounts/settings.html:59
+#: templates/accounts/settings.html:84
 msgid "Email changes go through the admin for now."
 msgstr "Зміна email наразі виконується через адміністратора."
 
-#: templates/accounts/settings.html:64
+#: templates/accounts/settings.html:89
 msgid "Preferences"
 msgstr "Параметри"
 
-#: templates/accounts/settings.html:66
+#: templates/accounts/settings.html:91
 msgid "Language"
 msgstr "Мова"
 
-#: templates/accounts/settings.html:79
+#: templates/accounts/settings.html:104
 msgid "Save changes"
 msgstr "Зберегти зміни"
 
-#: templates/accounts/settings.html:99
-msgid ""
-"For non-browser clients (scripts, MCP server, etc.). The plain secret is "
-"shown only once on creation."
-msgstr ""
-"Для не-браузерних клієнтів (скрипти, MCP сервер тощо). Сам токен показується "
-"тільки один раз при створенні."
+#: templates/accounts/settings.html:124
+msgid "For non-browser clients (scripts, MCP server, etc.). The plain secret is shown only once on creation."
+msgstr "Для не-браузерних клієнтів (скрипти, MCP сервер тощо). Сам токен показується тільки один раз при створенні."
 
-#: templates/accounts/settings.html:115
+#: templates/accounts/settings.html:140
 #, python-format
 msgid "Token “%(name)s” created — copy it now, it won't be shown again:"
-msgstr ""
-"Токен «%(name)s» створено — скопіюйте його зараз, більше він не "
-"показуватиметься:"
+msgstr "Токен «%(name)s» створено — скопіюйте його зараз, більше він не показуватиметься:"
 
-#: templates/accounts/settings.html:124 templates/accounts/settings.html:125
-#: templates/accounts/settings.html:263 templates/accounts/settings.html:264
+#: templates/accounts/settings.html:149 templates/accounts/settings.html:150
+#: templates/accounts/settings.html:288 templates/accounts/settings.html:289
 #: templates/web/projects/_task_detail_topbar.html:50
 #: templates/web/projects/_task_detail_topbar.html:51
 #: templates/web/projects/_task_detail_topbar.html:59
@@ -869,107 +943,90 @@ msgstr ""
 msgid "Copied!"
 msgstr "Скопійовано!"
 
-#: templates/accounts/settings.html:124 templates/accounts/settings.html:125
+#: templates/accounts/settings.html:149 templates/accounts/settings.html:150
 msgid "Copy to clipboard"
 msgstr "Скопіювати"
 
-#: templates/accounts/settings.html:142
+#: templates/accounts/settings.html:167
 msgid "New token name"
 msgstr "Назва нового токена"
 
-#: templates/accounts/settings.html:144
+#: templates/accounts/settings.html:169
 msgid "e.g. Claude Desktop"
 msgstr "напр. Claude Desktop"
 
-#: templates/accounts/settings.html:149
+#: templates/accounts/settings.html:174
 msgid "Generate"
 msgstr "Згенерувати"
 
-#: templates/accounts/settings.html:166
+#: templates/accounts/settings.html:191
 msgid "revoked"
 msgstr "відкликаний"
 
-#: templates/accounts/settings.html:171
+#: templates/accounts/settings.html:196
 #, python-format
 msgid "created %(d)s"
 msgstr "створено %(d)s"
 
-#: templates/accounts/settings.html:173
+#: templates/accounts/settings.html:198
 #, python-format
 msgid "last used %(t)s ago"
 msgstr "востаннє використано %(t)s тому"
 
-#: templates/accounts/settings.html:175
+#: templates/accounts/settings.html:200
 msgid "never used"
 msgstr "не використовувався"
 
-#: templates/accounts/settings.html:178
+#: templates/accounts/settings.html:203
 #, python-format
 msgid "revoked %(t)s ago"
 msgstr "відкликано %(t)s тому"
 
-#: templates/accounts/settings.html:194
+#: templates/accounts/settings.html:219
 msgid "Revoke"
 msgstr "Відкликати"
 
-#: templates/accounts/settings.html:197
+#: templates/accounts/settings.html:222
 #: templates/web/workspaces/_settings_invites.html:100
 msgid "Revoke?"
 msgstr "Відкликати?"
 
-#: templates/accounts/settings.html:216
+#: templates/accounts/settings.html:241
 msgid "Delete token"
 msgstr "Видалити токен"
 
-#: templates/accounts/settings.html:221
-#: templates/web/projects/_comment_actions.html:39
+#: templates/accounts/settings.html:246
+#: templates/web/projects/_attachments_panel.html:75
+#: templates/web/projects/_comment_actions.html:35
 #: templates/web/projects/_update_actions.html:34
 msgid "Delete?"
 msgstr "Видалити?"
 
-#: templates/accounts/settings.html:235
+#: templates/accounts/settings.html:260
 msgid "No API tokens yet."
 msgstr "Поки немає жодного API токена."
 
-#: templates/accounts/settings.html:241
+#: templates/accounts/settings.html:266
 msgid "How to wire the token into Claude Desktop / Cursor"
 msgstr "Як підключити токен у Claude Desktop / Cursor"
 
-#: templates/accounts/settings.html:245
-msgid ""
-"Acta speaks <strong>HTTP MCP</strong>. One endpoint, one token, no SSH or "
-"wrapper scripts. Paste the snippet below into your MCP client's config — for "
-"Claude Desktop on macOS that's <code class=\"text-foreground\">~/Library/"
-"Application Support/Claude/claude_desktop_config.json</code>. The token is "
-"filled in right after you create one (otherwise replace the placeholder); "
-"then fully quit and reopen the client."
-msgstr ""
-"Acta розуміє <strong>HTTP MCP</strong>. Один endpoint, один токен, без SSH і "
-"скриптів-обгорток. Вставте фрагмент нижче в конфіг вашого MCP-клієнта — для "
-"Claude Desktop на macOS це <code class=\"text-foreground\">~/Library/"
-"Application Support/Claude/claude_desktop_config.json</code>. Токен "
-"підставляється одразу після створення (інакше замініть заглушку); потім "
-"повністю закрийте клієнта і відкрийте знову."
+#: templates/accounts/settings.html:270
+msgid "Acta speaks <strong>HTTP MCP</strong>. One endpoint, one token, no SSH or wrapper scripts. Paste the snippet below into your MCP client's config — for Claude Desktop on macOS that's <code class=\"text-foreground\">~/Library/Application Support/Claude/claude_desktop_config.json</code>. The token is filled in right after you create one (otherwise replace the placeholder); then fully quit and reopen the client."
+msgstr "Acta розуміє <strong>HTTP MCP</strong>. Один endpoint, один токен, без SSH і скриптів-обгорток. Вставте фрагмент нижче в конфіг вашого MCP-клієнта — для Claude Desktop на macOS це <code class=\"text-foreground\">~/Library/Application Support/Claude/claude_desktop_config.json</code>. Токен підставляється одразу після створення (інакше замініть заглушку); потім повністю закрийте клієнта і відкрийте знову."
 
-#: templates/accounts/settings.html:263 templates/accounts/settings.html:264
+#: templates/accounts/settings.html:288 templates/accounts/settings.html:289
 msgid "Copy snippet"
 msgstr "Скопіювати фрагмент"
 
-#: templates/accounts/settings.html:270
-msgid ""
-"For Cursor / Cline use the same URL and header in their MCP settings panel. "
-"Rate limit is 60 requests per minute per token. Revoke any token above to "
-"cut access immediately."
-msgstr ""
-"Для Cursor / Cline використовуйте той самий URL і заголовок у їхній панелі "
-"налаштувань MCP. Обмеження — 60 запитів на хвилину на токен. Відкличте будь-"
-"який токен вище, щоб негайно припинити доступ."
+#: templates/accounts/settings.html:295
+msgid "For Cursor / Cline use the same URL and header in their MCP settings panel. Rate limit is 60 requests per minute per token. Revoke any token above to cut access immediately."
+msgstr "Для Cursor / Cline використовуйте той самий URL і заголовок у їхній панелі налаштувань MCP. Обмеження — 60 запитів на хвилину на токен. Відкличте будь-який токен вище, щоб негайно припинити доступ."
 
-#: templates/accounts/settings.html:278
+#: templates/accounts/settings.html:303
 msgid "Session"
 msgstr "Сесія"
 
-#: templates/accounts/settings.html:284 templates/base_app.html:318
+#: templates/accounts/settings.html:309 templates/base_app.html:313
 msgid "Log out"
 msgstr "Вийти"
 
@@ -997,67 +1054,82 @@ msgstr "Моя робота"
 msgid "All Tasks"
 msgstr "Усі задачі"
 
-#: templates/base_app.html:169 templates/web/_sidebar_favourites_oob.html:48
-msgid "Star a project from the Projects page to pin it here."
-msgstr "Щоб закріпити проєкт тут, познач його зіркою на сторінці «Проєкти»."
-
-#: templates/base_app.html:180 templates/base_app.html:181
-#: templates/web/dashboard.html:4 templates/web/dashboard.html:7
-msgid "Dashboard"
-msgstr "Панель"
-
-#: templates/base_app.html:198 templates/base_app.html:199
-#: templates/web/_create_workspace_modal.html:55
-msgid "New workspace"
+#: templates/base_app.html:158
+#, fuzzy
+#| msgid "New workspace"
+msgid "Switch workspace"
 msgstr "Новий робочий простір"
 
-#: templates/base_app.html:207 templates/base_app.html:208
-#: templates/web/workspaces/settings.html:15
+#: templates/base_app.html:185 templates/web/workspaces/settings.html:15
 #: templates/web/workspaces/settings.html:19
 msgid "Workspace settings"
 msgstr "Налаштування робочого простору"
 
-#: templates/base_app.html:242
+#: templates/base_app.html:191 templates/web/_create_workspace_modal.html:104
+msgid "Create workspace"
+msgstr "Створити робочий простір"
+
+#: templates/base_app.html:202 templates/base_app.html:203
+#: templates/web/dashboard.html:4 templates/web/dashboard.html:7
+msgid "Dashboard"
+msgstr "Панель"
+
+#: templates/base_app.html:237
 msgid "Hide sidebar"
 msgstr "Сховати бічну панель"
 
-#: templates/base_app.html:242
+#: templates/base_app.html:237
 msgid "Show sidebar"
 msgstr "Показати бічну панель"
 
-#: templates/base_app.html:261 templates/base_app.html:263
+#: templates/base_app.html:259 templates/base_app.html:261
 #: templates/web/_create_task_modal.html:41
 #: templates/web/projects/_kanban.html:67
 msgid "New task"
 msgstr "Нова задача"
 
-#: templates/base_app.html:280
+#: templates/base_app.html:278
 msgid "Switch to dark mode"
 msgstr "Перейти на темну тему"
 
-#: templates/base_app.html:282
+#: templates/base_app.html:280
 msgid "Switch to midnight mode"
 msgstr "Перейти на тему опівнічно-синю"
 
-#: templates/base_app.html:283
+#: templates/base_app.html:281
 msgid "Switch to light mode"
 msgstr "Перейти на світлу тему"
 
-#: templates/base_app.html:361
+#: templates/base_app.html:364
+msgid "Previous"
+msgstr ""
+
+#: templates/base_app.html:370
+msgid "Next"
+msgstr ""
+
+#: templates/base_app.html:376
+msgid "Open original"
+msgstr ""
+
+#: templates/base_app.html:378 templates/web/_modal_shell.html:40
+#: templates/web/_modal_shell.html:41
+msgid "Close"
+msgstr "Закрити"
+
+#: templates/base_app.html:409
 msgid "Dismiss"
 msgstr "Закрити"
 
-#: templates/base_app.html:420 templates/web/_inbox_list.html:99
+#: templates/base_app.html:468 templates/web/_inbox_list.html:99
 msgid "selected"
 msgstr "виділено"
 
-#: templates/base_app.html:431 templates/web/_bulk_archive_confirm.html:73
-#: templates/web/_bulk_archive_confirm.html:110
-#: templates/web/_inbox_list.html:112 templates/web/_notification_row.html:69
-msgid "Archive"
-msgstr "Архівувати"
+#: templates/base_app.html:484
+msgid "Actions"
+msgstr "Дії"
 
-#: templates/base_app.html:438 templates/web/_inbox_list.html:117
+#: templates/base_app.html:491 templates/web/_inbox_list.html:117
 msgid "Clear selection"
 msgstr "Зняти вибір"
 
@@ -1071,39 +1143,44 @@ msgid "Try clearing some filters."
 msgstr "Спробуйте зняти частину фільтрів."
 
 #: templates/web/_assignee_strip.html:43
-#: templates/web/workspaces/_settings_members.html:75
+#: templates/web/workspaces/_settings_members.html:72
 msgid "you"
 msgstr "ви"
 
-#: templates/web/_assignee_strip.html:43 templates/web/_assignee_strip.html:110
+#: templates/web/_assignee_strip.html:43 templates/web/_assignee_strip.html:119
 #: templates/web/_project_strip.html:24
 msgid "click to include, right-click to exclude."
 msgstr "клік — додати; правий клік — виключити."
 
-#: templates/web/_assignee_strip.html:66
+#: templates/web/_assignee_strip.html:75
 msgid "You"
 msgstr "Ти"
 
-#: templates/web/_assignee_strip.html:77
-#: templates/web/_filters_sidebar.html:155
+#: templates/web/_assignee_strip.html:86
+#: templates/web/_filters_sidebar.html:154
 msgid "Click to include, right-click to exclude."
 msgstr "Клік — додати; правий клік — виключити."
 
-#: templates/web/_assignee_strip.html:110
+#: templates/web/_assignee_strip.html:119
 msgid "former member — still appears as assignee on legacy tasks"
 msgstr "колишній учасник — досі призначений виконавцем у старих задачах"
+
+#: templates/web/_bulk_archive_confirm.html:73
+#: templates/web/_bulk_archive_confirm.html:110
+#: templates/web/_inbox_list.html:112 templates/web/_notification_row.html:69
+#: templates/web/projects/_bulk_context_menu.html:92
+#: templates/web/projects/_task_context_menu.html:126
+#: templates/web/projects/_task_meta.html:101
+msgid "Archive"
+msgstr "Архівувати"
 
 #: templates/web/_bulk_archive_confirm.html:75
 msgid "task(s)?"
 msgstr "задач(у)?"
 
 #: templates/web/_bulk_archive_confirm.html:82
-msgid ""
-"Selected tasks will be moved out of My Work and the kanban. They stay in the "
-"database and can be restored from the admin."
-msgstr ""
-"Виділені задачі будуть прибрані з My Work та канбану. Вони залишаються в БД "
-"і можуть бути відновлені з адмінки."
+msgid "Selected tasks will be moved out of My Work and the kanban. They stay in the database and can be restored from the admin."
+msgstr "Виділені задачі будуть прибрані з My Work та канбану. Вони залишаються в БД і можуть бути відновлені з адмінки."
 
 #: templates/web/_bulk_archive_confirm.html:92
 msgid "more"
@@ -1115,15 +1192,16 @@ msgstr "щоб скасувати"
 
 #: templates/web/_bulk_archive_confirm.html:105
 #: templates/web/_create_project_modal.html:140
-#: templates/web/_create_task_modal.html:197
+#: templates/web/_create_task_modal.html:200
 #: templates/web/_create_workspace_modal.html:100
-#: templates/web/projects/_comment_edit_form.html:40
+#: templates/web/projects/_comment_edit_form.html:39
 #: templates/web/projects/_editor_toolbar.html:142
 #: templates/web/projects/_editor_toolbar.html:143
-#: templates/web/projects/_overview_panel.html:222
-#: templates/web/projects/_update_edit_form.html:36
+#: templates/web/projects/_overview_panel.html:232
+#: templates/web/projects/_task_meta.html:82
+#: templates/web/projects/_update_edit_form.html:40
 #: templates/web/workspaces/_settings_invites.html:109
-#: templates/web/workspaces/_settings_members.html:141
+#: templates/web/workspaces/_settings_members.html:138
 msgid "Cancel"
 msgstr "Скасувати"
 
@@ -1172,9 +1250,7 @@ msgstr "Створити проєкт"
 
 #: templates/web/_create_task_modal.html:69
 msgid "No accessible projects — ask an admin to add you to a workspace."
-msgstr ""
-"Немає доступних проєктів — попроси адміністратора додати тебе до робочого "
-"простору."
+msgstr "Немає доступних проєктів — попроси адміністратора додати тебе до робочого простору."
 
 #: templates/web/_create_task_modal.html:74
 #: templates/web/projects/_table.html:56
@@ -1186,31 +1262,37 @@ msgid "What needs to be done?"
 msgstr "Що потрібно зробити?"
 
 #: templates/web/_create_task_modal.html:82
-#: templates/web/projects/_overview_panel.html:263
-#: templates/web/projects/_task_detail_body.html:120
+#: templates/web/projects/_overview_panel.html:273
+#: templates/web/projects/_task_detail_body.html:115
 msgid "Description"
 msgstr "Опис"
 
-#: templates/web/_create_task_modal.html:93
+#: templates/web/_create_task_modal.html:94
 msgid "Optional details…"
 msgstr "Додаткові деталі…"
 
-#: templates/web/_create_task_modal.html:125
-#: templates/web/projects/_task_meta.html:39
+#: templates/web/_create_task_modal.html:128
+#: templates/web/projects/_bulk_context_menu.html:228
+#: templates/web/projects/_task_context_menu.html:336
+#: templates/web/projects/_task_meta.html:40
 msgid "Due date"
 msgstr "Дедлайн"
 
-#: templates/web/_create_task_modal.html:134
+#: templates/web/_create_task_modal.html:137
 msgid "— Unassigned —"
 msgstr "— Без виконавця —"
 
-#: templates/web/_create_task_modal.html:192
+#: templates/web/_create_task_modal.html:195
 msgid "Open after create"
 msgstr "Відкрити після створення"
 
-#: templates/web/_create_task_modal.html:202
+#: templates/web/_create_task_modal.html:205
 msgid "Create task"
 msgstr "Створити задачу"
+
+#: templates/web/_create_workspace_modal.html:55
+msgid "New workspace"
+msgstr "Новий робочий простір"
 
 #: templates/web/_create_workspace_modal.html:72
 msgid "Workspace name"
@@ -1229,53 +1311,50 @@ msgid "auto-generated from name"
 msgstr "генерується з назви автоматично"
 
 #: templates/web/_create_workspace_modal.html:92
-msgid ""
-"You become the workspace owner. Add team members on the settings page after "
-"creation."
-msgstr ""
-"Ти станеш власником простору. Додати учасників можна на сторінці налаштувань."
+msgid "You become the workspace owner. Add team members on the settings page after creation."
+msgstr "Ти станеш власником простору. Додати учасників можна на сторінці налаштувань."
 
-#: templates/web/_create_workspace_modal.html:104
-msgid "Create workspace"
-msgstr "Створити робочий простір"
-
-#: templates/web/_filters_sidebar.html:57
+#: templates/web/_filters_sidebar.html:56
 msgid "Show filters"
 msgstr "Показати фільтри"
 
-#: templates/web/_filters_sidebar.html:94
+#: templates/web/_filters_sidebar.html:93
 msgid "Filters"
 msgstr "Фільтри"
 
-#: templates/web/_filters_sidebar.html:122
+#: templates/web/_filters_sidebar.html:121
 #: templates/web/projects/_project_icon_picker.html:73
 msgid "Reset"
 msgstr "Скинути"
 
-#: templates/web/_filters_sidebar.html:126
-#: templates/web/_filters_sidebar.html:128
+#: templates/web/_filters_sidebar.html:125
+#: templates/web/_filters_sidebar.html:127
 msgid "Hide filters"
 msgstr "Сховати фільтри"
 
-#: templates/web/_filters_sidebar.html:170
+#: templates/web/_filters_sidebar.html:169
 msgid "Search"
 msgstr "Пошук"
 
-#: templates/web/_filters_sidebar.html:179
+#: templates/web/_filters_sidebar.html:178
 msgid "Title or description…"
 msgstr "Назва або опис…"
 
-#: templates/web/_filters_sidebar.html:383
+#: templates/web/_filters_sidebar.html:300
+#: templates/web/projects/_bulk_context_menu.html:169
+#: templates/web/projects/_table.html:66
+#: templates/web/projects/_task_context_menu.html:258
+#: templates/web/projects/_task_meta.html:30
+msgid "Size"
+msgstr "Розмір"
+
+#: templates/web/_filters_sidebar.html:429
 msgid "Filter labels…"
 msgstr "Фільтр міток…"
 
 #: templates/web/_filters_sidebar.html:481
-msgid ""
-"Archived tasks are hidden by default. The toggle is remembered between "
-"visits."
-msgstr ""
-"Архівні задачі за замовчуванням приховані. Перемикач запам'ятовується між "
-"відвідуваннями."
+msgid "Archived tasks are hidden by default. The toggle is remembered between visits."
+msgstr "Архівні задачі за замовчуванням приховані. Перемикач запам'ятовується між відвідуваннями."
 
 #: templates/web/_filters_sidebar.html:490
 msgid "Show archived"
@@ -1302,12 +1381,8 @@ msgid "Inbox zero"
 msgstr "Вхідні порожні"
 
 #: templates/web/_inbox_list.html:72
-msgid ""
-"Nothing to deal with. New mentions, assignments, and status changes land "
-"here."
-msgstr ""
-"Нічого розбирати. Нові згадки, призначення та зміни статусів з’являтимуться "
-"тут."
+msgid "Nothing to deal with. New mentions, assignments, and status changes land here."
+msgstr "Нічого розбирати. Нові згадки, призначення та зміни статусів з’являтимуться тут."
 
 #: templates/web/_inbox_list.html:77
 msgid "Nothing matches this filter"
@@ -1357,12 +1432,7 @@ msgstr "Апдейтів ще немає"
 
 #: templates/web/_inbox_updates_list.html:59
 msgid "Project status updates from your workspaces will show up here."
-msgstr ""
-"Тут з'являтимуться апдейти статусу проєктів із ваших робочих просторів."
-
-#: templates/web/_modal_shell.html:40 templates/web/_modal_shell.html:41
-msgid "Close"
-msgstr "Закрити"
+msgstr "Тут з'являтимуться апдейти статусу проєктів із ваших робочих просторів."
 
 #: templates/web/_my_activity_inner.html:36
 msgid "Search activity…"
@@ -1409,6 +1479,7 @@ msgid "commented on"
 msgstr "прокоментував(ла)"
 
 #: templates/web/_notification_row.html:46
+#: templates/web/projects/_activity_event.html:40
 msgid "moved"
 msgstr "перемістив(ла)"
 
@@ -1436,27 +1507,28 @@ msgstr "до"
 msgid "Add reaction"
 msgstr "Додати реакцію"
 
-#: templates/web/_task_row.html:30 templates/web/projects/_table_row.html:74
+#: templates/web/_sidebar_favourites_inner.html:39
+msgid "Star a project from the Projects page to pin it here."
+msgstr "Щоб закріпити проєкт тут, познач його зіркою на сторінці «Проєкти»."
+
+#: templates/web/_task_row.html:31 templates/web/projects/_table_row.html:75
 msgid "Filter by status"
 msgstr "Фільтрувати за статусом"
 
-#: templates/web/_task_row.html:42 templates/web/projects/_table_row.html:44
+#: templates/web/_task_row.html:43 templates/web/projects/_table_row.html:44
 msgid "Filter by priority"
 msgstr "Фільтрувати за пріоритетом"
 
-#: templates/web/_task_row.html:63 templates/web/projects/_table_row.html:81
-#: templates/web/projects/_task_card.html:57
-#: templates/web/projects/_task_meta_compact.html:25
-#: templates/web/projects/_task_meta_compact.html:26
-msgid "Size estimate"
-msgstr "Оцінка розміру"
+#: templates/web/_task_row.html:64 templates/web/projects/_table_row.html:83
+msgid "Filter by size"
+msgstr "Фільтрувати за розміром"
 
-#: templates/web/_task_row.html:87 templates/web/projects/_table_row.html:173
+#: templates/web/_task_row.html:89 templates/web/projects/_table_row.html:173
 msgid "Filter by project"
 msgstr "Фільтрувати за проєктом"
 
-#: templates/web/_task_row.html:110 templates/web/_task_row.html:116
-#: templates/web/projects/_table_row.html:156
+#: templates/web/_task_row.html:114 templates/web/_task_row.html:119
+#: templates/web/_task_row.html:126 templates/web/projects/_table_row.html:159
 #: templates/web/projects/_table_row.html:166
 msgid "Filter by assignee"
 msgstr "Фільтрувати за виконавцем"
@@ -1475,11 +1547,8 @@ msgstr[2] "%(counter)s проєктів"
 msgstr[3] "%(counter)s проєкта"
 
 #: templates/web/dashboard.html:28
-msgid ""
-"Real-time activity feed, throughput charts, and workload widgets come next."
-msgstr ""
-"Стрічка активності в реальному часі, графіки пропускної здатності та віджети "
-"навантаження зʼявляться далі."
+msgid "Real-time activity feed, throughput charts, and workload widgets come next."
+msgstr "Стрічка активності в реальному часі, графіки пропускної здатності та віджети навантаження зʼявляться далі."
 
 #: templates/web/inbox.html:15
 msgid "live"
@@ -1503,20 +1572,14 @@ msgstr "Ви ще не належите до жодного робочого п�
 
 #: templates/web/no_workspaces.html:17
 msgid "Ask an admin to add you. Share this email so they can find you:"
-msgstr ""
-"Попроси адміністратора додати тебе. Поділись цим email, щоб тебе знайшли:"
-"Попросіть адміністратора додати вас. Поділіться цією електронною адресою, "
-"щоб вас знайшли:"
+msgstr "Попроси адміністратора додати тебе. Поділись цим email, щоб тебе знайшли:Попросіть адміністратора додати вас. Поділіться цією електронною адресою, щоб вас знайшли:"
 
 #: templates/web/no_workspaces.html:23
-msgid ""
-"Once added, this page will turn into your workspace dashboard automatically."
-msgstr ""
-"Після додавання ця сторінка автоматично перетвориться на панель вашого "
-"робочого простору."
+msgid "Once added, this page will turn into your workspace dashboard automatically."
+msgstr "Після додавання ця сторінка автоматично перетвориться на панель вашого робочого простору."
 
 #: templates/web/projects/_activity_event.html:32
-#: templates/web/projects/_activity_event.html:69
+#: templates/web/projects/_activity_event.html:76
 msgid "cleared"
 msgstr "очищено"
 
@@ -1524,37 +1587,47 @@ msgstr "очищено"
 msgid "unassigned"
 msgstr "знято виконавця"
 
-#: templates/web/projects/_activity_event.html:47
+#: templates/web/projects/_activity_event.html:54
 msgid "now blocks"
 msgstr "тепер блокує"
 
-#: templates/web/projects/_activity_event.html:47
+#: templates/web/projects/_activity_event.html:54
 msgid "now blocked by"
 msgstr "тепер заблоковано"
 
-#: templates/web/projects/_activity_event.html:47
+#: templates/web/projects/_activity_event.html:54
 msgid "linked"
 msgstr "пов’язано"
 
-#: templates/web/projects/_activity_event.html:51
+#: templates/web/projects/_activity_event.html:58
 msgid "unlinked"
 msgstr "відв'язано"
 
-#: templates/web/projects/_activity_event.html:63
+#: templates/web/projects/_activity_event.html:70
 msgid "open"
 msgstr "відкрити"
 
-#: templates/web/projects/_activity_event.html:67
+#: templates/web/projects/_activity_event.html:74
 msgid "changed size"
 msgstr "змінено розмір"
 
-#: templates/web/projects/_activity_event.html:72
+#: templates/web/projects/_activity_event.html:79
 msgid "renamed"
 msgstr "перейменував(ла)"
 
-#: templates/web/projects/_activity_event.html:74
+#: templates/web/projects/_activity_event.html:81
 msgid "edited description"
 msgstr "відредагував(ла) опис"
+
+#: templates/web/projects/_activity_event.html:86
+msgid "attached"
+msgstr ""
+
+#: templates/web/projects/_activity_event.html:89
+#, fuzzy
+#| msgid "removed a member"
+msgid "removed attachment"
+msgstr "учасника виключено з простору"
 
 #: templates/web/projects/_activity_list.html:25
 msgid "Coming soon: a dedicated page or modal with the full activity history."
@@ -1574,14 +1647,129 @@ msgstr[3] "Показати ще %(counter)s"
 msgid "No activity yet."
 msgstr "Активності поки немає."
 
-#: templates/web/projects/_assignee_cell.html:76
-#: templates/web/projects/_assignee_cell.html:77
+#: templates/web/projects/_assignee_cell.html:73
+#: templates/web/projects/_assignee_cell.html:74
+#: templates/web/projects/_bulk_context_menu.html:162
+#: templates/web/projects/_task_context_menu.html:250
 msgid "Unassign"
 msgstr "Зняти призначення"
 
-#: templates/web/projects/_assignee_cell.html:97
+#: templates/web/projects/_assignee_cell.html:94
 msgid "Search members…"
 msgstr "Пошук учасників…"
+
+#: templates/web/projects/_attachments_panel.html:18
+#, fuzzy
+#| msgid "No links yet."
+msgid "No files yet."
+msgstr "Зв'язків ще немає."
+
+#: templates/web/projects/_attachments_panel.html:33
+msgid "Upload file"
+msgstr ""
+
+#: templates/web/projects/_attachments_panel.html:70
+#: templates/web/projects/_bulk_context_menu.html:105
+#: templates/web/projects/_comment_actions.html:26
+#: templates/web/projects/_task_context_menu.html:176
+#: templates/web/projects/_update_actions.html:24
+msgid "Delete"
+msgstr "Видалити"
+
+#: templates/web/projects/_bulk_context_menu.html:49
+msgid "tasks selected"
+msgstr "задач виділено"
+
+#: templates/web/projects/_bulk_context_menu.html:54
+#: templates/web/projects/_task_context_menu.html:67
+msgid "Set status"
+msgstr "Змінити статус"
+
+#: templates/web/projects/_bulk_context_menu.html:59
+#: templates/web/projects/_task_context_menu.html:72
+msgid "Set priority"
+msgstr "Змінити пріоритет"
+
+#: templates/web/projects/_bulk_context_menu.html:64
+#: templates/web/projects/_task_context_menu.html:77
+msgid "Assign to…"
+msgstr "Призначити…"
+
+#: templates/web/projects/_bulk_context_menu.html:69
+#: templates/web/projects/_size_cell.html:37
+#: templates/web/projects/_task_context_menu.html:82
+msgid "Set size"
+msgstr "Змінити розмір"
+
+#: templates/web/projects/_bulk_context_menu.html:74
+#: templates/web/projects/_task_context_menu.html:87
+msgid "Labels…"
+msgstr "Мітки…"
+
+#: templates/web/projects/_bulk_context_menu.html:79
+#: templates/web/projects/_task_context_menu.html:92
+msgid "Set due date…"
+msgstr "Вказати дедлайн…"
+
+#: templates/web/projects/_bulk_context_menu.html:84
+#: templates/web/projects/_task_context_menu.html:155
+msgid "Move to project…"
+msgstr "Перемістити в проєкт…"
+
+#: templates/web/projects/_bulk_context_menu.html:98
+#: templates/web/projects/_task_context_menu.html:165
+msgid "Delete…"
+msgstr "Видалити…"
+
+#: templates/web/projects/_bulk_context_menu.html:104
+msgid "tasks — delete?"
+msgstr "задач — видалити?"
+
+#: templates/web/projects/_bulk_context_menu.html:106
+#: templates/web/projects/_task_context_menu.html:178
+msgid "No"
+msgstr "Ні"
+
+#: templates/web/projects/_bulk_context_menu.html:114
+#: templates/web/projects/_bulk_context_menu.html:128
+#: templates/web/projects/_bulk_context_menu.html:144
+#: templates/web/projects/_bulk_context_menu.html:169
+#: templates/web/projects/_bulk_context_menu.html:186
+#: templates/web/projects/_bulk_context_menu.html:201
+#: templates/web/projects/_bulk_context_menu.html:228
+msgid "tasks"
+msgstr "задач"
+
+#: templates/web/projects/_bulk_context_menu.html:144
+#: templates/web/projects/_task_context_menu.html:225
+msgid "Assign"
+msgstr "Призначити"
+
+#: templates/web/projects/_bulk_context_menu.html:148
+#: templates/web/projects/_task_context_menu.html:229
+msgid "Type to search…"
+msgstr "Введіть для пошуку…"
+
+#: templates/web/projects/_bulk_context_menu.html:172
+#: templates/web/projects/_size_cell.html:58
+#: templates/web/projects/_task_context_menu.html:263
+msgid "No size"
+msgstr "Без розміру"
+
+#: templates/web/projects/_bulk_context_menu.html:186
+#: templates/web/projects/_task_context_menu.html:283
+msgid "Move"
+msgstr "Перемістити"
+
+#: templates/web/projects/_bulk_context_menu.html:220
+#: templates/web/projects/_task_context_menu.html:328
+msgid "No labels in this workspace"
+msgstr "Немає міток у цьому воркспейсі"
+
+#: templates/web/projects/_bulk_context_menu.html:233
+#: templates/web/projects/_task_context_menu.html:348
+msgid "Clear due date"
+msgstr "Прибрати дедлайн"
 
 #: templates/web/projects/_comment.html:23
 msgid "Show more"
@@ -1592,56 +1780,62 @@ msgid "Show less"
 msgstr "Показати менше"
 
 #: templates/web/projects/_comment.html:28
-#: templates/web/projects/_comment.html:48
-#: templates/web/projects/_comment_reply.html:18
-#: templates/web/projects/_overview_update_card.html:20
-#: templates/web/projects/_update_comment_body.html:18
+#: templates/web/projects/_comment.html:45
+#: templates/web/projects/_comment_reply.html:15
+#: templates/web/projects/_overview_update_card.html:19
+#: templates/web/projects/_update_comment_body.html:23
 msgid "edited"
 msgstr "відредаговано"
 
-#: templates/web/projects/_comment.html:72
-#: templates/web/projects/_comment_reply_form.html:47
-#: templates/web/projects/_update_comment.html:32
+#: templates/web/projects/_comment.html:70
+#: templates/web/projects/_comment_reply_form.html:14
+#: templates/web/projects/_update_comment.html:23
 msgid "Reply"
 msgstr "Відповісти"
 
-#: templates/web/projects/_comment_actions.html:25
+#: templates/web/projects/_comment_actions.html:21
 #: templates/web/projects/_update_actions.html:19
 msgid "Edit"
 msgstr "Редагувати"
 
-#: templates/web/projects/_comment_actions.html:30
-#: templates/web/projects/_update_actions.html:24
-msgid "Delete"
-msgstr "Видалити"
-
-#: templates/web/projects/_comment_edit_form.html:26
+#: templates/web/projects/_comment_edit_form.html:25
 msgid "Edit comment…"
 msgstr "Редагувати коментар…"
 
-#: templates/web/projects/_comment_edit_form.html:45
-#: templates/web/projects/_update_edit_form.html:41
+#: templates/web/projects/_comment_edit_form.html:44
+#: templates/web/projects/_update_edit_form.html:45
 msgid "Save"
 msgstr "Зберегти"
 
-#: templates/web/projects/_comment_form.html:42
+#: templates/web/projects/_comment_form.html:60
 msgid "Write a comment…"
 msgstr "Напишіть коментар…"
 
-#: templates/web/projects/_comment_form.html:53
+#: templates/web/projects/_comment_form.html:84
+msgid "Attach files"
+msgstr ""
+
+#: templates/web/projects/_comment_form.html:91
 msgid "Post comment"
 msgstr "Надіслати коментар"
 
-#: templates/web/projects/_comment_reply_form.html:38
+#: templates/web/projects/_comment_reply_form.html:13
 msgid "Write a reply…"
 msgstr "Напишіть відповідь…"
 
-#: templates/web/projects/_description_cell.html:32
-#: templates/web/projects/_description_cell.html:63
-#: templates/web/projects/_overview_description.html:22
-#: templates/web/projects/_overview_description.html:49
+#: templates/web/projects/_description_cell.html:33
+#: templates/web/projects/_description_cell.html:64
+#: templates/web/projects/_overview_description.html:23
+#: templates/web/projects/_overview_description.html:50
 msgid "Write a description…"
 msgstr "Напишіть опис…"
+
+#: templates/web/projects/_description_cell.html:72
+#: templates/web/projects/_overview_description.html:56
+#: templates/web/projects/_overview_panel.html:227
+#: templates/web/projects/_update_edit_form.html:31
+msgid "Paste or drop an image to embed it · double-click an image to preview"
+msgstr ""
 
 #: templates/web/projects/_due_date_cell.html:19
 msgid "Set deadline"
@@ -1720,11 +1914,11 @@ msgstr "Видалити посилання"
 msgid "Collapse column"
 msgstr "Згорнути колонку"
 
-#: templates/web/projects/_kanban.html:116
+#: templates/web/projects/_kanban.html:123
 msgid "Expand column"
 msgstr "Розгорнути колонку"
 
-#: templates/web/projects/_kanban.html:145
+#: templates/web/projects/_kanban.html:152
 msgid "empty"
 msgstr "порожньо"
 
@@ -1753,12 +1947,12 @@ msgid "Related to"
 msgstr "Пов'язано з"
 
 #: templates/web/projects/_links_panel.html:68
-#: templates/web/projects/_links_panel.html:150
+#: templates/web/projects/_links_panel.html:155
 msgid "Blocked by"
 msgstr "Заблоковано"
 
 #: templates/web/projects/_links_panel.html:69
-#: templates/web/projects/_links_panel.html:174
+#: templates/web/projects/_links_panel.html:179
 msgid "Blocks"
 msgstr "Блокує"
 
@@ -1770,11 +1964,11 @@ msgstr "Будь-який"
 msgid "Search by slug or title…"
 msgstr "Пошук за кодом або назвою…"
 
-#: templates/web/projects/_links_panel.html:124
+#: templates/web/projects/_links_panel.html:129
 msgid "No tasks match."
 msgstr "Немає задач за запитом."
 
-#: templates/web/projects/_links_panel.html:198
+#: templates/web/projects/_links_panel.html:203
 msgid "Related"
 msgstr "Пов'язані"
 
@@ -1786,32 +1980,32 @@ msgstr "Групувати за"
 msgid "Try a different group axis or clear filters."
 msgstr "Спробуй іншу вісь групування або зніми фільтри."
 
-#: templates/web/projects/_overview_description.html:34
+#: templates/web/projects/_overview_description.html:35
 msgid "click to edit"
 msgstr "клікніть, щоб редагувати"
 
-#: templates/web/projects/_overview_lead.html:38
+#: templates/web/projects/_overview_lead.html:35
 msgid "No lead set"
 msgstr "Лід не призначено"
 
-#: templates/web/projects/_overview_lead.html:57
+#: templates/web/projects/_overview_lead.html:54
 msgid "Clear lead"
 msgstr "Прибрати ліда"
 
-#: templates/web/projects/_overview_members.html:28
+#: templates/web/projects/_overview_members.html:25
 msgid "Remove from project"
 msgstr "Видалити з проєкту"
 
-#: templates/web/projects/_overview_members.html:38
+#: templates/web/projects/_overview_members.html:35
 #: templates/web/workspaces/_settings_members.html:56
 msgid "Add"
 msgstr "Додати"
 
-#: templates/web/projects/_overview_members.html:68
+#: templates/web/projects/_overview_members.html:62
 msgid "No more workspace members."
 msgstr "Більше немає учасників робочого простору."
 
-#: templates/web/projects/_overview_members.html:72
+#: templates/web/projects/_overview_members.html:66
 msgid "Everyone in the workspace is already a member."
 msgstr "Усі учасники робочого простору вже додані."
 
@@ -1842,7 +2036,7 @@ msgstr[3] "%(counter)s задачі"
 msgid "no health"
 msgstr "немає статусу"
 
-#: templates/web/projects/_overview_panel.html:71
+#: templates/web/projects/_overview_panel.html:70
 #: templates/web/workspaces/settings.html:31
 #, python-format
 msgid "%(counter)s member"
@@ -1852,7 +2046,7 @@ msgstr[1] "%(counter)s учасники"
 msgstr[2] "%(counter)s учасників"
 msgstr[3] "%(counter)s учасника"
 
-#: templates/web/projects/_overview_panel.html:76
+#: templates/web/projects/_overview_panel.html:75
 #, python-format
 msgid "%(counter)s overdue"
 msgid_plural "%(counter)s overdue"
@@ -1861,106 +2055,118 @@ msgstr[1] "%(counter)s прострочено"
 msgstr[2] "%(counter)s прострочено"
 msgstr[3] "%(counter)s прострочено"
 
-#: templates/web/projects/_overview_panel.html:82
-#: templates/web/projects/list.html:175 templates/web/projects/list.html:178
+#: templates/web/projects/_overview_panel.html:81
+#: templates/web/projects/list.html:182 templates/web/projects/list.html:185
 #, python-format
 msgid "updated %(t)s ago"
 msgstr "оновлено %(t)s тому"
 
-#: templates/web/projects/_overview_panel.html:98
+#: templates/web/projects/_overview_panel.html:97
 msgid "Stats"
 msgstr "Статистика"
 
-#: templates/web/projects/_overview_panel.html:104
-#: templates/web/projects/_overview_panel.html:153
+#: templates/web/projects/_overview_panel.html:103
+#: templates/web/projects/_overview_panel.html:152
 #: templates/web/projects/list.html:137
 msgid "done"
 msgstr "виконано"
 
-#: templates/web/projects/_overview_panel.html:108
+#: templates/web/projects/_overview_panel.html:107
 msgid "last 7d"
 msgstr "за 7 днів"
 
-#: templates/web/projects/_overview_panel.html:114
+#: templates/web/projects/_overview_panel.html:113
 msgid "overdue"
 msgstr "прострочено"
 
-#: templates/web/projects/_overview_panel.html:133
+#: templates/web/projects/_overview_panel.html:132
 #: templates/web/projects/list.html:130
 msgid "planned"
 msgstr "planned"
 
-#: templates/web/projects/_overview_panel.html:138
+#: templates/web/projects/_overview_panel.html:137
 #: templates/web/projects/list.html:109
 msgid "to do"
 msgstr "to-do"
 
-#: templates/web/projects/_overview_panel.html:143
+#: templates/web/projects/_overview_panel.html:142
 #: templates/web/projects/list.html:116
 msgid "in progress"
 msgstr "in-progress"
 
-#: templates/web/projects/_overview_panel.html:148
+#: templates/web/projects/_overview_panel.html:147
 #: templates/web/projects/list.html:123
 msgid "in review"
 msgstr "in-review"
 
-#: templates/web/projects/_overview_panel.html:157
+#: templates/web/projects/_overview_panel.html:158
+msgid "cancelled"
+msgstr "скасовано"
+
+#: templates/web/projects/_overview_panel.html:163
 msgid "No tasks yet — bring this project to life."
 msgstr "Поки що немає задач — оживіть цей проєкт."
 
-#: templates/web/projects/_overview_panel.html:178
+#: templates/web/projects/_overview_panel.html:184
 msgid "Latest update"
 msgstr "Останній апдейт"
 
-#: templates/web/projects/_overview_panel.html:189
+#: templates/web/projects/_overview_panel.html:195
 msgid "new"
 msgstr "новий"
 
-#: templates/web/projects/_overview_panel.html:214
-#: templates/web/projects/_update_edit_form.html:24
+#: templates/web/projects/_overview_panel.html:221
+#: templates/web/projects/_update_edit_form.html:25
 msgid "Write an update…"
 msgstr "Напишіть апдейт…"
 
-#: templates/web/projects/_overview_panel.html:224
+#: templates/web/projects/_overview_panel.html:234
 msgid "Post update"
 msgstr "Опублікувати апдейт"
 
-#: templates/web/projects/_overview_panel.html:238
+#: templates/web/projects/_overview_panel.html:248
 msgid "View all updates"
 msgstr "Переглянути всі апдейти"
 
-#: templates/web/projects/_overview_panel.html:245
+#: templates/web/projects/_overview_panel.html:255
 msgid "No updates yet — post one to keep the team in sync."
 msgstr "Поки що немає апдейтів — опублікуйте перший, щоб команда була в курсі."
 
-#: templates/web/projects/_overview_panel.html:249
+#: templates/web/projects/_overview_panel.html:259
 msgid "Write first update"
 msgstr "Написати перший апдейт"
 
-#: templates/web/projects/_overview_update_card.html:16
-#: templates/web/projects/_update_comment_body.html:15
+#: templates/web/projects/_overview_update_card.html:15
+#: templates/web/projects/_update_comment_body.html:20
 msgid "unknown"
 msgstr "невідомо"
 
-#: templates/web/projects/_overview_update_card.html:18
+#: templates/web/projects/_overview_update_card.html:17
 #, python-format
 msgid "posted %(t)s ago"
 msgstr "опубліковано %(t)s тому"
 
-#: templates/web/projects/_project_favourite_star.html:22
+#: templates/web/projects/_project_cell.html:49
+msgid "Move to another project"
+msgstr "Перемістити в інший проєкт"
+
+#: templates/web/projects/_project_cell.html:69
+msgid "Search projects…"
+msgstr "Пошук проєктів…"
+
+#: templates/web/projects/_project_favourite_star.html:28
 msgid "Unstar project"
 msgstr "Відкріпити проєкт"
 
-#: templates/web/projects/_project_favourite_star.html:22
+#: templates/web/projects/_project_favourite_star.html:28
 msgid "Star project"
 msgstr "Закріпити проєкт"
 
-#: templates/web/projects/_project_favourite_star.html:23
+#: templates/web/projects/_project_favourite_star.html:29
 msgid "Unstar"
 msgstr "Відкріпити"
 
-#: templates/web/projects/_project_favourite_star.html:23
+#: templates/web/projects/_project_favourite_star.html:29
 msgid "Star"
 msgstr "Закріпити"
 
@@ -1993,24 +2199,59 @@ msgstr "Типовий"
 msgid "ID"
 msgstr "ID"
 
-#: templates/web/projects/_table.html:66
-#: templates/web/projects/_task_meta.html:26
-msgid "Size"
-msgstr "Розмір"
-
 #: templates/web/projects/_table.html:91
-#: templates/web/projects/_task_meta.html:49
+#: templates/web/projects/_task_meta.html:50
 msgid "Updated"
 msgstr "Оновлено"
 
 #: templates/web/projects/_table.html:115
-#: templates/web/projects/_timeline.html:278
+#: templates/web/projects/_timeline.html:284
 msgid "No tasks."
 msgstr "Задач немає."
 
 #: templates/web/projects/_table_row.html:44
 msgid "No priority"
 msgstr "Без пріоритету"
+
+#: templates/web/projects/_task_card.html:57
+msgid "Size estimate"
+msgstr "Оцінка розміру"
+
+#: templates/web/projects/_task_context_menu.html:105
+#: templates/web/projects/_task_meta.html:77
+msgid "Reopen"
+msgstr "Відновити"
+
+#: templates/web/projects/_task_context_menu.html:110
+msgid "Cancel task"
+msgstr "Скасувати задачу"
+
+#: templates/web/projects/_task_context_menu.html:121
+#: templates/web/projects/_task_meta.html:96
+msgid "Unarchive"
+msgstr "Розархівувати"
+
+#: templates/web/projects/_task_context_menu.html:135
+msgid "Copy slug"
+msgstr "Скопіювати ідентифікатор"
+
+#: templates/web/projects/_task_context_menu.html:140
+msgid "Copy URL"
+msgstr "Скопіювати URL"
+
+#: templates/web/projects/_task_context_menu.html:145
+msgid "Open in modal"
+msgstr "Відкрити у вікні"
+
+#: templates/web/projects/_task_context_menu.html:150
+#: templates/web/projects/task_detail_modal.html:54
+#: templates/web/projects/task_detail_modal.html:55
+msgid "Open full page"
+msgstr "Відкрити повну сторінку"
+
+#: templates/web/projects/_task_context_menu.html:171
+msgid "Delete this task?"
+msgstr "Видалити цю задачу?"
 
 #: templates/web/projects/_task_detail_body.html:58
 #: templates/web/projects/_task_detail_modal_body.html:55
@@ -2021,7 +2262,7 @@ msgstr[1] "Підзадача"
 msgstr[2] "Підзадачі"
 msgstr[3] "Підзадачі"
 
-#: templates/web/projects/_task_detail_body.html:123
+#: templates/web/projects/_task_detail_body.html:118
 msgid "Subtasks"
 msgstr "Підзадачі"
 
@@ -2051,26 +2292,18 @@ msgstr "Заблоковано відкритими задачами"
 msgid "Blocking other tasks"
 msgstr "Блокує інші задачі"
 
-#: templates/web/projects/_task_meta.html:45
+#: templates/web/projects/_task_meta.html:46
 msgid "Reporter"
 msgstr "Автор"
 
-#: templates/web/projects/_task_meta.html:48
+#: templates/web/projects/_task_meta.html:49
 msgid "Created"
 msgstr "Створено"
 
-#: templates/web/projects/_task_meta.html:52
-#: templates/web/projects/_task_meta_compact.html:43
+#: templates/web/projects/_task_meta.html:53
+#: templates/web/projects/_task_meta_compact.html:39
 msgid "Archived"
 msgstr "Архівні"
-
-#: templates/web/projects/_task_meta.html:74
-msgid "Unarchive"
-msgstr "Розархівувати"
-
-#: templates/web/projects/_task_meta.html:79
-msgid "Archive task"
-msgstr "Архівувати задачу"
 
 #: templates/web/projects/_timeline.html:208
 msgid "Zoom"
@@ -2096,20 +2329,20 @@ msgctxt "timeline"
 msgid "Task"
 msgstr "Задача"
 
-#: templates/web/projects/_timeline.html:590
+#: templates/web/projects/_timeline.html:596
 msgid "Set dates"
 msgstr "Вказати дати"
 
-#: templates/web/projects/_timeline.html:645
+#: templates/web/projects/_timeline.html:651
 msgid "without dates"
 msgstr "без дат"
 
-#: templates/web/projects/_timeline.html:659
+#: templates/web/projects/_timeline.html:665
 msgctxt "timeline"
 msgid "Start"
 msgstr "Початок"
 
-#: templates/web/projects/_timeline.html:660
+#: templates/web/projects/_timeline.html:666
 msgctxt "timeline"
 msgid "Due"
 msgstr "Дедлайн"
@@ -2118,11 +2351,11 @@ msgstr "Дедлайн"
 msgid "Subtask of"
 msgstr "Підзадача в"
 
-#: templates/web/projects/_update_comment.html:29
+#: templates/web/projects/_update_comment.html:22
 msgid "Leave a reply…"
 msgstr "Залиште відповідь…"
 
-#: templates/web/projects/_update_comments.html:28
+#: templates/web/projects/_update_comments.html:21
 msgid "Leave a comment…"
 msgstr "Залиште коментар…"
 
@@ -2159,30 +2392,25 @@ msgstr "архівовано"
 msgid "No tasks yet"
 msgstr "Задач ще немає"
 
-#: templates/web/projects/list.html:163
+#: templates/web/projects/list.html:170
 msgid "No members"
 msgstr "Немає учасників"
 
-#: templates/web/projects/list.html:172
+#: templates/web/projects/list.html:179
 msgid "closed"
 msgstr "закрито"
 
-#: templates/web/projects/list.html:182
+#: templates/web/projects/list.html:189
 msgid "no activity"
 msgstr "без активності"
 
-#: templates/web/projects/list.html:194
+#: templates/web/projects/list.html:201
 msgid "No projects yet."
 msgstr "Поки що немає проєктів."
 
-#: templates/web/projects/list.html:201
+#: templates/web/projects/list.html:208
 msgid "Create your first project"
 msgstr "Створи свій перший проєкт"
-
-#: templates/web/projects/task_detail_modal.html:59
-#: templates/web/projects/task_detail_modal.html:60
-msgid "Open full page"
-msgstr "Відкрити повну сторінку"
 
 #: templates/web/workspaces/_settings_invites.html:22
 msgid "Invite by email"
@@ -2235,15 +2463,15 @@ msgstr "Додати учасника"
 msgid "Choose user…"
 msgstr "Вибери користувача…"
 
-#: templates/web/workspaces/_settings_members.html:122
+#: templates/web/workspaces/_settings_members.html:119
 msgid "Remove from workspace"
 msgstr "Видалити з робочого простору"
 
-#: templates/web/workspaces/_settings_members.html:132
+#: templates/web/workspaces/_settings_members.html:129
 msgid "Remove?"
 msgstr "Видалити?"
 
-#: templates/web/workspaces/_settings_members.html:135
+#: templates/web/workspaces/_settings_members.html:132
 msgid "Confirm removal"
 msgstr "Підтвердити видалення"
 
@@ -2255,6 +2483,12 @@ msgstr[0] "%(counter)s в очікуванні"
 msgstr[1] "%(counter)s в очікуванні"
 msgstr[2] "%(counter)s в очікуванні"
 msgstr[3] "%(counter)s в очікуванні"
+
+#~ msgid "Avatar colour is derived from your username."
+#~ msgstr "Колір аватара визначається за іменем користувача."
+
+#~ msgid "Archive task"
+#~ msgstr "Архівувати задачу"
 
 #~ msgid "editing…"
 #~ msgstr "редагування…"
