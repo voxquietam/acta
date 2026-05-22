@@ -523,6 +523,28 @@ class MyWorkView(LoginRequiredMixin, TemplateView):
             "priority": group_tasks(tasks, "priority", request_user=self.request.user),
             "project": group_tasks(tasks, "project", request_user=self.request.user),
         }
+        # Personal WIP: flag the statuses where the current user holds more
+        # than their per-person workspace limit, so the status-axis section
+        # headers can warn (e.g. "!! 4/2 over WIP" next to In progress).
+        wip_self_over = {}
+        if active:
+            mode, limits = active.wip_config()
+            if mode == Workspace.WIP_PERSONAL and limits:
+                rows = (
+                    Task.objects.filter(
+                        project__workspace=active,
+                        assignee=self.request.user,
+                        archived_at__isnull=True,
+                        status__in=list(limits.keys()),
+                    )
+                    .values("status")
+                    .annotate(n=Count("id"))
+                )
+                for row in rows:
+                    cap = limits.get(row["status"])
+                    if cap and row["n"] > cap:
+                        wip_self_over[row["status"]] = {"count": row["n"], "limit": cap}
+        ctx["wip_self_over"] = wip_self_over
         # The project strip only offers projects the user actually has
         # tasks in — no point filtering My Work by a project with none.
         my_work_projects = list(

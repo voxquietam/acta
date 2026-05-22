@@ -52,6 +52,14 @@ updates ``activeAxis`` + ``history.pushState`` so URLs stay shareable.
             {% elif section.tone == 'sky' %}text-sky-400
             {% else %}text-placeholder-foreground{% endif %}">{{ section.label }}</h2>
           <span class="text-xs text-placeholder-foreground">{{ section.tasks|length }}</span>
+          {% comment %}
+          Personal WIP warning (My Work only): when the current user holds
+          more than their workspace WIP limit in this status. ``wip_self_over``
+          is set by MyWorkView; absent on other list surfaces.
+          {% endcomment %}
+          {% if wip_self_over %}{% with over=wip_self_over|get_item:section.key %}{% if over %}
+          <span class="text-[11px] font-mono text-rose-400" title="{% trans 'Over your WIP limit' %}">!! {{ over.count }}/{{ over.limit }} {% trans "over WIP" %}</span>
+          {% endif %}{% endwith %}{% endif %}
         </div>
         <ul class="bg-card border border-border rounded-lg overflow-hidden divide-y divide-border">
           {% for task in section.tasks %}
