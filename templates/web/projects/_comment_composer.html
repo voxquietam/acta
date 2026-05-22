@@ -1,0 +1,56 @@
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+Shared inline comment composer — avatar + borderless TipTap editor + a
+round arrow-up send button. Used for task replies and project-update
+comments/replies (the task top-level composer ``_comment_form`` stays
+separate: it carries the file-attach paperclip). Params:
+
+  post_url     base URL to POST the comment to
+  parent_id    (optional) appended as ``?parent=<id>`` for replies
+  target_kind  + ``target_id`` → ``hx-target="#<kind>-<id>"``
+  placeholder  editor empty-state text
+  tooltip      send-button tooltip
+  mention_url  (optional) ``data-mention-url`` for @-mentions
+  image_url    (optional) ``data-image-upload-url`` for paste/drop images
+  wrapper_class layout classes on the <form>
+
+Host passes ``user`` (current user). Submit is disabled until the editor
+has content; on success the editor clears (``clearContent(true)`` so the
+hidden body input resets too).
+{% endcomment %}
+<form x-data="{ empty: true }"
+      @editor:change="empty = $event.detail.empty"
+      hx-post="{{ post_url }}{% if parent_id %}?parent={{ parent_id }}{% endif %}"
+      hx-target="#{{ target_kind }}-{{ target_id }}"
+      hx-swap="beforeend"
+      @htmx:after-request="
+        if ($event.detail.successful) {
+          const ed = $el.querySelector('[data-description-editor]')?._editor;
+          if (ed) ed.commands.clearContent(true);
+        }
+      "
+      class="{{ wrapper_class }}">
+  {% csrf_token %}
+  {% if user.is_authenticated %}
+  {% include "web/_user_avatar.html" with user=user class="w-6 h-6 shrink-0" text_class="text-[11px]" %}
+  {% endif %}
+  <div data-description-editor
+       data-no-autosave
+       {% if mention_url %}data-mention-url="{{ mention_url }}"{% endif %}
+       {% if image_url %}data-image-upload-url="{{ image_url }}"{% endif %}
+       data-placeholder="{{ placeholder }}"
+       class="flex-1 min-w-0">
+    <input type="hidden" name="body" value="" data-editor-output>
+    <textarea class="description-editor-source hidden" readonly></textarea>
+    {% include "web/projects/_editor_toolbar.html" %}
+    <div class="description-editor-mount text-sm text-foreground py-1 max-h-40 overflow-y-auto"></div>
+  </div>
+  <button type="submit"
+          :disabled="empty"
+          data-tooltip="{{ tooltip }}"
+          data-tooltip-pos="below-left"
+          class="shrink-0 w-7 h-7 grid place-items-center rounded-full bg-brand-600 text-white hover:bg-brand-500 transition disabled:opacity-40 disabled:cursor-not-allowed">
+    {% lucide "arrow-up" "w-3.5 h-3.5" %}
+  </button>
+</form>

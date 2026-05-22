@@ -16,22 +16,10 @@ Expects ``comment`` (a top-level comment).
     {% endfor %}
   </div>
 
-  <form x-data="{}"
-        hx-post="{% url 'web:post_update_comment' pk=comment.project_update_id %}?parent={{ comment.id }}"
-        hx-target="#update-replies-{{ comment.id }}" hx-swap="beforeend"
-        @htmx:after-request="if ($event.detail.successful) { $el.reset(); $refs.ta.style.height = 'auto'; }"
-        class="flex items-end gap-2 px-4 py-2.5 border-t border-border">
-    {% csrf_token %}
-    {% if user.is_authenticated %}
-    {% include "web/_user_avatar.html" with user=user class="w-6 h-6 shrink-0" text_class="text-[11px]" %}
-    {% endif %}
-    <textarea x-ref="ta" name="body" required rows="1" placeholder="{% trans 'Leave a reply…' %}"
-              data-image-upload-url="{% url 'web:upload_project_inline_image' slug_prefix=comment.project_update.project.slug_prefix %}"
-              oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"
-              class="flex-1 bg-transparent text-sm text-foreground placeholder:text-placeholder-foreground resize-none focus:outline-none py-1 max-h-40"></textarea>
-    <button type="submit" data-tooltip="{% trans 'Reply' %}" data-tooltip-pos="below-left"
-            class="shrink-0 w-7 h-7 grid place-items-center rounded-full bg-brand-600 text-white hover:bg-brand-500 transition">
-      {% lucide "arrow-up" "w-3.5 h-3.5" %}
-    </button>
-  </form>
+  {% url 'web:post_update_comment' pk=comment.project_update_id as post_url %}
+  {% url 'web:mention_search' slug_prefix=comment.project_update.project.slug_prefix as mention_url %}
+  {% url 'web:upload_project_inline_image' slug_prefix=comment.project_update.project.slug_prefix as image_url %}
+  {% trans "Leave a reply…" as placeholder %}
+  {% trans "Reply" as tooltip %}
+  {% include "web/projects/_comment_composer.html" with post_url=post_url parent_id=comment.id target_kind="update-replies" target_id=comment.id mention_url=mention_url image_url=image_url placeholder=placeholder tooltip=tooltip wrapper_class="flex items-end gap-2 px-4 py-2.5 border-t border-border" %}
 </li>
