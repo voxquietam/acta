@@ -1166,43 +1166,63 @@ class TestBulkContextMenu:
 
 
 @pytest.mark.django_db
-class TestWipLimit:
-    """Per-column WIP limit set / clear + the column-build over-limit math."""
+class TestWorkspaceWip:
+    """Workspace-level WIP policy: save endpoint + column / personal math."""
 
-    def _url(self, project):
-        return reverse("web:set_wip_limit", kwargs={"slug_prefix": project.slug_prefix})
+    def _url(self, ws):
+        return reverse("web:set_workspace_wip", kwargs={"slug": ws.slug})
 
-    def test_set_and_clear_limit(self, client, setup):
-        user, project, task = setup
+    def test_save_policy_admin(self, client, setup):
+        user, project, task = setup  # ws.owner == user, an admin
+        ws = project.workspace
         client.force_login(user)
-        resp = client.post(self._url(project), {"status": "in-progress", "limit": "5"})
-        assert resp.status_code == 204
-        project.refresh_from_db()
-        assert project.wip_limits == {"in-progress": 5}
-        # 0 clears it
-        client.post(self._url(project), {"status": "in-progress", "limit": "0"})
-        project.refresh_from_db()
-        assert project.wip_limits == {}
+        resp = client.post(self._url(ws), {"mode": "personal", "limit_in-progress": "2", "limit_to-do": "0"})
+        assert resp.status_code == 302
+        ws.refresh_from_db()
+        assert ws.wip_limits == {"mode": "personal", "limits": {"in-progress": 2}}
+        assert ws.wip_config() == ("personal", {"in-progress": 2})
 
-    def test_invalid_status_400(self, client, setup):
-        user, project, task = setup
-        client.force_login(user)
-        assert client.post(self._url(project), {"status": "nope", "limit": "5"}).status_code == 400
+    def test_non_admin_forbidden(self, client, setup):
+        _user, project, _task = setup
+        ws = project.workspace
+        intruder = UserFactory()
+        WorkspaceMemberFactory(workspace=ws, user=intruder)  # plain member
+        client.force_login(intruder)
+        assert client.post(self._url(ws), {"mode": "personal", "limit_in-progress": "2"}).status_code == 403
 
-    def test_build_columns_over_limit(self):
+    def test_column_mode_over_limit(self):
         from apps.web.views import _build_kanban_columns
 
         ws = WorkspaceFactory()
         project = ProjectFactory(workspace=ws)
         tasks = [TaskFactory(project=project, status=Task.STATUS_IN_PROGRESS, reporter=ws.owner) for _ in range(6)]
-        cols = {c["key"]: c for c in _build_kanban_columns(tasks, wip_limits={"in-progress": 5})}
-        ip = cols["in-progress"]
-        assert ip["limit"] == 5
-        assert ip["over_limit"] is True
-        assert ip["fill_pct"] == 100  # clamped
-        # a status with no limit reports no over-limit
-        assert cols["to-do"]["limit"] == 0
+        cols = {c["key"]: c for c in _build_kanban_columns(tasks, wip_mode="column", wip_limits={"in-progress": 5})}
+        assert cols["in-progress"]["over_limit"] is True
+        assert cols["in-progress"]["fill_pct"] == 100
         assert cols["to-do"]["over_limit"] is False
+
+    def test_personal_mode_over_members(self):
+        from apps.web.views import _build_kanban_columns, _wip_context
+
+        ws = WorkspaceFactory()
+        ws.wip_limits = {"mode": "personal", "limits": {"in-progress": 2}}
+        ws.save(update_fields=["wip_limits"])
+        project = ProjectFactory(workspace=ws)
+        # owner gets 3 in-progress → over the cap of 2
+        for _ in range(3):
+            TaskFactory(project=project, status=Task.STATUS_IN_PROGRESS, assignee=ws.owner, reporter=ws.owner)
+        mode, limits, over = _wip_context(ws)
+        assert mode == "personal"
+        assert over["in-progress"][ws.owner.id] == 3
+        cols = {
+            c["key"]: c
+            for c in _build_kanban_columns(
+                list(Task.objects.filter(project=project)),
+                wip_mode=mode,
+                over_by_status=over,
+            )
+        }
+        assert cols["in-progress"]["over_member_count"] == 1
 
 
 @pytest.mark.django_db

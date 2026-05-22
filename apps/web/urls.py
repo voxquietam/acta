@@ -56,8 +56,8 @@ from .views import (
     set_task_start_date,
     set_task_status,
     set_task_title,
-    set_wip_limit,
     set_workspace_member_role,
+    set_workspace_wip,
     switch_workspace,
     task_activity_fragment,
     task_comments_fragment,
@@ -134,6 +134,11 @@ urlpatterns = [
         remove_workspace_member,
         name="remove_workspace_member",
     ),
+    path(
+        "workspaces/<slug:slug>/wip/",
+        set_workspace_wip,
+        name="set_workspace_wip",
+    ),
     path("projects/", ProjectListView.as_view(), name="project_list"),
     path("projects/new/", create_project, name="create_project"),
     path("projects/<str:slug_prefix>/", ProjectDetailView.as_view(), name="project_detail"),
@@ -146,11 +151,6 @@ urlpatterns = [
         "projects/<str:slug_prefix>/lead/",
         set_project_lead,
         name="set_project_lead",
-    ),
-    path(
-        "projects/<str:slug_prefix>/wip-limit/",
-        set_wip_limit,
-        name="set_wip_limit",
     ),
     path(
         "projects/<str:slug_prefix>/insights/",

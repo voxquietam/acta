@@ -1,5 +1,6 @@
 {% load i18n %}
 {% load lucide %}
+{% load web_extras %}
 {% comment %}
 Kanban board: 5 fixed-status columns of task cards.
 Drag-and-drop is wired via sortable.js — drop into a different column
@@ -56,47 +57,15 @@ hides the native scrollbar without losing the "you can scroll" cue.
           <span class="font-mono text-[11px] font-bold uppercase tracking-wider text-foreground truncate min-w-0">{{ col.label }}</span>
         </button>
         {% comment %}
-        WIP count + limit. Click opens a tiny popover to set / clear the
-        per-column limit (``set_wip_limit`` → board refetch). The bare
-        count keeps ``data-column-count`` so the drag handler can update
-        it live; the ``/ limit`` part is a separate span so a drag never
-        wipes it. Over-limit turns the fraction rose (see ``comp-kanban-
-        column-head`` v3).
+        Count + (column-mode) WIP fraction. The WIP policy is configured
+        at the workspace level (Workspace settings), not here. In ``column``
+        mode a positive ``col.limit`` shows the ``N / limit`` fraction +
+        capacity bar, rose when over. ``data-column-count`` stays a bare
+        span so the drag handler updates it live without wiping ``/ limit``.
         {% endcomment %}
-        {% if project %}
-        {# Per-project board: count doubles as the WIP-limit setter. #}
-        <div x-data="{ open: false }" class="relative shrink-0 ml-auto mr-1">
-          <button type="button"
-                  @click="open = !open"
-                  data-tooltip="{% trans 'WIP limit' %}"
-                  class="font-mono text-[11px] cursor-pointer hover:text-foreground transition {% if col.over_limit %}text-rose-300{% else %}text-subtle-foreground{% endif %}">
-            <span data-column-count class="{% if col.over_limit %}text-rose-400 font-semibold{% endif %}">{{ col.tasks|length }}</span>{% if col.limit %}<span class="text-placeholder-foreground"> / {{ col.limit }}</span>{% endif %}
-          </button>
-          <div x-show="open" x-cloak
-               @click.outside="open = false"
-               x-init="$nextTick(() => window.htmx && window.htmx.process($el))"
-               class="absolute right-0 top-full mt-1 z-30 w-44 bg-card border border-border rounded-lg shadow-lg p-2">
-            <form hx-post="{% url 'web:set_wip_limit' slug_prefix=project.slug_prefix %}"
-                  hx-swap="none"
-                  @htmx:after-request="open = false">
-              {% csrf_token %}
-              <input type="hidden" name="status" value="{{ col.key }}">
-              <label class="block text-[10px] uppercase tracking-wider text-placeholder-foreground mb-1">{% trans "WIP limit" %}</label>
-              <div class="flex items-center gap-1.5">
-                <input type="number" name="limit" min="0" inputmode="numeric"
-                       value="{{ col.limit|default_if_none:'' }}"
-                       placeholder="{% trans 'none' %}"
-                       class="w-16 bg-muted border border-border-strong rounded px-2 py-1 text-xs text-foreground focus:outline-none focus:border-brand-500">
-                <button type="submit" class="text-xs px-2 py-1 rounded-md bg-brand-600 hover:bg-brand-500 text-white">{% trans "Set" %}</button>
-              </div>
-              <p class="text-[10px] text-placeholder-foreground mt-1.5">{% trans "0 or empty = no limit" %}</p>
-            </form>
-          </div>
-        </div>
-        {% else %}
-        {# Cross-project boards (All Tasks / My Work): plain count, no WIP. #}
-        <span class="ml-auto shrink-0 font-mono text-[11px] text-subtle-foreground px-1" data-column-count>{{ col.tasks|length }}</span>
-        {% endif %}
+        <span class="ml-auto shrink-0 font-mono text-[11px] px-1 {% if col.over_limit %}text-rose-300{% else %}text-subtle-foreground{% endif %}">
+          <span data-column-count class="{% if col.over_limit %}text-rose-400 font-semibold{% endif %}">{{ col.tasks|length }}</span>{% if col.limit %}<span class="text-placeholder-foreground"> / {{ col.limit }}</span>{% endif %}
+        </span>
         {# Add new task in this column — pre-fills project + status. #}
         <button type="button"
                 hx-get="{% url 'web:create_task' %}?project={{ project.slug_prefix }}&status={{ col.key }}"
@@ -130,18 +99,20 @@ hides the native scrollbar without losing the "you can scroll" cue.
               class="{% if col.overdue_count or col.done_this_week and col.key == 'done' %}hidden{% endif %}"></span>
         <div class="flex items-center" data-substatus-avatars>
           {% for avatar in col.active_avatars %}
+          {% with over=col.over_members_map|get_item:avatar.id %}
           {% if avatar.avatar %}
           <img src="{% url 'accounts:serve_avatar' user_id=avatar.id %}" alt="{{ avatar.display_name }}"
                class="w-3.5 h-3.5 rounded-full object-cover -ml-1 first:ml-0"
-               style="box-shadow: 0 0 0 1.5px rgb(var(--card));"
-               title="{{ avatar.display_name }}">
+               style="box-shadow: 0 0 0 1.5px {% if over %}rgb(244 63 94){% else %}rgb(var(--card)){% endif %};"
+               title="{{ avatar.display_name }}{% if over %} · {{ over }} ({% trans 'over WIP limit' %}){% endif %}">
           {% else %}
           <span class="w-3.5 h-3.5 rounded-full text-white grid place-items-center text-[8px] font-medium -ml-1 first:ml-0"
-                style="background-color: {{ avatar.avatar_color }}; box-shadow: 0 0 0 1.5px rgb(var(--card));"
-                title="{{ avatar.display_name }}">
+                style="background-color: {{ avatar.avatar_color }}; box-shadow: 0 0 0 1.5px {% if over %}rgb(244 63 94){% else %}rgb(var(--card)){% endif %};"
+                title="{{ avatar.display_name }}{% if over %} · {{ over }} ({% trans 'over WIP limit' %}){% endif %}">
             {{ avatar.display_name|slice:":1"|upper }}
           </span>
           {% endif %}
+          {% endwith %}
           {% endfor %}
         </div>
       </div>
@@ -160,6 +131,14 @@ hides the native scrollbar without losing the "you can scroll" cue.
       <div class="h-0.5 bg-muted overflow-hidden">
         <div class="h-full {% if col.over_limit %}bg-rose-500{% else %}bg-brand-500{% endif %}" style="width: {{ col.fill_pct }}%;"></div>
       </div>
+      {% endif %}
+      {% comment %}
+      Personal-mode WIP: one-line warning when members exceed their
+      per-person cap in this status (workspace-wide). The over members'
+      avatars are ringed rose in the substatus stack above.
+      {% endcomment %}
+      {% if col.over_member_count %}
+      <div class="px-3 pb-1 font-mono text-[10px] text-rose-300">!! {% blocktrans count n=col.over_member_count %}{{ n }} member over WIP{% plural %}{{ n }} members over WIP{% endblocktrans %}</div>
       {% endif %}
     </div>
 

@@ -52,6 +52,48 @@ class Workspace(models.Model):
         ),
     )
 
+    WIP_OFF = "off"
+    WIP_PERSONAL = "personal"
+    WIP_COLUMN = "column"
+    WIP_MODE_CHOICES = [
+        (WIP_OFF, _("Off")),
+        (WIP_PERSONAL, _("Per person")),
+        (WIP_COLUMN, _("Per column (team)")),
+    ]
+    wip_limits = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            'Workspace-wide WIP-limit policy as {"mode": off|personal|column, '
+            '"limits": {status_key: max}}. personal = each member may hold at most '
+            "max tasks in that status across the whole workspace; column = the kanban "
+            "column holds at most max cards for the team. Empty / off disables it"
+        ),
+    )
+
+    def wip_config(self):
+        """Return ``(mode, limits)`` from :attr:`wip_limits`, normalised.
+
+        Returns:
+            A ``(mode, limits)`` tuple where ``mode`` is one of the
+            ``WIP_*`` constants (``off`` when unset / unknown) and
+            ``limits`` is a ``{status_key: int}`` dict (only positive
+            limits kept). ``off`` mode always yields an empty ``limits``.
+        """
+        raw = self.wip_limits or {}
+        mode = raw.get("mode", self.WIP_OFF)
+        if mode not in {self.WIP_PERSONAL, self.WIP_COLUMN}:
+            return self.WIP_OFF, {}
+        limits = {}
+        for key, value in (raw.get("limits") or {}).items():
+            try:
+                n = int(value)
+            except (TypeError, ValueError):
+                continue
+            if n > 0:
+                limits[key] = n
+        return mode, limits
+
     class Meta:
         verbose_name = _("Workspace")
         verbose_name_plural = _("Workspaces")

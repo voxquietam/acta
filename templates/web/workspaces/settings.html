@@ -46,5 +46,55 @@ remove flows can swap just that block without reloading the page.
     {% include "web/workspaces/_settings_invites.html" %}
   </section>
 
+  {% comment %}
+  WIP-limit policy (scrumban). Workspace-wide so it applies to every
+  project board. ``personal`` = per-member cap counted across the whole
+  workspace; ``column`` = a team cap on the kanban column. Admin-only.
+  {% endcomment %}
+  <section class="bg-card border border-border rounded-lg p-5">
+    <header class="mb-4">
+      <h2 class="text-sm font-medium text-foreground">{% trans "WIP limits" %}</h2>
+      <p class="text-xs text-placeholder-foreground mt-1">{% trans "Work-in-progress caps for the kanban board, applied across all projects." %}</p>
+    </header>
+
+    {% if viewer_is_admin %}
+    <form method="post" action="{% url 'web:set_workspace_wip' slug=workspace.slug %}"
+          x-data="{ mode: '{{ wip_mode }}' }" class="space-y-4">
+      {% csrf_token %}
+      <div>
+        <label class="block text-[10px] uppercase tracking-wider text-placeholder-foreground mb-1.5">{% trans "Mode" %}</label>
+        <div class="flex flex-wrap gap-2">
+          {% for value, label in wip_mode_choices %}
+          <label class="cursor-pointer">
+            <input type="radio" name="mode" value="{{ value }}" x-model="mode" class="peer sr-only">
+            <span class="inline-block px-3 py-1.5 rounded-md border text-xs transition peer-checked:border-brand-400 peer-checked:bg-brand-600 peer-checked:text-white border-border bg-background text-subtle-foreground hover:bg-muted">{{ label }}</span>
+          </label>
+          {% endfor %}
+        </div>
+        <p class="text-[11px] text-placeholder-foreground mt-2" x-show="mode === 'personal'" x-cloak>{% trans "Each member may hold at most this many tasks in the status, counted across every project." %}</p>
+        <p class="text-[11px] text-placeholder-foreground mt-2" x-show="mode === 'column'" x-cloak>{% trans "The kanban column holds at most this many cards for the whole team." %}</p>
+      </div>
+
+      <div x-show="mode !== 'off'" x-cloak class="space-y-2">
+        <label class="block text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Limit per status" %}</label>
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {% for key, label, current in wip_status_rows %}
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-muted-foreground flex-1 truncate">{{ label }}</span>
+            <input type="number" name="limit_{{ key }}" min="0" value="{{ current }}" placeholder="—"
+                   class="w-14 bg-muted border border-border-strong rounded px-2 py-1 text-xs text-foreground focus:outline-none focus:border-brand-500">
+          </div>
+          {% endfor %}
+        </div>
+        <p class="text-[10px] text-placeholder-foreground">{% trans "Empty or 0 = no limit for that status." %}</p>
+      </div>
+
+      <button type="submit" class="text-xs px-3 py-1.5 rounded-md bg-brand-600 hover:bg-brand-500 text-white">{% trans "Save" %}</button>
+    </form>
+    {% else %}
+    <p class="text-xs text-placeholder-foreground">{% trans "Only workspace admins can change WIP limits." %}</p>
+    {% endif %}
+  </section>
+
 </div>
 {% endblock %}

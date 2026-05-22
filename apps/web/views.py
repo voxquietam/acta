@@ -16,7 +16,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models import Count, Exists, F, Max, OuterRef, Q, Subquery
-from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
+from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
@@ -1543,7 +1543,15 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             else:
                 kanban_tasks = table_tasks
             ctx["tasks"] = table_tasks if view_mode == "table" else kanban_tasks
-            ctx["columns"] = _build_kanban_columns(kanban_tasks, today=today, wip_limits=project.wip_limits)
+            wip_mode, wip_limits, wip_over = _wip_context(project.workspace)
+            ctx["wip_mode"] = wip_mode
+            ctx["columns"] = _build_kanban_columns(
+                kanban_tasks,
+                today=today,
+                wip_mode=wip_mode,
+                wip_limits=wip_limits,
+                over_by_status=wip_over,
+            )
             list_axis_keys = ("deadline", "status", "priority", "assignee")
             list_axis = _resolve_list_axis(self.request, default="status", options=list_axis_keys)
             ctx["list_axis"] = list_axis
@@ -3430,36 +3438,34 @@ def _get_user_project_or_404(user, slug_prefix):
 
 @require_POST
 @login_required
-def set_wip_limit(request, slug_prefix):
-    """Set or clear a kanban column's WIP limit for a project.
+def set_workspace_wip(request, slug):
+    """Save the workspace-wide WIP policy from the settings panel.
 
-    Reads ``status`` (one of ``Task.KANBAN_STATUS_VALUES``) and ``limit``
-    (a positive integer; empty / ``0`` clears the limit). Stored in
-    ``Project.wip_limits`` (a status→limit map). Replies ``204`` with
-    ``HX-Trigger: acta:task-changed`` so the board panel refetches and
-    the column header re-renders the new fraction + capacity bar.
+    Admin-gated. Reads ``mode`` (``off`` / ``personal`` / ``column``)
+    and a ``limit_<status>`` field per kanban status; stores them in
+    ``Workspace.wip_limits`` as ``{"mode": …, "limits": {status: n}}``
+    (only positive limits kept). Redirects back to the settings page.
     """
-    project = _get_user_project_or_404(request.user, slug_prefix)
-    status = request.POST.get("status", "")
-    if status not in Task.KANBAN_STATUS_VALUES:
-        return HttpResponseBadRequest("invalid status")
-    raw = (request.POST.get("limit") or "").strip()
-    limits = dict(project.wip_limits or {})
-    if raw in ("", "0"):
-        limits.pop(status, None)
-    else:
+    workspace = _get_user_workspace_or_404(request.user, slug)
+    if not _user_is_workspace_admin(request.user, workspace):
+        return HttpResponseForbidden("admin only")
+    mode = request.POST.get("mode", Workspace.WIP_OFF)
+    if mode not in {Workspace.WIP_OFF, Workspace.WIP_PERSONAL, Workspace.WIP_COLUMN}:
+        return HttpResponseBadRequest("invalid mode")
+    limits = {}
+    for status in Task.KANBAN_STATUS_VALUES:
+        raw = (request.POST.get(f"limit_{status}") or "").strip()
+        if not raw:
+            continue
         try:
             n = int(raw)
         except ValueError:
             return HttpResponseBadRequest("invalid limit")
-        if n < 0:
-            return HttpResponseBadRequest("invalid limit")
-        limits[status] = n
-    project.wip_limits = limits
-    project.save(update_fields=["wip_limits"])
-    response = HttpResponse(status=204)
-    response["HX-Trigger"] = "acta:task-changed"
-    return response
+        if n > 0:
+            limits[status] = n
+    workspace.wip_limits = {"mode": mode, "limits": limits}
+    workspace.save(update_fields=["wip_limits"])
+    return redirect("web:workspace_settings", slug=workspace.slug)
 
 
 def _cycle_histogram(hours: list[float]) -> dict[str, list]:
@@ -4733,7 +4739,45 @@ def _get_user_workspace_or_404(user, slug):
     )
 
 
-def _build_kanban_columns(tasks, today=None, wip_limits=None):
+def _wip_context(workspace):
+    """Resolve a workspace's WIP policy into ``(mode, limits, over_by_status)``.
+
+    ``mode`` / ``limits`` come straight from :meth:`Workspace.wip_config`.
+    For ``personal`` mode it also counts each member's **active**
+    (non-archived, non-done/cancelled) tasks per limited status across
+    the whole workspace and returns, per status, the ``{user_id: count}``
+    of members who are over their per-person cap — one grouped query.
+
+    Args:
+        workspace: The active :class:`Workspace`, or ``None``.
+
+    Returns:
+        ``(mode, limits, over_by_status)``; ``over_by_status`` is empty
+        outside personal mode.
+    """
+    if workspace is None:
+        return Workspace.WIP_OFF, {}, {}
+    mode, limits = workspace.wip_config()
+    over_by_status: dict[str, dict[int, int]] = {}
+    if mode == Workspace.WIP_PERSONAL and limits:
+        rows = (
+            Task.objects.filter(
+                project__workspace=workspace,
+                archived_at__isnull=True,
+                assignee__isnull=False,
+                status__in=list(limits.keys()),
+            )
+            .values("status", "assignee_id")
+            .annotate(n=Count("id"))
+        )
+        for row in rows:
+            cap = limits.get(row["status"])
+            if cap and row["n"] > cap:
+                over_by_status.setdefault(row["status"], {})[row["assignee_id"]] = row["n"]
+    return mode, limits, over_by_status
+
+
+def _build_kanban_columns(tasks, today=None, wip_mode=None, wip_limits=None, over_by_status=None):
     """Build the kanban column dicts from an already-materialised task
     list — single pass over ``tasks`` bucketing by status and
     accumulating per-column substatus stats (``overdue_count``,
@@ -4746,15 +4790,26 @@ def _build_kanban_columns(tasks, today=None, wip_limits=None):
     skip). All in-memory work, no DB hits. ``tasks`` is whatever the
     caller already paid for; this just shape-shifts it for the template.
 
+    WIP limits come from the **workspace** policy (see
+    :meth:`Workspace.wip_config`):
+
+    * ``column`` mode — ``wip_limits[status]`` is a team cap on the
+      column; the column gets ``limit`` / ``over_limit`` / ``fill_pct``
+      for the ``N/limit`` fraction + capacity bar.
+    * ``personal`` mode — ``over_by_status[status]`` maps the user ids
+      who hold more than their per-person limit in that status
+      (workspace-wide); the column flags how many of them appear here so
+      their avatars can be ringed.
+
     Args:
         tasks: Materialised task list (one board's worth).
         today: Date anchor for overdue / done-this-week buckets.
-        wip_limits: Optional ``{status_key: max_cards}`` map
-            (``Project.wip_limits``); a positive limit adds ``limit`` /
-            ``over_limit`` to that column so the header can render the
-            ``N/limit`` fraction + capacity bar.
+        wip_mode: ``"column"`` / ``"personal"`` / ``None``.
+        wip_limits: ``{status_key: max}`` for column mode.
+        over_by_status: ``{status_key: {user_id: count}}`` for personal mode.
     """
     wip_limits = wip_limits or {}
+    over_by_status = over_by_status or {}
     today = today or datetime.date.today()
     week_ago = today - datetime.timedelta(days=7)
 
@@ -4790,10 +4845,13 @@ def _build_kanban_columns(tasks, today=None, wip_limits=None):
         except (TypeError, ValueError):
             return 0
 
+    is_column = wip_mode == "column"
+    is_personal = wip_mode == "personal"
     columns = []
     for status in Task.KANBAN_STATUS_VALUES:
         count = len(buckets[status])
-        limit = _limit_for(status)
+        limit = _limit_for(status) if is_column else 0
+        over_members = over_by_status.get(status, {}) if is_personal else {}
         columns.append(
             {
                 "key": status,
@@ -4802,10 +4860,15 @@ def _build_kanban_columns(tasks, today=None, wip_limits=None):
                 "overdue_count": overdue[status],
                 "active_avatars": list(avatars[status].values()),
                 "done_this_week": done_this_week if status == Task.STATUS_DONE else 0,
+                # Column-mode WIP (team cap on the column).
                 "limit": limit,
                 "over_limit": bool(limit) and count > limit,
                 "at_limit": bool(limit) and count == limit,
                 "fill_pct": min(100, round(count * 100 / limit)) if limit else 0,
+                # Personal-mode WIP: {user_id: count} of members over their
+                # per-person cap in this status (workspace-wide).
+                "over_member_count": len(over_members),
+                "over_members_map": over_members,
             }
         )
     return columns
@@ -5030,6 +5093,12 @@ class WorkspaceSettingsView(LoginRequiredMixin, TemplateView):
         # wins on merge, but the value is the same. Keep the explicit
         # update so the template gets every key it expects.
         ctx.update(invites_ctx)
+        # WIP policy panel: current mode + per-status limits + the kanban
+        # statuses to render number inputs for.
+        wip_mode, wip_limits = workspace.wip_config()
+        ctx["wip_mode"] = wip_mode
+        ctx["wip_mode_choices"] = Workspace.WIP_MODE_CHOICES
+        ctx["wip_status_rows"] = [(s, Task.STATUS_LABELS[s], wip_limits.get(s, "")) for s in Task.KANBAN_STATUS_VALUES]
         return ctx
 
 

@@ -96,15 +96,6 @@ class Project(models.Model):
         default=False,
         help_text="Archived projects are hidden by default but retain their tasks and history",
     )
-    wip_limits = models.JSONField(
-        default=dict,
-        blank=True,
-        help_text=(
-            "Per-status work-in-progress limits for the kanban board, as a "
-            "{status_key: max_cards} map. Absent / 0 means no limit. Drives "
-            "the column N/limit fraction + capacity bar + over-limit warning"
-        ),
-    )
     created_at = models.DateTimeField(
         auto_now_add=True,
         help_text="When the project was created",
