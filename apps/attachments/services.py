@@ -1,3 +1,4 @@
+import hashlib
 from pathlib import Path
 import uuid
 
@@ -171,17 +172,32 @@ def _store_attachment(
         else:
             stored, content_type = result
 
+    stored.seek(0)
+    content_hash = hashlib.sha256(stored.read()).hexdigest()
+    stored.seek(0)
+
     attachment = Attachment(
         workspace=workspace,
         kind=kind,
         uploader=uploader,
         original_name=original_name,
         content_type=content_type,
+        content_hash=content_hash,
         **{owner_field: owner},
     )
     attachment.clean()
-    attachment.file.save(original_name, stored, save=False)
-    attachment.size = attachment.file.size
+    # Content-addressed dedup: if the exact bytes are already stored, point
+    # this row at the same blob instead of writing a second copy. The
+    # ``post_delete`` signal ref-counts so the blob survives until the last
+    # row referencing it is gone. (Serving stays gated by each row's
+    # workspace, so sharing a blob across workspaces is safe.)
+    existing = Attachment.objects.filter(content_hash=content_hash).first()
+    if existing is not None:
+        attachment.file.name = existing.file.name
+        attachment.size = existing.size
+    else:
+        attachment.file.save(original_name, stored, save=False)
+        attachment.size = attachment.file.size
     attachment.save()
     return attachment
 

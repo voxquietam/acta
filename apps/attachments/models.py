@@ -114,6 +114,12 @@ class Attachment(models.Model):
     size = models.PositiveBigIntegerField(
         help_text="Stored file size in bytes, after image normalization when applicable",
     )
+    content_hash = models.CharField(
+        max_length=64,
+        blank=True,
+        db_index=True,
+        help_text="SHA-256 of the stored bytes; rows sharing a hash share one blob on disk (dedup)",
+    )
     created_at = models.DateTimeField(
         auto_now_add=True,
         help_text="When the file was uploaded",

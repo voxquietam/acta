@@ -13,6 +13,14 @@ def delete_attachment_file(sender, instance: Attachment, **kwargs) -> None:
     files on the tight VM disk. ``post_delete`` fires for cascaded and
     queryset deletions too, so this covers every path. ``save=False``
     avoids re-saving the row that no longer exists.
+
+    Ref-counts the content-addressed dedup: the blob is kept while any
+    other row still points at the same stored path. (The deleted row is
+    already gone from the DB here, so this query sees only the survivors.)
     """
-    if instance.file:
-        instance.file.delete(save=False)
+    if not instance.file:
+        return
+    name = instance.file.name
+    if Attachment.objects.filter(file=name).exists():
+        return
+    instance.file.delete(save=False)
