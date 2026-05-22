@@ -89,6 +89,7 @@ x-data="{
       {% endcomment %}
       <div data-description-editor
            data-no-autosave
+           {% if selected_project %}data-image-upload-url="{% url 'web:upload_project_inline_image' slug_prefix=selected_project.slug_prefix %}"{% endif %}
            data-placeholder="{% trans 'Optional details…' %}"
            class="mt-1">
         <input type="hidden" name="description" value="{{ pre_description|default:'' }}" data-editor-output>
