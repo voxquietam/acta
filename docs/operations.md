@@ -84,6 +84,26 @@ The job emits `system.task.archived` activity events with
 process the entire backlog of stale done rows — review the dry-run
 output first if the workspace has been around for a while.
 
+### Daily: GC orphaned inline images
+
+Inline editor images (pasted/dropped into a description or comment) are
+uploaded the instant they're pasted — before the text is saved — so they
+linger if the user removes the image or abandons the create-task modal.
+This deletes inline images, older than a grace window (default 24h), whose
+serve URL no longer appears in any task/project description or comment
+body. The `post_delete` signal removes the file blob too. File attachments
+(`kind=file`) are never touched.
+
+```cron
+# At 04:00 every day.
+0 4 * * * cd /opt/acta && docker compose exec -T web python manage.py gc_orphan_attachments >> /var/log/acta/gc-attachments.log 2>&1
+```
+
+Flags:
+- `--dry-run` — report the count that *would* be deleted without deleting.
+- `--older-than-hours N` — grace window (default 24); raise it if users
+  routinely take longer than a day between pasting and saving.
+
 ### Future hooks
 
 When these subsystems land they will need their own scheduled jobs —
