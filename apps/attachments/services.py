@@ -127,15 +127,16 @@ def _comment_workspace(comment):
     return comment.project_update.project.workspace
 
 
-def _store_attachment(*, workspace, owner_field, owner, uploader, uploaded_file) -> Attachment:
+def _store_attachment(
+    *, workspace, owner_field, owner, uploader, uploaded_file, kind=Attachment.KIND_FILE
+) -> Attachment:
     """Validate, normalize, and persist one uploaded file as an Attachment.
 
-    Shared core of the per-owner ``create_*_attachment`` helpers. Raster
-    images are downscaled and stripped of metadata (see
-    :func:`images.normalize_image`); documents and archives are stored
-    as-is. The stored content type is derived from the validated
-    extension, never the browser's claim. Runs inside the caller's
-    ``transaction.atomic()``.
+    Shared core of the per-owner ``create_*`` helpers. Raster images are
+    downscaled and stripped of metadata (see :func:`images.normalize_image`);
+    documents and archives are stored as-is. The stored content type is
+    derived from the validated extension, never the browser's claim. Runs
+    inside the caller's ``transaction.atomic()``.
 
     Args:
         workspace: The owning workspace (denormalized onto the row).
@@ -144,6 +145,8 @@ def _store_attachment(*, workspace, owner_field, owner, uploader, uploaded_file)
         owner: The owner instance assigned to that field.
         uploader: The :class:`User` uploading the file.
         uploaded_file: The ``UploadedFile`` to validate and store.
+        kind: ``Attachment.KIND_FILE`` (panel attachment) or
+            ``KIND_INLINE_IMAGE`` (embedded in a description editor).
 
     Returns:
         The created, persisted :class:`Attachment`.
@@ -170,7 +173,7 @@ def _store_attachment(*, workspace, owner_field, owner, uploader, uploaded_file)
 
     attachment = Attachment(
         workspace=workspace,
-        kind=Attachment.KIND_FILE,
+        kind=kind,
         uploader=uploader,
         original_name=original_name,
         content_type=content_type,
@@ -260,4 +263,38 @@ def create_comment_attachment(*, comment, uploader, uploaded_file) -> Attachment
         owner=comment,
         uploader=uploader,
         uploaded_file=uploaded_file,
+    )
+
+
+def create_inline_image(*, owner_field, owner, workspace, uploader, uploaded_file) -> Attachment:
+    """Validate, normalize, and store an image embedded in a description.
+
+    Restricted to raster images (no SVG, no documents) since the result is
+    rendered inline via an ``<img>`` in the description markdown. Stored as
+    an ``Attachment`` with ``kind=inline_image`` so it never shows in the
+    file-attachments panel.
+
+    Args:
+        owner_field: ``"task"`` or ``"project"`` (the description's owner).
+        owner: The owning task / project instance.
+        workspace: The owning workspace.
+        uploader: The :class:`User` embedding the image.
+        uploaded_file: The uploaded image.
+
+    Returns:
+        The created, persisted :class:`Attachment`.
+
+    Raises:
+        ValidationError: On a non-raster-image or oversized file.
+    """
+    ext = _extension(uploaded_file.name)
+    if ext not in settings.ATTACHMENT_ALLOWED_TYPES["image"]["extensions"] or ext == "svg":
+        raise ValidationError(_("Only PNG, JPG, GIF, or WebP images can be embedded."))
+    return _store_attachment(
+        workspace=workspace,
+        owner_field=owner_field,
+        owner=owner,
+        uploader=uploader,
+        uploaded_file=uploaded_file,
+        kind=Attachment.KIND_INLINE_IMAGE,
     )

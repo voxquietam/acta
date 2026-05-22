@@ -68,7 +68,9 @@ from .views import (
     toggle_task_label,
     update_card_fragment,
     update_edit_form,
+    upload_project_description_image,
     upload_task_attachment,
+    upload_task_description_image,
 )
 
 app_name = "web"
@@ -260,6 +262,16 @@ urlpatterns = [
         "projects/<str:slug_prefix>/<int:number>/attachments/upload/",
         upload_task_attachment,
         name="upload_task_attachment",
+    ),
+    path(
+        "projects/<str:slug_prefix>/<int:number>/description/image/",
+        upload_task_description_image,
+        name="upload_task_description_image",
+    ),
+    path(
+        "projects/<str:slug_prefix>/description/image/",
+        upload_project_description_image,
+        name="upload_project_description_image",
     ),
     path(
         "attachments/<int:pk>/delete/",

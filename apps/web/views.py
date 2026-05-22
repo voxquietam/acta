@@ -29,7 +29,7 @@ from django.views.generic import DetailView, ListView, TemplateView
 from apps.activity.models import ActivityLog
 from apps.activity.services import log_event
 from apps.attachments.models import Attachment
-from apps.attachments.services import categorize, create_comment_attachment, create_task_attachment
+from apps.attachments.services import categorize, create_comment_attachment, create_inline_image, create_task_attachment
 from apps.attachments.serving import serve_attachment_response
 from apps.comments.models import Comment
 from apps.labels.models import Label
@@ -2895,6 +2895,55 @@ def serve_attachment(request, pk):
         pk=pk,
     )
     return serve_attachment_response(attachment)
+
+
+@require_POST
+@login_required
+def upload_task_description_image(request, slug_prefix, number):
+    """Store an image embedded in a task description; return ``{"url": …}``.
+
+    Called by the TipTap editor's paste/drop handler. The returned URL is
+    the auth-gated serve endpoint, which the editor inserts as an
+    ``<img>`` and the saved markdown references as ``![](url)``.
+    """
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    upload = request.FILES.get("image")
+    if upload is None:
+        return HttpResponseBadRequest("image required")
+    try:
+        with transaction.atomic():
+            attachment = create_inline_image(
+                owner_field="task",
+                owner=task,
+                workspace=task.project.workspace,
+                uploader=request.user,
+                uploaded_file=upload,
+            )
+    except ValidationError as exc:
+        return JsonResponse({"error": "; ".join(exc.messages)}, status=400)
+    return JsonResponse({"url": reverse("web:serve_attachment", kwargs={"pk": attachment.id})})
+
+
+@require_POST
+@login_required
+def upload_project_description_image(request, slug_prefix):
+    """Store an image embedded in a project description; return ``{"url": …}``."""
+    project = _get_user_project_or_404(request.user, slug_prefix)
+    upload = request.FILES.get("image")
+    if upload is None:
+        return HttpResponseBadRequest("image required")
+    try:
+        with transaction.atomic():
+            attachment = create_inline_image(
+                owner_field="project",
+                owner=project,
+                workspace=project.workspace,
+                uploader=request.user,
+                uploaded_file=upload,
+            )
+    except ValidationError as exc:
+        return JsonResponse({"error": "; ".join(exc.messages)}, status=400)
+    return JsonResponse({"url": reverse("web:serve_attachment", kwargs={"pk": attachment.id})})
 
 
 @require_POST
