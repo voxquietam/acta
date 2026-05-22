@@ -1533,6 +1533,53 @@
     );
   });
 
+  // ----- Image paste/drop into plain-textarea composers -----------
+  // Update comments use a <textarea>, not the TipTap editor, so they
+  // miss the editor's upload. For textareas that opt in via
+  // ``data-image-upload-url`` we upload the pasted/dropped image and
+  // insert ``![](url)`` markdown at the cursor (the body renders markdown).
+  function insertAtCursor(ta, text) {
+    const start = ta.selectionStart ?? ta.value.length;
+    const end = ta.selectionEnd ?? ta.value.length;
+    ta.value = ta.value.slice(0, start) + text + ta.value.slice(end);
+    ta.selectionStart = ta.selectionEnd = start + text.length;
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
+    ta.focus();
+  }
+  async function uploadTextareaImage(file, url) {
+    const body = new FormData();
+    body.append("image", file);
+    try {
+      const resp = await fetch(url, { method: "POST", headers: { "X-CSRFToken": getCookie("csrftoken") }, body });
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        if (window.actaToast) window.actaToast((data && data.error) || "Image upload failed", "error");
+        return null;
+      }
+      return (await resp.json()).url || null;
+    } catch (e) {
+      if (window.actaToast) window.actaToast("Image upload failed", "error");
+      return null;
+    }
+  }
+  function handleTextareaImages(ta, fileList) {
+    const files = Array.from(fileList || []).filter((f) => f.type.startsWith("image/"));
+    if (!files.length) return false;
+    files.forEach(async (file) => {
+      const src = await uploadTextareaImage(file, ta.dataset.imageUploadUrl);
+      if (src) insertAtCursor(ta, `![](${src})`);
+    });
+    return true;
+  }
+  document.addEventListener("paste", (evt) => {
+    const ta = evt.target.closest && evt.target.closest("textarea[data-image-upload-url]");
+    if (ta && handleTextareaImages(ta, evt.clipboardData && evt.clipboardData.files)) evt.preventDefault();
+  });
+  document.addEventListener("drop", (evt) => {
+    const ta = evt.target.closest && evt.target.closest("textarea[data-image-upload-url]");
+    if (ta && handleTextareaImages(ta, evt.dataTransfer && evt.dataTransfer.files)) evt.preventDefault();
+  });
+
   // ----- @-mention hover cards ------------------------------------
   // A user-mention chip (``.acta-mention[data-user-id]``) shows a small
   // card with avatar + full name on hover. The chip itself only carries

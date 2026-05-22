@@ -26,6 +26,7 @@ Expects ``comment`` (a top-level comment).
     {% include "web/_user_avatar.html" with user=user class="w-6 h-6 shrink-0" text_class="text-[11px]" %}
     {% endif %}
     <textarea x-ref="ta" name="body" required rows="1" placeholder="{% trans 'Leave a reply…' %}"
+              data-image-upload-url="{% url 'web:upload_project_inline_image' slug_prefix=comment.project_update.project.slug_prefix %}"
               oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"
               class="flex-1 bg-transparent text-sm text-foreground placeholder:text-placeholder-foreground resize-none focus:outline-none py-1 max-h-40"></textarea>
     <button type="submit" data-tooltip="{% trans 'Reply' %}" data-tooltip-pos="below-left"
