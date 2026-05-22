@@ -1489,12 +1489,26 @@
       if (changes.title) refreshTitle(d.target_id);
       if (changes.description) refreshDescription(d.target_id);
     });
+    // Comment events bypass the self-event filter on purpose. The filter
+    // keys on ``actor_id`` (the USER), but the same user can have the task
+    // open in two tabs: the posting tab updated its own timeline via the
+    // HTTP response, while the OTHER tab only learns about the comment
+    // through SSE. Dropping it as a "self" event left that second tab
+    // stale. Refreshing the timeline is idempotent (a full fragment
+    // reload), so re-running it on the posting tab is harmless.
     const commentEvents = ["comment.created", "comment.updated", "comment.deleted"];
-    commentEvents.forEach((t) =>
-      handle(t, (d) => {
+    commentEvents.forEach((name) => {
+      source.addEventListener(name, (e) => {
+        let d;
+        try {
+          d = JSON.parse(e.data);
+        } catch (_) {
+          return;
+        }
+        if (window.__actaInvalidatePageCache) window.__actaInvalidatePageCache();
         refreshTimeline(d.task_id);
-      }),
-    );
+      });
+    });
   }
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", initWorkspaceSse);
