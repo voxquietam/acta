@@ -698,6 +698,12 @@
           avatarsEl.appendChild(el);
         });
       }
+
+      // Collapse the whole substatus row when a filter leaves it with
+      // nothing to show (no overdue / done-trend / avatars), so it stops
+      // reserving a blank 14px band under the header.
+      const hasContent = showOverdue || showDoneThisWeek || avatarSources.length > 0;
+      row.classList.toggle("hidden", !hasContent);
     });
   }
 

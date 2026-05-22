@@ -1027,10 +1027,11 @@ select:-webkit-autofill {
   /* Form input shell — primitives from
      ``acta-design-system/preview/comp-input.html``. Hover deepens the
      border, focus paints brand-500 + a translucent 3px ring via
-     box-shadow, and ``:invalid:not(:placeholder-shown)`` tints rose
-     (so an empty required field doesn't scream red until the user
-     touches it). Use on ``<input>``, ``<select>`` and ``<textarea>``
-     — same look, single class. */
+     box-shadow, and ``:user-invalid`` tints rose only AFTER the user has
+     interacted (so an empty required field — including a ``<select>``,
+     which has no ``:placeholder-shown`` state — doesn't scream red on
+     load). Use on ``<input>``, ``<select>`` and ``<textarea>`` — same
+     look, single class. */
   .acta-input {
     @apply w-full bg-muted border border-border-strong rounded-md px-3 py-1.5 text-sm text-foreground transition;
   }
@@ -1044,7 +1045,7 @@ select:-webkit-autofill {
   .acta-input:disabled {
     @apply opacity-50 cursor-not-allowed;
   }
-  .acta-input:invalid:not(:placeholder-shown) {
+  .acta-input:user-invalid {
     @apply border-rose-500;
     box-shadow: 0 0 0 3px rgb(244 63 94 / 0.1);
   }
