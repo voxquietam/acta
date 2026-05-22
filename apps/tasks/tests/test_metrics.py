@@ -8,7 +8,7 @@ import pytest
 
 from apps.activity.models import ActivityLog
 from apps.projects.tests.factories import ProjectFactory
-from apps.tasks.metrics import compute_flow_metrics
+from apps.tasks.metrics import compute_bottlenecks, compute_cfd, compute_flow_metrics
 from apps.tasks.models import Task
 from apps.tasks.tests.factories import TaskFactory
 from apps.workspaces.tests.factories import WorkspaceFactory
@@ -62,6 +62,53 @@ class TestFlowMetrics:
         assert m["completed_count"] == 0
         assert m["cycle_median"] is None
         assert m["lead_median"] is None
+
+
+@pytest.mark.django_db
+class TestCfdAndBottlenecks:
+    def test_cfd_reconstructs_status_over_time(self):
+        ws = WorkspaceFactory()
+        project = ProjectFactory(workspace=ws)
+        task = TaskFactory(project=project, status=Task.STATUS_IN_PROGRESS, reporter=ws.owner)
+        now = timezone.now()
+        Task.objects.filter(pk=task.pk).update(created_at=now - datetime.timedelta(days=10))
+        # to-do (initial) → in-progress 2 days ago
+        _status_event(ws, project, task, Task.STATUS_IN_PROGRESS, now - datetime.timedelta(days=2))
+        # backfill the 'from' so the initial status reconstructs as to-do
+        ActivityLog.objects.filter(target_id=task.id).update(payload={"from": "to-do", "to": "in-progress"})
+
+        cfd = compute_cfd(project, weeks=2)
+        # last day: the task is in-progress → that band has the task
+        assert cfd["series"]["in-progress"][-1] == 1
+        assert cfd["series"]["to-do"][-1] == 0
+
+    def test_bottlenecks_time_in_status_and_reopen(self):
+        ws = WorkspaceFactory()
+        project = ProjectFactory(workspace=ws)
+        task = TaskFactory(project=project, status=Task.STATUS_TODO, reporter=ws.owner)
+        now = timezone.now()
+        # to-do → in-progress (3d ago) → done (1d ago) → to-do (12h ago) = reopen
+        _status_event(ws, project, task, Task.STATUS_IN_PROGRESS, now - datetime.timedelta(days=3))
+        ActivityLog.objects.filter(target_id=task.id).update(payload={"from": "to-do", "to": "in-progress"})
+        _status_event(ws, project, task, Task.STATUS_DONE, now - datetime.timedelta(days=1))
+        _status_event(ws, project, task, Task.STATUS_TODO, now - datetime.timedelta(hours=12))
+        # fix the from on the latter two (update above clobbered all rows — re-set per row)
+        rows = list(ActivityLog.objects.filter(target_id=task.id).order_by("created_at"))
+        for row, payload in zip(
+            rows,
+            [
+                {"from": "to-do", "to": "in-progress"},
+                {"from": "in-progress", "to": "done"},
+                {"from": "done", "to": "to-do"},
+            ],
+        ):
+            ActivityLog.objects.filter(pk=row.pk).update(payload=payload)
+
+        b = compute_bottlenecks(project, weeks=8)
+        # in-progress segment ≈ 2 days (3d→1d ago) → ~48h
+        assert 46 <= b["time_in_status"]["in-progress"] <= 50
+        # one done→to-do transition over one completion → 100% reopen
+        assert b["reopen_rate"] == 100.0
 
 
 @pytest.mark.django_db

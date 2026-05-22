@@ -56,8 +56,17 @@ with Chart.js (CDN, same no-build approach as sortable.js on the board).
       </div>
     </div>
 
+    {# ---------- Cumulative Flow Diagram ---------- #}
+    <div class="bg-card border border-border rounded-lg p-4">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground flex-1">{% trans "Cumulative flow" %}</span>
+        <span class="text-[10px] text-placeholder-foreground">{% trans "widening bands = WIP piling up" %}</span>
+      </div>
+      <canvas id="cfdChart" height="120"></canvas>
+    </div>
+
     {% if metrics.completed_count %}
-    {# ---------- Charts ---------- #}
+    {# ---------- Throughput + cycle distribution ---------- #}
     <div class="grid lg:grid-cols-2 gap-4">
       <div class="bg-card border border-border rounded-lg p-4">
         <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground mb-3">{% trans "Throughput per week" %}</div>
@@ -68,18 +77,40 @@ with Chart.js (CDN, same no-build approach as sortable.js on the board).
         <canvas id="cycleChart" height="160"></canvas>
       </div>
     </div>
-    {% else %}
-    <div class="bg-card border border-border rounded-lg p-8 text-center">
-      <div class="text-placeholder-foreground text-sm">{% trans "No completed tasks in this window yet — flow metrics appear once tasks reach done." %}</div>
-    </div>
     {% endif %}
+
+    {# ---------- Bottlenecks ---------- #}
+    <div class="grid lg:grid-cols-2 gap-4">
+      <div class="bg-card border border-border rounded-lg p-4">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground flex-1">{% trans "Avg time in status" %}</span>
+          <span class="text-[10px] text-placeholder-foreground">{% trans "tallest = bottleneck" %}</span>
+        </div>
+        <canvas id="tisChart" height="150"></canvas>
+      </div>
+      <div class="bg-card border border-border rounded-lg p-4 flex flex-col">
+        <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground mb-3">{% trans "Work in progress" %}</div>
+        <div class="space-y-2 flex-1">
+          {% for label, count in wip_items %}
+          <div class="flex items-center gap-2 text-sm">
+            <span class="flex-1 text-muted-foreground">{{ label }}</span>
+            <span class="font-mono text-foreground tabular-nums">{{ count }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="mt-3 pt-3 border-t border-border flex items-center gap-2 text-sm">
+          <span class="flex-1 text-muted-foreground">{% trans "Reopen rate" %}</span>
+          <span class="font-mono tabular-nums {% if bottlenecks.reopen_rate > 15 %}text-rose-400{% else %}text-foreground{% endif %}">{{ bottlenecks.reopen_rate }}%</span>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
-{% if metrics.completed_count %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
   (function () {
+    if (!window.Chart) return;
     const brand = "rgb(66 90 245)";
     const brandSoft = "rgb(66 90 245 / 0.55)";
     const gridColor = "rgb(113 113 122 / 0.18)";
@@ -89,13 +120,51 @@ with Chart.js (CDN, same no-build approach as sortable.js on the board).
       maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
-        x: { grid: { color: gridColor }, ticks: { color: tickColor, font: { size: 10 } } },
+        x: { grid: { color: gridColor }, ticks: { color: tickColor, font: { size: 10 }, maxTicksLimit: 8 } },
         y: { beginAtZero: true, grid: { color: gridColor }, ticks: { color: tickColor, font: { size: 10 }, precision: 0 } },
       },
     };
 
+    // Cumulative Flow Diagram — stacked area, one band per status.
+    const cfd = document.getElementById("cfdChart");
+    if (cfd) {
+      const datasets = {{ cfd_datasets_json|safe }}.map((d) => ({
+        label: d.label,
+        data: d.data,
+        backgroundColor: d.color,
+        borderColor: d.color,
+        borderWidth: 1,
+        fill: true,
+        pointRadius: 0,
+        tension: 0.2,
+      }));
+      new Chart(cfd, {
+        type: "line",
+        data: { labels: {{ cfd_labels_json|safe }}, datasets },
+        options: {
+          ...baseOpts,
+          interaction: { mode: "index", intersect: false },
+          plugins: { legend: { display: true, labels: { color: tickColor, boxWidth: 10, font: { size: 10 } } } },
+          scales: { x: baseOpts.scales.x, y: { ...baseOpts.scales.y, stacked: true } },
+        },
+      });
+    }
+
+    // Avg time in status (hours) — bottleneck bars.
+    const tis = document.getElementById("tisChart");
+    if (tis) {
+      new Chart(tis, {
+        type: "bar",
+        data: {
+          labels: {{ tis_labels_json|safe }},
+          datasets: [{ data: {{ tis_data_json|safe }}, backgroundColor: brandSoft, borderColor: brand, borderWidth: 1, borderRadius: 3 }],
+        },
+        options: { ...baseOpts, indexAxis: "y" },
+      });
+    }
+
     const tp = document.getElementById("throughputChart");
-    if (tp && window.Chart) {
+    if (tp) {
       new Chart(tp, {
         type: "bar",
         data: {
@@ -106,9 +175,9 @@ with Chart.js (CDN, same no-build approach as sortable.js on the board).
       });
     }
 
-    const hist = {{ cycle_hist_json|safe }};
     const cy = document.getElementById("cycleChart");
-    if (cy && window.Chart) {
+    if (cy) {
+      const hist = {{ cycle_hist_json|safe }};
       new Chart(cy, {
         type: "bar",
         data: {
@@ -120,5 +189,4 @@ with Chart.js (CDN, same no-build approach as sortable.js on the board).
     }
   })();
 </script>
-{% endif %}
 {% endblock %}
