@@ -221,7 +221,9 @@ function initEditor(root) {
         event.preventDefault();
         files.forEach(async (file) => {
           const src = await uploadInlineImage(file, url);
-          if (src) editor.chain().focus().setImage({ src }).run();
+          // Seed alt from the filename — a weak but real description that
+          // survives the markdown round-trip (``![alt](url)``); beats empty.
+          if (src) editor.chain().focus().setImage({ src, alt: file.name }).run();
         });
         return true;
       },
@@ -236,9 +238,9 @@ function initEditor(root) {
           const src = await uploadInlineImage(file, url);
           if (!src) return;
           if (pos != null) {
-            editor.chain().focus().insertContentAt(pos, { type: "image", attrs: { src } }).run();
+            editor.chain().focus().insertContentAt(pos, { type: "image", attrs: { src, alt: file.name } }).run();
           } else {
-            editor.chain().focus().setImage({ src }).run();
+            editor.chain().focus().setImage({ src, alt: file.name }).run();
           }
         });
         return true;
