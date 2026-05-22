@@ -50,3 +50,23 @@ status is the precedent: a terminal, non-completion state.
 - **Excluded from throughput.** Cancelled tasks are not counted as `done`
   in velocity / overdue / project progress; the overview surfaces a
   separate `cancelled` count.
+
+## Amendment 2026-05-22 — `ready` replenishment buffer
+
+Added a `ready` status between `planned` and `to-do`: a scrumban
+replenishment buffer for groomed, pullable work that hasn't started yet.
+
+- **Storage unchanged** — plain `CharField`, code-only change
+  (`STATUS_VALUES` / `KANBAN_STATUS_VALUES` / `STATUS_LABELS` gained one
+  entry between planned and to-do; migration is `help_text` only).
+- **A kanban column.** Unlike `cancelled`, `ready` IS in
+  `KANBAN_STATUS_VALUES` — it shows as a column (cyan) between Planned and
+  To-do, so the team sees the queue of work ready to pull.
+- **Backlog zone for cycles.** Like `planned`, a `ready` task carries no
+  cycle: `apply_cycle_policy` clears the cycle on planned/ready and the
+  per-task / bulk cycle assignment refuses both. The cadence commit point
+  stays at `to-do` — moving ready→to-do pulls the task into the active
+  cycle. See `apps/cycles/services.apply_cycle_policy`.
+- **The board now has six columns** (planned · ready · to-do ·
+  in-progress · in-review · done); the "five columns" note above is
+  superseded.

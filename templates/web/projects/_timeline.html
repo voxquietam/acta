@@ -91,6 +91,7 @@
 
 /* Status bar colours */
 .tl-c-planned    { background: linear-gradient(90deg, rgb(82 82 91),   rgb(63 63 70)); }
+.tl-c-ready      { background: linear-gradient(90deg, rgb(6 182 212),  rgb(8 145 178)); }
 .tl-c-todo       { background: linear-gradient(90deg, rgb(37 99 235),  rgb(29 78 216)); }
 .tl-c-inprogress { background: linear-gradient(90deg, rgb(124 58 237), rgb(109 40 217)); }
 .tl-c-inreview   { background: linear-gradient(90deg, rgb(217 119 6),  rgb(180 83 9)); }
@@ -248,6 +249,7 @@
            {% task_filter_attrs task %}>
         <span class="w-2 h-2 rounded-full shrink-0
           {% if task.status == 'planned' %}bg-zinc-500
+          {% elif task.status == 'ready' %}bg-cyan-500
           {% elif task.status == 'to-do' %}bg-blue-500
           {% elif task.status == 'in-progress' %}bg-violet-500
           {% elif task.status == 'in-review' %}bg-amber-500
@@ -380,6 +382,7 @@ const LS_KEY  = 'acta_timeline_zoom';
 // Maps task status value → bar CSS class (must match <style> above)
 const BAR_CLASS = {
   'planned':     'tl-c-planned',
+  'ready':       'tl-c-ready',
   'to-do':       'tl-c-todo',
   'in-progress': 'tl-c-inprogress',
   'in-review':   'tl-c-inreview',
@@ -389,6 +392,7 @@ const BAR_CLASS = {
 // gradient (status colour → transparent) for one-sided-date bars.
 const STATUS_COLOR = {
   'planned':     'rgb(82 82 91)',
+  'ready':       'rgb(6 182 212)',
   'to-do':       'rgb(37 99 235)',
   'in-progress': 'rgb(124 58 237)',
   'in-review':   'rgb(217 119 6)',

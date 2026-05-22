@@ -1360,6 +1360,11 @@ class ProjectListView(LoginRequiredMixin, ListView):
                     filter=Q(tasks__status=Task.STATUS_PLANNED),
                     distinct=True,
                 ),
+                ready_count=Count(
+                    "tasks",
+                    filter=Q(tasks__status=Task.STATUS_READY),
+                    distinct=True,
+                ),
                 todo_count=Count(
                     "tasks",
                     filter=Q(tasks__status=Task.STATUS_TODO),
@@ -1520,6 +1525,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         active = Q(archived_at__isnull=True)
         stats = Task.objects.filter(project=project).aggregate(
             planned=Count("id", filter=active & Q(status=Task.STATUS_PLANNED)),
+            ready=Count("id", filter=active & Q(status=Task.STATUS_READY)),
             todo=Count("id", filter=active & Q(status=Task.STATUS_TODO)),
             in_progress=Count("id", filter=active & Q(status=Task.STATUS_IN_PROGRESS)),
             in_review=Count("id", filter=active & Q(status=Task.STATUS_IN_REVIEW)),
@@ -1537,6 +1543,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         )
         ctx["overview_status_counts"] = {
             Task.STATUS_PLANNED: stats["planned"],
+            Task.STATUS_READY: stats["ready"],
             Task.STATUS_TODO: stats["todo"],
             Task.STATUS_IN_PROGRESS: stats["in_progress"],
             Task.STATUS_IN_REVIEW: stats["in_review"],
@@ -2635,10 +2642,10 @@ def set_task_cycle(request, slug_prefix, number):
     if raw == "":
         cycle = None
     else:
-        # A planned task is backlog by definition — it can't hold a cycle.
+        # planned / ready are the backlog — they can't hold a cycle.
         # Clearing (empty value) is always allowed; assigning is rejected.
-        if task.status == Task.STATUS_PLANNED:
-            return HttpResponseBadRequest("planned tasks stay in the backlog (no cycle)")
+        if task.status in (Task.STATUS_PLANNED, Task.STATUS_READY):
+            return HttpResponseBadRequest("backlog tasks (planned/ready) stay cycle-free")
         try:
             cycle_pk = int(raw)
         except (TypeError, ValueError):
@@ -3740,6 +3747,7 @@ def project_insights(request, slug_prefix):
     # palette (planned zinc → done emerald).
     cfd_colors = {
         "planned": "rgb(113 113 122 / 0.55)",
+        "ready": "rgb(6 182 212 / 0.55)",
         "to-do": "rgb(59 130 246 / 0.55)",
         "in-progress": "rgb(139 92 246 / 0.55)",
         "in-review": "rgb(245 158 11 / 0.55)",

@@ -22,6 +22,7 @@ status dot · slug + priority chevron · title (flex-1) · size · labels
 
   <span class="w-[7px] h-[7px] rounded-full shrink-0 cursor-pointer hover:ring-2 hover:ring-offset-1 hover:ring-offset-card transition
     {% if task.status == 'planned' %}bg-zinc-500 hover:ring-zinc-500/40
+    {% elif task.status == 'ready' %}bg-cyan-500 hover:ring-cyan-500/40
     {% elif task.status == 'to-do' %}bg-blue-500 hover:ring-blue-500/40
     {% elif task.status == 'in-progress' %}bg-violet-500 hover:ring-violet-500/40
     {% elif task.status == 'in-review' %}bg-amber-500 hover:ring-amber-500/40

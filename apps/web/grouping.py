@@ -34,6 +34,7 @@ _CYCLE_STATUS_RANK = {
 
 _STATUS_TONES = {
     Task.STATUS_PLANNED: "zinc",
+    Task.STATUS_READY: "cyan",
     Task.STATUS_TODO: "blue",
     Task.STATUS_IN_PROGRESS: "violet",
     Task.STATUS_IN_REVIEW: "amber",

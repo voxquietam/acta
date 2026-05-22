@@ -637,7 +637,7 @@ TOOLS: list[Tool] = [
                 "description": {"type": "string", "description": "Markdown body."},
                 "status": {
                     "type": "string",
-                    "enum": ["planned", "to-do", "in-progress", "in-review", "done"],
+                    "enum": ["planned", "ready", "to-do", "in-progress", "in-review", "done"],
                 },
                 "priority": {"type": "integer", "minimum": 0, "maximum": 4},
                 "size": {"type": "integer", "enum": [1, 2, 3, 5, 8, 13]},
@@ -675,7 +675,7 @@ TOOLS: list[Tool] = [
                 "description": {"type": "string"},
                 "status": {
                     "type": "string",
-                    "enum": ["planned", "to-do", "in-progress", "in-review", "done", "cancelled"],
+                    "enum": ["planned", "ready", "to-do", "in-progress", "in-review", "done", "cancelled"],
                 },
                 "priority": {"type": "integer", "minimum": 0, "maximum": 4},
                 "size": {"type": ["integer", "null"], "enum": [1, 2, 3, 5, 8, 13, None]},
@@ -863,7 +863,7 @@ TOOLS: list[Tool] = [
                             "description": {"type": "string"},
                             "status": {
                                 "type": "string",
-                                "enum": ["planned", "to-do", "in-progress", "in-review", "done"],
+                                "enum": ["planned", "ready", "to-do", "in-progress", "in-review", "done"],
                             },
                             "priority": {"type": "integer", "minimum": 0, "maximum": 4},
                             "size": {"type": "integer", "enum": [1, 2, 3, 5, 8, 13]},
@@ -904,7 +904,7 @@ TOOLS: list[Tool] = [
                             "description": {"type": "string"},
                             "status": {
                                 "type": "string",
-                                "enum": ["planned", "to-do", "in-progress", "in-review", "done", "cancelled"],
+                                "enum": ["planned", "ready", "to-do", "in-progress", "in-review", "done", "cancelled"],
                             },
                             "priority": {"type": "integer", "minimum": 0, "maximum": 4},
                             "size": {"type": ["integer", "null"], "enum": [1, 2, 3, 5, 8, 13, None]},

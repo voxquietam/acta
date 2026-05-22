@@ -31,6 +31,11 @@ class Task(models.Model):
     # at the DB level so a future migration to a per-project Status FK is
     # non-destructive. See docs/decisions/0004-statuses.md.
     STATUS_PLANNED = "planned"
+    # Replenishment buffer between the backlog and active work: a groomed,
+    # pullable task that hasn't started yet. Like planned, it carries no
+    # cycle (the cadence policy commits a task to a cycle at to-do). See
+    # docs/decisions/0004-statuses.md.
+    STATUS_READY = "ready"
     STATUS_TODO = "to-do"
     STATUS_IN_PROGRESS = "in-progress"
     STATUS_IN_REVIEW = "in-review"
@@ -42,6 +47,7 @@ class Task(models.Model):
     STATUS_CANCELLED = "cancelled"
     STATUS_VALUES = (
         STATUS_PLANNED,
+        STATUS_READY,
         STATUS_TODO,
         STATUS_IN_PROGRESS,
         STATUS_IN_REVIEW,
@@ -54,6 +60,7 @@ class Task(models.Model):
     # any other status). STATUS_DONE stays a column.
     KANBAN_STATUS_VALUES = (
         STATUS_PLANNED,
+        STATUS_READY,
         STATUS_TODO,
         STATUS_IN_PROGRESS,
         STATUS_IN_REVIEW,
@@ -64,6 +71,7 @@ class Task(models.Model):
     # only UI rendering uses these.
     STATUS_LABELS = {
         STATUS_PLANNED: _("Planned"),
+        STATUS_READY: _("Ready"),
         STATUS_TODO: _("To do"),
         STATUS_IN_PROGRESS: _("In progress"),
         STATUS_IN_REVIEW: _("In review"),
@@ -114,7 +122,7 @@ class Task(models.Model):
     status = models.CharField(
         max_length=20,
         default=STATUS_PLANNED,
-        help_text="Workflow state: one of planned, to-do, in-progress, in-review, done, cancelled",
+        help_text="Workflow state: one of planned, ready, to-do, in-progress, in-review, done, cancelled",
     )
     priority = models.SmallIntegerField(
         default=NO_PRIORITY,

@@ -344,6 +344,7 @@ def priority_label(value):
 # or priority exactly like it renders on the task itself.
 _STATUS_BADGE_CLASS = {
     "planned": "bg-muted text-subtle-foreground",
+    "ready": "bg-cyan-100 dark:bg-cyan-900 text-cyan-700 dark:text-cyan-300",
     "to-do": "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300",
     "in-progress": "bg-violet-100 dark:bg-violet-900 text-violet-700 dark:text-violet-300",
     "in-review": "bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300",

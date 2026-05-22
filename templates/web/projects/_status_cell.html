@@ -33,6 +33,7 @@ without parsing the labels.
           @click="toggle()"
           class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded cursor-pointer
             {% if task.status == 'planned' %}bg-muted text-subtle-foreground hover:bg-border-strong
+            {% elif task.status == 'ready' %}bg-cyan-100 dark:bg-cyan-900 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-200 dark:hover:bg-cyan-800
             {% elif task.status == 'to-do' %}bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800
             {% elif task.status == 'in-progress' %}bg-violet-100 dark:bg-violet-900 text-violet-700 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-800
             {% elif task.status == 'in-review' %}bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-800
@@ -59,6 +60,7 @@ without parsing the labels.
       <button type="submit"
               class="w-full text-left px-3 py-1.5 text-[11px] uppercase tracking-wider hover:bg-muted flex items-center gap-2
                 {% if status_key == 'planned' %}text-subtle-foreground
+                {% elif status_key == 'ready' %}text-cyan-700 dark:text-cyan-300
                 {% elif status_key == 'to-do' %}text-blue-700 dark:text-blue-300
                 {% elif status_key == 'in-progress' %}text-violet-700 dark:text-violet-300
                 {% elif status_key == 'in-review' %}text-amber-700 dark:text-amber-300
@@ -67,6 +69,7 @@ without parsing the labels.
                 {% if status_key == task.status %}font-medium{% endif %}">
         <span class="inline-block w-2 h-2 rounded-full
           {% if status_key == 'planned' %}bg-zinc-500
+          {% elif status_key == 'ready' %}bg-cyan-500
           {% elif status_key == 'to-do' %}bg-blue-500
           {% elif status_key == 'in-progress' %}bg-violet-500
           {% elif status_key == 'in-review' %}bg-amber-500

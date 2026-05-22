@@ -50,6 +50,7 @@ hides the native scrollbar without losing the "you can scroll" cue.
                 class="flex-1 min-w-0 px-3 py-2 flex items-center gap-2">
           <span class="w-2 h-2 rounded-full shrink-0
             {% if col.key == 'planned' %}bg-zinc-500
+            {% elif col.key == 'ready' %}bg-cyan-500
             {% elif col.key == 'to-do' %}bg-blue-500
             {% elif col.key == 'in-progress' %}bg-violet-500
             {% elif col.key == 'in-review' %}bg-amber-500
@@ -161,6 +162,7 @@ hides the native scrollbar without losing the "you can scroll" cue.
             :data-tooltip="'{% trans 'Expand column' %}'"
             class="flex-1 px-3 py-2 hover:bg-muted/60 transition relative
               {% if col.key == 'planned' %}shadow-[inset_3px_0_0_0_rgb(113_113_122)]
+              {% elif col.key == 'ready' %}shadow-[inset_3px_0_0_0_rgb(6_182_212)]
               {% elif col.key == 'to-do' %}shadow-[inset_3px_0_0_0_rgb(59_130_246)]
               {% elif col.key == 'in-progress' %}shadow-[inset_3px_0_0_0_rgb(139_92_246)]
               {% elif col.key == 'in-review' %}shadow-[inset_3px_0_0_0_rgb(245_158_11)]

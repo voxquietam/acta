@@ -97,6 +97,7 @@ blocker that's still open (the thing actually blocking this task).
             <span class="w-1.5 h-1.5 rounded-full shrink-0"
                   :class="{
                     'bg-zinc-500': r.status === 'planned',
+                    'bg-cyan-500': r.status === 'ready',
                     'bg-blue-500': r.status === 'to-do',
                     'bg-violet-500': r.status === 'in-progress',
                     'bg-amber-500': r.status === 'in-review',

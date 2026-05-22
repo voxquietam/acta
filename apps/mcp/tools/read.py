@@ -538,7 +538,7 @@ TOOLS: list[Tool] = [
         description=(
             "List Acta tasks the user can access, with optional filters. "
             "Filters match the web UI: ``project`` (project slug prefix, e.g. ACTA), "
-            "``status`` (one of planned/to-do/in-progress/in-review/done/cancelled, or "
+            "``status`` (one of planned/ready/to-do/in-progress/in-review/done/cancelled, or "
             "list; cancelled tasks are hidden unless you ask for them explicitly), "
             "``priority`` (1=Urgent..4=Low, or list), ``assignee`` (username, ``me``, or ``unassigned``), "
             "``q`` (case-insensitive title/description search), "
@@ -555,13 +555,13 @@ TOOLS: list[Tool] = [
                     "oneOf": [
                         {
                             "type": "string",
-                            "enum": ["planned", "to-do", "in-progress", "in-review", "done", "cancelled"],
+                            "enum": ["planned", "ready", "to-do", "in-progress", "in-review", "done", "cancelled"],
                         },
                         {
                             "type": "array",
                             "items": {
                                 "type": "string",
-                                "enum": ["planned", "to-do", "in-progress", "in-review", "done", "cancelled"],
+                                "enum": ["planned", "ready", "to-do", "in-progress", "in-review", "done", "cancelled"],
                             },
                         },
                     ],

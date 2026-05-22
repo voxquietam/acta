@@ -118,11 +118,12 @@ Members with role badges.
           </div>
 
           <div class="mt-3 h-2 rounded-full bg-muted overflow-hidden flex">
-            {% with done=overview_status_counts|get_item:'done' rev=overview_status_counts|get_item:'in-review' prog=overview_status_counts|get_item:'in-progress' td=overview_status_counts|get_item:'to-do' pl=overview_status_counts|get_item:'planned' %}
+            {% with done=overview_status_counts|get_item:'done' rev=overview_status_counts|get_item:'in-review' prog=overview_status_counts|get_item:'in-progress' td=overview_status_counts|get_item:'to-do' rdy=overview_status_counts|get_item:'ready' pl=overview_status_counts|get_item:'planned' %}
             {% if done %}<span class="bg-emerald-500 h-full" style="width: {% widthratio done overview_total 100 %}%;"></span>{% endif %}
             {% if rev %}<span class="bg-amber-500 h-full" style="width: {% widthratio rev overview_total 100 %}%;"></span>{% endif %}
             {% if prog %}<span class="bg-violet-500 h-full" style="width: {% widthratio prog overview_total 100 %}%;"></span>{% endif %}
             {% if td %}<span class="bg-blue-500 h-full" style="width: {% widthratio td overview_total 100 %}%;"></span>{% endif %}
+            {% if rdy %}<span class="bg-cyan-500 h-full" style="width: {% widthratio rdy overview_total 100 %}%;"></span>{% endif %}
             {% if pl %}<span class="bg-zinc-500 h-full" style="width: {% widthratio pl overview_total 100 %}%;"></span>{% endif %}
             {% endwith %}
           </div>
@@ -133,6 +134,13 @@ Members with role badges.
               <span class="text-foreground tabular-nums font-semibold">{{ overview_status_counts|get_item:'planned' }}</span>
               <span>{% trans "planned" %}</span>
             </span>
+            {% if overview_status_counts|get_item:'ready' %}
+            <span class="inline-flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-cyan-500"></span>
+              <span class="text-foreground tabular-nums font-semibold">{{ overview_status_counts|get_item:'ready' }}</span>
+              <span>{% trans "ready" %}</span>
+            </span>
+            {% endif %}
             <span class="inline-flex items-center gap-1.5">
               <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
               <span class="text-foreground tabular-nums font-semibold">{{ overview_status_counts|get_item:'to-do' }}</span>

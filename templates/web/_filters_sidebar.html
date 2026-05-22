@@ -214,6 +214,7 @@ rail are queued in [[project-todo-filter-sidebar-presets-views]]
                     class="flex items-center gap-1 px-2 py-1 rounded-md border text-[11px] transition">
                 <span class="w-1.5 h-1.5 rounded-full
                   {% if key == 'planned' %}bg-zinc-500
+                  {% elif key == 'ready' %}bg-cyan-500
                   {% elif key == 'to-do' %}bg-blue-500
                   {% elif key == 'in-progress' %}bg-violet-500
                   {% elif key == 'in-review' %}bg-amber-500

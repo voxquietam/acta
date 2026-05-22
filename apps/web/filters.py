@@ -234,11 +234,12 @@ def _safe_int_list(raw_values):
 # from accidentally surfacing above meaningful ones.
 _STATUS_ORDER = Case(
     When(status=Task.STATUS_PLANNED, then=Value(0)),
-    When(status=Task.STATUS_TODO, then=Value(1)),
-    When(status=Task.STATUS_IN_PROGRESS, then=Value(2)),
-    When(status=Task.STATUS_IN_REVIEW, then=Value(3)),
-    When(status=Task.STATUS_DONE, then=Value(4)),
-    When(status=Task.STATUS_CANCELLED, then=Value(5)),
+    When(status=Task.STATUS_READY, then=Value(1)),
+    When(status=Task.STATUS_TODO, then=Value(2)),
+    When(status=Task.STATUS_IN_PROGRESS, then=Value(3)),
+    When(status=Task.STATUS_IN_REVIEW, then=Value(4)),
+    When(status=Task.STATUS_DONE, then=Value(5)),
+    When(status=Task.STATUS_CANCELLED, then=Value(6)),
     default=Value(99),
     output_field=IntegerField(),
 )

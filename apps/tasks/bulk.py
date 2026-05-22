@@ -394,7 +394,9 @@ def _bulk_apply_cycle(ids: list[int], cycle_value) -> None:
     if cycle_value is None:
         Task.objects.filter(id__in=ids).update(cycle_id=None, updated_at=now)
         return
-    Task.objects.filter(id__in=ids).exclude(status=Task.STATUS_PLANNED).update(
+    Task.objects.filter(id__in=ids).exclude(
+        status__in=(Task.STATUS_PLANNED, Task.STATUS_READY),
+    ).update(
         cycle_id=cycle_value,
         updated_at=now,
     )
@@ -415,7 +417,7 @@ def _bulk_apply_cycle_policy(ids: list[int], new_status: str) -> None:
         new_status: The status value applied to the whole batch.
     """
     now = timezone.now()
-    if new_status == Task.STATUS_PLANNED:
+    if new_status in (Task.STATUS_PLANNED, Task.STATUS_READY):
         Task.objects.filter(id__in=ids).exclude(cycle__isnull=True).update(cycle_id=None, updated_at=now)
         return
     if new_status not in (Task.STATUS_TODO, Task.STATUS_IN_PROGRESS, Task.STATUS_IN_REVIEW):

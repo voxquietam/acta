@@ -12,7 +12,7 @@ A ``planned`` task is the backlog by definition — it carries no cycle and
 the picker is read-only (the cadence policy assigns a cycle only once the
 task moves into committed work). See apps/cycles/services.apply_cycle_policy.
 {% endcomment %}
-{% if task.status == 'planned' %}
+{% if task.status == 'planned' or task.status == 'ready' %}
 <span id="cycle-cell" class="text-xs text-placeholder-foreground italic inline-flex items-center gap-1"
       data-tooltip="{% trans 'Backlog — a cycle is set when the task moves to To-do' %}">
   {% trans "Backlog" %}

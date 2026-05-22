@@ -217,7 +217,9 @@ def apply_cycle_policy(task) -> bool:
     workspace = task.project.workspace
     if not workspace.cycle_config()["enabled"]:
         return False
-    if task.status == Task.STATUS_PLANNED:
+    # planned + ready are the backlog zone — no cycle. Committing to work
+    # (to-do onward) is what pulls a task into the active cycle.
+    if task.status in (Task.STATUS_PLANNED, Task.STATUS_READY):
         if task.cycle_id is not None:
             task.cycle = None
             return True

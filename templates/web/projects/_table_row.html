@@ -16,7 +16,7 @@ in context.
     {% task_filter_attrs task %}
     data-sort-id="{{ task.project.slug_prefix }}-{{ task.number|stringformat:"010d" }}"
     data-sort-title="{{ task.title|lower }}"
-    data-sort-status="{% if task.status == 'planned' %}0{% elif task.status == 'to-do' %}1{% elif task.status == 'in-progress' %}2{% elif task.status == 'in-review' %}3{% elif task.status == 'done' %}4{% else %}99{% endif %}"
+    data-sort-status="{% if task.status == 'planned' %}0{% elif task.status == 'ready' %}1{% elif task.status == 'to-do' %}2{% elif task.status == 'in-progress' %}3{% elif task.status == 'in-review' %}4{% elif task.status == 'done' %}5{% else %}99{% endif %}"
     data-sort-priority="{% if task.priority %}{{ task.priority }}{% else %}99{% endif %}"
     data-sort-size="{% if task.size %}{{ task.size }}{% else %}{% endif %}"
     data-sort-assignee="{% if task.assignee %}{{ task.assignee.display_name|lower }}{% else %}{% endif %}"
@@ -74,6 +74,7 @@ in context.
   <td class="px-3 py-2 whitespace-nowrap">
     <span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded cursor-pointer transition hover:ring-1 hover:ring-offset-1 hover:ring-offset-card
       {% if task.status == 'planned' %}bg-muted text-subtle-foreground hover:ring-zinc-500/40
+      {% elif task.status == 'ready' %}bg-cyan-100 dark:bg-cyan-900 text-cyan-700 dark:text-cyan-300 hover:ring-cyan-500/40
       {% elif task.status == 'to-do' %}bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:ring-blue-500/40
       {% elif task.status == 'in-progress' %}bg-violet-100 dark:bg-violet-900 text-violet-700 dark:text-violet-300 hover:ring-violet-500/40
       {% elif task.status == 'in-review' %}bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 hover:ring-amber-500/40
