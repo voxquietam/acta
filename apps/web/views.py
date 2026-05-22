@@ -1860,6 +1860,9 @@ def _task_activity(task, limit=25):
           Using the payload (instead of joining through the comments
           table) means an event remains visible on the task even after
           the underlying comment row is deleted.
+        * ``attachment.*`` events whose ``payload.task_id`` matches —
+          same payload-scoping, so the event stays visible after the
+          attachment (and its file) is deleted.
 
     Excluded from the user-facing feed:
         * ``task.labels_changed`` — too chatty for the timeline.
@@ -1892,7 +1895,8 @@ def _task_activity(task, limit=25):
     events = list(
         ActivityLog.objects.filter(
             Q(target_type=ActivityLog.TARGET_TASK, target_id=task.id)
-            | Q(target_type=ActivityLog.TARGET_COMMENT, payload__task_id=task.id),
+            | Q(target_type=ActivityLog.TARGET_COMMENT, payload__task_id=task.id)
+            | Q(target_type=ActivityLog.TARGET_ATTACHMENT, payload__task_id=task.id),
         )
         .exclude(event_type="task.labels_changed")
         .select_related("actor")

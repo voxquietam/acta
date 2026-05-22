@@ -67,6 +67,17 @@ class TestUpload:
         assert resp.status_code == 200  # panel re-rendered with inline error
         assert not Attachment.objects.filter(task=task).exists()
 
+    def test_upload_shows_in_task_timeline(self, client, task_setup):
+        from apps.web.views import _task_activity
+
+        ws, task = task_setup
+        client.force_login(ws.owner)
+        client.post(_upload_url(task), {"file": png_upload("photo.png")})
+        events = _task_activity(task)
+        created = [e for e in events if e.event_type == "attachment.created"]
+        assert created
+        assert created[0].payload["filename"] == "photo.png"
+
 
 @pytest.mark.django_db
 class TestDelete:
@@ -99,6 +110,18 @@ class TestDelete:
         resp = client.post(reverse("web:delete_attachment", kwargs={"pk": att.pk}))
         assert resp.status_code == 200
         assert not Attachment.objects.filter(pk=att.pk).exists()
+
+    def test_delete_shows_in_task_timeline(self, client, task_setup):
+        from apps.web.views import _task_activity
+
+        ws, task = task_setup
+        att = AttachmentFactory(task=task, workspace=ws, uploader=ws.owner, original_name="gone.pdf")
+        client.force_login(ws.owner)
+        client.post(reverse("web:delete_attachment", kwargs={"pk": att.pk}))
+        events = _task_activity(task)
+        deleted = [e for e in events if e.event_type == "attachment.deleted"]
+        assert deleted
+        assert deleted[0].payload["filename"] == "gone.pdf"
 
 
 @pytest.mark.django_db
