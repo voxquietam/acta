@@ -23,6 +23,10 @@ the full-page layout for cases when those details matter.
   {% include "web/projects/_due_date_cell.html" %}
   <span class="text-border-strong" aria-hidden="true">·</span>
   {% include "web/projects/_size_cell.html" %}
+  {% if workspace_cycles or task.cycle_id %}
+  <span class="text-border-strong" aria-hidden="true">·</span>
+  {% include "web/projects/_cycle_cell.html" %}
+  {% endif %}
 </div>
 
 <div class="mt-2">

@@ -36,7 +36,7 @@ class TestTaskCreate:
         user, _, project = project_setup
         result = CALLABLES["acta_task_create"](user, {"project": "ACTA", "title": "New task"})
         assert result["title"] == "New task"
-        assert result["status"] == Task.STATUS_TODO  # default
+        assert result["status"] == Task.STATUS_PLANNED  # default = backlog
         assert result["project_slug_prefix"] == "ACTA"
         # The slug is generated as PREFIX-N; we don't pin the number
         # because factory tasks in other tests may shift the counter.

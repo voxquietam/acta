@@ -113,7 +113,7 @@ class Task(models.Model):
 
     status = models.CharField(
         max_length=20,
-        default=STATUS_TODO,
+        default=STATUS_PLANNED,
         help_text="Workflow state: one of planned, to-do, in-progress, in-review, done, cancelled",
     )
     priority = models.SmallIntegerField(
@@ -152,6 +152,14 @@ class Task(models.Model):
         null=True,
         related_name="reported_tasks",
         help_text="User who created the task. Set automatically from request.user",
+    )
+    cycle = models.ForeignKey(
+        "cycles.Cycle",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="tasks",
+        help_text="Workspace cycle (time-box) this task is committed to; null means backlog",
     )
     labels = models.ManyToManyField(
         "labels.Label",

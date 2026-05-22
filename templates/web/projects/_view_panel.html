@@ -9,6 +9,8 @@ no extra HTTP requests fire on tab change. Tabs themselves live in
 {% endcomment %}
 <div class="flex flex-col h-full">
 
+  {% if cycle_banner %}{% include "web/projects/_cycle_banner.html" %}{% endif %}
+
   {% if allow_overview %}
   <div x-show="$store.viewMode.current === 'overview'" x-cloak class="flex-1 min-h-0 flex flex-col">
     {% include "web/projects/_overview_panel.html" %}

@@ -1,0 +1,197 @@
+{% extends "base_app.html" %}
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+Workspace cycles dashboard — active-cycle burndown + velocity over recent
+cycles + the full cycle list with per-cycle progress. Cycles are
+workspace-level (they span every project), so this lives off the global
+nav rather than a project. Charts render client-side with Chart.js (CDN,
+same no-build approach as the project Insights page). Expects
+``cycle_enabled`` and, when on, ``active_cycle`` / ``active_summary`` /
+``cycles`` (each decorated with ``.summary``) + the ``*_json`` blobs.
+{% endcomment %}
+
+{% block title %}{% trans "Cycles" %} · Acta{% endblock %}
+
+{% block topbar_left %}
+<h1 class="text-base font-medium inline-flex items-center gap-1.5">
+  {% lucide "iteration-cw" "w-4 h-4 text-placeholder-foreground" %}{% trans "Cycles" %}
+</h1>
+{% endblock %}
+
+{% block app_main %}
+<div class="h-full overflow-y-auto">
+  <div class="max-w-5xl mx-auto p-4 space-y-4">
+
+    {% if not cycle_enabled %}
+    <div class="grid place-items-center text-center py-20">
+      <div>
+        <div class="w-12 h-12 rounded-full border border-dashed border-border-strong grid place-items-center text-placeholder-foreground mx-auto mb-3">
+          {% lucide "iteration-cw" "w-5 h-5" %}
+        </div>
+        <h2 class="text-lg font-medium text-muted-foreground">{% trans "Cycles are off for this workspace" %}</h2>
+        <p class="text-sm text-placeholder-foreground mt-1">{% trans "Enable a cadence in workspace settings to plan in time-boxed cycles." %}</p>
+        {% if workspace %}
+        <a href="{% url 'web:workspace_settings' slug=workspace.slug %}"
+           class="inline-flex items-center gap-1.5 mt-4 text-xs px-3 py-1.5 rounded-md bg-brand-600 hover:bg-brand-500 text-white">
+          {% lucide "settings" "w-3.5 h-3.5" %}{% trans "Workspace settings" %}
+        </a>
+        {% endif %}
+      </div>
+    </div>
+
+    {% else %}
+
+    {# ---------- Active cycle + burndown ---------- #}
+    {% if active_cycle %}
+    <div class="bg-card border border-border rounded-lg p-4">
+      <div class="flex items-center gap-2 flex-wrap mb-3">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+        <span class="text-sm font-medium text-foreground">{{ active_cycle.display_name }}</span>
+        <span class="text-xs text-placeholder-foreground">{{ active_cycle.start_date|date:"M j" }} – {{ active_cycle.end_date|date:"M j" }}</span>
+        <span class="text-xs text-subtle-foreground ml-auto inline-flex items-center gap-1">
+          {% lucide "clock" "w-3.5 h-3.5" %}
+          {% blocktrans count days=active_summary.days_remaining %}{{ days }} day left{% plural %}{{ days }} days left{% endblocktrans %}
+        </span>
+      </div>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+        <div>
+          <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Done" %}</div>
+          <div class="text-2xl font-semibold text-foreground tabular-nums mt-1">{{ active_summary.done }} / {{ active_summary.total }}</div>
+        </div>
+        <div>
+          <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Points" %}</div>
+          <div class="text-2xl font-semibold text-foreground tabular-nums mt-1">{{ active_summary.points_done }} / {{ active_summary.points_total }}</div>
+        </div>
+        <div>
+          <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Progress" %}</div>
+          <div class="text-2xl font-semibold text-foreground tabular-nums mt-1">{{ active_summary.percent }}%</div>
+        </div>
+        <div class="flex items-end">
+          <a href="{% url 'web:all_tasks' %}?cycle=active" class="text-xs text-brand-500 hover:text-brand-400 inline-flex items-center gap-1">
+            {% trans "View tasks" %}{% lucide "arrow-right" "w-3.5 h-3.5" %}
+          </a>
+        </div>
+      </div>
+      <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground mb-2">{% trans "Burndown" %}</div>
+      <div class="relative" style="height: 240px;"><canvas id="burndownChart"></canvas></div>
+    </div>
+    {% else %}
+    <div class="bg-card border border-border rounded-lg p-4 text-sm text-placeholder-foreground">
+      {% trans "No active cycle right now." %}
+    </div>
+    {% endif %}
+
+    {# ---------- Velocity ---------- #}
+    <div class="bg-card border border-border rounded-lg p-4">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground flex-1">{% trans "Velocity" %}</span>
+        <span class="text-[10px] text-placeholder-foreground">{% trans "done per cycle" %}</span>
+      </div>
+      <div class="relative" style="height: 220px;"><canvas id="velocityChart"></canvas></div>
+    </div>
+
+    {# ---------- Cycle list ---------- #}
+    <div class="bg-card border border-border rounded-lg p-4">
+      <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground mb-3">{% trans "All cycles" %}</div>
+      <ul class="space-y-3">
+        {% for cycle in cycles %}
+        <li>
+          <div class="flex items-center gap-2 text-sm">
+            <span class="w-1.5 h-1.5 rounded-full {% if cycle.is_active %}bg-emerald-500{% elif cycle.status == 'planning' %}bg-zinc-500{% else %}bg-zinc-700{% endif %} shrink-0"></span>
+            <a href="{% url 'web:all_tasks' %}?cycle={{ cycle.id }}" class="text-foreground hover:text-brand-400 truncate">{{ cycle.display_name }}</a>
+            <span class="text-xs text-placeholder-foreground">{{ cycle.start_date|date:"M j" }} – {{ cycle.end_date|date:"M j" }}</span>
+            <span class="ml-auto text-xs text-subtle-foreground tabular-nums shrink-0">{{ cycle.summary.done }} / {{ cycle.summary.total }}</span>
+          </div>
+          <div class="w-full h-1 rounded-full bg-muted overflow-hidden mt-1.5">
+            <div class="h-full {% if cycle.is_active %}bg-emerald-500{% else %}bg-zinc-500{% endif %}" style="width: {{ cycle.summary.percent }}%;"></div>
+          </div>
+        </li>
+        {% empty %}
+        <li class="text-xs text-placeholder-foreground italic">{% trans "No cycles yet." %}</li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    {% endif %}
+  </div>
+</div>
+
+{% if cycle_enabled %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  (function () {
+    if (!window.Chart) return;
+    const brand = "rgb(66 90 245)";
+    const brandSoft = "rgb(66 90 245 / 0.55)";
+    const emerald = "rgb(16 185 129)";
+    const gridColor = "rgb(113 113 122 / 0.18)";
+    const tickColor = "rgb(161 161 170)";
+    const baseOpts = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: gridColor }, ticks: { color: tickColor, font: { size: 10 }, maxTicksLimit: 8 } },
+        y: { beginAtZero: true, grid: { color: gridColor }, ticks: { color: tickColor, font: { size: 10 }, precision: 0 } },
+      },
+    };
+
+    const bd = document.getElementById("burndownChart");
+    if (bd) {
+      new Chart(bd, {
+        type: "line",
+        data: {
+          labels: {{ burndown_labels_json|default:"[]"|safe }},
+          datasets: [
+            {
+              label: "{% trans 'Ideal' %}",
+              data: {{ burndown_ideal_json|default:"[]"|safe }},
+              borderColor: gridColor,
+              borderDash: [4, 4],
+              borderWidth: 1.5,
+              pointRadius: 0,
+              fill: false,
+            },
+            {
+              label: "{% trans 'Remaining' %}",
+              data: {{ burndown_remaining_json|default:"[]"|safe }},
+              borderColor: emerald,
+              backgroundColor: "rgb(16 185 129 / 0.12)",
+              borderWidth: 2,
+              pointRadius: 0,
+              tension: 0.2,
+              fill: true,
+              spanGaps: false,
+            },
+          ],
+        },
+        options: {
+          ...baseOpts,
+          interaction: { mode: "index", intersect: false },
+          plugins: { legend: { display: true, labels: { color: tickColor, boxWidth: 10, font: { size: 10 } } } },
+        },
+      });
+    }
+
+    const vel = document.getElementById("velocityChart");
+    if (vel) {
+      new Chart(vel, {
+        type: "bar",
+        data: {
+          labels: {{ velocity_labels_json|safe }},
+          datasets: [
+            { label: "{% trans 'Tasks' %}", data: {{ velocity_count_json|safe }}, backgroundColor: brandSoft, borderColor: brand, borderWidth: 1, borderRadius: 3 },
+            { label: "{% trans 'Points' %}", data: {{ velocity_points_json|safe }}, backgroundColor: "rgb(16 185 129 / 0.45)", borderColor: emerald, borderWidth: 1, borderRadius: 3 },
+          ],
+        },
+        options: {
+          ...baseOpts,
+          plugins: { legend: { display: true, labels: { color: tickColor, boxWidth: 10, font: { size: 10 } } } },
+        },
+      });
+    }
+  })();
+</script>
+{% endif %}
+{% endblock %}

@@ -46,6 +46,7 @@ def apply_task_filters(qs, params, *, request_user, default_show_done=True):
     # here is already scoped to one workspace.
     qs = _filter_assignee(qs, params, request_user)
     qs = _filter_labels(qs, params)
+    qs = _filter_cycle(qs, params)
     qs = _filter_search(qs, params)
     return qs
 
@@ -170,6 +171,42 @@ def _filter_labels(qs, params):
         # at all". Resolve matching ids in a subquery first.
         matching = Task.objects.filter(labels__id__in=outs).values_list("id", flat=True)
         qs = qs.exclude(id__in=matching)
+    return qs
+
+
+def _filter_cycle(qs, params):
+    """Apply the ``cycle`` filter: ``active`` / ``backlog`` / a cycle id.
+
+    Accepts repeated ``?cycle=`` values, OR-combined:
+
+    * ``active`` — tasks in the workspace's active cycle.
+    * ``backlog`` — tasks not committed to any cycle (``cycle IS NULL``).
+    * a numeric cycle **id** — tasks in that specific cycle.
+
+    No ``cycle`` param leaves the queryset untouched (cycles are an
+    opt-in axis; absence means "don't filter by cycle").
+    """
+    values = params.getlist("cycle")
+    if not values:
+        return qs
+    from apps.cycles.models import Cycle
+
+    q = Q()
+    ids = []
+    for value in values:
+        if value == "active":
+            q |= Q(cycle__status=Cycle.ACTIVE)
+        elif value == "backlog":
+            q |= Q(cycle__isnull=True)
+        else:
+            try:
+                ids.append(int(value))
+            except (TypeError, ValueError):
+                continue
+    if ids:
+        q |= Q(cycle_id__in=ids)
+    if q:
+        qs = qs.filter(q)
     return qs
 
 
@@ -407,9 +444,23 @@ def filter_sidebar_context(
         # reads first. Within each group keep alphabetical order.
         available_assignees.sort(key=lambda u: (u.is_former, (u.first_name or u.username or "").lower()))
 
+    # Cycle filter options — active + upcoming cycles of the active
+    # workspace, materialized on demand. Empty list when cadence is off,
+    # which the sidebar reads as "hide the Cycle section".
+    available_cycles = []
+    if active and active.cycle_config()["enabled"]:
+        from apps.cycles.models import Cycle
+        from apps.cycles.services import ensure_cycles
+
+        ensure_cycles(active)
+        available_cycles = list(
+            active.cycles.exclude(status=Cycle.COMPLETED).order_by("status", "start_date"),
+        )
+
     selected_statuses = set(params.getlist("status"))
     selected_priorities = {int(p) for p in params.getlist("priority") if p.isdigit()}
     selected_sizes = {int(s) for s in params.getlist("size") if s.isdigit()}
+    selected_cycles = set(params.getlist("cycle"))
     selected_projects = {int(p) for p in params.getlist("project") if p.isdigit()}
     selected_labels = {int(i) for i in params.getlist("label") if i.isdigit()}
     selected_assignees = set(params.getlist("assignee"))
@@ -433,6 +484,7 @@ def filter_sidebar_context(
         + len(selected_statuses)
         + len(selected_priorities)
         + len(selected_sizes)
+        + len(selected_cycles)
         + len(selected_projects)
         + len(selected_labels)
         + len(excluded_assignees)
@@ -467,6 +519,8 @@ def filter_sidebar_context(
         "selected_statuses": selected_statuses,
         "selected_priorities": selected_priorities,
         "selected_sizes": selected_sizes,
+        "selected_cycles": selected_cycles,
+        "available_cycles": available_cycles,
         "selected_projects": selected_projects,
         "selected_labels": selected_labels,
         "selected_assignees": selected_assignees,

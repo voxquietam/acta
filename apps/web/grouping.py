@@ -22,7 +22,15 @@ from django.utils.translation import gettext_lazy as _
 
 from apps.tasks.models import Task
 
-LIST_AXES = ("deadline", "status", "priority", "assignee", "project")
+LIST_AXES = ("deadline", "status", "priority", "assignee", "project", "cycle")
+
+# Order cycles within the group-by view: active cycle first, then
+# upcoming (planning), then completed.
+_CYCLE_STATUS_RANK = {
+    "active": 0,
+    "planning": 1,
+    "completed": 2,
+}
 
 _STATUS_TONES = {
     Task.STATUS_PLANNED: "zinc",
@@ -75,6 +83,8 @@ def group_tasks(tasks, axis, *, request_user=None, keep_empty=()):
         sections = _group_by_assignee(tasks, request_user=request_user)
     elif axis == "project":
         sections = _group_by_project(tasks)
+    elif axis == "cycle":
+        sections = _group_by_cycle(tasks)
     else:
         sections = []
     return [s for s in sections if s["tasks"] or s["key"] in keep_empty]
@@ -187,6 +197,40 @@ def _group_by_assignee(tasks, *, request_user):
     ]
     sections.append(
         {"key": "unassigned", "label": _("Unassigned"), "tone": "zinc", "tasks": unassigned},
+    )
+    return sections
+
+
+def _group_by_cycle(tasks):
+    """Bucket by cycle: active first, then upcoming, completed; backlog last.
+
+    Tasks with no cycle collect in a trailing ``backlog`` section. Cycle
+    sections sort by lifecycle (active → planning → completed) then by
+    cycle number, so the running cycle leads and the backlog trails.
+    """
+    by_cycle = {}
+    backlog = []
+    for task in tasks:
+        if task.cycle_id is None:
+            backlog.append(task)
+            continue
+        by_cycle.setdefault(task.cycle_id, {"cycle": task.cycle, "tasks": []})
+        by_cycle[task.cycle_id]["tasks"].append(task)
+    ordered = sorted(
+        by_cycle.values(),
+        key=lambda e: (_CYCLE_STATUS_RANK.get(e["cycle"].status, 9), e["cycle"].number),
+    )
+    sections = [
+        {
+            "key": str(entry["cycle"].id),
+            "label": entry["cycle"].display_name,
+            "tone": "violet" if entry["cycle"].status == "active" else "zinc",
+            "tasks": entry["tasks"],
+        }
+        for entry in ordered
+    ]
+    sections.append(
+        {"key": "backlog", "label": _("Backlog"), "tone": "zinc", "tasks": backlog},
     )
     return sections
 

@@ -31,6 +31,13 @@ Re-included by ``task_detail.html`` and rendered standalone by
     <div class="min-w-0">{% include "web/projects/_size_cell.html" %}</div>
   </div>
 
+  {% if workspace_cycles or task.cycle_id %}
+  <div class="flex items-center justify-between gap-3">
+    <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Cycle" %}</div>
+    <div class="min-w-0">{% include "web/projects/_cycle_cell.html" %}</div>
+  </div>
+  {% endif %}
+
   <div class="flex items-center justify-between gap-3">
     <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Assignee" %}</div>
     <div class="min-w-0">{% include "web/projects/_assignee_cell.html" %}</div>

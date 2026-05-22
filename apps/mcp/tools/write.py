@@ -42,6 +42,55 @@ _LABEL_AUTO_PALETTE = [
 ]
 
 
+# Sentinel for "argument absent" — distinct from ``None`` which means an
+# explicit clear (move the task to the backlog).
+_UNSET: Any = object()
+
+
+def _resolve_cycle_arg(workspace, value):
+    """Resolve a ``cycle`` MCP argument to a Cycle row or ``None``.
+
+    Accepts a cycle **number** (1-based, within the task's workspace),
+    the strings ``"current"`` / ``"active"`` for the workspace's active
+    cycle, or ``None`` / ``"backlog"`` / ``"none"`` to clear the cycle
+    (move to backlog). Materializes the rolling windows first so the
+    current + next cycle resolve.
+
+    Args:
+        workspace: The task's :class:`Workspace`.
+        value: The raw ``cycle`` argument from the LLM.
+
+    Returns:
+        The matching :class:`~apps.cycles.models.Cycle`, or ``None`` to
+        clear.
+
+    Raises:
+        ValueError: If cadence is off, the number is unknown, or the
+            value is otherwise unparseable.
+    """
+    from apps.cycles.models import Cycle
+    from apps.cycles.services import current_cycle, ensure_cycles
+
+    if value is None or (isinstance(value, str) and value.strip().lower() in ("", "backlog", "none", "null")):
+        return None
+    if not workspace.cycle_config()["enabled"]:
+        raise ValueError("Cycles are not enabled for this workspace.")
+    ensure_cycles(workspace)
+    if isinstance(value, str) and value.strip().lower() in ("current", "active"):
+        active = current_cycle(workspace)
+        if active is None:
+            raise ValueError("This workspace has no active cycle right now.")
+        return active
+    try:
+        number = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("cycle must be a cycle number, 'current', or null.") from exc
+    try:
+        return workspace.cycles.get(number=number)
+    except Cycle.DoesNotExist as exc:
+        raise ValueError(f"No cycle #{number} in this workspace.") from exc
+
+
 def _auto_label_color(name: str) -> str:
     """Pick a stable palette colour for an auto-created label.
 
@@ -166,6 +215,7 @@ def task_update(user: User, arguments: dict[str, Any]) -> Any:
     """
     from django.db import transaction
 
+    from apps.cycles.services import apply_cycle_policy
     from apps.tasks.events import emit_task_diff_events, snapshot_task
     from apps.tasks.serializers import TaskSerializer
 
@@ -204,6 +254,13 @@ def task_update(user: User, arguments: dict[str, Any]) -> Any:
         if task.parent_id is not None:
             raise ValueError("A subtask moves with its parent — move the parent task instead.")
 
+    # Resolve a cycle assignment up front (by number / "current" / null).
+    # ``_UNSET`` means "argument absent, leave cycle untouched"; ``None``
+    # means "clear to backlog".
+    cycle_target: Any = _UNSET
+    if "cycle" in args:
+        cycle_target = _resolve_cycle_arg(task.project.workspace, args["cycle"])
+
     with transaction.atomic():
         old_state = snapshot_task(task)
         serializer = TaskSerializer(instance=task, data=data, partial=True, context={"request": FakeRequest(user)})
@@ -212,6 +269,16 @@ def task_update(user: User, arguments: dict[str, Any]) -> Any:
         task = serializer.save()
         if move_target is not None and move_target.id != task.project_id:
             _move_task_to_project(task, move_target, actor=user)
+        if cycle_target is not _UNSET and getattr(task, "cycle_id", None) != (
+            cycle_target.id if cycle_target else None
+        ):
+            task.cycle = cycle_target
+            task.save(update_fields=["cycle", "updated_at"])
+        # Cadence policy reconciles cycle from the (possibly changed)
+        # status: clears it for planned, pulls committed work into the
+        # active cycle when none was set explicitly above.
+        if apply_cycle_policy(task):
+            task.save(update_fields=["cycle", "updated_at"])
         emit_task_diff_events(old_state=old_state, task=task, actor=user)
     return serialize_task_summary(task)
 
@@ -595,7 +662,9 @@ TOOLS: list[Tool] = [
             "label set; missing labels are auto-created — see ``acta_task_create``), "
             "``project`` (slug prefix of a project IN THE SAME WORKSPACE to move "
             "the task to — renumbers the slug, e.g. ACTA-12 → HRW-89, and moves "
-            "any subtasks along; only top-level tasks can be moved). "
+            "any subtasks along; only top-level tasks can be moved); ``cycle`` "
+            "(commit the task to a workspace cycle by its number, 'current' for "
+            "the active cycle, or null for the backlog). "
             "Same validation as create. Returns the updated task summary."
         ),
         inputSchema={
@@ -614,6 +683,10 @@ TOOLS: list[Tool] = [
                 "assignee_username": {"type": ["string", "null"]},
                 "label_names": {"type": "array", "items": {"type": "string"}},
                 "project": {"type": "string", "description": "Target project slug prefix (same workspace)."},
+                "cycle": {
+                    "type": ["integer", "string", "null"],
+                    "description": "Cycle number, 'current', or null to clear to the backlog.",
+                },
             },
             "required": ["slug"],
             "additionalProperties": False,

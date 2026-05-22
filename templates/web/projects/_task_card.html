@@ -69,6 +69,13 @@ handler in ``_kanban.html`` restores it for middle / Ctrl+click.
       {% lucide "gauge" "w-3 h-3" %}{{ task.size }}
     </span>
     {% endif %}
+    {% if task.cycle_id %}
+    <span class="px-1.5 py-0.5 rounded bg-muted inline-flex items-center gap-1
+            {% if task.cycle.is_active %}text-subtle-foreground{% else %}text-placeholder-foreground{% endif %}"
+          title="{{ task.cycle.display_name }}">
+      {% lucide "iteration-cw" "w-3 h-3" %}<span class="font-mono">{{ task.cycle.number }}</span>
+    </span>
+    {% endif %}
   </div>
 
   <div class="text-sm leading-snug mt-1.5 line-clamp-3

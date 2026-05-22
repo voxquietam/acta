@@ -1,0 +1,94 @@
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+Cycle cell — assigns the task to a workspace cycle (time-box) or clears
+it back to the backlog. Same click-to-edit + teleported dropdown pattern
+as the size / project cells. The panel offers "Backlog (no cycle)" plus
+the active + upcoming cycles (``workspace_cycles``, active first). Posts
+to ``set_task_cycle`` and swaps this cell. Expects ``task`` and
+``workspace_cycles``.
+
+A ``planned`` task is the backlog by definition — it carries no cycle and
+the picker is read-only (the cadence policy assigns a cycle only once the
+task moves into committed work). See apps/cycles/services.apply_cycle_policy.
+{% endcomment %}
+{% if task.status == 'planned' %}
+<span id="cycle-cell" class="text-xs text-placeholder-foreground italic inline-flex items-center gap-1"
+      data-tooltip="{% trans 'Backlog — a cycle is set when the task moves to To-do' %}">
+  {% trans "Backlog" %}
+</span>
+{% else %}
+<div id="cycle-cell"
+     x-data="{
+       open: false,
+       rect: { top: 0, left: 0, bottom: 0, right: 0 },
+       measure() {
+         const r = this.$refs.trigger.getBoundingClientRect();
+         this.rect = { top: r.top, left: r.left, bottom: r.bottom, right: r.right };
+       },
+       toggle() { if (!this.open) this.measure(); this.open = !this.open; }
+     }"
+     x-init="
+       const onScroll = (e) => {
+         if (!$el.isConnected) { document.removeEventListener('scroll', onScroll, true); return; }
+         if (open && !($refs.panel && $refs.panel.contains(e.target))) open = false;
+       };
+       document.addEventListener('scroll', onScroll, true);
+     "
+     @resize.window="if (open) open = false"
+     class="inline-block">
+  <button type="button"
+          x-ref="trigger"
+          @click="toggle()"
+          class="text-xs cursor-pointer inline-flex items-center gap-1.5 hover:text-foreground
+            {% if task.cycle_id %}text-subtle-foreground{% else %}text-placeholder-foreground{% endif %}"
+          data-tooltip="{% trans 'Assign to a cycle' %}">
+    {% if task.cycle_id %}
+    <span class="w-1.5 h-1.5 rounded-full {% if task.cycle.is_active %}bg-emerald-500{% else %}bg-zinc-600{% endif %}"></span>
+    <span class="truncate">{{ task.cycle.display_name }}</span>
+    {% else %}
+    <span class="italic">{% trans "Set cycle" %}</span>
+    {% endif %}
+  </button>
+  <template x-teleport="body">
+  <div x-ref="panel"
+       x-show="open"
+       @click.outside="open = false"
+       x-init="$nextTick(() => window.htmx && window.htmx.process($el))"
+       x-cloak
+       :style="`position:fixed; top:${rect.bottom + 4}px; left:${Math.min(rect.left, window.innerWidth - 232)}px; width:14rem;`"
+       class="bg-card border border-border rounded-lg shadow-lg overflow-hidden z-50">
+    <form method="post"
+          hx-post="{% url 'web:set_task_cycle' slug_prefix=task.project.slug_prefix number=task.number %}"
+          hx-target="#cycle-cell"
+          hx-swap="outerHTML"
+          @htmx:after-request="open = false">
+      {% csrf_token %}
+      <input type="hidden" name="cycle_id" value="">
+      <button type="submit"
+              class="w-full text-left px-3 py-1.5 text-xs hover:bg-muted flex items-center gap-1.5
+                {% if not task.cycle_id %}text-brand-500{% else %}text-muted-foreground{% endif %}">
+        <span class="flex-1">{% trans "Backlog (no cycle)" %}</span>
+      </button>
+    </form>
+    {% for cycle in workspace_cycles %}
+    <form method="post"
+          hx-post="{% url 'web:set_task_cycle' slug_prefix=task.project.slug_prefix number=task.number %}"
+          hx-target="#cycle-cell"
+          hx-swap="outerHTML"
+          @htmx:after-request="open = false">
+      {% csrf_token %}
+      <input type="hidden" name="cycle_id" value="{{ cycle.id }}">
+      <button type="submit"
+              class="w-full text-left px-3 py-1.5 text-xs hover:bg-muted flex items-center gap-2
+                {% if cycle.id == task.cycle_id %}text-brand-500{% else %}text-muted-foreground{% endif %}">
+        <span class="w-1.5 h-1.5 rounded-full {% if cycle.is_active %}bg-emerald-500{% else %}bg-zinc-600{% endif %}"></span>
+        <span class="flex-1 truncate">{{ cycle.display_name }}</span>
+        <span class="text-[10px] text-placeholder-foreground">{{ cycle.start_date|date:"M j" }}</span>
+      </button>
+    </form>
+    {% endfor %}
+  </div>
+  </template>
+</div>
+{% endif %}

@@ -32,6 +32,15 @@ from apps.attachments.models import Attachment
 from apps.attachments.services import categorize, create_comment_attachment, create_inline_image, create_task_attachment
 from apps.attachments.serving import serve_attachment_response
 from apps.comments.models import Comment
+from apps.cycles.models import Cycle
+from apps.cycles.services import (
+    apply_cycle_policy,
+    compute_cycle_burndown,
+    compute_velocity,
+    current_cycle,
+    cycle_summary,
+    ensure_cycles,
+)
 from apps.labels.models import Label
 from apps.notifications.models import Notification
 from apps.notifications.services import notify_comment_created, notify_project_update_created
@@ -152,7 +161,61 @@ _LIST_AXIS_LABELS = {
     "priority": "Priority",
     "assignee": "Assignee",
     "project": "Project",
+    "cycle": "Cycle",
 }
+
+
+def _cycle_banner(request):
+    """Resolve the active-cycle header context, or ``None``.
+
+    Renders only when the view is filtered to **exactly one** concrete
+    cycle — ``?cycle=active`` or a single ``?cycle=<id>``. Backlog,
+    multi-cycle, and no-cycle views get no banner. The returned dict is
+    the cycle plus its :func:`apps.cycles.services.cycle_summary`
+    counters, ready to flatten into the template context.
+
+    Args:
+        request: The active ``HttpRequest``.
+
+    Returns:
+        A context dict (``cycle`` + summary keys), or ``None``.
+    """
+    values = request.GET.getlist("cycle")
+    if len(values) != 1 or values[0] == "backlog":
+        return None
+    workspace = resolve_active_workspace(request)
+    if workspace is None or not workspace.cycle_config()["enabled"]:
+        return None
+    value = values[0]
+    if value == "active":
+        cycle = current_cycle(workspace)
+    else:
+        try:
+            cycle = workspace.cycles.filter(pk=int(value)).first()
+        except (TypeError, ValueError):
+            cycle = None
+    if cycle is None:
+        return None
+    return {"cycle": cycle, **cycle_summary(cycle)}
+
+
+def _with_cycle_axis(base_keys, workspace):
+    """Append the ``cycle`` group-by axis when the workspace runs cadence.
+
+    Keeps the cycle axis out of the List-view picker entirely for
+    workspaces with cycles disabled, so it only appears where it has
+    meaning. ``base_keys`` is returned unchanged otherwise.
+
+    Args:
+        base_keys: The page's default axis-key tuple.
+        workspace: The active / project :class:`Workspace`, or ``None``.
+
+    Returns:
+        A tuple of axis keys, with ``"cycle"`` appended iff cadence is on.
+    """
+    if workspace is not None and workspace.cycle_config()["enabled"]:
+        return (*base_keys, "cycle")
+    return base_keys
 
 
 def _list_axis_options(option_keys, active_key):
@@ -251,6 +314,7 @@ def _user_task_qs(user):
         .select_related(
             "project__workspace",
             "assignee",
+            "cycle",
         )
         .prefetch_related("labels", "blocks", "blocked_by")
     )
@@ -428,7 +492,10 @@ class AllTasksView(LoginRequiredMixin, ListView):
         panel = self.request.GET.get("panel")
         list_only = panel == "list"
         if list_only:
-            list_axis_keys = ("deadline", "status", "priority", "assignee", "project")
+            list_axis_keys = _with_cycle_axis(
+                ("deadline", "status", "priority", "assignee", "project"),
+                resolve_active_workspace(self.request),
+            )
             list_axis = _resolve_list_axis(self.request, default="project", options=list_axis_keys)
             ctx["list_axis"] = list_axis
             ctx["list_axis_options"] = _list_axis_options(list_axis_keys, list_axis)
@@ -453,13 +520,17 @@ class AllTasksView(LoginRequiredMixin, ListView):
                 wip_limits=wip_limits,
                 over_by_status=wip_over,
             )
-            list_axis_keys = ("deadline", "status", "priority", "assignee", "project")
+            list_axis_keys = _with_cycle_axis(
+                ("deadline", "status", "priority", "assignee", "project"),
+                resolve_active_workspace(self.request),
+            )
             list_axis = _resolve_list_axis(self.request, default="project", options=list_axis_keys)
             ctx["list_axis"] = list_axis
             ctx["list_axis_options"] = _list_axis_options(list_axis_keys, list_axis)
             ctx["list_sections_by_axis"] = {
                 key: group_tasks(table_tasks, key, request_user=self.request.user) for key in list_axis_keys
             }
+        ctx["cycle_banner"] = _cycle_banner(self.request)
         ctx.update(
             filter_sidebar_context(
                 self.request,
@@ -510,7 +581,7 @@ class MyWorkView(LoginRequiredMixin, TemplateView):
         active = resolve_active_workspace(self.request)
         tasks = _my_work_tasks(self.request.user, params, active)
         ctx["has_any_tasks"] = bool(tasks)
-        list_axis_keys = ("deadline", "status", "priority", "project")
+        list_axis_keys = _with_cycle_axis(("deadline", "status", "priority", "project"), active)
         list_axis = _resolve_list_axis(self.request, default="deadline", options=list_axis_keys)
         ctx["list_axis"] = list_axis
         ctx["list_axis_options"] = _list_axis_options(list_axis_keys, list_axis)
@@ -1545,7 +1616,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         # ``?panel=list`` — lazy fetch of just the list view body.
         panel = self.request.GET.get("panel")
         if panel == "list":
-            list_axis_keys = ("deadline", "status", "priority", "assignee")
+            list_axis_keys = _with_cycle_axis(("deadline", "status", "priority", "assignee"), project.workspace)
             list_axis = _resolve_list_axis(self.request, default="status", options=list_axis_keys)
             ctx["list_axis"] = list_axis
             ctx["list_axis_options"] = _list_axis_options(list_axis_keys, list_axis)
@@ -1581,7 +1652,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
                 wip_limits=wip_limits,
                 over_by_status=wip_over,
             )
-            list_axis_keys = ("deadline", "status", "priority", "assignee")
+            list_axis_keys = _with_cycle_axis(("deadline", "status", "priority", "assignee"), project.workspace)
             list_axis = _resolve_list_axis(self.request, default="status", options=list_axis_keys)
             ctx["list_axis"] = list_axis
             ctx["list_axis_options"] = _list_axis_options(list_axis_keys, list_axis)
@@ -1591,6 +1662,8 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         else:
             ctx["tasks"] = table_tasks
             ctx["show_labels"] = True
+
+        ctx["cycle_banner"] = _cycle_banner(self.request)
 
         # Per-project page: scope project + workspace filters away.
         # Show labels in the table view (matches All Tasks layout).
@@ -1697,6 +1770,7 @@ class TaskDetailView(LoginRequiredMixin, DetailView):
         ctx["workspace_members"] = _workspace_members(task)
         ctx["workspace_labels"] = _workspace_labels(task)
         ctx["workspace_projects"] = _workspace_projects(task)
+        ctx["workspace_cycles"] = _workspace_cycles(task.project.workspace)
         ctx["attached_label_ids"] = set(task.labels.values_list("id", flat=True))
         return ctx
 
@@ -1791,6 +1865,7 @@ def task_meta_fragment(request, slug_prefix, number):
                 "workspace_members": _workspace_members(task),
                 "workspace_labels": _workspace_labels(task),
                 "workspace_projects": _workspace_projects(task),
+                "workspace_cycles": _workspace_cycles(task.project.workspace),
                 "attached_label_ids": set(task.labels.values_list("id", flat=True)),
             },
             request=request,
@@ -1848,6 +1923,7 @@ def task_meta_compact_fragment(request, slug_prefix, number):
                 "workspace_members": _workspace_members(task),
                 "workspace_labels": _workspace_labels(task),
                 "workspace_projects": _workspace_projects(task),
+                "workspace_cycles": _workspace_cycles(task.project.workspace),
                 "attached_label_ids": set(task.labels.values_list("id", flat=True)),
             },
             request=request,
@@ -2099,6 +2175,33 @@ def _workspace_labels(task):
         A queryset of :class:`Label` rows.
     """
     return Label.objects.filter(workspace=task.project.workspace).order_by("name")
+
+
+def _workspace_cycles(workspace):
+    """Return the assignable cycles for a workspace, active first.
+
+    Materializes the rolling windows (so the current + next cycle exist)
+    and returns the active and upcoming (planning) cycles — completed
+    cycles are not offered as fresh assignment targets. Returns an empty
+    list when the workspace is missing or cadence is disabled, which the
+    pickers treat as "no cycle UI".
+
+    Args:
+        workspace: The :class:`Workspace` (or ``None``).
+
+    Returns:
+        A list of :class:`~apps.cycles.models.Cycle` rows, active first
+        then upcoming by start date.
+    """
+    if workspace is None or not workspace.cycle_config()["enabled"]:
+        return []
+    ensure_cycles(workspace)
+    return list(
+        workspace.cycles.exclude(status=Cycle.COMPLETED).order_by(
+            "status",
+            "start_date",
+        ),
+    )
 
 
 def _inline_edit_response(request, task, primary_template, primary_context):
@@ -2429,6 +2532,11 @@ def set_task_status(request, slug_prefix, number):
         # when work actually started, not the current status.
         if new_status == Task.STATUS_IN_PROGRESS and task.start_date is None:
             task.start_date = timezone.localdate()
+        # Cadence policy: planned drops to backlog (no cycle); entering
+        # committed work pulls the task into the active cycle. Mutates
+        # task.cycle in memory before save so the diff below also emits
+        # task.cycle_changed.
+        apply_cycle_policy(task)
         task.save()
         emit_task_diff_events(old_state=old, task=task, actor=request.user)
     return _inline_edit_response(
@@ -2505,6 +2613,49 @@ def set_task_size(request, slug_prefix, number):
         task,
         "web/projects/_size_cell.html",
         {"task": task},
+    )
+
+
+@require_POST
+@login_required
+def set_task_cycle(request, slug_prefix, number):
+    """Assign the task to a workspace cycle, or clear it (back to backlog).
+
+    Reads ``cycle_id``; empty clears the cycle. A non-empty value must be
+    a cycle in the task's own workspace (cross-workspace assignment is
+    rejected). Routed through the diff path so the change logs a
+    ``task.cycle_changed`` event and refreshes peer cards over SSE.
+
+    Returns:
+        Rendered ``_cycle_cell.html`` for the rail cell (plus the OOB
+        activity refresh), or ``400`` on an invalid / foreign cycle.
+    """
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    raw = (request.POST.get("cycle_id") or "").strip()
+    if raw == "":
+        cycle = None
+    else:
+        # A planned task is backlog by definition — it can't hold a cycle.
+        # Clearing (empty value) is always allowed; assigning is rejected.
+        if task.status == Task.STATUS_PLANNED:
+            return HttpResponseBadRequest("planned tasks stay in the backlog (no cycle)")
+        try:
+            cycle_pk = int(raw)
+        except (TypeError, ValueError):
+            return HttpResponseBadRequest("invalid cycle")
+        cycle = get_object_or_404(
+            Cycle.objects.filter(workspace=task.project.workspace),
+            pk=cycle_pk,
+        )
+    _apply_task_field_change(task, "cycle", cycle, request.user)
+    return _inline_edit_response(
+        request,
+        task,
+        "web/projects/_cycle_cell.html",
+        {
+            "task": task,
+            "workspace_cycles": _workspace_cycles(task.project.workspace),
+        },
     )
 
 
@@ -3497,6 +3648,47 @@ def set_workspace_wip(request, slug):
     return redirect("web:workspace_settings", slug=workspace.slug)
 
 
+@require_POST
+@login_required
+def set_workspace_cycles(request, slug):
+    """Save the workspace cadence config from the settings panel.
+
+    Admin-gated. Reads ``enabled`` (checkbox), ``length_weeks`` and
+    ``start_date`` (ISO anchor of cycle 1) and stores them in
+    ``Workspace.cycle_settings``. Enabling without a start date defaults
+    the anchor to today. When the resulting config is enabled the current
+    + next cycle are materialized right away so they're ready to assign
+    to. Redirects back to the settings page.
+    """
+    workspace = _get_user_workspace_or_404(request.user, slug)
+    if not _user_is_workspace_admin(request.user, workspace):
+        return HttpResponseForbidden("admin only")
+    enabled = bool(request.POST.get("enabled"))
+    try:
+        length = int((request.POST.get("length_weeks") or "").strip() or Workspace.CYCLE_DEFAULT_LENGTH_WEEKS)
+    except ValueError:
+        return HttpResponseBadRequest("invalid length")
+    length = max(1, min(length, Workspace.CYCLE_MAX_LENGTH_WEEKS))
+    start_date = None
+    start_raw = (request.POST.get("start_date") or "").strip()
+    if start_raw:
+        try:
+            start_date = datetime.date.fromisoformat(start_raw).isoformat()
+        except ValueError:
+            return HttpResponseBadRequest("invalid start date")
+    if enabled and not start_date:
+        start_date = timezone.localdate().isoformat()
+    workspace.cycle_settings = {
+        "enabled": enabled,
+        "length_weeks": length,
+        "start_date": start_date,
+    }
+    workspace.save(update_fields=["cycle_settings"])
+    if workspace.cycle_config()["enabled"]:
+        ensure_cycles(workspace)
+    return redirect("web:workspace_settings", slug=workspace.slug)
+
+
 def _cycle_histogram(hours: list[float]) -> dict[str, list]:
     """Bucket a list of cycle/lead-time hours into day-based ranges.
 
@@ -3581,6 +3773,49 @@ def project_insights(request, slug_prefix):
         "wip_items": [(Task.STATUS_LABELS[s], bottlenecks["wip"].get(s, 0)) for s in tis_statuses],
     }
     return render(request, "web/projects/insights.html", ctx)
+
+
+@login_required
+def cycles_overview(request):
+    """Workspace cycles dashboard — active-cycle burndown + velocity + list.
+
+    Workspace-level (cycles span every project). Shows the active cycle's
+    burndown (open tasks per day vs. the ideal line), a velocity bar over
+    recent cycles, and the full cycle list with per-cycle progress. All
+    charts are drawn client-side with Chart.js from JSON blobs, mirroring
+    the project Insights page. Renders an empty state when cadence is off.
+    """
+    workspace = resolve_active_workspace(request)
+    if workspace is None or not workspace.cycle_config()["enabled"]:
+        return render(
+            request,
+            "web/cycles/overview.html",
+            {"cycle_enabled": False, "workspace": workspace},
+        )
+    today = timezone.localdate()
+    ensure_cycles(workspace, today)
+    active = current_cycle(workspace, today)
+    # Most recent cycles first, decorated with their progress summary.
+    cycles = list(workspace.cycles.order_by("-start_date")[:12])
+    for cycle in cycles:
+        cycle.summary = cycle_summary(cycle, today)
+    velocity = compute_velocity(workspace)
+    ctx = {
+        "cycle_enabled": True,
+        "workspace": workspace,
+        "active_cycle": active,
+        "active_summary": cycle_summary(active, today) if active else None,
+        "cycles": cycles,
+        "velocity_labels_json": json.dumps([v["label"] for v in velocity]),
+        "velocity_count_json": json.dumps([v["count"] for v in velocity]),
+        "velocity_points_json": json.dumps([v["points"] for v in velocity]),
+    }
+    if active:
+        burndown = compute_cycle_burndown(active, today)
+        ctx["burndown_labels_json"] = json.dumps(burndown["labels"])
+        ctx["burndown_ideal_json"] = json.dumps(burndown["ideal"])
+        ctx["burndown_remaining_json"] = json.dumps(burndown["remaining"])
+    return render(request, "web/cycles/overview.html", ctx)
 
 
 @require_POST
@@ -3891,6 +4126,7 @@ def archive_task(request, slug_prefix, number):
             "priority_labels": dict(Task.PRIORITY_CHOICES),
             "workspace_labels": _workspace_labels(task),
             "workspace_projects": _workspace_projects(task),
+            "workspace_cycles": _workspace_cycles(task.project.workspace),
             "attached_label_ids": set(task.labels.values_list("id", flat=True)),
         },
     )
@@ -3929,6 +4165,7 @@ def cancel_task(request, slug_prefix, number):
             "priority_labels": dict(Task.PRIORITY_CHOICES),
             "workspace_labels": _workspace_labels(task),
             "workspace_projects": _workspace_projects(task),
+            "workspace_cycles": _workspace_cycles(task.project.workspace),
             "attached_label_ids": set(task.labels.values_list("id", flat=True)),
         },
     )
@@ -4015,6 +4252,7 @@ def task_context_menu(request, slug_prefix, number):
                 "size_values": Task.SIZE_VALUES,
                 "workspace_members": _workspace_members(task),
                 "workspace_projects": _workspace_projects(task),
+                "workspace_cycles": _workspace_cycles(task.project.workspace),
                 "workspace_labels": _workspace_labels(task),
                 "attached_label_ids": set(task.labels.values_list("id", flat=True)),
             },
@@ -4037,12 +4275,14 @@ def bulk_context_menu(request):
     """
     workspace = resolve_active_workspace(request)
     members, projects, labels = [], [], []
+    cycles = []
     if workspace:
         members = list(
             WorkspaceMember.objects.filter(workspace=workspace).select_related("user").order_by("user__username"),
         )
         projects = list(Project.objects.filter(workspace=workspace).order_by("name"))
         labels = list(Label.objects.filter(workspace=workspace).order_by("name"))
+        cycles = _workspace_cycles(workspace)
     return HttpResponse(
         render_to_string(
             "web/projects/_bulk_context_menu.html",
@@ -4053,6 +4293,7 @@ def bulk_context_menu(request):
                 "workspace_members": members,
                 "workspace_projects": projects,
                 "workspace_labels": labels,
+                "workspace_cycles": cycles,
             },
             request=request,
         ),
@@ -5126,6 +5367,26 @@ class WorkspaceSettingsView(LoginRequiredMixin, TemplateView):
         ctx["wip_mode"] = wip_mode
         ctx["wip_mode_choices"] = Workspace.WIP_MODE_CHOICES
         ctx["wip_status_rows"] = [(s, Task.STATUS_LABELS[s], wip_limits.get(s, "")) for s in Task.KANBAN_STATUS_VALUES]
+        # Cadence (cycles) panel: current config for the form + a live
+        # preview of the active / upcoming cycle. ``ensure_cycles`` is
+        # idempotent, so loading the page also materializes the rolling
+        # windows when cadence is on.
+        cycle_cfg = workspace.cycle_config()
+        ctx["cycle_enabled"] = cycle_cfg["enabled"]
+        ctx["cycle_length_weeks"] = cycle_cfg["length_weeks"]
+        ctx["cycle_start_date"] = cycle_cfg["start_date"]
+        ctx["cycle_length_choices"] = [
+            1,
+            2,
+            3,
+            4,
+        ]
+        if cycle_cfg["enabled"]:
+            today = timezone.localdate()
+            ensure_cycles(workspace, today)
+            ctx["cycle_today"] = today
+            ctx["cycle_current"] = current_cycle(workspace, today)
+            ctx["cycle_upcoming"] = workspace.cycles.filter(status=Cycle.PLANNING).order_by("start_date").first()
         return ctx
 
 

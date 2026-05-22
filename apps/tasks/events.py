@@ -32,6 +32,7 @@ WATCHED_EVENT_FIELDS = (
     "parent",
     "labels",
     "project",
+    "cycle",
 )
 
 
@@ -62,6 +63,13 @@ def snapshot_task(task: Task) -> dict[str, Any]:
         "assignee_id": task.assignee_id,
         "parent_id": task.parent_id,
         "project_id": task.project_id,
+        "cycle_id": task.cycle_id,
+        # Cycle label parts captured for the human-readable cycle_changed
+        # event. Read ``task.cycle`` only when the task is in a cycle, so
+        # backlog tasks (cycle_id is None) cost no extra query; assigned
+        # tasks pay one unless the source queryset select_relates cycle.
+        "cycle_number": task.cycle.number if task.cycle_id else None,
+        "cycle_name": task.cycle.name if task.cycle_id else None,
         "number": task.number,
         # User-facing slug before the mutation. Captured so a project move
         # can emit a human-readable ``moved AUD-167 → HRW-89`` event; reads
@@ -189,6 +197,22 @@ def build_diff_events(
                     "to_project_id": task.project_id,
                     "from_slug": old_state.get("slug"),
                     "to_slug": task.slug,
+                },
+                **common,
+            ),
+        )
+
+    if old_state.get("cycle_id") != task.cycle_id:
+        events.append(
+            ActivityLog(
+                event_type="task.cycle_changed",
+                payload={
+                    "from_cycle_id": old_state.get("cycle_id"),
+                    "to_cycle_id": task.cycle_id,
+                    "from_cycle_number": old_state.get("cycle_number"),
+                    "to_cycle_number": task.cycle.number if task.cycle_id else None,
+                    "from_cycle_name": old_state.get("cycle_name"),
+                    "to_cycle_name": task.cycle.name if task.cycle_id else None,
                 },
                 **common,
             ),
@@ -356,7 +380,7 @@ def emit_task_diff_events(
     if events:
         ActivityLog.objects.bulk_create(events)
         task_for_render = (
-            Task.objects.select_related("project__workspace", "assignee")
+            Task.objects.select_related("project__workspace", "assignee", "cycle")
             .prefetch_related("labels", "blocks", "blocked_by")
             .get(pk=task.pk)
         )
@@ -402,7 +426,7 @@ def broadcast_link_change(*, task, target, event_type, payload, actor):
 
     def _fresh(pk):
         return (
-            Task.objects.select_related("project__workspace", "assignee")
+            Task.objects.select_related("project__workspace", "assignee", "cycle")
             .prefetch_related("labels", "blocks", "blocked_by")
             .get(pk=pk)
         )

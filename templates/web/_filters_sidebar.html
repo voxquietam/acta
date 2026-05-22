@@ -325,6 +325,68 @@ rail are queued in [[project-todo-filter-sidebar-presets-views]]
         </div>
       </div>
 
+      {# ---------- Cycle ---------- #}
+      {% if available_cycles %}
+      <div x-data="{
+             open: (() => { const v = localStorage.getItem('acta:filter-sec:cycle'); return v === null ? true : v === '1'; })(),
+             toggle() { this.open = !this.open; localStorage.setItem('acta:filter-sec:cycle', this.open ? '1' : '0'); }
+           }">
+        <button type="button"
+                @click="toggle()"
+                class="w-full flex items-center gap-1.5 px-3 py-2 text-[10px] uppercase tracking-wider text-placeholder-foreground hover:text-foreground font-semibold transition">
+          <span :class="open ? '' : '-rotate-90'" class="inline-flex transition-transform">
+            {% lucide "chevron-down" "w-3 h-3" %}
+          </span>
+          <span class="flex-1 text-left">{% trans "Cycle" %}</span>
+          {% with cc=selected_cycles|length %}
+          <span data-filter-section-count="cycle"
+                class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-300 normal-case tracking-normal{% if not cc %} hidden{% endif %}">{{ cc }}</span>
+          {% endwith %}
+        </button>
+        <div x-show="open" x-cloak class="px-3 pb-3">
+          <div class="flex gap-1 flex-wrap">
+            {% comment %}
+            Include-only chips (cycles OR-combine): Active, each upcoming
+            cycle, then Backlog (no-cycle). No exclude state — cycle is a
+            positive scope, not an axis you carve negatives out of.
+            {% endcomment %}
+            <label class="cursor-pointer" data-filter-name="cycle" data-filter-value="active"
+                   x-data="{ on: {% if 'active' in selected_cycles %}true{% else %}false{% endif %} }"
+                   @acta:filter-reset.window="on = false">
+              <input type="checkbox" name="cycle" value="active" :checked="on" class="peer sr-only"
+                     @change.stop="on = $event.target.checked; $event.target.form.requestSubmit()">
+              <span :class="on ? 'border-brand-400 bg-brand-600 text-white dark:bg-brand-500/25 dark:text-white' : 'border-border bg-background text-subtle-foreground hover:bg-muted'"
+                    class="flex items-center gap-1 px-2 py-1 rounded-md border text-[11px] transition">
+                {% lucide "iteration-cw" "w-3 h-3" %}{% trans "Active" %}
+              </span>
+            </label>
+            {% for cycle in available_cycles %}
+            <label class="cursor-pointer" data-filter-name="cycle" data-filter-value="{{ cycle.id }}"
+                   x-data="{ on: {% if cycle.id|stringformat:'s' in selected_cycles %}true{% else %}false{% endif %} }"
+                   @acta:filter-reset.window="on = false">
+              <input type="checkbox" name="cycle" value="{{ cycle.id }}" :checked="on" class="peer sr-only"
+                     @change.stop="on = $event.target.checked; $event.target.form.requestSubmit()">
+              <span :class="on ? 'border-brand-400 bg-brand-600 text-white dark:bg-brand-500/25 dark:text-white' : 'border-border bg-background text-subtle-foreground hover:bg-muted'"
+                    class="flex items-center gap-1 px-2 py-1 rounded-md border text-[11px] transition">
+                <span class="w-1.5 h-1.5 rounded-full {% if cycle.is_active %}bg-emerald-500{% else %}bg-zinc-600{% endif %}"></span>{{ cycle.display_name }}
+              </span>
+            </label>
+            {% endfor %}
+            <label class="cursor-pointer" data-filter-name="cycle" data-filter-value="backlog"
+                   x-data="{ on: {% if 'backlog' in selected_cycles %}true{% else %}false{% endif %} }"
+                   @acta:filter-reset.window="on = false">
+              <input type="checkbox" name="cycle" value="backlog" :checked="on" class="peer sr-only"
+                     @change.stop="on = $event.target.checked; $event.target.form.requestSubmit()">
+              <span :class="on ? 'border-brand-400 bg-brand-600 text-white dark:bg-brand-500/25 dark:text-white' : 'border-border bg-background text-subtle-foreground hover:bg-muted'"
+                    class="flex items-center gap-1 px-2 py-1 rounded-md border text-[11px] transition">
+                {% trans "Backlog" %}
+              </span>
+            </label>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
       {# ---------- Project ---------- #}
       {% if not filter_hide_project %}
       {% comment %}

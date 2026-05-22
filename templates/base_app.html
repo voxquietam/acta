@@ -114,6 +114,15 @@ Pages extend this and override the `app_main` block.
         <span x-show="$store.sidebar.open" x-cloak>{% trans "Projects" %}</span>
         <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "Projects" %}</span>
       </a>
+      {% if nav_cycles_enabled %}
+      <a href="{% url 'web:cycles_overview' %}"
+         :class="!$store.sidebar.open && 'justify-center'"
+         class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground">
+        {% lucide "iteration-cw" "w-4 h-4 shrink-0" %}
+        <span x-show="$store.sidebar.open" x-cloak>{% trans "Cycles" %}</span>
+        <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "Cycles" %}</span>
+      </a>
+      {% endif %}
       {% endwith %}
     </div>
 

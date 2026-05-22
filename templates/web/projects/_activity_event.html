@@ -43,6 +43,13 @@ with ``truncate`` so the row never wraps.
       <span class="text-placeholder-foreground">→</span>
       {% if event.payload.to_slug %}<a class="acta-task-mention" href="{{ event.payload.to_slug|task_url_from_slug }}">{{ event.payload.to_slug }}</a>{% endif %}
     </span>
+  {% elif event.event_type == "task.cycle_changed" %}
+    {% if event.payload.to_cycle_id %}
+    <span class="text-placeholder-foreground shrink-0">{% trans "moved to cycle" %}</span>
+    <span class="text-foreground truncate">{% if event.payload.to_cycle_name %}{{ event.payload.to_cycle_name }}{% else %}{% blocktrans with n=event.payload.to_cycle_number %}Cycle {{ n }}{% endblocktrans %}{% endif %}</span>
+    {% else %}
+    <span class="text-placeholder-foreground shrink-0 truncate">{% trans "removed from cycle" %}</span>
+    {% endif %}
   {% elif event.event_type == "task.labels_changed" %}
     <span class="text-placeholder-foreground shrink-0">{% trans "changed labels" %}</span>
     <span class="inline-flex items-center gap-1 flex-wrap min-w-0">

@@ -80,6 +80,7 @@ LOCAL_APPS = [
     "apps.workspaces",
     "apps.projects",
     "apps.tasks",
+    "apps.cycles",
     "apps.labels",
     "apps.comments",
     "apps.activity",

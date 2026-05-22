@@ -47,6 +47,7 @@ ALLOWED_UPDATE_FIELDS = {
     "labels_add",
     "labels_remove",
     "project",
+    "cycle",
     "archived",
 }
 
@@ -56,6 +57,7 @@ SCALAR_UPDATE_KEYS = {
     "priority",
     "size",
     "assignee",
+    "cycle",
     "archived",
 }
 
@@ -113,6 +115,8 @@ class BulkUpdateSerializer(serializers.Serializer):
                 raise serializers.ValidationError({key: _("Must be a list of label IDs")})
         if "project" in updates and not isinstance(updates["project"], int):
             raise serializers.ValidationError({"project": _("Must be a project ID (int)")})
+        if "cycle" in updates and updates["cycle"] is not None and not isinstance(updates["cycle"], int):
+            raise serializers.ValidationError({"cycle": _("Must be a cycle ID (int) or null")})
         if "archived" in updates and not isinstance(updates["archived"], bool):
             raise serializers.ValidationError(
                 {"archived": _("Must be a boolean (true to archive, false to unarchive)")}
@@ -152,6 +156,7 @@ def _accessible_task_qs(user, ids):
         )
         .select_related(
             "project__workspace",
+            "cycle",
         )
         .prefetch_related(
             "labels",
@@ -217,6 +222,9 @@ def _bulk_apply_scalars(ids: list[int], updates: dict[str, Any]) -> None:
         payload["size"] = updates["size"]
     if "assignee" in updates:
         payload["assignee_id"] = updates["assignee"]
+    # ``cycle`` is intentionally NOT applied here — it's handled by
+    # :func:`_bulk_apply_cycle` so an explicit assignment can skip planned
+    # (backlog) tasks, which the cadence policy keeps cycle-free.
     now = timezone.now()
     if "archived" in updates:
         # ``archived`` is a request-side bool; the column is a timestamp
@@ -254,6 +262,31 @@ def _resolve_target_project(target_id: int, user) -> Project:
     if not WorkspaceMember.objects.filter(user=user, workspace=project.workspace).exists():
         raise PermissionError("inaccessible target project")
     return project
+
+
+def _resolve_target_cycle(target_id: int):
+    """Load the target cycle for a bulk cycle assignment.
+
+    Args:
+        target_id: Primary key of the cycle tasks are being committed to.
+
+    Returns:
+        The :class:`~apps.cycles.models.Cycle` instance.
+
+    Raises:
+        serializers.ValidationError: If the cycle does not exist. The
+            workspace-match check (a cycle only applies to its own
+            workspace's tasks) is enforced by the caller against the
+            affected tasks.
+    """
+    from apps.cycles.models import Cycle
+
+    try:
+        return Cycle.objects.get(pk=target_id)
+    except Cycle.DoesNotExist as exc:
+        raise serializers.ValidationError(
+            {"cycle": _("Cycle %(id)s not found") % {"id": target_id}},
+        ) from exc
 
 
 def _expand_move_set(
@@ -346,6 +379,64 @@ def _bulk_apply_project_move(
     return number_map
 
 
+def _bulk_apply_cycle(ids: list[int], cycle_value) -> None:
+    """Apply an explicit bulk ``cycle`` set, honouring the backlog rule.
+
+    Clearing (``cycle_value is None``) applies to every task. Assigning a
+    cycle skips ``planned`` tasks — they are the backlog and the cadence
+    policy keeps them cycle-free (mirrors the per-task endpoint guard).
+
+    Args:
+        ids: Task primary keys in the batch.
+        cycle_value: Target cycle id, or ``None`` to clear to backlog.
+    """
+    now = timezone.now()
+    if cycle_value is None:
+        Task.objects.filter(id__in=ids).update(cycle_id=None, updated_at=now)
+        return
+    Task.objects.filter(id__in=ids).exclude(status=Task.STATUS_PLANNED).update(
+        cycle_id=cycle_value,
+        updated_at=now,
+    )
+
+
+def _bulk_apply_cycle_policy(ids: list[int], new_status: str) -> None:
+    """Reconcile cycles after a bulk **status** change (cadence policy).
+
+    Mirrors :func:`apps.cycles.services.apply_cycle_policy` for the bulk
+    path: a move to ``planned`` clears the cycle on every task; a move
+    into committed work (``to-do`` / ``in-progress`` / ``in-review``)
+    pulls each still-backlogged task into its workspace's active cycle.
+    Grouped by workspace so a multi-workspace batch resolves the right
+    cycle. Other target statuses leave cycles untouched.
+
+    Args:
+        ids: Task primary keys that just had their status set.
+        new_status: The status value applied to the whole batch.
+    """
+    now = timezone.now()
+    if new_status == Task.STATUS_PLANNED:
+        Task.objects.filter(id__in=ids).exclude(cycle__isnull=True).update(cycle_id=None, updated_at=now)
+        return
+    if new_status not in (Task.STATUS_TODO, Task.STATUS_IN_PROGRESS, Task.STATUS_IN_REVIEW):
+        return
+    from apps.cycles.services import current_cycle, ensure_cycles
+    from apps.workspaces.models import Workspace
+
+    by_workspace: dict[int, list[int]] = {}
+    rows = Task.objects.filter(id__in=ids, cycle__isnull=True).values_list("id", "project__workspace_id")
+    for task_id, workspace_id in rows:
+        by_workspace.setdefault(workspace_id, []).append(task_id)
+    for workspace_id, task_ids in by_workspace.items():
+        workspace = Workspace.objects.get(pk=workspace_id)
+        if not workspace.cycle_config()["enabled"]:
+            continue
+        ensure_cycles(workspace)
+        active = current_cycle(workspace)
+        if active is not None:
+            Task.objects.filter(id__in=task_ids).update(cycle_id=active.id, updated_at=now)
+
+
 def _bulk_apply_labels(ids: list[int], add_label_ids: list[int], remove_label_ids: list[int]) -> None:
     """Bulk add and remove labels on a set of tasks via the through table.
 
@@ -403,6 +494,16 @@ def _run_bulk_update(*, user, ids: list[int], updates: dict[str, Any]) -> tuple[
                 },
             )
 
+    if updates.get("cycle") is not None:
+        target_cycle = _resolve_target_cycle(updates["cycle"])
+        bad = [t.id for t in pre_requested if t.project.workspace_id != target_cycle.workspace_id]
+        if bad:
+            raise serializers.ValidationError(
+                {
+                    "cycle": _("Cycle not in the affected workspace for tasks: %(ids)s") % {"ids": sorted(bad)},
+                },
+            )
+
     if target_project is not None:
         full_ids, parent_clear_ids = _expand_move_set(requested, target_project.id)
     else:
@@ -418,7 +519,9 @@ def _run_bulk_update(*, user, ids: list[int], updates: dict[str, Any]) -> tuple[
         # Snapshot full set (requested + cascaded) so cascaded subtasks
         # also get their project/number change recorded in activity log.
         pre_all_tasks = list(
-            Task.objects.filter(id__in=full_ids).select_related("project__workspace").prefetch_related("labels"),
+            Task.objects.filter(id__in=full_ids)
+            .select_related("project__workspace", "cycle")
+            .prefetch_related("labels"),
         )
         snapshots = {t.id: snapshot_task(t) for t in pre_all_tasks}
 
@@ -430,6 +533,14 @@ def _run_bulk_update(*, user, ids: list[int], updates: dict[str, Any]) -> tuple[
         scalar_updates = {k: v for k, v in updates.items() if k in SCALAR_UPDATE_KEYS}
         if scalar_updates:
             _bulk_apply_scalars(list(requested), scalar_updates)
+        # Cycle: explicit set first, then the status-driven cadence policy
+        # (a status change reconciles cycles for tasks that didn't get an
+        # explicit cycle in the same request). Both run before the
+        # post-state reload so the diff captures task.cycle_changed.
+        if "cycle" in updates:
+            _bulk_apply_cycle(list(requested), updates["cycle"])
+        elif "status" in updates:
+            _bulk_apply_cycle_policy(list(requested), updates["status"])
         _bulk_apply_labels(list(requested), add_label_ids, remove_label_ids)
 
         # ``select_related('assignee')`` matters for the SSE card
@@ -437,7 +548,7 @@ def _run_bulk_update(*, user, ids: list[int], updates: dict[str, Any]) -> tuple[
         # Without it the broadcast loop would fire one SELECT per task.
         post_tasks = list(
             Task.objects.filter(id__in=full_ids)
-            .select_related("project__workspace", "assignee")
+            .select_related("project__workspace", "assignee", "cycle")
             .prefetch_related("labels", "blocks", "blocked_by"),
         )
         all_events: list[ActivityLog] = []

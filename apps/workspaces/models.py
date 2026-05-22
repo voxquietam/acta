@@ -71,6 +71,42 @@ class Workspace(models.Model):
         ),
     )
 
+    cycle_settings = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            'Cadence config for workspace cycles as {"enabled": bool, "length_weeks": int, '
+            '"start_date": "YYYY-MM-DD"}. start_date is the anchor of cycle 1; subsequent '
+            "cycles roll automatically every length_weeks. Empty / disabled hides cycles"
+        ),
+    )
+
+    CYCLE_DEFAULT_LENGTH_WEEKS = 2
+    CYCLE_MAX_LENGTH_WEEKS = 8
+
+    def cycle_config(self):
+        """Return the normalised cadence config from :attr:`cycle_settings`.
+
+        Returns:
+            A dict ``{"enabled": bool, "length_weeks": int, "start_date":
+            str | None}``. ``length_weeks`` is clamped to ``1..
+            CYCLE_MAX_LENGTH_WEEKS`` and ``start_date`` is the ISO anchor
+            string (``None`` when unset). A disabled config still reports
+            its stored length / anchor so the settings form round-trips.
+        """
+        raw = self.cycle_settings or {}
+        try:
+            length = int(raw.get("length_weeks") or self.CYCLE_DEFAULT_LENGTH_WEEKS)
+        except (TypeError, ValueError):
+            length = self.CYCLE_DEFAULT_LENGTH_WEEKS
+        length = max(1, min(length, self.CYCLE_MAX_LENGTH_WEEKS))
+        start = raw.get("start_date") or None
+        return {
+            "enabled": bool(raw.get("enabled")) and start is not None,
+            "length_weeks": length,
+            "start_date": start,
+        }
+
     def wip_config(self):
         """Return ``(mode, limits)`` from :attr:`wip_limits`, normalised.
 

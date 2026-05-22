@@ -55,5 +55,6 @@ def workspace_nav(request):
         "nav_workspaces": workspaces,
         "active_workspace": active_nav,
         "nav_has_favourites": bool(active_nav and getattr(active_nav, "favourite_projects", None)),
+        "nav_cycles_enabled": bool(active and active.cycle_config()["enabled"]),
         "inbox_unread": unread,
     }

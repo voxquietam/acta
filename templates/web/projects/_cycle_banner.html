@@ -1,0 +1,35 @@
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+Active-cycle header — shown when the view is filtered to a single cycle
+(``?cycle=active`` or ``?cycle=<id>``). Compact strip: cycle name +
+days-remaining, done/total tasks + story points, and a progress bar.
+Expects ``cycle_banner`` flattened into context: ``cycle``, ``total``,
+``done``, ``points_total``, ``points_done``, ``percent``,
+``days_remaining``.
+{% endcomment %}
+<div class="bg-card border border-border rounded-lg px-4 py-2.5 mb-3 flex items-center gap-4 flex-wrap">
+  <div class="flex items-center gap-2 min-w-0">
+    <span class="w-1.5 h-1.5 rounded-full {% if cycle_banner.cycle.is_active %}bg-emerald-500{% else %}bg-zinc-600{% endif %} shrink-0"></span>
+    <span class="text-sm font-medium text-foreground truncate">{{ cycle_banner.cycle.display_name }}</span>
+    <span class="text-xs text-placeholder-foreground shrink-0">{{ cycle_banner.cycle.start_date|date:"M j" }} – {{ cycle_banner.cycle.end_date|date:"M j" }}</span>
+  </div>
+
+  {% if cycle_banner.cycle.is_active %}
+  <span class="text-xs text-subtle-foreground shrink-0 inline-flex items-center gap-1">
+    {% lucide "clock" "w-3.5 h-3.5" %}
+    {% blocktrans count days=cycle_banner.days_remaining %}{{ days }} day left{% plural %}{{ days }} days left{% endblocktrans %}
+  </span>
+  {% endif %}
+
+  <div class="flex items-center gap-3 ml-auto text-xs text-subtle-foreground shrink-0">
+    <span class="tabular-nums">{% blocktrans with done=cycle_banner.done total=cycle_banner.total %}{{ done }} / {{ total }} done{% endblocktrans %}</span>
+    {% if cycle_banner.points_total %}
+    <span class="tabular-nums inline-flex items-center gap-1">{% lucide "gauge" "w-3.5 h-3.5" %}{{ cycle_banner.points_done }} / {{ cycle_banner.points_total }}</span>
+    {% endif %}
+  </div>
+
+  <div class="w-full h-1 rounded-full bg-muted overflow-hidden">
+    <div class="h-full bg-emerald-500 transition-all" style="width: {{ cycle_banner.percent }}%;"></div>
+  </div>
+</div>
