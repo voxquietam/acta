@@ -85,6 +85,7 @@ LOCAL_APPS = [
     "apps.activity",
     "apps.notifications",
     "apps.reactions",
+    "apps.attachments",
     "apps.web",
     "apps.mcp",
 ]
