@@ -7,8 +7,7 @@ Shared by top-level comments and replies. Expects ``comment``.
 <div class="px-4 py-3">
   <div class="flex items-center gap-2 mb-1.5 text-xs">
     {% if comment.author %}
-    <span class="w-6 h-6 rounded-full text-white grid place-items-center font-medium text-[11px] shrink-0"
-          style="background-color: {{ comment.author.avatar_color }};">{{ comment.author.display_name|slice:":1"|upper }}</span>
+    {% include "web/_user_avatar.html" with user=comment.author class="w-6 h-6 shrink-0" text_class="text-[11px]" %}
     <span class="font-medium text-foreground">{{ comment.author.display_name }}</span>
     {% else %}
     <span class="w-6 h-6 rounded-full bg-muted text-placeholder-foreground grid place-items-center text-[11px] shrink-0">?</span>

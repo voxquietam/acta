@@ -64,10 +64,7 @@ themselves only when they are also admin / owner per the guard in
     <li class="flex items-center justify-between gap-3 py-1.5">
 
       <div class="flex items-center gap-3 min-w-0">
-        <span class="w-9 h-9 rounded-full text-white grid place-items-center font-medium text-xs shrink-0"
-              style="background-color: {{ m.user.avatar_color }};">
-          {{ m.user.display_name|slice:":1"|upper }}
-        </span>
+        {% include "web/_user_avatar.html" with user=m.user class="w-9 h-9 shrink-0" text_class="text-xs" %}
         <div class="min-w-0">
           <div class="text-sm text-foreground truncate">
             {{ m.user.display_name }}

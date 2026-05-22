@@ -9,10 +9,7 @@ Expects ``comment`` (a reply).
 {% endcomment %}
 <div id="comment-{{ comment.id }}" class="group border-t border-border px-3 py-2.5 pl-8 scroll-mt-20">
   <div class="flex items-center gap-2 text-xs text-placeholder-foreground mb-1.5">
-    <span class="w-5 h-5 rounded-full text-white grid place-items-center font-medium text-[10px]"
-          style="background-color: {{ comment.author.avatar_color }};">
-      {{ comment.author.display_name|slice:":1"|upper }}
-    </span>
+    {% include "web/_user_avatar.html" with user=comment.author class="w-5 h-5" text_class="text-[10px]" %}
     <span class="text-muted-foreground">{{ comment.author.display_name }}</span>
     {% if comment.was_edited %}
     <span class="italic">({% trans "edited" %})</span>

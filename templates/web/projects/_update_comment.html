@@ -23,8 +23,7 @@ Expects ``comment`` (a top-level comment).
         class="flex items-end gap-2 px-4 py-2.5 border-t border-border">
     {% csrf_token %}
     {% if user.is_authenticated %}
-    <span class="w-6 h-6 rounded-full text-white grid place-items-center font-medium text-[11px] shrink-0"
-          style="background-color: {{ user.avatar_color }};">{{ user.display_name|slice:":1"|upper }}</span>
+    {% include "web/_user_avatar.html" with user=user class="w-6 h-6 shrink-0" text_class="text-[11px]" %}
     {% endif %}
     <textarea x-ref="ta" name="body" required rows="1" placeholder="{% trans 'Leave a reply…' %}"
               oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"

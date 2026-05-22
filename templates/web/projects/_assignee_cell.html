@@ -50,10 +50,7 @@ dropdown focused on member selection rather than mixing in a no-op
             class="cursor-pointer text-left">
       {% if task.assignee %}
       <div class="flex items-center gap-1.5">
-        <span class="w-5 h-5 rounded-full text-white grid place-items-center font-medium text-[10px]"
-              style="background-color: {{ task.assignee.avatar_color }};">
-          {{ task.assignee.display_name|slice:":1"|upper }}
-        </span>
+        {% include "web/_user_avatar.html" with user=task.assignee class="w-5 h-5" text_class="text-[10px]" %}
         <span class="text-muted-foreground">{{ task.assignee.display_name }}</span>
       </div>
       {% else %}
@@ -110,10 +107,7 @@ dropdown focused on member selection rather than mixing in a no-op
         <button type="submit"
                 class="w-full text-left px-3 py-1.5 text-xs hover:bg-muted flex items-center gap-2
                   {% if task.assignee_id == member.user.id %}font-medium text-white bg-muted/60{% else %}text-muted-foreground{% endif %}">
-          <span class="w-5 h-5 rounded-full text-white grid place-items-center font-medium text-[10px]"
-                style="background-color: {{ member.user.avatar_color }};">
-            {{ member.user.display_name|slice:":1"|upper }}
-          </span>
+          {% include "web/_user_avatar.html" with user=member.user class="w-5 h-5" text_class="text-[10px]" %}
           <span class="flex-1">{{ member.user.display_name }}</span>
           {% if task.assignee_id == member.user.id %}<span class="text-placeholder-foreground">✓</span>{% endif %}
         </button>

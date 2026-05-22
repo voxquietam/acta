@@ -60,8 +60,7 @@ Members with role badges.
         <span class="inline-flex items-center gap-1.5">
           <span class="text-placeholder-foreground">{% lucide "star" "w-3 h-3" %}</span>
           {% trans "Lead" %}
-          <span class="w-5 h-5 rounded-full text-white grid place-items-center font-medium text-[10px]"
-                style="background-color: {{ project.lead.avatar_color }};">{{ project.lead.display_name|slice:":1"|upper }}</span>
+          {% include "web/_user_avatar.html" with user=project.lead class="w-5 h-5" text_class="text-[10px]" %}
           <span class="text-foreground">{{ project.lead.display_name }}</span>
         </span>
         {% endif %}

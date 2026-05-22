@@ -39,10 +39,7 @@ card for a new top-level comment; replies append via ``_comment_reply``.
 <li id="comment-{{ comment.id }}" class="group bg-card border border-border rounded-lg overflow-hidden scroll-mt-20">
   <div class="p-3">
     <div class="flex items-center gap-2 text-xs text-placeholder-foreground mb-1.5">
-      <span class="w-5 h-5 rounded-full text-white grid place-items-center font-medium text-[10px]"
-            style="background-color: {{ comment.author.avatar_color }};">
-        {{ comment.author.display_name|slice:":1"|upper }}
-      </span>
+      {% include "web/_user_avatar.html" with user=comment.author class="w-5 h-5" text_class="text-[10px]" %}
       <span class="text-muted-foreground">{{ comment.author.display_name }}</span>
       {% if comment.was_edited %}
       <span class="italic">({% trans "edited" %})</span>

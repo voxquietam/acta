@@ -29,8 +29,7 @@ success the editor clears so a follow-up reply is ready. Expects ``task``
       class="flex items-end gap-2 px-3 py-2.5 pl-8 border-t border-border">
   {% csrf_token %}
   {% if user.is_authenticated %}
-  <span class="w-6 h-6 rounded-full text-white grid place-items-center font-medium text-[11px] shrink-0"
-        style="background-color: {{ user.avatar_color }};">{{ user.display_name|slice:":1"|upper }}</span>
+  {% include "web/_user_avatar.html" with user=user class="w-6 h-6 shrink-0" text_class="text-[11px]" %}
   {% endif %}
   <div data-description-editor
        data-no-autosave

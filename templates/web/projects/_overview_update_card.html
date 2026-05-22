@@ -8,8 +8,7 @@ to ``#overview-updates-list``). Expects ``update`` + ``health_labels``.
 <div id="overview-update-{{ update.id }}" class="group bg-background border border-border rounded-lg p-4">
   <div class="flex items-center gap-2 mb-2">
     {% if update.author %}
-    <span class="w-[22px] h-[22px] rounded-full text-white grid place-items-center font-medium text-[11px]"
-          style="background-color: {{ update.author.avatar_color }};">{{ update.author.display_name|slice:":1"|upper }}</span>
+    {% include "web/_user_avatar.html" with user=update.author class="w-[22px] h-[22px]" text_class="text-[11px]" %}
     <span class="text-[12px] text-foreground font-medium">{{ update.author.display_name }}</span>
     {% else %}
     <span class="w-[22px] h-[22px] rounded-full bg-muted text-placeholder-foreground grid place-items-center text-[11px]">?</span>

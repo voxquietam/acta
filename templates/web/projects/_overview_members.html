@@ -12,10 +12,7 @@ dropdown is the same endpoint, just adding.
   <ul class="flex flex-wrap gap-2">
     {% for member in members %}
     <li class="group flex items-center gap-1.5 bg-muted/60 border border-border dark:border-transparent rounded-full pl-1 pr-2 py-0.5 text-xs">
-      <span class="w-5 h-5 rounded-full text-white grid place-items-center font-medium text-[10px]"
-            style="background-color: {{ member.avatar_color }};">
-        {{ member.display_name|slice:":1"|upper }}
-      </span>
+      {% include "web/_user_avatar.html" with user=member class="w-5 h-5" text_class="text-[10px]" %}
       <span class="text-muted-foreground">{{ member.display_name }}</span>
       <form hx-post="{% url 'web:toggle_project_member' slug_prefix=project.slug_prefix %}"
             hx-target="#project-members-cell"
@@ -56,10 +53,7 @@ dropdown is the same endpoint, just adding.
         <input type="hidden" name="user_id" value="{{ candidate.id }}">
         <button type="submit"
                 class="w-full text-left px-3 py-1.5 text-xs hover:bg-muted flex items-center gap-2 text-muted-foreground">
-          <span class="w-5 h-5 rounded-full text-white grid place-items-center font-medium text-[10px]"
-                style="background-color: {{ candidate.avatar_color }};">
-            {{ candidate.display_name|slice:":1"|upper }}
-          </span>
+          {% include "web/_user_avatar.html" with user=candidate class="w-5 h-5" text_class="text-[10px]" %}
           <span class="flex-1">{{ candidate.display_name }}</span>
         </button>
       </form>
