@@ -34,6 +34,7 @@ success the editor clears so a follow-up reply is ready. Expects ``task``
   <div data-description-editor
        data-no-autosave
        data-mention-url="{% url 'web:mention_search' slug_prefix=task.project.slug_prefix %}"
+       data-image-upload-url="{% url 'web:upload_task_inline_image' slug_prefix=task.project.slug_prefix number=task.number %}"
        data-placeholder="{% trans 'Write a reply…' %}"
        class="flex-1 min-w-0">
     <input type="hidden" name="body" value="" data-editor-output>

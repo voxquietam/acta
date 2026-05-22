@@ -2899,11 +2899,12 @@ def serve_attachment(request, pk):
 
 @require_POST
 @login_required
-def upload_task_description_image(request, slug_prefix, number):
-    """Store an image embedded in a task description; return ``{"url": …}``.
+def upload_task_inline_image(request, slug_prefix, number):
+    """Store an image embedded in a task's description or a comment on it.
 
-    Called by the TipTap editor's paste/drop handler. The returned URL is
-    the auth-gated serve endpoint, which the editor inserts as an
+    Called by the TipTap editor's paste/drop handler (description cell and
+    the comment composers). The image is owned by the task; the returned
+    URL is the auth-gated serve endpoint, which the editor inserts as an
     ``<img>`` and the saved markdown references as ``![](url)``.
     """
     task = _get_user_task_or_404(request.user, slug_prefix, number)
@@ -2926,7 +2927,7 @@ def upload_task_description_image(request, slug_prefix, number):
 
 @require_POST
 @login_required
-def upload_project_description_image(request, slug_prefix):
+def upload_project_inline_image(request, slug_prefix):
     """Store an image embedded in a project description; return ``{"url": …}``."""
     project = _get_user_project_or_404(request.user, slug_prefix)
     upload = request.FILES.get("image")

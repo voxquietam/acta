@@ -28,7 +28,7 @@ safety net for navigation-without-blur scenarios.
 <div id="description-cell"
      data-description-editor
      data-mention-url="{% url 'web:mention_search' slug_prefix=task.project.slug_prefix %}"
-     data-image-upload-url="{% url 'web:upload_task_description_image' slug_prefix=task.project.slug_prefix number=task.number %}"
+     data-image-upload-url="{% url 'web:upload_task_inline_image' slug_prefix=task.project.slug_prefix number=task.number %}"
      data-baseline="{{ task.description|default:'' }}"
      data-placeholder="{% trans 'Write a description…' %}">
   {% comment %}
@@ -66,5 +66,8 @@ safety net for navigation-without-blur scenarios.
     {% include "web/projects/_editor_toolbar.html" %}
 
     <div class="description-editor-mount min-h-[6rem] hidden"></div>
+    <p class="description-editor-hint mt-1 text-[10px] text-placeholder-foreground hidden">
+      {% trans "Paste or drop an image to embed it · double-click an image to preview" %}
+    </p>
   </form>
 </div>

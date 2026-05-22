@@ -58,7 +58,7 @@ class TestUploadViews:
         ws, _, task = setup
         client.force_login(ws.owner)
         url = reverse(
-            "web:upload_task_description_image",
+            "web:upload_task_inline_image",
             kwargs={"slug_prefix": task.project.slug_prefix, "number": task.number},
         )
         resp = client.post(url, {"image": png_upload(size=(64, 64))})
@@ -72,7 +72,7 @@ class TestUploadViews:
         ws, _, task = setup
         client.force_login(UserFactory())
         url = reverse(
-            "web:upload_task_description_image",
+            "web:upload_task_inline_image",
             kwargs={"slug_prefix": task.project.slug_prefix, "number": task.number},
         )
         resp = client.post(url, {"image": png_upload()})
@@ -82,7 +82,7 @@ class TestUploadViews:
         ws, _, task = setup
         client.force_login(ws.owner)
         url = reverse(
-            "web:upload_task_description_image",
+            "web:upload_task_inline_image",
             kwargs={"slug_prefix": task.project.slug_prefix, "number": task.number},
         )
         resp = client.post(url, {"image": text_upload()})
@@ -92,7 +92,7 @@ class TestUploadViews:
     def test_project_member_uploads(self, client, setup):
         ws, project, _ = setup
         client.force_login(ws.owner)
-        url = reverse("web:upload_project_description_image", kwargs={"slug_prefix": project.slug_prefix})
+        url = reverse("web:upload_project_inline_image", kwargs={"slug_prefix": project.slug_prefix})
         resp = client.post(url, {"image": png_upload(size=(64, 64))})
         assert resp.status_code == 200
         assert Attachment.objects.filter(project=project, kind=Attachment.KIND_INLINE_IMAGE).count() == 1

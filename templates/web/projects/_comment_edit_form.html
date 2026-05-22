@@ -23,6 +23,7 @@ the ``(edited)`` marker). Cancel re-fetches the unchanged card via
   <div data-description-editor
        data-no-autosave
        data-mention-url="{% url 'web:mention_search' slug_prefix=task.project.slug_prefix %}"
+       data-image-upload-url="{% url 'web:upload_task_inline_image' slug_prefix=task.project.slug_prefix number=task.number %}"
        data-placeholder="{% trans 'Edit comment…' %}">
     <input type="hidden" name="body" value="" data-editor-output>
     <textarea class="description-editor-source hidden" readonly>{{ comment.body }}</textarea>
