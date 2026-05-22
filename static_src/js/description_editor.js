@@ -28,10 +28,42 @@ import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import Highlight from "@tiptap/extension-highlight";
 import Typography from "@tiptap/extension-typography";
+import Image from "@tiptap/extension-image";
 import { Markdown } from "tiptap-markdown";
 import { buildMention } from "./mention.js";
 
 const INSTANCES = new WeakMap();
+
+// Read Django's CSRF cookie for the inline-image upload fetch (the editor
+// posts multipart, not through an HTMX form, so it sets the header itself).
+function getCsrfToken() {
+  const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : "";
+}
+
+// Upload one image file to the mount's ``data-image-upload-url`` and return
+// the stored URL to embed, or null on failure (with a toast).
+async function uploadInlineImage(file, url) {
+  const body = new FormData();
+  body.append("image", file);
+  try {
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "X-CSRFToken": getCsrfToken() },
+      body,
+    });
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => ({}));
+      if (window.actaToast) window.actaToast(data.error || "Image upload failed", "error");
+      return null;
+    }
+    const data = await resp.json();
+    return data.url || null;
+  } catch (e) {
+    if (window.actaToast) window.actaToast("Image upload failed", "error");
+    return null;
+  }
+}
 
 // Custom selection bubble (no positioning library, no portaling — the
 // two things that broke the tippy attempts). We position our own toolbar
@@ -151,6 +183,12 @@ function initEditor(root) {
         multicolor: false,
       }),
       Typography,
+      // Image node — always registered so existing ``![](url)`` markdown
+      // renders inline; uploading (paste/drop) is wired below and only
+      // active where the mount declares ``data-image-upload-url``.
+      Image.configure({
+        HTMLAttributes: { class: "rounded-lg max-h-96" },
+      }),
       Markdown.configure({
         html: false,
         breaks: false,
@@ -170,6 +208,40 @@ function initEditor(root) {
         // here — the editor auto-grows with content; each mount sets its
         // own floor (comments stay short, descriptions reserve more).
         class: "prose dark:prose-invert prose-sm max-w-none focus:outline-none",
+      },
+      // Paste/drop image upload — only on mounts that declare an upload
+      // endpoint (task & project descriptions, where the owner exists).
+      // Each image is uploaded then inserted; non-image payloads fall
+      // through to the default handlers.
+      handlePaste(view, event) {
+        const url = root.dataset.imageUploadUrl;
+        if (!url) return false;
+        const files = Array.from(event.clipboardData?.files || []).filter((f) => f.type.startsWith("image/"));
+        if (!files.length) return false;
+        event.preventDefault();
+        files.forEach(async (file) => {
+          const src = await uploadInlineImage(file, url);
+          if (src) editor.chain().focus().setImage({ src }).run();
+        });
+        return true;
+      },
+      handleDrop(view, event) {
+        const url = root.dataset.imageUploadUrl;
+        if (!url) return false;
+        const files = Array.from(event.dataTransfer?.files || []).filter((f) => f.type.startsWith("image/"));
+        if (!files.length) return false;
+        event.preventDefault();
+        const pos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos;
+        files.forEach(async (file) => {
+          const src = await uploadInlineImage(file, url);
+          if (!src) return;
+          if (pos != null) {
+            editor.chain().focus().insertContentAt(pos, { type: "image", attrs: { src } }).run();
+          } else {
+            editor.chain().focus().setImage({ src }).run();
+          }
+        });
+        return true;
       },
     },
     onUpdate({ editor }) {

@@ -18,6 +18,7 @@ controls hovering above it.
 {% endcomment %}
 <div id="project-description-cell"
      data-description-editor
+     data-image-upload-url="{% url 'web:upload_project_description_image' slug_prefix=project.slug_prefix %}"
      data-baseline="{{ project.description|default:'' }}"
      data-placeholder="{% trans 'Write a description…' %}">
 
