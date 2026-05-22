@@ -706,16 +706,10 @@ class TestEditDeleteComment:
     """Edit + delete on task comments (author or workspace admin/owner)."""
 
     def _edit_url(self, project, task, comment):
-        return reverse(
-            "web:edit_comment",
-            kwargs={"slug_prefix": project.slug_prefix, "number": task.number, "comment_id": comment.id},
-        )
+        return reverse("web:edit_comment", kwargs={"comment_id": comment.id})
 
     def _delete_url(self, project, task, comment):
-        return reverse(
-            "web:delete_comment",
-            kwargs={"slug_prefix": project.slug_prefix, "number": task.number, "comment_id": comment.id},
-        )
+        return reverse("web:delete_comment", kwargs={"comment_id": comment.id})
 
     def test_author_edits_comment(self, client, setup):
         user, project, task = setup
@@ -814,12 +808,7 @@ class TestEditDeleteComment:
         user, project, task = setup
         c = Comment.objects.create(task=task, author=user, body="orig text")
         client.force_login(user)
-        resp = client.get(
-            reverse(
-                "web:comment_edit_form",
-                kwargs={"slug_prefix": project.slug_prefix, "number": task.number, "comment_id": c.id},
-            ),
-        )
+        resp = client.get(reverse("web:comment_edit_form", kwargs={"comment_id": c.id}))
         assert resp.status_code == 200
         body = resp.content.decode()
         assert "orig text" in body

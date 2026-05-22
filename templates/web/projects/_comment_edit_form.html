@@ -1,29 +1,27 @@
 {% load i18n %}
 {% comment %}
-Inline edit composer for one task comment. Loaded via ``hx-get`` into the
-comment's ``#comment-body-<id>`` region (innerHTML), so the header above
-(avatar / author / date) stays put and the card barely shifts — only the
-body turns editable (Linear-style). The editor mounts on
-``htmx:afterSwap``, pre-filled from the Markdown body via the
-``.description-editor-source`` textarea.
+Inline edit composer for one comment — task OR project-update. Loaded via
+``hx-get`` into the comment's body region (innerHTML), so the header above
+stays put and only the body turns editable (Linear-style). The editor
+mounts on ``htmx:afterSwap``, pre-filled from the Markdown body.
 
-Save posts to ``edit_comment`` and replaces the whole card
-(``#comment-<id>`` outerHTML) with the refreshed render (header then shows
-the ``(edited)`` marker). Cancel re-fetches the unchanged card via
-``comment_fragment`` (also tearing the editor down cleanly). Expects
-``task`` + ``comment``.
+Save posts to the owner-agnostic ``edit_comment`` and replaces the whole
+card (``#<card_id>`` outerHTML) with the refreshed render; Cancel re-fetches
+the unchanged card via ``comment_fragment``. The view passes ``card_id``,
+``mention_url`` and ``image_url`` (owner-aware endpoints). Expects
+``comment``.
 {% endcomment %}
 <form x-data="{ empty: false }"
       @editor:change="empty = $event.detail.empty"
-      hx-post="{% url 'web:edit_comment' slug_prefix=task.project.slug_prefix number=task.number comment_id=comment.id %}"
-      hx-target="#comment-{{ comment.id }}"
+      hx-post="{% url 'web:edit_comment' comment_id=comment.id %}"
+      hx-target="#{{ card_id }}"
       hx-swap="outerHTML"
       class="space-y-2">
   {% csrf_token %}
   <div data-description-editor
        data-no-autosave
-       data-mention-url="{% url 'web:mention_search' slug_prefix=task.project.slug_prefix %}"
-       data-image-upload-url="{% url 'web:upload_task_inline_image' slug_prefix=task.project.slug_prefix number=task.number %}"
+       {% if mention_url %}data-mention-url="{{ mention_url }}"{% endif %}
+       {% if image_url %}data-image-upload-url="{{ image_url }}"{% endif %}
        data-placeholder="{% trans 'Edit comment…' %}">
     <input type="hidden" name="body" value="" data-editor-output>
     <textarea class="description-editor-source hidden" readonly>{{ comment.body }}</textarea>
@@ -34,8 +32,8 @@ the ``(edited)`` marker). Cancel re-fetches the unchanged card via
   </div>
   <div class="flex items-center justify-end gap-2">
     <button type="button"
-            hx-get="{% url 'web:comment_fragment' slug_prefix=task.project.slug_prefix number=task.number comment_id=comment.id %}"
-            hx-target="#comment-{{ comment.id }}"
+            hx-get="{% url 'web:comment_fragment' comment_id=comment.id %}"
+            hx-target="#{{ card_id }}"
             hx-swap="outerHTML"
             class="px-3 py-1.5 text-xs rounded-md text-placeholder-foreground hover:text-foreground transition">
       {% trans "Cancel" %}

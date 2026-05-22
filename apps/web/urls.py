@@ -294,22 +294,22 @@ urlpatterns = [
         name="comment_reply_form",
     ),
     path(
-        "projects/<str:slug_prefix>/<int:number>/comments/<int:comment_id>/fragment/",
+        "comments/<int:comment_id>/fragment/",
         comment_fragment,
         name="comment_fragment",
     ),
     path(
-        "projects/<str:slug_prefix>/<int:number>/comments/<int:comment_id>/edit-form/",
+        "comments/<int:comment_id>/edit-form/",
         comment_edit_form,
         name="comment_edit_form",
     ),
     path(
-        "projects/<str:slug_prefix>/<int:number>/comments/<int:comment_id>/edit/",
+        "comments/<int:comment_id>/edit/",
         edit_comment,
         name="edit_comment",
     ),
     path(
-        "projects/<str:slug_prefix>/<int:number>/comments/<int:comment_id>/delete/",
+        "comments/<int:comment_id>/delete/",
         delete_comment,
         name="delete_comment",
     ),

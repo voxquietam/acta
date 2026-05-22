@@ -2131,40 +2131,98 @@ def _task_comments(task, user_id):
     return comments
 
 
-def _render_comment_card(request, task, comment_id):
-    """Render one comment's card/row fresh, fully decorated.
+def _get_user_comment_or_404(user, comment_id):
+    """Fetch a comment (task- or project-update-owned) the user may access.
 
-    Used by the edit (save) and cancel paths to re-render a single comment
-    in place. Picks ``_comment.html`` for a top-level comment (replies
-    nested) or ``_comment_reply.html`` for a reply.
+    The membership filter spans both owner types so the unified comment
+    edit/delete endpoints work for either; a comment in a workspace the
+    user isn't a member of 404s.
 
     Args:
-        request: The current request (its user drives ``can_modify``).
-        task: The owning :class:`Task`.
-        comment_id: PK of the comment to render.
+        user: The acting :class:`User`.
+        comment_id: PK of the comment.
 
     Returns:
-        An :class:`HttpResponse` with the rendered fragment.
+        The :class:`apps.comments.models.Comment`, owners eager-loaded.
     """
-    comment = get_object_or_404(
-        task.comments.select_related("author").prefetch_related(
-            "replies__author",
-            "attachments",
-            "replies__attachments",
+    return get_object_or_404(
+        Comment.objects.select_related(
+            "author",
+            "task__project__workspace",
+            "project_update__project__workspace",
+        ).filter(
+            Q(task__project__workspace__memberships__user=user)
+            | Q(project_update__project__workspace__memberships__user=user)
         ),
         pk=comment_id,
     )
-    _decorate_comments([comment], task, request.user.id)
-    template = "web/projects/_comment_reply.html" if comment.parent_id else "web/projects/_comment.html"
-    return HttpResponse(render_to_string(template, {"comment": comment}, request=request))
 
 
-def _can_modify_comment(user, comment, task):
-    """Return True if ``user`` may edit/delete ``comment`` on ``task``.
+def _comment_owner(comment):
+    """Return ``(workspace, project, kind)`` for a comment's owner.
 
-    Allowed for the comment's author or any workspace owner/admin.
+    ``kind`` is ``"task"`` or ``"update"``. Both owner types resolve to a
+    project + workspace, which drive permission checks and the editor's
+    mention / image-upload endpoints.
     """
-    return comment.author_id == user.id or _is_workspace_admin(user.id, task.project.workspace_id)
+    if comment.task_id:
+        return comment.task.project.workspace, comment.task.project, "task"
+    return comment.project_update.project.workspace, comment.project_update.project, "update"
+
+
+def _can_modify_any_comment(user, comment):
+    """Return True if ``user`` may edit/delete ``comment`` (either owner).
+
+    Allowed for the author or a workspace owner/admin.
+    """
+    workspace, _project, _kind = _comment_owner(comment)
+    return comment.author_id == user.id or _is_workspace_admin(user.id, workspace.id)
+
+
+def _render_any_comment_card(request, comment):
+    """Re-render one comment's card fresh + decorated, picking by owner.
+
+    Task comments render the task card (``_comment`` / ``_comment_reply``)
+    decorated via :func:`_decorate_comments`; project-update comments render
+    the update card (``_update_comment`` / ``_update_comment_reply``) with
+    ``can_modify`` + ``reaction_summary`` attached. Used by the unified
+    edit (save) and fragment (cancel) paths.
+
+    Args:
+        request: The current request (its user drives ``can_modify``).
+        comment: The :class:`Comment` to re-render.
+
+    Returns:
+        An :class:`HttpResponse` with the rendered card fragment.
+    """
+    _workspace, _project, kind = _comment_owner(comment)
+    if kind == "task":
+        task = comment.task
+        fresh = get_object_or_404(
+            task.comments.select_related("author").prefetch_related(
+                "replies__author",
+                "attachments",
+                "replies__attachments",
+            ),
+            pk=comment.id,
+        )
+        _decorate_comments([fresh], task, request.user.id)
+        template = "web/projects/_comment_reply.html" if fresh.parent_id else "web/projects/_comment.html"
+        return HttpResponse(render_to_string(template, {"comment": fresh}, request=request))
+
+    fresh = get_object_or_404(
+        Comment.objects.select_related("author", "project_update__project__workspace").prefetch_related(
+            "replies__author",
+        ),
+        pk=comment.id,
+    )
+    user_is_admin = _is_workspace_admin(request.user.id, fresh.project_update.project.workspace_id)
+    items = [fresh, *fresh.replies.all()]
+    for item in items:
+        item.can_modify = user_is_admin or item.author_id == request.user.id
+    attach_reactions(objs=items, target_field="comment", user_id=request.user.id)
+    template = "web/projects/_update_comment_reply.html" if fresh.parent_id else "web/projects/_update_comment.html"
+    return HttpResponse(render_to_string(template, {"comment": fresh}, request=request))
 
 
 def _timeline_event(event):
@@ -3636,49 +3694,42 @@ def comment_reply_form(request, slug_prefix, number, comment_id):
 
 
 @login_required
-def comment_fragment(request, slug_prefix, number, comment_id):
-    """Re-render one task comment's card/row (used by the edit Cancel).
-
-    Args:
-        request: The current request.
-        slug_prefix: Project slug prefix from the URL.
-        number: Task number within the project.
-        comment_id: PK of the comment to render.
-
-    Returns:
-        Rendered ``_comment.html`` / ``_comment_reply.html`` fragment, or
-        404 for a foreign / missing task or comment.
-    """
-    task = _get_user_task_or_404(request.user, slug_prefix, number)
-    return _render_comment_card(request, task, comment_id)
+def comment_fragment(request, comment_id):
+    """Re-render one comment's card (the edit Cancel path), either owner."""
+    comment = _get_user_comment_or_404(request.user, comment_id)
+    return _render_any_comment_card(request, comment)
 
 
 @login_required
-def comment_edit_form(request, slug_prefix, number, comment_id):
-    """Render the lazy TipTap edit composer for one task comment.
+def comment_edit_form(request, comment_id):
+    """Render the inline TipTap edit composer for one comment (either owner).
 
-    Loaded via ``hx-get`` when the author (or a workspace admin) clicks
-    "Edit"; it replaces the comment card in place. The editor pre-fills
-    from the comment's Markdown body.
-
-    Args:
-        request: The current request.
-        slug_prefix: Project slug prefix from the URL.
-        number: Task number within the project.
-        comment_id: PK of the comment to edit.
+    Loaded via ``hx-get`` when the author / a workspace admin clicks Edit;
+    it replaces the comment's body region in place. Owner-aware mention +
+    image-upload endpoints and the card id are passed to the template.
 
     Returns:
-        Rendered ``_comment_edit_form.html``, 403 if the user may not edit
-        it, or 404 for a foreign / missing task or comment.
+        Rendered ``_comment_edit_form.html``, 403 if not permitted, or 404
+        for a foreign / missing comment.
     """
-    task = _get_user_task_or_404(request.user, slug_prefix, number)
-    comment = get_object_or_404(task.comments.select_related("author"), pk=comment_id)
-    if not _can_modify_comment(request.user, comment, task):
+    comment = _get_user_comment_or_404(request.user, comment_id)
+    if not _can_modify_any_comment(request.user, comment):
         raise PermissionDenied()
+    _workspace, project, kind = _comment_owner(comment)
+    mention_url = reverse("web:mention_search", kwargs={"slug_prefix": project.slug_prefix})
+    if kind == "task":
+        image_url = reverse(
+            "web:upload_task_inline_image",
+            kwargs={"slug_prefix": project.slug_prefix, "number": comment.task.number},
+        )
+        card_id = f"comment-{comment.id}"
+    else:
+        image_url = reverse("web:upload_project_inline_image", kwargs={"slug_prefix": project.slug_prefix})
+        card_id = f"update-comment-{comment.id}"
     return HttpResponse(
         render_to_string(
             "web/projects/_comment_edit_form.html",
-            {"task": task, "comment": comment},
+            {"comment": comment, "mention_url": mention_url, "image_url": image_url, "card_id": card_id},
             request=request,
         ),
     )
@@ -3686,96 +3737,89 @@ def comment_edit_form(request, slug_prefix, number, comment_id):
 
 @require_POST
 @login_required
-def edit_comment(request, slug_prefix, number, comment_id):
-    """Save an edit to a task comment and return its refreshed card.
+def edit_comment(request, comment_id):
+    """Save an edit to a comment and return its refreshed card (either owner).
 
-    Allowed for the comment's author or a workspace admin/owner. Emits a
-    ``comment.edited`` activity event (kept in the audit log but filtered
-    out of the visible timeline — the comment's ``(edited)`` marker
-    conveys it). The body is required.
-
-    Args:
-        request: Django request carrying the new ``body``.
-        slug_prefix: Project slug prefix from the URL.
-        number: Task number within the project.
-        comment_id: PK of the comment to edit.
+    Allowed for the author or a workspace admin/owner. Task comments emit a
+    ``comment.edited`` activity event (kept in the audit log, filtered from
+    the visible timeline); project-update comments don't (updates are off
+    the activity log). Body required.
 
     Returns:
-        The refreshed comment fragment, 400 on empty body, 403 if not
-        permitted, or 404 for a foreign / missing task or comment.
+        The refreshed comment card, 400 on empty body, 403 if not
+        permitted, or 404 for a foreign / missing comment.
     """
-    task = _get_user_task_or_404(request.user, slug_prefix, number)
-    comment = get_object_or_404(task.comments.select_related("author"), pk=comment_id)
-    if not _can_modify_comment(request.user, comment, task):
+    comment = _get_user_comment_or_404(request.user, comment_id)
+    if not _can_modify_any_comment(request.user, comment):
         raise PermissionDenied()
     body = (request.POST.get("body") or "").strip()
     if not body:
         return HttpResponseBadRequest("body required")
     comment.body = body
     comment.save(update_fields=["body", "updated_at"])
-    log_event(
-        workspace=task.project.workspace,
-        project=task.project,
-        actor=request.user,
-        event_type="comment.edited",
-        target_type=ActivityLog.TARGET_COMMENT,
-        target_id=comment.id,
-        payload={"task_id": task.id},
-    )
-    return _render_comment_card(request, task, comment.id)
+    workspace, project, kind = _comment_owner(comment)
+    if kind == "task":
+        log_event(
+            workspace=workspace,
+            project=project,
+            actor=request.user,
+            event_type="comment.edited",
+            target_type=ActivityLog.TARGET_COMMENT,
+            target_id=comment.id,
+            payload={"task_id": comment.task_id},
+        )
+    return _render_any_comment_card(request, comment)
 
 
 @require_POST
 @login_required
-def delete_comment(request, slug_prefix, number, comment_id):
-    """Delete a task comment and refresh the timeline.
+def delete_comment(request, comment_id):
+    """Delete a comment (either owner); allowed for the author or a ws admin.
 
-    Allowed for the comment's author or a workspace admin/owner. Emits a
-    ``comment.deleted`` activity event, which DOES show in the timeline
-    (the comment is gone, so the event is its only trace). Replies cascade
-    with their parent. Returns the OOB timeline refresh so the card
-    disappears and the deleted-event row appears in one swap.
-
-    Args:
-        request: Django POST request.
-        slug_prefix: Project slug prefix from the URL.
-        number: Task number within the project.
-        comment_id: PK of the comment to delete.
+    Task comments emit ``comment.deleted`` and return the OOB timeline
+    refresh (the card vanishes from the re-rendered timeline + a deleted
+    marker appears). Project-update comments are off the activity log, so
+    deletion just removes the card (an empty response swapped into it).
+    Replies cascade with their parent.
 
     Returns:
-        The OOB-swapped timeline fragment, 403 if not permitted, or 404
-        for a foreign / missing task or comment.
+        The OOB timeline fragment (task) or an empty response (update),
+        403 if not permitted, or 404 for a foreign / missing comment.
     """
-    task = _get_user_task_or_404(request.user, slug_prefix, number)
-    comment = get_object_or_404(task.comments.select_related("author"), pk=comment_id)
-    if not _can_modify_comment(request.user, comment, task):
+    comment = _get_user_comment_or_404(request.user, comment_id)
+    if not _can_modify_any_comment(request.user, comment):
         raise PermissionDenied()
-    deleted_id = comment.id
-    # Keep the original post time so the timeline can slot the "deleted a
-    # comment" marker where the comment used to sit, not at "now".
-    original_created_at = comment.created_at.isoformat()
+    workspace, project, kind = _comment_owner(comment)
+    if kind == "task":
+        task = comment.task
+        deleted_id = comment.id
+        # Keep the original post time so the timeline can slot the "deleted
+        # a comment" marker where the comment used to sit, not at "now".
+        original_created_at = comment.created_at.isoformat()
+        comment.delete()
+        log_event(
+            workspace=workspace,
+            project=project,
+            actor=request.user,
+            event_type="comment.deleted",
+            target_type=ActivityLog.TARGET_COMMENT,
+            target_id=deleted_id,
+            payload={"task_id": task.id, "comment_created_at": original_created_at},
+        )
+        return HttpResponse(
+            render_to_string(
+                "web/projects/_activity_oob.html",
+                {
+                    "task": task,
+                    "timeline": _build_timeline(task, request.user.id),
+                    "status_labels": Task.STATUS_LABELS,
+                    "priority_labels": dict(Task.PRIORITY_CHOICES),
+                },
+                request=request,
+            ),
+        )
     comment.delete()
-    log_event(
-        workspace=task.project.workspace,
-        project=task.project,
-        actor=request.user,
-        event_type="comment.deleted",
-        target_type=ActivityLog.TARGET_COMMENT,
-        target_id=deleted_id,
-        payload={"task_id": task.id, "comment_created_at": original_created_at},
-    )
-    return HttpResponse(
-        render_to_string(
-            "web/projects/_activity_oob.html",
-            {
-                "task": task,
-                "timeline": _build_timeline(task, request.user.id),
-                "status_labels": Task.STATUS_LABELS,
-                "priority_labels": dict(Task.PRIORITY_CHOICES),
-            },
-            request=request,
-        ),
-    )
+    return HttpResponse("")
 
 
 @require_POST
@@ -3815,6 +3859,7 @@ def post_update_comment(request, pk):
             return HttpResponseBadRequest("invalid parent")
     comment = Comment.objects.create(project_update=update, author=request.user, parent=parent, body=body)
     comment.reaction_summary = []
+    comment.can_modify = True
     template = "web/projects/_update_comment_reply.html" if parent else "web/projects/_update_comment.html"
     return HttpResponse(render_to_string(template, {"comment": comment}, request=request))
 
@@ -3909,21 +3954,26 @@ def _attach_update_reactions(updates, user_id):
 
 
 def _attach_update_thread_reactions(update, user_id):
-    """Attach comment-level ``reaction_summary`` across one update's thread.
+    """Decorate one update's comment thread with reactions + ``can_modify``.
 
-    Decorates every top-level comment and reply the thread will render, in
-    a single reaction query. Relies on ``ProjectUpdate.top_level_comments``
-    being cached + reply-prefetched so the decorated objects are the exact
-    ones the template re-reads.
+    Attaches ``reaction_summary`` (one reaction query for the whole thread)
+    and ``can_modify`` (author or workspace admin — drives the edit/delete
+    affordances) to every top-level comment and reply the thread renders.
+    Relies on ``ProjectUpdate.top_level_comments`` being cached +
+    reply-prefetched so the decorated objects are the exact ones the
+    template re-reads.
 
     Args:
         update: The :class:`ProjectUpdate` whose thread is being shown.
-        user_id: The viewer's id (highlights their own reactions).
+        user_id: The viewer's id.
     """
     comments = []
     for comment in update.top_level_comments:
         comments.append(comment)
         comments.extend(comment.replies.all())
+    user_is_admin = _is_workspace_admin(user_id, update.project.workspace_id)
+    for comment in comments:
+        comment.can_modify = user_is_admin or comment.author_id == user_id
     attach_reactions(objs=comments, target_field="comment", user_id=user_id)
 
 

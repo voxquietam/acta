@@ -1,8 +1,14 @@
 {% load i18n %}
 {% load web_extras %}
 {% comment %}
-Header (avatar + author + relative time) + Markdown body of one comment.
-Shared by top-level comments and replies. Expects ``comment``.
+Header (avatar + author + time + edit/delete actions) + Markdown body +
+reactions of one project-update comment. Shared by top-level comments and
+replies. The body + reactions sit in ``#update-comment-body-<id>`` so the
+inline edit composer can swap in place; edit/delete go through the
+owner-agnostic ``_comment_actions`` (``is_task=False``). The host card
+(``_update_comment`` / ``_update_comment_reply``) is a ``group`` with id
+``#update-comment-<id>`` so actions hover-reveal and delete can remove it.
+Expects ``comment`` (with ``can_modify`` decorated).
 {% endcomment %}
 <div class="px-4 py-3">
   <div class="flex items-center gap-2 mb-1.5 text-xs">
@@ -15,9 +21,14 @@ Shared by top-level comments and replies. Expects ``comment``.
     {% endif %}
     <span class="text-placeholder-foreground">{{ comment.created_at|timesince }}</span>
     {% if comment.was_edited %}<span class="italic text-placeholder-foreground">({% trans "edited" %})</span>{% endif %}
+    <div class="ml-auto flex items-center">
+      {% include "web/projects/_comment_actions.html" with is_task=False %}
+    </div>
   </div>
-  <div class="prose dark:prose-invert prose-sm max-w-none text-muted-foreground">{{ comment.body|markdown }}</div>
-  <div class="mt-2">
-    {% include "web/_reaction_bar.html" with target_type="comment" target_id=comment.id reactions=comment.reaction_summary can_react=True %}
+  <div id="update-comment-body-{{ comment.id }}">
+    <div class="prose dark:prose-invert prose-sm max-w-none text-muted-foreground">{{ comment.body|markdown }}</div>
+    <div class="mt-2">
+      {% include "web/_reaction_bar.html" with target_type="comment" target_id=comment.id reactions=comment.reaction_summary can_react=True %}
+    </div>
   </div>
 </div>

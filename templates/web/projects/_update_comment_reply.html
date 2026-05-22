@@ -4,6 +4,6 @@ Used both in the thread-card reply list and as the fragment returned by
 post_update_comment when a reply is posted (appended to
 #update-replies-<parent id>). Expects ``comment``.
 {% endcomment %}
-<div class="border-t border-border">
+<div id="update-comment-{{ comment.id }}" class="group border-t border-border">
   {% include "web/projects/_update_comment_body.html" %}
 </div>

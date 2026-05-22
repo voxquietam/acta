@@ -16,7 +16,7 @@ Expects ``comment`` (a reply).
     {% endif %}
     <div class="ml-auto flex items-center">
       {% include "web/projects/_relative_time.html" with dt=comment.created_at %}
-      {% include "web/projects/_comment_actions.html" %}
+      {% include "web/projects/_comment_actions.html" with is_task=True %}
     </div>
   </div>
   <div id="comment-body-{{ comment.id }}">

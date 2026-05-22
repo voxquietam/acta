@@ -7,7 +7,7 @@ at the bottom. ``post_update_comment`` returns this whole card when a new
 top-level comment is posted (appended to #update-comments-<update pk>).
 Expects ``comment`` (a top-level comment).
 {% endcomment %}
-<li id="update-comment-{{ comment.id }}" class="bg-card border border-border rounded-lg overflow-hidden">
+<li id="update-comment-{{ comment.id }}" class="group bg-card border border-border rounded-lg overflow-hidden">
   {% include "web/projects/_update_comment_body.html" %}
 
   <div id="update-replies-{{ comment.id }}">
