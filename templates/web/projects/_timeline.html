@@ -262,11 +262,17 @@
              {% if task.status == 'done' %}line-through text-placeholder-foreground{% else %}text-foreground{% endif %}"
            title="{{ task.title }}">{{ task.title }}</a>
         {% if task.assignee %}
+        {% if task.assignee.avatar %}
+        <img src="{% url 'accounts:serve_avatar' user_id=task.assignee.id %}" alt="{{ task.assignee.display_name }}"
+             class="w-5 h-5 rounded-full object-cover shrink-0 ml-auto"
+             title="{{ task.assignee.display_name }}">
+        {% else %}
         <span class="w-5 h-5 rounded-full text-white grid place-items-center font-medium text-[9px] shrink-0 ml-auto"
               style="background-color:{{ task.assignee.avatar_color }};"
               title="{{ task.assignee.display_name }}">
           {{ task.assignee.display_name|slice:":1"|upper }}
         </span>
+        {% endif %}
         {% else %}
         <span class="w-5 h-5 rounded-full bg-muted text-placeholder-foreground grid place-items-center text-[9px] shrink-0 ml-auto opacity-0 group-hover/tlr:opacity-100 transition">?</span>
         {% endif %}

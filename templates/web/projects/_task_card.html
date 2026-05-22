@@ -93,12 +93,33 @@ handler in ``_kanban.html`` restores it for middle / Ctrl+click.
     <span class="font-mono text-[10px] opacity-70"
           title="{{ task.updated_at|date:'M j Y H:i' }}">{{ task.updated_at|timesince }}</span>
     {% if task.assignee %}
+    {% comment %}
+    The avatar carries explicit ``data-avatar-*`` attrs so the column
+    substatus recompute (acta.js) can rebuild the header avatar stack from
+    cards regardless of whether each is a photo or a colour circle.
+    {% endcomment %}
+    {% if task.assignee.avatar %}
+    <img src="{% url 'accounts:serve_avatar' user_id=task.assignee.id %}"
+         alt="{{ task.assignee.display_name }}"
+         class="ml-auto w-[18px] h-[18px] rounded-full object-cover"
+         style="box-shadow: 0 0 0 1.5px rgb(var(--card));"
+         title="{{ task.assignee.display_name }}"
+         data-task-assignee-avatar
+         data-avatar-url="{% url 'accounts:serve_avatar' user_id=task.assignee.id %}"
+         data-avatar-initial="{{ task.assignee.display_name|slice:':1'|upper }}"
+         data-avatar-bg="{{ task.assignee.avatar_color }}"
+         data-avatar-name="{{ task.assignee.display_name }}">
+    {% else %}
     <span class="ml-auto w-[18px] h-[18px] rounded-full text-white grid place-items-center font-medium text-[9px]"
           style="background-color: {{ task.assignee.avatar_color }}; box-shadow: 0 0 0 1.5px rgb(var(--card));"
           title="{{ task.assignee.display_name }}"
-          data-task-assignee-avatar>
+          data-task-assignee-avatar
+          data-avatar-initial="{{ task.assignee.display_name|slice:':1'|upper }}"
+          data-avatar-bg="{{ task.assignee.avatar_color }}"
+          data-avatar-name="{{ task.assignee.display_name }}">
       {{ task.assignee.display_name|slice:":1"|upper }}
     </span>
+    {% endif %}
     {% else %}
     <span class="ml-auto w-[18px] h-[18px] rounded-full border border-dashed border-border-strong grid place-items-center text-placeholder-foreground text-[9px] italic"
           title="{% trans 'Unassigned' %}">?</span>

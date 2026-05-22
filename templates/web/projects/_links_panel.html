@@ -108,9 +108,14 @@ blocker that's still open (the thing actually blocking this task).
             <template x-if="r.assignee">
               <span class="inline-flex items-center gap-1 shrink-0">
                 <span class="text-[10px] text-placeholder-foreground" x-text="r.assignee.username"></span>
-                <span class="w-4 h-4 rounded-full text-white grid place-items-center text-[8px] font-medium"
-                      :style="`background-color: ${r.assignee.avatar_color}`"
-                      x-text="r.assignee.initial"></span>
+                <template x-if="r.assignee.avatar_url">
+                  <img :src="r.assignee.avatar_url" class="w-4 h-4 rounded-full object-cover">
+                </template>
+                <template x-if="!r.assignee.avatar_url">
+                  <span class="w-4 h-4 rounded-full text-white grid place-items-center text-[8px] font-medium"
+                        :style="`background-color: ${r.assignee.avatar_color}`"
+                        x-text="r.assignee.initial"></span>
+                </template>
               </span>
             </template>
             <template x-if="!r.assignee">

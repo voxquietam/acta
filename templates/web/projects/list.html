@@ -146,11 +146,18 @@
       <div class="flex items-center justify-between gap-2 mt-auto pt-2.5 border-t border-border">
         <div class="flex items-center">
           {% for member in project.members.all|slice:":3" %}
+          {% if member.avatar %}
+          <img src="{% url 'accounts:serve_avatar' user_id=member.id %}" alt="{{ member.display_name }}"
+               class="w-[22px] h-[22px] rounded-full object-cover {% if not forloop.first %}-ml-1.5{% endif %}"
+               style="box-shadow: 0 0 0 1.5px rgb(var(--card));"
+               title="{{ member.display_name }}">
+          {% else %}
           <span class="w-[22px] h-[22px] rounded-full text-white grid place-items-center font-medium text-[10px] {% if not forloop.first %}-ml-1.5{% endif %}"
                 style="background-color: {{ member.avatar_color }}; box-shadow: 0 0 0 1.5px rgb(var(--card));"
                 title="{{ member.display_name }}">
             {{ member.display_name|slice:":1"|upper }}
           </span>
+          {% endif %}
           {% endfor %}
           {% if project.member_count > 3 %}
           <span class="w-[22px] h-[22px] -ml-1.5 rounded-full bg-muted text-subtle-foreground grid place-items-center font-mono text-[10px]"

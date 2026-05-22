@@ -574,9 +574,10 @@
           const av = card.querySelector("[data-task-assignee-avatar]");
           if (av) {
             avatarSources.push({
-              bg: av.style.backgroundColor,
-              initial: av.textContent.trim(),
-              name: av.getAttribute("title") || "",
+              bg: av.dataset.avatarBg || av.style.backgroundColor,
+              initial: av.dataset.avatarInitial || av.textContent.trim(),
+              name: av.dataset.avatarName || av.getAttribute("title") || "",
+              url: av.dataset.avatarUrl || "",
             });
           }
         }
@@ -605,15 +606,22 @@
       if (avatarsEl) {
         avatarsEl.innerHTML = "";
         avatarSources.forEach((src, i) => {
-          const span = document.createElement("span");
-          span.className =
-            "w-3.5 h-3.5 rounded-full text-white grid place-items-center text-[8px] font-medium" +
-            (i > 0 ? " -ml-1" : "");
-          span.style.backgroundColor = src.bg;
-          span.style.boxShadow = "0 0 0 1.5px rgb(var(--card))";
-          span.setAttribute("title", src.name);
-          span.textContent = src.initial;
-          avatarsEl.appendChild(span);
+          let el;
+          if (src.url) {
+            el = document.createElement("img");
+            el.src = src.url;
+            el.className = "w-3.5 h-3.5 rounded-full object-cover" + (i > 0 ? " -ml-1" : "");
+          } else {
+            el = document.createElement("span");
+            el.className =
+              "w-3.5 h-3.5 rounded-full text-white grid place-items-center text-[8px] font-medium" +
+              (i > 0 ? " -ml-1" : "");
+            el.style.backgroundColor = src.bg;
+            el.textContent = src.initial;
+          }
+          el.style.boxShadow = "0 0 0 1.5px rgb(var(--card))";
+          el.setAttribute("title", src.name);
+          avatarsEl.appendChild(el);
         });
       }
     });

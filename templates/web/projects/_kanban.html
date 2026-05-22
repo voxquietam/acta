@@ -89,11 +89,18 @@ hides the native scrollbar without losing the "you can scroll" cue.
               class="{% if col.overdue_count or col.done_this_week and col.key == 'done' %}hidden{% endif %}"></span>
         <div class="flex items-center" data-substatus-avatars>
           {% for avatar in col.active_avatars %}
+          {% if avatar.avatar %}
+          <img src="{% url 'accounts:serve_avatar' user_id=avatar.id %}" alt="{{ avatar.display_name }}"
+               class="w-3.5 h-3.5 rounded-full object-cover -ml-1 first:ml-0"
+               style="box-shadow: 0 0 0 1.5px rgb(var(--card));"
+               title="{{ avatar.display_name }}">
+          {% else %}
           <span class="w-3.5 h-3.5 rounded-full text-white grid place-items-center text-[8px] font-medium -ml-1 first:ml-0"
                 style="background-color: {{ avatar.avatar_color }}; box-shadow: 0 0 0 1.5px rgb(var(--card));"
                 title="{{ avatar.display_name }}">
             {{ avatar.display_name|slice:":1"|upper }}
           </span>
+          {% endif %}
           {% endfor %}
         </div>
       </div>
