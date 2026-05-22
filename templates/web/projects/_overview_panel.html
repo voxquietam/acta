@@ -206,11 +206,15 @@ Members with role badges.
           {% include "web/projects/_health_chips.html" with selected='on_track' %}
           <div data-description-editor
                data-no-autosave
+               data-image-upload-url="{% url 'web:upload_project_inline_image' slug_prefix=project.slug_prefix %}"
                data-placeholder="{% trans 'Write an update…' %}">
             <input type="hidden" name="body" value="" data-editor-output>
             <textarea class="description-editor-source hidden" readonly></textarea>
             {% include "web/projects/_editor_toolbar.html" %}
             <div class="description-editor-mount min-h-[3rem] bg-card border border-border rounded-lg p-3"></div>
+            <p class="description-editor-hint mt-1 text-[10px] text-placeholder-foreground hidden">
+              {% trans "Paste or drop an image to embed it · double-click an image to preview" %}
+            </p>
           </div>
           <div class="flex items-center justify-end gap-2">
             <button type="button" @click="composing = false"
