@@ -111,12 +111,25 @@
         : new URL(window.location.href);
       base.searchParams.set("panel", key);
       slot.dataset.panelLoading = "true";
-      window.htmx.ajax("GET", base.pathname + base.search, {
-        target: slot,
-        swap: "innerHTML",
+      // Clear the in-flight flag once the request settles (success OR
+      // failure). On success the slot now has children so the
+      // ``children.length`` guard above skips it; on failure the slot is
+      // still empty and a later trigger (e.g. switching to that tab) can
+      // retry instead of being blocked by a stuck flag.
+      Promise.resolve(
+        window.htmx.ajax("GET", base.pathname + base.search, {
+          target: slot,
+          swap: "innerHTML",
+        }),
+      ).finally(() => {
+        slot.dataset.panelLoading = "false";
       });
     });
   }
+  // Exposed so the view-mode switch can retrigger a lazy panel load when
+  // the user lands on a tab whose slot never filled (a slow / missed
+  // initial fetch left it empty).
+  window.actaLoadPanels = lazyLoadPanels;
   // Run after initial paint settles, and after any HTMX swap that
   // might bring back empty slots (filter form refresh swaps the
   // whole panel wrapper).
@@ -2169,6 +2182,11 @@
         // previously-server-rendered view.
         const oneYear = 60 * 60 * 24 * 365;
         document.cookie = `acta_view_mode=${value}; path=/; max-age=${oneYear}; samesite=Lax`;
+        // Lazy panels (list / timeline) fill on first paint, but a slow
+        // or missed initial fetch can leave the slot empty — the user
+        // then switches to that tab and sees nothing. Retrigger the load
+        // for any still-empty slot now that they're looking at it.
+        if (window.actaLoadPanels) window.actaLoadPanels();
       },
       // Re-read the server-set cookie after every HTMX boost. The
       // sidebar persists across navigations, so this store survives —
