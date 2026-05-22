@@ -245,6 +245,12 @@ main {
   font-weight: 400;
   font-size: 0.875em;
 }
+/* Inline images in RENDERED markdown open the lightbox on click (see the
+   delegated handler in acta.js). Hint it with a zoom cursor — but not in
+   the TipTap editor (``.prose.ProseMirror``), where a click edits. */
+.prose:not(.ProseMirror) img {
+  cursor: zoom-in;
+}
 /* Fenced code blocks: Tailwind typography's default ``pre`` is dark in
    both themes (article style), which reads as a stray dark box in the
    light theme. Track the theme tokens instead, matching inline code. */

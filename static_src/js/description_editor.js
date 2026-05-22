@@ -356,6 +356,13 @@ function initEditor(root) {
   mount.classList.remove("hidden");
   mount.style.display = "";
 
+  // Reveal the image hint (description cells only have it) now that the
+  // live editor — and thus paste/drop upload — is actually available.
+  if (root.dataset.imageUploadUrl) {
+    const hint = root.querySelector(".description-editor-hint");
+    if (hint) hint.classList.remove("hidden");
+  }
+
   // Pagehide beacon: post the latest markdown if it differs from the
   // baseline. WeakMap entry will be garbage-collected when root is
   // removed from DOM during HTMX swap; new mount runs initEditor again.

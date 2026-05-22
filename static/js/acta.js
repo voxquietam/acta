@@ -1504,6 +1504,35 @@
   // tree (event fires after each Alpine ``x-init`` / DOM change).
   document.addEventListener("alpine:initialized", () => themeTooltips(document.body));
 
+  // ----- Inline-image lightbox (delegated) ------------------------
+  // Images embedded in RENDERED markdown (comment bodies, etc.) are
+  // plain ``<img>`` with no per-element handler — bleach strips any
+  // ``onclick``. Delegate a click so they open in the shared lightbox,
+  // matching the attachment thumbnails. Skip images inside the TipTap
+  // editor (``.ProseMirror`` / contenteditable — there a click edits,
+  // not previews) and any image that already carries its own trigger.
+  document.addEventListener("click", (evt) => {
+    const img = evt.target.closest("img");
+    if (!img || !img.closest(".prose")) return;
+    if (img.closest(".ProseMirror, [contenteditable='true']")) return;
+    if (img.hasAttribute("onclick")) return;
+    evt.preventDefault();
+    window.dispatchEvent(
+      new CustomEvent("lightbox:open", { detail: { src: img.currentSrc || img.src, alt: img.alt || "" } }),
+    );
+  });
+  // Inside the TipTap editor (descriptions) a single click selects the
+  // image for editing, so previewing is bound to DOUBLE-click instead —
+  // that doesn't fight node selection / deletion.
+  document.addEventListener("dblclick", (evt) => {
+    const img = evt.target.closest(".ProseMirror img");
+    if (!img) return;
+    evt.preventDefault();
+    window.dispatchEvent(
+      new CustomEvent("lightbox:open", { detail: { src: img.currentSrc || img.src, alt: img.alt || "" } }),
+    );
+  });
+
   // ----- @-mention hover cards ------------------------------------
   // A user-mention chip (``.acta-mention[data-user-id]``) shows a small
   // card with avatar + full name on hover. The chip itself only carries
