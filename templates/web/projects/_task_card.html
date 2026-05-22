@@ -30,6 +30,17 @@ handler in ``_kanban.html`` restores it for middle / Ctrl+click.
    class="relative block bg-card border border-border rounded-lg p-2.5 overflow-hidden hover:border-border-strong transition group cursor-grab active:cursor-grabbing
      {% if task.status == 'done' %}opacity-90{% endif %}">
 
+  {% comment %}
+  Aging WIP: a left-edge bar grows in alarm as a card sits in its column.
+  Amber from 3 days, rose from 7 — surfaces stalled work at a glance.
+  Only set on the kanban board render (``task.age_days`` from
+  ``_build_kanban_columns``); absent elsewhere = no bar.
+  {% endcomment %}
+  {% if task.age_days %}
+  <span class="absolute left-0 top-0 bottom-0 w-0.5 {% if task.age_days >= 7 %}bg-rose-500/70{% elif task.age_days >= 3 %}bg-amber-500/60{% else %}bg-transparent{% endif %}"
+        {% if task.age_days >= 3 %}data-tooltip="{% blocktrans count days=task.age_days %}{{ days }} day in this column{% plural %}{{ days }} days in this column{% endblocktrans %}"{% endif %}></span>
+  {% endif %}
+
   {# Blocked / blocking badges pinned to the top-right corner. #}
   <div class="absolute top-1.5 right-1.5 flex items-center gap-1">
     {% include "web/projects/_task_link_badges.html" %}

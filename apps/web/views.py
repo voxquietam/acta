@@ -1464,10 +1464,25 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         ctx["health_labels"] = dict(ProjectUpdate.HEALTH_CHOICES)
         ctx["latest_health"] = ctx["overview_latest_updates"][0].health if ctx["overview_latest_updates"] else None
 
+        # Aging WIP: the timestamp the task last changed status (its
+        # ``task.status_changed`` activity row), so the board can show how
+        # long a card has sat in its current column. One correlated
+        # subquery — not an N+1. Falls back to ``created_at`` in the
+        # template when the task never changed status.
+        last_status_change = (
+            ActivityLog.objects.filter(
+                target_type=ActivityLog.TARGET_TASK,
+                target_id=OuterRef("pk"),
+                event_type="task.status_changed",
+            )
+            .order_by("-created_at")
+            .values("created_at")[:1]
+        )
         base = (
             Task.objects.filter(project=project)
             .select_related("assignee", "reporter", "parent", "project__workspace")
             .prefetch_related("labels", "blocks", "blocked_by")
+            .annotate(status_since=Subquery(last_status_change))
         )
         params = _params_with_archive_cookie(self.request)
         base = apply_task_filters(base, params, request_user=self.request.user)
@@ -1527,7 +1542,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             else:
                 kanban_tasks = table_tasks
             ctx["tasks"] = table_tasks if view_mode == "table" else kanban_tasks
-            ctx["columns"] = _build_kanban_columns(kanban_tasks)
+            ctx["columns"] = _build_kanban_columns(kanban_tasks, today=today, wip_limits=project.wip_limits)
             list_axis_keys = ("deadline", "status", "priority", "assignee")
             list_axis = _resolve_list_axis(self.request, default="status", options=list_axis_keys)
             ctx["list_axis"] = list_axis
@@ -3414,6 +3429,40 @@ def _get_user_project_or_404(user, slug_prefix):
 
 @require_POST
 @login_required
+def set_wip_limit(request, slug_prefix):
+    """Set or clear a kanban column's WIP limit for a project.
+
+    Reads ``status`` (one of ``Task.KANBAN_STATUS_VALUES``) and ``limit``
+    (a positive integer; empty / ``0`` clears the limit). Stored in
+    ``Project.wip_limits`` (a status→limit map). Replies ``204`` with
+    ``HX-Trigger: acta:task-changed`` so the board panel refetches and
+    the column header re-renders the new fraction + capacity bar.
+    """
+    project = _get_user_project_or_404(request.user, slug_prefix)
+    status = request.POST.get("status", "")
+    if status not in Task.KANBAN_STATUS_VALUES:
+        return HttpResponseBadRequest("invalid status")
+    raw = (request.POST.get("limit") or "").strip()
+    limits = dict(project.wip_limits or {})
+    if raw in ("", "0"):
+        limits.pop(status, None)
+    else:
+        try:
+            n = int(raw)
+        except ValueError:
+            return HttpResponseBadRequest("invalid limit")
+        if n < 0:
+            return HttpResponseBadRequest("invalid limit")
+        limits[status] = n
+    project.wip_limits = limits
+    project.save(update_fields=["wip_limits"])
+    response = HttpResponse(status=204)
+    response["HX-Trigger"] = "acta:task-changed"
+    return response
+
+
+@require_POST
+@login_required
 def set_project_lead(request, slug_prefix):
     """Inline lead change on the project overview.
 
@@ -4597,7 +4646,7 @@ def _get_user_workspace_or_404(user, slug):
     )
 
 
-def _build_kanban_columns(tasks, today=None):
+def _build_kanban_columns(tasks, today=None, wip_limits=None):
     """Build the kanban column dicts from an already-materialised task
     list — single pass over ``tasks`` bucketing by status and
     accumulating per-column substatus stats (``overdue_count``,
@@ -4609,7 +4658,16 @@ def _build_kanban_columns(tasks, today=None):
     board (the queryset already hides them, this is a belt-and-braces
     skip). All in-memory work, no DB hits. ``tasks`` is whatever the
     caller already paid for; this just shape-shifts it for the template.
+
+    Args:
+        tasks: Materialised task list (one board's worth).
+        today: Date anchor for overdue / done-this-week buckets.
+        wip_limits: Optional ``{status_key: max_cards}`` map
+            (``Project.wip_limits``); a positive limit adds ``limit`` /
+            ``over_limit`` to that column so the header can render the
+            ``N/limit`` fraction + capacity bar.
     """
+    wip_limits = wip_limits or {}
     today = today or datetime.date.today()
     week_ago = today - datetime.timedelta(days=7)
 
@@ -4630,18 +4688,40 @@ def _build_kanban_columns(tasks, today=None):
             col_avs[t.assignee_id] = t.assignee
         if status == Task.STATUS_DONE and t.updated_at.date() >= week_ago:
             done_this_week += 1
+        # Aging WIP: days the card has sat in its current column, from the
+        # ``status_since`` annotation (last status change), for active
+        # statuses only — a settled Done card isn't "aging". Drives the
+        # card's left-edge age bar. ``None`` when not annotated / done.
+        t.age_days = None
+        since = getattr(t, "status_since", None)
+        if status != Task.STATUS_DONE and since is not None:
+            t.age_days = (today - since.date()).days
 
-    return [
-        {
-            "key": status,
-            "label": Task.STATUS_LABELS[status],
-            "tasks": buckets[status],
-            "overdue_count": overdue[status],
-            "active_avatars": list(avatars[status].values()),
-            "done_this_week": done_this_week if status == Task.STATUS_DONE else 0,
-        }
-        for status in Task.KANBAN_STATUS_VALUES
-    ]
+    def _limit_for(status):
+        try:
+            return int(wip_limits.get(status) or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    columns = []
+    for status in Task.KANBAN_STATUS_VALUES:
+        count = len(buckets[status])
+        limit = _limit_for(status)
+        columns.append(
+            {
+                "key": status,
+                "label": Task.STATUS_LABELS[status],
+                "tasks": buckets[status],
+                "overdue_count": overdue[status],
+                "active_avatars": list(avatars[status].values()),
+                "done_this_week": done_this_week if status == Task.STATUS_DONE else 0,
+                "limit": limit,
+                "over_limit": bool(limit) and count > limit,
+                "at_limit": bool(limit) and count == limit,
+                "fill_pct": min(100, round(count * 100 / limit)) if limit else 0,
+            }
+        )
+    return columns
 
 
 def _workspace_member_or_none(user, workspace):

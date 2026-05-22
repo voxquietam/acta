@@ -1166,6 +1166,46 @@ class TestBulkContextMenu:
 
 
 @pytest.mark.django_db
+class TestWipLimit:
+    """Per-column WIP limit set / clear + the column-build over-limit math."""
+
+    def _url(self, project):
+        return reverse("web:set_wip_limit", kwargs={"slug_prefix": project.slug_prefix})
+
+    def test_set_and_clear_limit(self, client, setup):
+        user, project, task = setup
+        client.force_login(user)
+        resp = client.post(self._url(project), {"status": "in-progress", "limit": "5"})
+        assert resp.status_code == 204
+        project.refresh_from_db()
+        assert project.wip_limits == {"in-progress": 5}
+        # 0 clears it
+        client.post(self._url(project), {"status": "in-progress", "limit": "0"})
+        project.refresh_from_db()
+        assert project.wip_limits == {}
+
+    def test_invalid_status_400(self, client, setup):
+        user, project, task = setup
+        client.force_login(user)
+        assert client.post(self._url(project), {"status": "nope", "limit": "5"}).status_code == 400
+
+    def test_build_columns_over_limit(self):
+        from apps.web.views import _build_kanban_columns
+
+        ws = WorkspaceFactory()
+        project = ProjectFactory(workspace=ws)
+        tasks = [TaskFactory(project=project, status=Task.STATUS_IN_PROGRESS, reporter=ws.owner) for _ in range(6)]
+        cols = {c["key"]: c for c in _build_kanban_columns(tasks, wip_limits={"in-progress": 5})}
+        ip = cols["in-progress"]
+        assert ip["limit"] == 5
+        assert ip["over_limit"] is True
+        assert ip["fill_pct"] == 100  # clamped
+        # a status with no limit reports no over-limit
+        assert cols["to-do"]["limit"] == 0
+        assert cols["to-do"]["over_limit"] is False
+
+
+@pytest.mark.django_db
 class TestArchivedFilter:
     """``apply_task_filters`` hides archived rows unless
     ``?show_archived=1``."""

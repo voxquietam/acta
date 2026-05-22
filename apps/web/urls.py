@@ -55,6 +55,7 @@ from .views import (
     set_task_start_date,
     set_task_status,
     set_task_title,
+    set_wip_limit,
     set_workspace_member_role,
     switch_workspace,
     task_activity_fragment,
@@ -144,6 +145,11 @@ urlpatterns = [
         "projects/<str:slug_prefix>/lead/",
         set_project_lead,
         name="set_project_lead",
+    ),
+    path(
+        "projects/<str:slug_prefix>/wip-limit/",
+        set_wip_limit,
+        name="set_wip_limit",
     ),
     path(
         "projects/<str:slug_prefix>/updates/post/",

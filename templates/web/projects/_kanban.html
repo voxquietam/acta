@@ -54,8 +54,49 @@ hides the native scrollbar without losing the "you can scroll" cue.
             {% elif col.key == 'in-review' %}bg-amber-500
             {% elif col.key == 'done' %}bg-emerald-500{% endif %}"></span>
           <span class="font-mono text-[11px] font-bold uppercase tracking-wider text-foreground truncate min-w-0">{{ col.label }}</span>
-          <span class="ml-auto shrink-0 font-mono text-[11px] text-subtle-foreground" data-column-count>{{ col.tasks|length }}</span>
         </button>
+        {% comment %}
+        WIP count + limit. Click opens a tiny popover to set / clear the
+        per-column limit (``set_wip_limit`` → board refetch). The bare
+        count keeps ``data-column-count`` so the drag handler can update
+        it live; the ``/ limit`` part is a separate span so a drag never
+        wipes it. Over-limit turns the fraction rose (see ``comp-kanban-
+        column-head`` v3).
+        {% endcomment %}
+        {% if project %}
+        {# Per-project board: count doubles as the WIP-limit setter. #}
+        <div x-data="{ open: false }" class="relative shrink-0 ml-auto">
+          <button type="button"
+                  @click="open = !open"
+                  data-tooltip="{% trans 'WIP limit' %}"
+                  class="font-mono text-[11px] px-1 py-0.5 rounded hover:bg-muted/60 transition {% if col.over_limit %}text-rose-300{% else %}text-subtle-foreground{% endif %}">
+            <span data-column-count class="{% if col.over_limit %}text-rose-400 font-semibold{% endif %}">{{ col.tasks|length }}</span>{% if col.limit %} <span>/ {{ col.limit }}</span>{% endif %}
+          </button>
+          <div x-show="open" x-cloak
+               @click.outside="open = false"
+               x-init="$nextTick(() => window.htmx && window.htmx.process($el))"
+               class="absolute right-0 top-full mt-1 z-30 w-44 bg-card border border-border rounded-lg shadow-lg p-2">
+            <form hx-post="{% url 'web:set_wip_limit' slug_prefix=project.slug_prefix %}"
+                  hx-swap="none"
+                  @htmx:after-request="open = false">
+              {% csrf_token %}
+              <input type="hidden" name="status" value="{{ col.key }}">
+              <label class="block text-[10px] uppercase tracking-wider text-placeholder-foreground mb-1">{% trans "WIP limit" %}</label>
+              <div class="flex items-center gap-1.5">
+                <input type="number" name="limit" min="0" inputmode="numeric"
+                       value="{{ col.limit|default_if_none:'' }}"
+                       placeholder="{% trans 'none' %}"
+                       class="w-16 bg-muted border border-border-strong rounded px-2 py-1 text-xs text-foreground focus:outline-none focus:border-brand-500">
+                <button type="submit" class="text-xs px-2 py-1 rounded-md bg-brand-600 hover:bg-brand-500 text-white">{% trans "Set" %}</button>
+              </div>
+              <p class="text-[10px] text-placeholder-foreground mt-1.5">{% trans "0 or empty = no limit" %}</p>
+            </form>
+          </div>
+        </div>
+        {% else %}
+        {# Cross-project boards (All Tasks / My Work): plain count, no WIP. #}
+        <span class="ml-auto shrink-0 font-mono text-[11px] text-subtle-foreground px-1" data-column-count>{{ col.tasks|length }}</span>
+        {% endif %}
         {# Add new task in this column — pre-fills project + status. #}
         <button type="button"
                 hx-get="{% url 'web:create_task' %}?project={{ project.slug_prefix }}&status={{ col.key }}"
@@ -104,6 +145,22 @@ hides the native scrollbar without losing the "you can scroll" cue.
           {% endfor %}
         </div>
       </div>
+
+      {% comment %}
+      WIP capacity bar — full-width strip at the bottom of the header,
+      filled to ``count / limit``; turns rose at / over the limit, with a
+      one-line ``!! at WIP limit`` warning. Only rendered when a limit is
+      set. Server-rendered against the real count (not the client-filtered
+      view), so it can lag a live drag until the next board refetch.
+      {% endcomment %}
+      {% if col.over_limit or col.at_limit %}
+      <div class="px-3 pb-1 font-mono text-[10px] text-rose-300">!! {% if col.over_limit %}{% trans "over WIP limit" %}{% else %}{% trans "at WIP limit" %}{% endif %}</div>
+      {% endif %}
+      {% if col.limit %}
+      <div class="h-0.5 bg-muted overflow-hidden">
+        <div class="h-full {% if col.over_limit %}bg-rose-500{% else %}bg-brand-500{% endif %}" style="width: {{ col.fill_pct }}%;"></div>
+      </div>
+      {% endif %}
     </div>
 
     {% comment %}
