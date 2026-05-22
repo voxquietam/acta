@@ -263,11 +263,11 @@ Pages extend this and override the `app_main` block.
 
         {% comment %}
         Theme toggle — three-state cycle: light → dark → midnight → light.
-        Button icon represents the NEXT theme (i.e. what clicking it
-        will switch to). Alpine store ``theme.toggle()`` advances
-        through ``['light','dark','midnight']`` and writes to
-        ``localStorage["acta:theme"]``. Lucide icons: ``moon`` →
-        ``moon-star`` → ``sun``.
+        Button icon represents the CURRENT theme (so the active theme is
+        always visible at a glance — sun = light, moon = dark, moon-star =
+        midnight); the tooltip names the action (what clicking switches
+        to). Alpine store ``theme.toggle()`` advances through
+        ``['light','dark','midnight']`` and writes ``localStorage["acta:theme"]``.
         {% endcomment %}
         <button type="button"
                 @click="$store.theme.toggle()"
@@ -278,9 +278,9 @@ Pages extend this and override the `app_main` block.
                     : '{% trans 'Switch to light mode' %}'"
                 data-tooltip-pos="below"
                 class="grid place-items-center p-1.5 rounded-md text-placeholder-foreground hover:bg-muted hover:text-foreground">
-          <span x-show="$store.theme.current === 'light'">{% lucide "moon" "w-4 h-4" %}</span>
-          <span x-show="$store.theme.current === 'dark'" x-cloak>{% lucide "moon-star" "w-4 h-4" %}</span>
-          <span x-show="$store.theme.current === 'midnight'" x-cloak>{% lucide "sun" "w-4 h-4" %}</span>
+          <span x-show="$store.theme.current === 'light'">{% lucide "sun" "w-4 h-4" %}</span>
+          <span x-show="$store.theme.current === 'dark'" x-cloak>{% lucide "moon" "w-4 h-4" %}</span>
+          <span x-show="$store.theme.current === 'midnight'" x-cloak>{% lucide "moon-star" "w-4 h-4" %}</span>
         </button>
 
         {% if user.is_authenticated %}
