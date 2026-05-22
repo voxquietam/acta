@@ -548,6 +548,72 @@
   }
   window.actaApplyFilters = applyClientFilters;
 
+  // Kanban drag-and-drop. Lives here (not in the swapped board partial)
+  // so it re-binds on every navigation: an inline <script> in content
+  // restored via ``htmx.swap`` doesn't reliably re-run, which left cards
+  // undraggable (text just selected) after a Back/Forward or boosted nav
+  // until a full reload. ``Sortable.get`` keeps the bind idempotent.
+  function handleKanbanDrop(evt) {
+    const card = evt.item;
+    const newStatus = evt.to.dataset.status;
+    const taskId = card.dataset.taskId;
+    if (!taskId || !newStatus) return;
+    const rollback = () => evt.from.insertBefore(card, evt.from.children[evt.oldIndex] || null);
+    fetch(`/api/v1/tasks/${taskId}/`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": window.acta.csrfToken(),
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ status: newStatus }),
+    })
+      .then((r) => {
+        if (!r.ok) {
+          rollback();
+          return;
+        }
+        document.querySelectorAll(".kanban-column").forEach((c) => {
+          const counter = c.parentElement && c.parentElement.querySelector("[data-column-count]");
+          if (counter) counter.textContent = c.querySelectorAll("[data-task-id]").length;
+        });
+      })
+      .catch(rollback);
+  }
+
+  function initKanbanDnD() {
+    if (!window.Sortable) return;
+    document.querySelectorAll(".kanban-column").forEach((col) => {
+      if (window.Sortable.get(col)) return; // already bound on this element
+      new window.Sortable(col, {
+        group: "tasks",
+        animation: 150,
+        ghostClass: "opacity-30",
+        onAdd: handleKanbanDrop,
+      });
+    });
+  }
+
+  // Open-in-new-tab for kanban cards (plain divs, no href): middle-click
+  // or Ctrl/Cmd-click. Delegated on document so it survives board swaps.
+  function kanbanCardNewTab(e) {
+    const card = e.target.closest && e.target.closest("[data-kanban-card]");
+    if (!card || !card.dataset.taskUrl) return;
+    const middle = e.type === "auxclick" && e.button === 1;
+    const modified = e.type === "click" && (e.ctrlKey || e.metaKey);
+    if (!middle && !modified) return;
+    e.preventDefault();
+    window.open(card.dataset.taskUrl, "_blank", "noopener");
+  }
+  document.addEventListener("click", kanbanCardNewTab);
+  document.addEventListener("auxclick", kanbanCardNewTab);
+  document.body.addEventListener("htmx:afterSettle", initKanbanDnD);
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initKanbanDnD);
+  } else {
+    initKanbanDnD();
+  }
+
   // Walk every kanban column, look at the *visible* cards inside,
   // and refresh the substatus row (overdue count / "++ N this week" /
   // avatar stack) so the header doesn't carry stale numbers after a

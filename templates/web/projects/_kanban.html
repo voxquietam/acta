@@ -196,71 +196,9 @@ hides the native scrollbar without losing the "you can scroll" cue.
 <div data-fade-right aria-hidden="true"
      class="pointer-events-none absolute right-0 inset-y-0 w-8 bg-gradient-to-l from-background to-transparent"></div>
 </div>
-
-<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
-<script>
-  (function () {
-    // Cards are ``<div>``s (no ``href``), so "open in new tab" is wired by
-    // hand: middle-click or Ctrl/Cmd+click opens the task page in a new tab.
-    // The HTMX modal trigger ignores modifier / middle clicks, so these
-    // never also open the modal. Delegated on ``#kanban`` so SSE-inserted
-    // cards are covered too.
-    const board = document.getElementById("kanban");
-    if (board) {
-      const openInNewTab = (e) => {
-        const card = e.target.closest("[data-kanban-card]");
-        if (!card || !card.dataset.taskUrl) return;
-        const middle = e.type === "auxclick" && e.button === 1;
-        const modified = e.type === "click" && (e.ctrlKey || e.metaKey);
-        if (!middle && !modified) return;
-        e.preventDefault();
-        window.open(card.dataset.taskUrl, "_blank", "noopener");
-      };
-      board.addEventListener("click", openInNewTab);
-      board.addEventListener("auxclick", openInNewTab);
-    }
-
-    const columns = document.querySelectorAll(".kanban-column");
-    columns.forEach((col) => {
-      new Sortable(col, {
-        group: "tasks",
-        animation: 150,
-        ghostClass: "opacity-30",
-        onAdd: handleDrop,
-        onUpdate: function () { /* same-column reorder: ignore for now */ },
-      });
-    });
-
-    function handleDrop(evt) {
-      const card = evt.item;
-      const newStatus = evt.to.dataset.status;
-      const taskId = card.dataset.taskId;
-      if (!taskId || !newStatus) return;
-
-      fetch(`/api/v1/tasks/${taskId}/`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": window.acta.csrfToken(),
-          "Accept": "application/json",
-        },
-        body: JSON.stringify({ status: newStatus }),
-      }).then((r) => {
-        if (!r.ok) {
-          // Roll back UI: move the card back to its original column.
-          evt.from.insertBefore(card, evt.from.children[evt.oldIndex] || null);
-          console.error("Status change failed:", r.status);
-          return;
-        }
-        // Update column counts after a successful drop.
-        document.querySelectorAll(".kanban-column").forEach((c) => {
-          const counter = c.parentElement.querySelector("[data-column-count]");
-          if (counter) counter.textContent = c.querySelectorAll("[data-task-id]").length;
-        });
-      }).catch((err) => {
-        evt.from.insertBefore(card, evt.from.children[evt.oldIndex] || null);
-        console.error(err);
-      });
-    }
-  })();
-</script>
+{% comment %}
+Drag-and-drop + open-in-new-tab are wired in acta.js (``initKanbanDnD``),
+not inline here — an inline script in this partial doesn't re-run when
+the board is restored via the SPA router's ``htmx.swap``, which left
+cards undraggable after navigation. acta.js re-binds on every settle.
+{% endcomment %}

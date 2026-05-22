@@ -1201,6 +1201,19 @@ class TestWorkspaceWip:
         assert cols["in-progress"]["fill_pct"] == 100
         assert cols["to-do"]["over_limit"] is False
 
+    def test_personal_over_warning_renders_on_board(self, client):
+        """End-to-end: the kanban shows the over-WIP warning for the column."""
+        ws = WorkspaceFactory()
+        ws.wip_limits = {"mode": "personal", "limits": {"in-progress": 2}}
+        ws.save(update_fields=["wip_limits"])
+        project = ProjectFactory(workspace=ws)
+        for _ in range(3):
+            TaskFactory(project=project, status=Task.STATUS_IN_PROGRESS, assignee=ws.owner, reporter=ws.owner)
+        client.force_login(ws.owner)
+        resp = client.get(reverse("web:project_detail", kwargs={"slug_prefix": project.slug_prefix}) + "?view=kanban")
+        assert resp.status_code == 200
+        assert "over WIP" in resp.content.decode()
+
     def test_personal_mode_over_members(self):
         from apps.web.views import _build_kanban_columns, _wip_context
 
