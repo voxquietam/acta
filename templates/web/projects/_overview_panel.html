@@ -93,6 +93,10 @@ Members with role badges.
       <section>
         <div class="flex items-center gap-2 mb-2.5">
           <h2 class="text-[10px] uppercase tracking-wider text-placeholder-foreground font-semibold flex-1">{% trans "Stats" %}</h2>
+          <a href="{% url 'web:project_insights' slug_prefix=project.slug_prefix %}"
+             class="inline-flex items-center gap-1 text-[11px] text-placeholder-foreground hover:text-brand-400 transition">
+            {% lucide "chart-line" "w-3.5 h-3.5" %}{% trans "Insights" %}
+          </a>
         </div>
         <div class="bg-background border border-border rounded-lg p-4">
           {% if overview_total %}

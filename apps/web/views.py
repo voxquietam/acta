@@ -17,7 +17,7 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models import Count, Exists, F, Max, OuterRef, Q, Subquery
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
@@ -38,6 +38,7 @@ from apps.notifications.services import notify_comment_created, notify_project_u
 from apps.projects.models import Project, ProjectUpdate
 from apps.reactions.services import TARGET_TYPES, attach_reactions, summarize_reactions, toggle_reaction
 from apps.tasks.events import broadcast_link_change, broadcast_task_events, emit_task_diff_events, snapshot_task
+from apps.tasks.metrics import compute_flow_metrics
 from apps.tasks.models import Task
 from apps.web.filters import (
     SORTABLE_COLUMNS,
@@ -3459,6 +3460,64 @@ def set_wip_limit(request, slug_prefix):
     response = HttpResponse(status=204)
     response["HX-Trigger"] = "acta:task-changed"
     return response
+
+
+def _cycle_histogram(hours: list[float]) -> dict[str, list]:
+    """Bucket a list of cycle/lead-time hours into day-based ranges.
+
+    Returns a ``{labels, data}`` pair ready for a Chart.js bar chart.
+    Buckets: <1d, 1-2d, 2-3d, 3-5d, 5-10d, 10d+.
+    """
+    bounds = [
+        (24, "< 1d"),
+        (48, "1-2d"),
+        (72, "2-3d"),
+        (120, "3-5d"),
+        (240, "5-10d"),
+        (float("inf"), "10d+"),
+    ]
+    counts = [0] * len(bounds)
+    for h in hours:
+        for i, (hi, _label) in enumerate(bounds):
+            if h < hi:
+                counts[i] += 1
+                break
+    return {"labels": [label for _hi, label in bounds], "data": counts}
+
+
+@login_required
+def project_insights(request, slug_prefix):
+    """Flow-metrics insights page for a project (scrumban dashboard).
+
+    Renders cycle time / lead time / weekly throughput computed live
+    from the activity log (see :func:`apps.tasks.metrics.compute_flow_metrics`).
+    Charts are drawn client-side with Chart.js from the JSON blobs in
+    context.
+    """
+    project = _get_user_project_or_404(request.user, slug_prefix)
+    metrics = compute_flow_metrics(project, weeks=8)
+    throughput = metrics["throughput"]
+    avg_throughput = round(sum(p["count"] for p in throughput) / len(throughput), 1) if throughput else 0
+
+    def fmt(hours):
+        if hours is None:
+            return "—"
+        if hours < 24:
+            return f"{hours:.0f}h"
+        return f"{hours / 24:.1f}d"
+
+    ctx = {
+        "project": project,
+        "metrics": metrics,
+        "avg_throughput": avg_throughput,
+        "cycle_median_fmt": fmt(metrics["cycle_median"]),
+        "cycle_p85_fmt": fmt(metrics["cycle_p85"]),
+        "lead_median_fmt": fmt(metrics["lead_median"]),
+        "throughput_labels_json": json.dumps([p["label"] for p in throughput]),
+        "throughput_data_json": json.dumps([p["count"] for p in throughput]),
+        "cycle_hist_json": json.dumps(_cycle_histogram(metrics["cycle_times"])),
+    }
+    return render(request, "web/projects/insights.html", ctx)
 
 
 @require_POST

@@ -36,6 +36,7 @@ from .views import (
     post_comment,
     post_project_update,
     post_update_comment,
+    project_insights,
     read_all_notifications,
     remove_task_link,
     remove_workspace_member,
@@ -150,6 +151,11 @@ urlpatterns = [
         "projects/<str:slug_prefix>/wip-limit/",
         set_wip_limit,
         name="set_wip_limit",
+    ),
+    path(
+        "projects/<str:slug_prefix>/insights/",
+        project_insights,
+        name="project_insights",
     ),
     path(
         "projects/<str:slug_prefix>/updates/post/",
