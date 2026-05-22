@@ -320,6 +320,34 @@ Pages extend this and override the `app_main` block.
   <div id="modal-root"></div>
 
   {% comment %}
+  Image lightbox — a global overlay any image opens by dispatching a
+  ``lightbox:open`` window event with ``{ src, alt }``. Triggers use a
+  native ``onclick`` so they fire outside any Alpine scope (e.g. inside a
+  comment card). Decoupled from the htmx ``#modal-root`` task modal (pure
+  client overlay, no router); sits above it (``z-[70]``) so attachment
+  images inside the task modal open over it. Documents are NOT shown here —
+  only images (best practice: docs download, images preview inline).
+  {% endcomment %}
+  <div x-data="{ open: false, src: '', alt: '' }"
+       x-show="open"
+       x-cloak
+       @lightbox:open.window="src = $event.detail.src; alt = $event.detail.alt; open = true"
+       @keydown.escape.window="if (open) { $event.preventDefault(); $event.stopImmediatePropagation(); open = false }"
+       @click="open = false"
+       class="fixed inset-0 z-[70] bg-black/80 flex items-center justify-center p-6 cursor-zoom-out">
+    <img :src="src" :alt="alt" @click.stop
+         class="max-w-full max-h-full rounded-lg shadow-2xl cursor-default">
+    <a :href="src" target="_blank" rel="noopener" @click.stop
+       class="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-white/70 hover:text-white">
+      {% trans "Open original" %}
+    </a>
+    <button type="button" @click="open = false" aria-label="{% trans 'Close' %}"
+            class="absolute top-4 right-4 text-white/70 hover:text-white">
+      {% lucide "x" "w-6 h-6" %}
+    </button>
+  </div>
+
+  {% comment %}
   Toast layer — Alpine ``$store.toasts`` holds the queue. ``acta.js``
   listens on ``htmx:responseError`` + ``htmx:sendError`` and pushes
   one entry per failure; ``window.actaToast(msg, level)`` is the

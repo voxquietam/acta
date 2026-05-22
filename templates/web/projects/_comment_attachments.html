@@ -8,13 +8,12 @@ prefetched, so this never fans out into per-comment queries.
 {% endcomment %}
 {% with atts=comment.attachments.all %}
 {% if atts %}
-<div class="mt-2 flex flex-wrap gap-2">
+<div class="mt-2 flex flex-wrap items-start gap-2">
   {% for a in atts %}
   {% if a.is_image %}
-  <a href="{% url 'web:serve_attachment' pk=a.id %}" target="_blank" rel="noopener">
-    <img src="{% url 'web:serve_attachment' pk=a.id %}" alt="{{ a.original_name }}"
-         class="h-20 w-auto max-w-[12rem] rounded-lg border border-border object-cover">
-  </a>
+  <img src="{% url 'web:serve_attachment' pk=a.id %}" alt="{{ a.original_name }}"
+       onclick="window.dispatchEvent(new CustomEvent('lightbox:open', { detail: { src: this.src, alt: this.alt } }))"
+       class="h-20 w-auto max-w-[12rem] rounded-lg border border-border object-cover cursor-zoom-in">
   {% else %}
   <a href="{% url 'web:serve_attachment' pk=a.id %}" target="_blank" rel="noopener"
      class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted border border-border text-xs text-subtle-foreground hover:text-foreground transition max-w-[14rem]">

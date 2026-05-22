@@ -46,11 +46,9 @@ _links_panel structure and design tokens.
     {% for a in atts %}
     <div class="group/att flex items-center gap-2 text-xs">
       {% if a.is_image %}
-      <a href="{% url 'web:serve_attachment' pk=a.id %}" target="_blank" rel="noopener"
-         class="shrink-0">
-        <img src="{% url 'web:serve_attachment' pk=a.id %}" alt="{{ a.original_name }}"
-             class="w-9 h-9 rounded object-cover border border-border">
-      </a>
+      <img src="{% url 'web:serve_attachment' pk=a.id %}" alt="{{ a.original_name }}"
+           onclick="window.dispatchEvent(new CustomEvent('lightbox:open', { detail: { src: this.src, alt: this.alt } }))"
+           class="w-9 h-9 rounded object-cover border border-border shrink-0 cursor-zoom-in">
       {% else %}
       <span class="w-9 h-9 rounded bg-muted border border-border grid place-items-center shrink-0 text-placeholder-foreground">
         {% lucide "file" "w-4 h-4" %}
