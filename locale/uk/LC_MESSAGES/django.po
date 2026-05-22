@@ -187,14 +187,12 @@ msgid "That invite link has expired — ask the admin to resend it."
 msgstr "Термін дії посилання-запрошення минув — попросіть адміністратора надіслати його ще раз."
 
 #: apps/accounts/views.py:364
-#, fuzzy
-#| msgid "Latest update"
 msgid "Avatar updated."
-msgstr "Останній апдейт"
+msgstr "Аватар оновлено."
 
 #: apps/accounts/views.py:374
 msgid "Avatar removed."
-msgstr ""
+msgstr "Аватар видалено."
 
 #: apps/activity/models.py:79
 msgid "Activity log entry"
@@ -202,67 +200,61 @@ msgstr "Запис журналу активності"
 
 #: apps/attachments/models.py:54
 msgid "File attachment"
-msgstr ""
+msgstr "Вкладений файл"
 
 #: apps/attachments/models.py:55
-#, fuzzy
-#| msgid "Inline code"
 msgid "Inline editor image"
-msgstr "Код у тексті"
+msgstr "Зображення в редакторі"
 
 #: apps/attachments/models.py:129
 msgid "Attachment"
-msgstr ""
+msgstr "Вкладення"
 
 #: apps/attachments/models.py:130
 #: templates/web/projects/_attachments_panel.html:16
 msgid "Attachments"
-msgstr ""
+msgstr "Вкладення"
 
 #: apps/attachments/models.py:188
-#, fuzzy
-#| msgid "A comment must target exactly one of a task or a project update."
 msgid "An attachment must target exactly one of a task, a comment, or a project."
-msgstr "Коментар має стосуватися рівно одного: задачі або апдейту проєкту."
+msgstr "Вкладення має стосуватися рівно одного: задачі, коментаря або проєкту."
 
 #: apps/attachments/services.py:75
 #, python-format
 msgid "Files of type “.%(ext)s” are not allowed."
-msgstr ""
+msgstr "Файли типу «.%(ext)s» не дозволені."
 
 #: apps/attachments/services.py:80
 #, python-format
 msgid "“%(name)s” is too large — the limit for this type is %(mb)s MB."
-msgstr ""
+msgstr "«%(name)s» завеликий — ліміт для цього типу %(mb)s МБ."
 
 #: apps/attachments/services.py:102
 #, python-format
 msgid "“%(name)s” does not look like a valid .%(ext)s file."
-msgstr ""
+msgstr "«%(name)s» не схожий на коректний файл .%(ext)s."
 
 #: apps/attachments/services.py:111
 #, python-format
 msgid "“%(name)s” is not a readable image."
-msgstr ""
+msgstr "«%(name)s» не є зчитуваним зображенням."
 
 #: apps/attachments/services.py:246
 msgid "Your avatar must be a PNG, JPG, GIF, or WebP image."
-msgstr ""
+msgstr "Аватар має бути зображенням PNG, JPG, GIF або WebP."
 
 #: apps/attachments/services.py:250
 #, python-format
 msgid "That image is too large — the avatar limit is %(mb)s MB."
-msgstr ""
+msgstr "Зображення завелике — ліміт аватара %(mb)s МБ."
 
 #: apps/attachments/services.py:254
-#, fuzzy
-#| msgid "That invite link has already been used."
 msgid "That file is not a readable image."
-msgstr "Це посилання-запрошення вже використано."
+msgstr "Цей файл не є зчитуваним зображенням."
 
 #: apps/attachments/services.py:308
 msgid "Only PNG, JPG, GIF, or WebP images can be embedded."
-msgstr ""
+msgstr "Вбудовувати можна лише зображення PNG, JPG, GIF або WebP."
 
 #: apps/comments/models.py:61 apps/notifications/models.py:26
 #: templates/web/_inbox_preview.html:52
@@ -400,22 +392,16 @@ msgid "Off track"
 msgstr "Зірвано"
 
 #: apps/reactions/models.py:61
-#, fuzzy
-#| msgid "Mention"
 msgid "Reaction"
-msgstr "Згадка"
+msgstr "Реакція"
 
 #: apps/reactions/models.py:62
-#, fuzzy
-#| msgid "@Mentions"
 msgid "Reactions"
-msgstr "@Згадки"
+msgstr "Реакції"
 
 #: apps/reactions/models.py:120
-#, fuzzy
-#| msgid "A comment must target exactly one of a task or a project update."
 msgid "A reaction must target exactly one of a task, a comment, or a project update."
-msgstr "Коментар має стосуватися рівно одного: задачі або апдейту проєкту."
+msgstr "Реакція має стосуватися рівно одного: задачі, коментаря або оновлення проєкту."
 
 #: apps/tasks/bulk.py:95
 #, python-format
@@ -445,10 +431,8 @@ msgid "Must be a project ID (int)"
 msgstr "Має бути ID проєкту (число)"
 
 #: apps/tasks/bulk.py:119
-#, fuzzy
-#| msgid "Must be a project ID (int)"
 msgid "Must be a cycle ID (int) or null"
-msgstr "Має бути ID проєкту (число)"
+msgstr "Має бути ID циклу (ціле число) або null"
 
 #: apps/tasks/bulk.py:122
 msgid "Must be a boolean (true to archive, false to unarchive)"
@@ -648,13 +632,11 @@ msgstr "видалено коментар"
 
 #: apps/web/templatetags/web_extras.py:235
 msgid "attached a file"
-msgstr ""
+msgstr "прикріпив файл"
 
 #: apps/web/templatetags/web_extras.py:236
-#, fuzzy
-#| msgid "removed a member"
 msgid "removed an attachment"
-msgstr "учасника виключено з простору"
+msgstr "видалив вкладення"
 
 #: apps/web/templatetags/web_extras.py:237
 msgid "added a member"
@@ -950,17 +932,15 @@ msgstr "Профіль"
 
 #: templates/accounts/settings.html:36
 msgid "Upload photo"
-msgstr ""
+msgstr "Завантажити фото"
 
 #: templates/accounts/settings.html:43
-#, fuzzy
-#| msgid "Remove?"
 msgid "Remove"
-msgstr "Видалити?"
+msgstr "Видалити"
 
 #: templates/accounts/settings.html:49
 msgid "JPG, PNG, GIF or WebP, up to 3 MB. Square-cropped automatically."
-msgstr ""
+msgstr "JPG, PNG, GIF або WebP, до 3 МБ. Автоматична квадратна обрізка."
 
 #: templates/accounts/settings.html:66
 msgid "First name"
@@ -1116,10 +1096,8 @@ msgid "All Tasks"
 msgstr "Усі задачі"
 
 #: templates/base_app.html:167
-#, fuzzy
-#| msgid "New workspace"
 msgid "Switch workspace"
-msgstr "Новий робочий простір"
+msgstr "Змінити воркспейс"
 
 #: templates/base_app.html:194 templates/web/cycles/overview.html:37
 #: templates/web/workspaces/settings.html:15
@@ -1164,7 +1142,7 @@ msgstr "Перейти на світлу тему"
 
 #: templates/base_app.html:373
 msgid "Previous"
-msgstr ""
+msgstr "Назад"
 
 #: templates/base_app.html:379 templates/web/workspaces/settings.html:169
 msgid "Next"
@@ -1172,7 +1150,7 @@ msgstr "Далі"
 
 #: templates/base_app.html:385
 msgid "Open original"
-msgstr ""
+msgstr "Відкрити оригінал"
 
 #: templates/base_app.html:387 templates/web/_modal_shell.html:40
 #: templates/web/_modal_shell.html:41
@@ -1628,7 +1606,7 @@ msgstr "Переглянути задачі"
 
 #: templates/web/cycles/overview.html:76
 msgid "Burndown"
-msgstr "Burndown"
+msgstr "Згоряння"
 
 #: templates/web/cycles/overview.html:81
 msgid "No active cycle right now."
@@ -1759,13 +1737,11 @@ msgstr "відредагував(ла) опис"
 
 #: templates/web/projects/_activity_event.html:93
 msgid "attached"
-msgstr ""
+msgstr "прикріпив"
 
 #: templates/web/projects/_activity_event.html:96
-#, fuzzy
-#| msgid "removed a member"
 msgid "removed attachment"
-msgstr "учасника виключено з простору"
+msgstr "видалив вкладення"
 
 #: templates/web/projects/_activity_list.html:25
 msgid "Coming soon: a dedicated page or modal with the full activity history."
@@ -1797,14 +1773,12 @@ msgid "Search members…"
 msgstr "Пошук учасників…"
 
 #: templates/web/projects/_attachments_panel.html:18
-#, fuzzy
-#| msgid "No links yet."
 msgid "No files yet."
-msgstr "Зв'язків ще немає."
+msgstr "Ще немає файлів."
 
 #: templates/web/projects/_attachments_panel.html:33
 msgid "Upload file"
-msgstr ""
+msgstr "Завантажити файл"
 
 #: templates/web/projects/_attachments_panel.html:70
 #: templates/web/projects/_bulk_context_menu.html:112
@@ -1965,7 +1939,7 @@ msgstr "Напишіть коментар…"
 
 #: templates/web/projects/_comment_form.html:84
 msgid "Attach files"
-msgstr ""
+msgstr "Прикріпити файли"
 
 #: templates/web/projects/_comment_form.html:91
 msgid "Post comment"
@@ -2000,7 +1974,7 @@ msgstr "Напишіть опис…"
 #: templates/web/projects/_overview_panel.html:231
 #: templates/web/projects/_update_edit_form.html:31
 msgid "Paste or drop an image to embed it · double-click an image to preview"
-msgstr ""
+msgstr "Вставте або перетягніть зображення, щоб вбудувати · подвійний клік для перегляду"
 
 #: templates/web/projects/_due_date_cell.html:19
 msgid "Set deadline"
@@ -2165,10 +2139,8 @@ msgid "Over your WIP limit"
 msgstr "Перевищено ваш ліміт WIP"
 
 #: templates/web/projects/_list_panel.html:62
-#, fuzzy
-#| msgid "over WIP limit"
 msgid "over WIP"
-msgstr "перевищено ліміт WIP"
+msgstr "понад WIP"
 
 #: templates/web/projects/_list_panel.html:81
 msgid "Try a different group axis or clear filters."
