@@ -258,16 +258,25 @@ def compute_bottlenecks(project, *, today: datetime.date | None = None, weeks: i
 
     wip = {s: sum(1 for st in tasks.values() if st == s) for s in Task.KANBAN_STATUS_VALUES if s != Task.STATUS_DONE}
 
-    reopened = 0
-    completions = 0
-    for evs in events.values():
+    # Reopen rate = share of tasks COMPLETED in the window that later left
+    # done (a rework signal). Counted per distinct task — not per
+    # transition — so the rate is a true proportion bounded at 100%.
+    # (Counting raw done→away events let reopens of pre-window completions
+    # push it past 100%, which read as a broken metric.)
+    completed_ids: set[int] = set()
+    reopened_ids: set[int] = set()
+    for task_id, evs in events.items():
+        completed_in_window = False
         for ts, efrom, eto in evs:
             if ts < window_start_dt:
                 continue
             if eto == Task.STATUS_DONE:
-                completions += 1
-            if efrom == Task.STATUS_DONE:
-                reopened += 1
+                completed_ids.add(task_id)
+                completed_in_window = True
+            elif efrom == Task.STATUS_DONE and completed_in_window:
+                reopened_ids.add(task_id)
+    reopened = len(reopened_ids)
+    completions = len(completed_ids)
     reopen_rate = round(reopened / completions * 100, 1) if completions else 0.0
 
     return {

@@ -110,6 +110,42 @@ class TestCfdAndBottlenecks:
         # one done→to-do transition over one completion → 100% reopen
         assert b["reopen_rate"] == 100.0
 
+    def test_reopen_rate_capped_at_100(self):
+        """Reopens of pre-window completions must not push the rate >100%.
+
+        Counts distinct tasks completed-then-reopened IN the window, not
+        raw done→away transitions (which inflated past 100%).
+        """
+        ws = WorkspaceFactory()
+        project = ProjectFactory(workspace=ws)
+        now = timezone.now()
+
+        def _ev(task, frm, to, when):
+            e = ActivityLog.objects.create(
+                workspace=ws,
+                project=project,
+                target_type=ActivityLog.TARGET_TASK,
+                target_id=task.id,
+                event_type="task.status_changed",
+                payload={"from": frm, "to": to},
+            )
+            ActivityLog.objects.filter(pk=e.pk).update(created_at=when)
+
+        # Task A: completed AND reopened inside the window → counts once.
+        a = TaskFactory(project=project, status=Task.STATUS_TODO, reporter=ws.owner)
+        _ev(a, "in-progress", "done", now - datetime.timedelta(weeks=2))
+        _ev(a, "done", "to-do", now - datetime.timedelta(weeks=1))
+        # Task B: completed BEFORE the window, only its reopen lands inside.
+        # Old logic counted this reopen with no matching completion → >100%.
+        b_task = TaskFactory(project=project, status=Task.STATUS_TODO, reporter=ws.owner)
+        _ev(b_task, "in-progress", "done", now - datetime.timedelta(weeks=10))
+        _ev(b_task, "done", "to-do", now - datetime.timedelta(weeks=1))
+
+        b = compute_bottlenecks(project, weeks=8)
+        # Only Task A completed in-window and was reopened → 1/1 = 100%.
+        assert b["reopen_rate"] == 100.0
+        assert b["reopen_rate"] <= 100.0
+
 
 @pytest.mark.django_db
 def test_insights_page_renders(client):
