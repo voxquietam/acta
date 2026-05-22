@@ -44,6 +44,10 @@ code, kbd, pre, samp, .font-mono {
        tried the design system's warm beige paper on 2026-05-18 and
        reverted because it read as "old document" rather than "fast,
        crisp tool". Indigo dark theme below is the rebranded one. */
+    /* Tells the browser to render native controls (number spinners,
+       date pickers, scrollbars) for the active theme — without this the
+       dark theme shows light-on-dark white spinner widgets. */
+    color-scheme: light;
     /* Surfaces */
     --background: 255 255 255;      /* white — body */
     --card: 255 255 255;            /* white — panels and cards */
@@ -66,6 +70,7 @@ code, kbd, pre, samp, .font-mono {
 
   html.dark {
     /* Dark theme — neutral zinc, the original stack. */
+    color-scheme: dark;
     --background: 9 9 11;           /* zinc-950 */
     --card: 24 24 27;               /* zinc-900 */
     --muted: 39 39 42;              /* zinc-800 */
