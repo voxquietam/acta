@@ -1,4 +1,5 @@
 from pathlib import Path
+import uuid
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -203,6 +204,39 @@ def create_task_attachment(*, task, uploader, uploaded_file) -> Attachment:
         uploader=uploader,
         uploaded_file=uploaded_file,
     )
+
+
+def set_user_avatar(*, user, uploaded_file) -> None:
+    """Validate, square-crop, resize, and store a user's avatar.
+
+    Avatars are a plain ``ImageField`` on the user (not an ``Attachment``).
+    The image is validated as a raster type within the avatar size cap,
+    normalized to a square JPEG (see :func:`images.normalize_avatar`), and
+    any previous avatar file is deleted. Saves the user.
+
+    Args:
+        user: The :class:`User` whose avatar to set.
+        uploaded_file: The uploaded image.
+
+    Raises:
+        ValidationError: On a non-image, an oversized file, or an
+            unreadable image.
+    """
+    ext = _extension(uploaded_file.name)
+    if ext not in settings.ATTACHMENT_ALLOWED_TYPES["image"]["extensions"] or ext == "svg":
+        raise ValidationError(_("Your avatar must be a PNG, JPG, GIF, or WebP image."))
+    cap = settings.ATTACHMENT_MAX_UPLOAD_BYTES["avatar"]
+    if uploaded_file.size > cap:
+        raise ValidationError(
+            _("That image is too large — the avatar limit is %(mb)s MB.") % {"mb": cap // (1024 * 1024)}
+        )
+    result = images.normalize_avatar(uploaded_file, size=settings.ATTACHMENT_AVATAR_MAX_EDGE)
+    if result is None:
+        raise ValidationError(_("That file is not a readable image."))
+    content, _content_type = result
+    if user.avatar:
+        user.avatar.delete(save=False)
+    user.avatar.save(f"{uuid.uuid4().hex}.jpg", content, save=True)
 
 
 def create_comment_attachment(*, comment, uploader, uploaded_file) -> Attachment:

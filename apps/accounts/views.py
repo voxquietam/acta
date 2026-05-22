@@ -2,8 +2,10 @@
 
 from django.conf import settings
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseRedirect
+from django.core.exceptions import ValidationError
+from django.http import FileResponse, Http404, HttpResponse, HttpResponseBadRequest, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone, translation
@@ -16,6 +18,7 @@ from allauth.account.views import SignupView
 
 from apps.accounts.adapters import INVITE_SESSION_KEY, resolve_invite_from_request
 from apps.accounts.models import ApiToken
+from apps.attachments.services import set_user_avatar
 
 
 class InviteAwareSignupView(SignupView):
@@ -339,3 +342,51 @@ def invite_accept(request, token: str):
     # having to override the template.
     signup_url = reverse("account_signup")
     return HttpResponseRedirect(f"{signup_url}?invite={invite.token}")
+
+
+@require_POST
+@login_required
+def upload_avatar(request):
+    """Set the current user's avatar from an uploaded image.
+
+    Validates + square-crops + resizes via
+    :func:`apps.attachments.services.set_user_avatar`, then redirects back
+    to the settings page where the new photo renders.
+    """
+    upload = request.FILES.get("avatar")
+    if upload is None:
+        return HttpResponseBadRequest("avatar required")
+    try:
+        set_user_avatar(user=request.user, uploaded_file=upload)
+    except ValidationError as exc:
+        messages.error(request, "; ".join(exc.messages))
+        return HttpResponseRedirect(reverse("accounts:settings"))
+    messages.success(request, _("Avatar updated."))
+    return HttpResponseRedirect(reverse("accounts:settings"))
+
+
+@require_POST
+@login_required
+def remove_avatar(request):
+    """Remove the current user's avatar, reverting to the colour circle."""
+    if request.user.avatar:
+        request.user.avatar.delete(save=True)
+        messages.success(request, _("Avatar removed."))
+    return HttpResponseRedirect(reverse("accounts:settings"))
+
+
+@login_required
+def serve_avatar(request, user_id: int):
+    """Stream a user's avatar image.
+
+    Any authenticated user may view any avatar — a profile photo is shown
+    wherever the user appears (comments, assignees, member lists), possibly
+    across workspaces, so this is login-gated but not workspace-scoped.
+    Avatars are normalized to JPEG on upload.
+    """
+    user = get_object_or_404(get_user_model(), pk=user_id)
+    if not user.avatar:
+        raise Http404("no avatar")
+    response = FileResponse(user.avatar.open("rb"), content_type="image/jpeg")
+    response["Cache-Control"] = "private, max-age=300"
+    return response

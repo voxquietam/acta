@@ -77,3 +77,36 @@ def normalize_image(uploaded_file, *, max_edge: int, quality: int):
     image.save(buffer, **save_kwargs)
     buffer.seek(0)
     return ContentFile(buffer.read()), content_type
+
+
+def normalize_avatar(uploaded_file, *, size: int):
+    """Center-crop to a square, resize to ``size``×``size``, encode as JPEG.
+
+    Applies EXIF orientation, strips all other metadata, and flattens to
+    RGB JPEG (avatars never need transparency). ``ImageOps.fit`` does the
+    center crop + resize in one step.
+
+    Args:
+        uploaded_file: The incoming ``UploadedFile``.
+        size: Target edge length in pixels (square).
+
+    Returns:
+        A tuple ``(ContentFile, "image/jpeg")``, or ``None`` when the file
+        is not a readable image.
+    """
+    uploaded_file.seek(0)
+    try:
+        image = Image.open(uploaded_file)
+        image.load()
+    except Exception:
+        return None
+
+    image = ImageOps.exif_transpose(image)
+    image = ImageOps.fit(image, (size, size), Image.LANCZOS)
+    if image.mode not in ("RGB", "L"):
+        image = image.convert("RGB")
+
+    buffer = BytesIO()
+    image.save(buffer, format="JPEG", quality=85, optimize=True)
+    buffer.seek(0)
+    return ContentFile(buffer.read()), "image/jpeg"

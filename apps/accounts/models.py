@@ -1,10 +1,29 @@
 import hashlib
 import secrets
+import uuid
 
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils.translation import gettext_lazy as _
+
+
+def avatar_upload_to(instance: "User", filename: str) -> str:
+    """Storage path for a user's avatar.
+
+    Layout ``avatars/<user_id>/<uuid>.jpg``. Avatars are always
+    normalized to JPEG on upload, so the extension is fixed; the UUID
+    name busts the browser cache when a user replaces their photo.
+
+    Args:
+        instance: The ``User`` whose avatar is being saved (pk is set —
+            avatars are only set on existing users).
+        filename: Ignored except by convention; the stored name is a UUID.
+
+    Returns:
+        The storage-relative path under MEDIA_ROOT.
+    """
+    return f"avatars/{instance.pk}/{uuid.uuid4().hex}.jpg"
 
 
 class User(AbstractUser):
@@ -42,6 +61,16 @@ class User(AbstractUser):
             "Workspace the user is currently scoped into. The sidebar switcher sets "
             "it; All Tasks / Projects / My Work / Inbox / My Activity are filtered to "
             "it. Null falls back to the user's first workspace by name"
+        ),
+    )
+    avatar = models.ImageField(
+        upload_to=avatar_upload_to,
+        null=True,
+        blank=True,
+        max_length=255,
+        help_text=(
+            "Profile photo, square-cropped and resized to JPEG on upload; "
+            "falls back to a colour-initial circle when unset"
         ),
     )
 

@@ -1,0 +1,21 @@
+{% comment %}
+User avatar — the uploaded photo if set, else the deterministic
+colour-initial circle. One place decides photo-vs-circle so every surface
+stays consistent.
+
+Usage:
+    {% include "web/_user_avatar.html" with user=comment.author class="w-5 h-5" text_class="text-[10px]" %}
+
+``class``      — sizing + any layout extras (shrink-0, ring-…); applied to
+                 both the <img> and the fallback circle.
+``text_class`` — initial's font size for the fallback circle (e.g.
+                 "text-[10px]"); ignored when a photo is shown.
+{% endcomment %}
+{% if user.avatar %}
+<img src="{% url 'accounts:serve_avatar' user_id=user.id %}"
+     alt="{{ user.display_name }}"
+     class="{{ class }} rounded-full object-cover">
+{% else %}
+<span class="{{ class }} {{ text_class }} rounded-full text-white grid place-items-center font-medium"
+      style="background-color: {{ user.avatar_color }};">{{ user.display_name|slice:":1"|upper }}</span>
+{% endif %}
