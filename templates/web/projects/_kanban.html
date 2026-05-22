@@ -124,11 +124,18 @@ hides the native scrollbar without losing the "you can scroll" cue.
       set. Server-rendered against the real count (not the client-filtered
       view), so it can lag a live drag until the next board refetch.
       {% endcomment %}
+      {% comment %}
+      ``data-wip-warning``: these WIP cues are server-rendered against the
+      FULL board, so a client-side filter makes them stale (a false alarm
+      on a column the filter just emptied). ``applyClientFilters`` hides
+      every ``[data-wip-warning]`` while a filter is active and restores
+      them — accurate again — when filters clear. See acta.js.
+      {% endcomment %}
       {% if col.over_limit or col.at_limit %}
-      <div class="px-3 pb-1 font-mono text-[10px] text-rose-300">!! {% if col.over_limit %}{% trans "over WIP limit" %}{% else %}{% trans "at WIP limit" %}{% endif %}</div>
+      <div data-wip-warning class="px-3 pb-1 font-mono text-[10px] text-rose-300">!! {% if col.over_limit %}{% trans "over WIP limit" %}{% else %}{% trans "at WIP limit" %}{% endif %}</div>
       {% endif %}
       {% if col.limit %}
-      <div class="h-0.5 bg-muted overflow-hidden">
+      <div data-wip-warning class="h-0.5 bg-muted overflow-hidden">
         <div class="h-full {% if col.over_limit %}bg-rose-500{% else %}bg-brand-500{% endif %}" style="width: {{ col.fill_pct }}%;"></div>
       </div>
       {% endif %}
@@ -138,7 +145,7 @@ hides the native scrollbar without losing the "you can scroll" cue.
       avatars are ringed rose in the substatus stack above.
       {% endcomment %}
       {% if col.over_member_count %}
-      <div class="px-3 pb-1 font-mono text-[10px] text-rose-300">!! {% blocktrans count n=col.over_member_count %}{{ n }} member over WIP{% plural %}{{ n }} members over WIP{% endblocktrans %}</div>
+      <div data-wip-warning class="px-3 pb-1 font-mono text-[10px] text-rose-300">!! {% blocktrans count n=col.over_member_count %}{{ n }} member over WIP{% plural %}{{ n }} members over WIP{% endblocktrans %}</div>
       {% endif %}
     </div>
 

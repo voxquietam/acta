@@ -524,6 +524,14 @@
       const counter = c.parentElement?.querySelector("[data-column-count]");
       if (counter) counter.textContent = String(visible);
     });
+    // WIP warnings are computed server-side over the FULL board, so they
+    // go stale (false alarms) under a client-side filter — e.g. "4 members
+    // over WIP" on a column the filter emptied. Hide them while a filter
+    // is active; un-hide (server-accurate again) once filters clear.
+    const filtersActive = activeFilterCount(state) > 0;
+    document.querySelectorAll("[data-wip-warning]").forEach((el) => {
+      el.classList.toggle("hidden", filtersActive);
+    });
     recomputeKanbanSubstatus();
     // Update ``acta_show_archived`` cookie so a hard refresh remembers
     // the toggle — server-side fallback path reads this on cold load.
