@@ -35,7 +35,24 @@ class Task(models.Model):
     STATUS_IN_PROGRESS = "in-progress"
     STATUS_IN_REVIEW = "in-review"
     STATUS_DONE = "done"
+    # Terminal "won't do" state — the task was real and time may have been
+    # spent, but the need disappeared. Distinct from done (completed) and
+    # archive (hide). Sits last in the enum; hidden from default views and
+    # the kanban board, and excluded from throughput. See ADR 0004.
+    STATUS_CANCELLED = "cancelled"
     STATUS_VALUES = (
+        STATUS_PLANNED,
+        STATUS_TODO,
+        STATUS_IN_PROGRESS,
+        STATUS_IN_REVIEW,
+        STATUS_DONE,
+        STATUS_CANCELLED,
+    )
+    # Workflow statuses that surface as kanban columns. Excludes the
+    # terminal STATUS_CANCELLED so the board stays focused on active work;
+    # cancelling a task drops its card off the board (re-open by picking
+    # any other status). STATUS_DONE stays a column.
+    KANBAN_STATUS_VALUES = (
         STATUS_PLANNED,
         STATUS_TODO,
         STATUS_IN_PROGRESS,
@@ -51,6 +68,7 @@ class Task(models.Model):
         STATUS_IN_PROGRESS: _("In progress"),
         STATUS_IN_REVIEW: _("In review"),
         STATUS_DONE: _("Done"),
+        STATUS_CANCELLED: _("Cancelled"),
     }
 
     SIZE_VALUES = (
@@ -96,7 +114,7 @@ class Task(models.Model):
     status = models.CharField(
         max_length=20,
         default=STATUS_TODO,
-        help_text="Workflow state: one of planned, to-do, in-progress, in-review, done",
+        help_text="Workflow state: one of planned, to-do, in-progress, in-review, done, cancelled",
     )
     priority = models.SmallIntegerField(
         default=NO_PRIORITY,

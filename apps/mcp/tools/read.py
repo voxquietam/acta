@@ -71,6 +71,11 @@ def tasks_list(user: User, arguments: dict[str, Any]) -> Any:
         qs = qs.filter(status=status)
     elif isinstance(status, list):
         qs = qs.filter(status__in=status)
+    else:
+        # No explicit status filter — hide the terminal ``cancelled`` state
+        # by default, matching the web list. Naming it in ``status`` still
+        # surfaces cancelled tasks.
+        qs = qs.exclude(status=Task.STATUS_CANCELLED)
     priority = args.get("priority")
     if isinstance(priority, int):
         qs = qs.filter(priority=priority)
@@ -533,7 +538,8 @@ TOOLS: list[Tool] = [
         description=(
             "List Acta tasks the user can access, with optional filters. "
             "Filters match the web UI: ``project`` (project slug prefix, e.g. ACTA), "
-            "``status`` (one of planned/to-do/in-progress/in-review/done, or list), "
+            "``status`` (one of planned/to-do/in-progress/in-review/done/cancelled, or "
+            "list; cancelled tasks are hidden unless you ask for them explicitly), "
             "``priority`` (1=Urgent..4=Low, or list), ``assignee`` (username, ``me``, or ``unassigned``), "
             "``q`` (case-insensitive title/description search), "
             "``include_archived`` (default false), ``limit`` (default 50, max 200). "
@@ -549,13 +555,13 @@ TOOLS: list[Tool] = [
                     "oneOf": [
                         {
                             "type": "string",
-                            "enum": ["planned", "to-do", "in-progress", "in-review", "done"],
+                            "enum": ["planned", "to-do", "in-progress", "in-review", "done", "cancelled"],
                         },
                         {
                             "type": "array",
                             "items": {
                                 "type": "string",
-                                "enum": ["planned", "to-do", "in-progress", "in-review", "done"],
+                                "enum": ["planned", "to-do", "in-progress", "in-review", "done", "cancelled"],
                             },
                         },
                     ],

@@ -339,6 +339,7 @@ _STATUS_BADGE_CLASS = {
     "in-progress": "bg-violet-100 dark:bg-violet-900 text-violet-700 dark:text-violet-300",
     "in-review": "bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300",
     "done": "bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300",
+    "cancelled": "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-500 line-through",
 }
 _PRIORITY_TEXT_CLASS = {
     1: "text-red-400",

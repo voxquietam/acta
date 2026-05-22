@@ -1,0 +1,94 @@
+{% load i18n %}
+{% comment %}
+Project cell — moves a task to another project in the workspace.
+
+Mirrors the assignee cell: a click-to-open Alpine dropdown with a
+client-side search input, each row an HTMX form posting to
+``set_task_project``. The endpoint renumbers the slug (AUD-167 → HRW-89)
+and replies with an ``HX-Location`` so the page re-resolves at the new
+URL.
+
+Only top-level tasks carry the picker; a subtask moves with its parent
+(the ``subtask.project == parent.project`` invariant), so for subtasks
+the project renders as plain read-only text.
+{% endcomment %}
+{% if task.parent_id %}
+<span class="text-muted-foreground inline-flex items-center gap-1.5">
+  <span class="font-mono text-[11px] text-placeholder-foreground">{{ task.project.slug_prefix }}</span>
+  <span>{{ task.project.name }}</span>
+</span>
+{% else %}
+<div id="project-cell"
+     x-data="{
+       open: false,
+       q: '',
+       rect: { top: 0, left: 0, bottom: 0, right: 0 },
+       matches(name) {
+         return name.toLowerCase().includes(this.q.toLowerCase());
+       },
+       measure() {
+         const r = this.$refs.trigger.getBoundingClientRect();
+         this.rect = { top: r.top, left: r.left, bottom: r.bottom, right: r.right };
+       },
+       toggle() { if (!this.open) this.measure(); this.open = !this.open; }
+     }"
+     x-init="
+       const onScroll = (e) => {
+         if (!$el.isConnected) { document.removeEventListener('scroll', onScroll, true); return; }
+         if (open && !($refs.panel && $refs.panel.contains(e.target))) open = false;
+       };
+       document.addEventListener('scroll', onScroll, true);
+     "
+     @resize.window="if (open) open = false"
+     class="inline-block">
+
+  <button type="button"
+          x-ref="trigger"
+          @click="toggle()"
+          class="cursor-pointer text-left text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5"
+          data-tooltip="{% trans 'Move to another project' %}">
+    <span class="font-mono text-[11px] text-placeholder-foreground">{{ task.project.slug_prefix }}</span>
+    <span class="truncate">{{ task.project.name }}</span>
+  </button>
+
+  <template x-teleport="body">
+  <div x-ref="panel"
+       x-show="open"
+       @click.outside="open = false"
+       x-init="$nextTick(() => window.htmx && window.htmx.process($el))"
+       x-effect="if (open) $nextTick(() => $refs.search.focus())"
+       x-cloak
+       :style="`position:fixed; top:${rect.bottom + 4}px; left:${Math.min(rect.left, window.innerWidth - 248)}px; width:15rem;`"
+       class="bg-card border border-border rounded-lg shadow-lg overflow-hidden z-50">
+
+    <div class="p-2 border-b border-border">
+      <input x-ref="search"
+             x-model="q"
+             @keydown.escape.prevent="open = false"
+             type="text"
+             placeholder="{% trans 'Search projects…' %}"
+             class="w-full bg-muted border border-border-strong rounded px-2 py-1 text-xs text-foreground placeholder-zinc-500 focus:outline-none focus:border-brand-500">
+    </div>
+
+    <div class="max-h-64 overflow-y-auto">
+      {% for project in workspace_projects %}
+      <form hx-post="{% url 'web:set_task_project' slug_prefix=task.project.slug_prefix number=task.number %}"
+            @htmx:after-request="open = false"
+            x-show="matches('{{ project.name|escapejs }}')">
+        {% csrf_token %}
+        <input type="hidden" name="project_id" value="{{ project.id }}">
+        {% if in_modal %}<input type="hidden" name="modal" value="1">{% endif %}
+        <button type="submit"
+                class="w-full text-left px-3 py-1.5 text-xs hover:bg-muted flex items-center gap-2
+                  {% if project.id == task.project_id %}font-medium text-foreground bg-muted/60{% else %}text-muted-foreground{% endif %}">
+          <span class="font-mono text-[11px] text-placeholder-foreground">{{ project.slug_prefix }}</span>
+          <span class="flex-1 truncate">{{ project.name }}</span>
+          {% if project.id == task.project_id %}<span class="text-placeholder-foreground">✓</span>{% endif %}
+        </button>
+      </form>
+      {% endfor %}
+    </div>
+  </div>
+  </template>
+</div>
+{% endif %}

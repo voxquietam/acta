@@ -105,7 +105,9 @@ x-data="{
         <select name="status"
                 class="mt-1 acta-input">
           {% for value, label in status_labels.items %}
+          {% if value != 'cancelled' %}
           <option value="{{ value }}" {% if value == pre_status %}selected{% endif %}>{{ label }}</option>
+          {% endif %}
           {% endfor %}
         </select>
       </div>

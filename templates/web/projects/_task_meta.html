@@ -12,6 +12,11 @@ Re-included by ``task_detail.html`` and rendered standalone by
 <div class="bg-card border border-border rounded-lg p-4 space-y-2.5">
 
   <div class="flex items-center justify-between gap-3">
+    <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Project" %}</div>
+    <div class="min-w-0">{% include "web/projects/_project_cell.html" %}</div>
+  </div>
+
+  <div class="flex items-center justify-between gap-3">
     <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Status" %}</div>
     <div class="min-w-0">{% include "web/projects/_status_cell.html" %}</div>
   </div>
@@ -52,29 +57,51 @@ Re-included by ``task_detail.html`` and rendered standalone by
   </div>
 
   {% comment %}
-  Archive / unarchive button. Manual action — auto-archive cron is a
-  separate TODO. Posts to ``archive_task`` and swaps this meta panel
-  with the freshly rendered fragment (which now reflects the new
-  archived_at state).
+  Action row — Cancel/Reopen and Archive/Unarchive side by side. Each is
+  its own HTMX form posting to its endpoint and swapping this whole meta
+  panel (so the labels + the status cell above reflect the new state).
+  Cancel marks the task terminal "won't do" (status → cancelled); reopen
+  sends a cancelled task back to to-do. Archive is orthogonal (hide).
   {% endcomment %}
-  <form hx-post="{% url 'web:archive_task' slug_prefix=task.project.slug_prefix number=task.number %}"
-        hx-target="#task-meta"
-        hx-swap="innerHTML"
-        class="pt-2 border-t border-border">
-    {% csrf_token %}
-    {% if task.archived_at %}
-    <input type="hidden" name="unarchive" value="1">
-    <button type="submit"
-            class="w-full flex items-center justify-center gap-1.5 text-xs text-subtle-foreground hover:text-amber-300 py-1 rounded transition">
-      {% lucide "archive-restore" "w-3.5 h-3.5" %}{% trans "Unarchive" %}
-    </button>
-    {% else %}
-    <button type="submit"
-            class="w-full flex items-center justify-center gap-1.5 text-xs text-placeholder-foreground hover:text-amber-400 py-1 rounded transition">
-      {% lucide "archive" "w-3.5 h-3.5" %}{% trans "Archive task" %}
-    </button>
-    {% endif %}
-  </form>
+  <div class="pt-2 border-t border-border flex items-stretch gap-2">
+    <form hx-post="{% url 'web:cancel_task' slug_prefix=task.project.slug_prefix number=task.number %}"
+          hx-target="#task-meta"
+          hx-swap="innerHTML"
+          class="flex-1">
+      {% csrf_token %}
+      {% if task.status == 'cancelled' %}
+      <input type="hidden" name="reopen" value="1">
+      <button type="submit"
+              class="w-full flex items-center justify-center gap-1.5 text-xs text-subtle-foreground hover:text-blue-300 py-1 rounded transition">
+        {% lucide "rotate-ccw" "w-3.5 h-3.5" %}{% trans "Reopen" %}
+      </button>
+      {% else %}
+      <button type="submit"
+              class="w-full flex items-center justify-center gap-1.5 text-xs text-placeholder-foreground hover:text-rose-400 py-1 rounded transition">
+        {% lucide "ban" "w-3.5 h-3.5" %}{% trans "Cancel" %}
+      </button>
+      {% endif %}
+    </form>
+
+    <form hx-post="{% url 'web:archive_task' slug_prefix=task.project.slug_prefix number=task.number %}"
+          hx-target="#task-meta"
+          hx-swap="innerHTML"
+          class="flex-1 border-l border-border pl-2">
+      {% csrf_token %}
+      {% if task.archived_at %}
+      <input type="hidden" name="unarchive" value="1">
+      <button type="submit"
+              class="w-full flex items-center justify-center gap-1.5 text-xs text-subtle-foreground hover:text-amber-300 py-1 rounded transition">
+        {% lucide "archive-restore" "w-3.5 h-3.5" %}{% trans "Unarchive" %}
+      </button>
+      {% else %}
+      <button type="submit"
+              class="w-full flex items-center justify-center gap-1.5 text-xs text-placeholder-foreground hover:text-amber-400 py-1 rounded transition">
+        {% lucide "archive" "w-3.5 h-3.5" %}{% trans "Archive" %}
+      </button>
+      {% endif %}
+    </form>
+  </div>
 </div>
 
 <div class="bg-card border border-border rounded-lg p-4 mt-4">

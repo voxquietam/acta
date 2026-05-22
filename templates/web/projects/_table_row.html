@@ -60,7 +60,7 @@ in context.
       <a href="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
          {% open_task_modal_attrs task %}
          class="block hover:text-brand-400 truncate min-w-0
-           {% if task.status == 'done' %}line-through text-placeholder-foreground{% else %}text-foreground{% endif %}"
+           {% if task.status == 'done' or task.status == 'cancelled' %}line-through text-placeholder-foreground{% else %}text-foreground{% endif %}"
          title="{{ task.title }}">{{ task.title }}</a>
     </span>
   </td>
@@ -70,7 +70,8 @@ in context.
       {% elif task.status == 'to-do' %}bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:ring-blue-500/40
       {% elif task.status == 'in-progress' %}bg-violet-100 dark:bg-violet-900 text-violet-700 dark:text-violet-300 hover:ring-violet-500/40
       {% elif task.status == 'in-review' %}bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 hover:ring-amber-500/40
-      {% elif task.status == 'done' %}bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 hover:ring-emerald-500/40{% endif %}"
+      {% elif task.status == 'done' %}bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 hover:ring-emerald-500/40
+      {% elif task.status == 'cancelled' %}bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-500 line-through hover:ring-zinc-500/40{% endif %}"
           title="{% trans 'Filter by status' %}: {{ status_labels|get_item:task.status|default:task.status }}"
           @click.stop="window.acta.toggleFilter('status', '{{ task.status }}')">
       {{ status_labels|get_item:task.status|default:task.status }}

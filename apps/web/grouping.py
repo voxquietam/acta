@@ -30,6 +30,7 @@ _STATUS_TONES = {
     Task.STATUS_IN_PROGRESS: "violet",
     Task.STATUS_IN_REVIEW: "amber",
     Task.STATUS_DONE: "emerald",
+    Task.STATUS_CANCELLED: "zinc",
 }
 
 _PRIORITY_TONES = {
@@ -135,6 +136,10 @@ def _group_by_status(tasks):
             "tasks": by_status[s],
         }
         for s in Task.STATUS_VALUES
+        # Cancelled is hidden by default, so its section only appears when
+        # the user has filtered cancelled tasks back in — never as an empty
+        # bucket. The workflow statuses keep their always-present sections.
+        if s != Task.STATUS_CANCELLED or by_status[s]
     ]
 
 

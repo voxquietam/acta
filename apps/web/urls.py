@@ -15,6 +15,7 @@ from .views import (
     archive_notification,
     archive_task,
     bulk_notifications,
+    cancel_task,
     comment_edit_form,
     comment_fragment,
     comment_reply_form,
@@ -47,6 +48,7 @@ from .views import (
     set_task_description,
     set_task_due_date,
     set_task_priority,
+    set_task_project,
     set_task_size,
     set_task_start_date,
     set_task_status,
@@ -218,6 +220,16 @@ urlpatterns = [
         "projects/<str:slug_prefix>/<int:number>/size/",
         set_task_size,
         name="set_task_size",
+    ),
+    path(
+        "projects/<str:slug_prefix>/<int:number>/project/",
+        set_task_project,
+        name="set_task_project",
+    ),
+    path(
+        "projects/<str:slug_prefix>/<int:number>/cancel/",
+        cancel_task,
+        name="cancel_task",
     ),
     path(
         "projects/<str:slug_prefix>/<int:number>/assignee/",

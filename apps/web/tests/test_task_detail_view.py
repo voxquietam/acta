@@ -176,9 +176,10 @@ class TestTaskDetailQueryCount:
         # (drives the comment edit/delete affordances); +1 for the
         # attachments panel (one query for all of the task's files); +2
         # for the comment-attachment prefetches (comment.attachments and
-        # replies.attachments). All single queries regardless of row
-        # count — constant, not N+1.
-        with django_assert_max_num_queries(28):
+        # replies.attachments); +1 for the move-task project picker
+        # (one query listing the workspace's projects). All single queries
+        # regardless of row count — constant, not N+1.
+        with django_assert_max_num_queries(29):
             client.get(
                 reverse(
                     "web:task_detail",

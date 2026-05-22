@@ -1251,6 +1251,7 @@ class ProjectListView(LoginRequiredMixin, ListView):
                 ),
                 total_task_count=Count(
                     "tasks",
+                    filter=~Q(tasks__status=Task.STATUS_CANCELLED),
                     distinct=True,
                 ),
                 planned_count=Count(
@@ -1422,9 +1423,10 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             in_progress=Count("id", filter=active & Q(status=Task.STATUS_IN_PROGRESS)),
             in_review=Count("id", filter=active & Q(status=Task.STATUS_IN_REVIEW)),
             done=Count("id", filter=active & Q(status=Task.STATUS_DONE)),
+            cancelled=Count("id", filter=active & Q(status=Task.STATUS_CANCELLED)),
             overdue=Count(
                 "id",
-                filter=active & Q(due_date__lt=today) & ~Q(status=Task.STATUS_DONE),
+                filter=active & Q(due_date__lt=today) & ~Q(status__in=[Task.STATUS_DONE, Task.STATUS_CANCELLED]),
             ),
             velocity_7d=Count(
                 "id",
@@ -1441,6 +1443,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         }
         ctx["overview_total"] = sum(ctx["overview_status_counts"].values())
         ctx["overview_done"] = stats["done"]
+        ctx["overview_cancelled"] = stats["cancelled"]
         ctx["overview_overdue"] = stats["overdue"]
         ctx["overview_velocity_7d"] = stats["velocity_7d"]
         ctx["overview_last_activity_at"] = stats["last_activity"]
@@ -1640,6 +1643,7 @@ class TaskDetailView(LoginRequiredMixin, DetailView):
         ctx["priority_labels"] = dict(Task.PRIORITY_CHOICES)
         ctx["workspace_members"] = _workspace_members(task)
         ctx["workspace_labels"] = _workspace_labels(task)
+        ctx["workspace_projects"] = _workspace_projects(task)
         ctx["attached_label_ids"] = set(task.labels.values_list("id", flat=True))
         return ctx
 
@@ -1733,6 +1737,7 @@ def task_meta_fragment(request, slug_prefix, number):
                 "priority_labels": dict(Task.PRIORITY_CHOICES),
                 "workspace_members": _workspace_members(task),
                 "workspace_labels": _workspace_labels(task),
+                "workspace_projects": _workspace_projects(task),
                 "attached_label_ids": set(task.labels.values_list("id", flat=True)),
             },
             request=request,
@@ -1789,6 +1794,7 @@ def task_meta_compact_fragment(request, slug_prefix, number):
                 "priority_labels": dict(Task.PRIORITY_CHOICES),
                 "workspace_members": _workspace_members(task),
                 "workspace_labels": _workspace_labels(task),
+                "workspace_projects": _workspace_projects(task),
                 "attached_label_ids": set(task.labels.values_list("id", flat=True)),
             },
             request=request,
@@ -2009,6 +2015,23 @@ def _workspace_members(task):
         .select_related("user")
         .order_by("user__username")
     )
+
+
+def _workspace_projects(task):
+    """Return the workspace's projects ordered by name.
+
+    Populates the move-task project picker on the task detail rail —
+    every project in the task's workspace is an eligible target (the
+    viewer is a member, since they can see this task). Scoped to one
+    workspace so a move never crosses the active-workspace boundary.
+
+    Args:
+        task: The :class:`Task` whose workspace's projects to fetch.
+
+    Returns:
+        A queryset of :class:`Project` rows.
+    """
+    return Project.objects.filter(workspace=task.project.workspace).order_by("name")
 
 
 def _workspace_labels(task):
@@ -2430,6 +2453,81 @@ def set_task_size(request, slug_prefix, number):
         "web/projects/_size_cell.html",
         {"task": task},
     )
+
+
+@require_POST
+@login_required
+def set_task_project(request, slug_prefix, number):
+    """Move a task (and its subtasks) to another project in the workspace.
+
+    Reassigns ``task.project`` and allocates a fresh per-project
+    ``number`` for the task and each of its subtasks — the
+    ``subtask.project == parent.project`` invariant (ADR 0007) forces the
+    cascade — so the user-facing slug renumbers (e.g. AUD-167 → HRW-89).
+    Each moved task emits a ``task.project_changed`` activity event via
+    the standard diff path, so the timeline reads the move and peer
+    kanban / table surfaces refresh over SSE.
+
+    Only top-level tasks carry a project picker; a subtask rides along
+    with its parent. The target must be a project in the user's active
+    workspace, so labels and assignee stay valid (the move never crosses
+    a workspace boundary).
+
+    Returns:
+        ``204`` with an ``HX-Location`` pointing at the task's new detail
+        URL (its slug changed, so the page re-resolves), or ``400`` on an
+        invalid / cross-workspace / subtask target.
+    """
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    if task.parent_id is not None:
+        return HttpResponseBadRequest("subtasks move with their parent")
+    try:
+        target_pk = int((request.POST.get("project_id") or "").strip())
+    except (TypeError, ValueError):
+        return HttpResponseBadRequest("invalid project")
+    target = get_object_or_404(
+        _user_accessible_projects(request.user, resolve_active_workspace(request)),
+        pk=target_pk,
+    )
+    if target.id != task.project_id:
+        with transaction.atomic():
+            subtasks = list(task.subtasks.select_related("project__workspace").all())
+            # Reserve numbers for the parent + every subtask in one locked
+            # counter step; the parent takes the lowest number so the slug
+            # sequence stays readable (parent below its subtasks).
+            movers = [task, *subtasks]
+            numbers = target.allocate_task_numbers(len(movers))
+            for mover, new_number in zip(movers, numbers):
+                old = snapshot_task(mover)
+                mover.project = target
+                mover.number = new_number
+                mover.save(update_fields=["project", "number", "updated_at"])
+                emit_task_diff_events(old_state=old, task=mover, actor=request.user)
+    detail_url = f"/projects/{target.slug_prefix}/{task.number}/"
+    response = HttpResponse(status=204)
+    if request.POST.get("modal") == "1":
+        # Moved from the modal overlay: reload the modal body at the new
+        # slug (the task's URL changed) and tell the board behind it to
+        # refetch so the moved card lands in the right place.
+        response["HX-Location"] = json.dumps(
+            {
+                "path": f"{detail_url}?modal=1",
+                "target": "#modal-root",
+                "swap": "innerHTML",
+            },
+        )
+        response["HX-Trigger"] = "acta:task-moved"
+    else:
+        response["HX-Location"] = json.dumps(
+            {
+                "path": detail_url,
+                "target": "#app-content",
+                "select": "#app-content",
+                "swap": "outerHTML show:top",
+                "headers": {"HX-Boosted": "true"},
+            },
+        )
+    return response
 
 
 @require_POST
@@ -3621,6 +3719,45 @@ def archive_task(request, slug_prefix, number):
             "status_labels": Task.STATUS_LABELS,
             "priority_labels": dict(Task.PRIORITY_CHOICES),
             "workspace_labels": _workspace_labels(task),
+            "workspace_projects": _workspace_projects(task),
+            "attached_label_ids": set(task.labels.values_list("id", flat=True)),
+        },
+    )
+
+
+@require_POST
+@login_required
+def cancel_task(request, slug_prefix, number):
+    """Cancel a task (terminal "won't do") or reopen a cancelled one.
+
+    A discoverable one-click affordance over the status picker: cancel
+    sets ``status`` to ``cancelled``; reopen (``reopen=1``) sets it back
+    to ``to-do``. The change rides the standard diff path
+    (:func:`emit_task_diff_events`), so it emits the same
+    ``task.status_changed`` event, SSE broadcast, and notifications as
+    picking the status manually — no new status semantics. Re-renders
+    the whole rail so the Cancel/Reopen button flips alongside the
+    status cell.
+    """
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    reopen = request.POST.get("reopen") == "1"
+    if reopen and task.status != Task.STATUS_CANCELLED:
+        return HttpResponseBadRequest("task is not cancelled")
+    if not reopen and task.status == Task.STATUS_CANCELLED:
+        return HttpResponseBadRequest("task is already cancelled")
+    new_status = Task.STATUS_TODO if reopen else Task.STATUS_CANCELLED
+    _apply_task_field_change(task, "status", new_status, request.user)
+    return _inline_edit_response(
+        request,
+        task,
+        "web/projects/_task_meta.html",
+        {
+            "task": task,
+            "workspace_members": _workspace_members(task),
+            "status_labels": Task.STATUS_LABELS,
+            "priority_labels": dict(Task.PRIORITY_CHOICES),
+            "workspace_labels": _workspace_labels(task),
+            "workspace_projects": _workspace_projects(task),
             "attached_label_ids": set(task.labels.values_list("id", flat=True)),
         },
     )
@@ -4336,21 +4473,24 @@ def _get_user_workspace_or_404(user, slug):
 
 
 def _build_kanban_columns(tasks, today=None):
-    """Build the 5 kanban column dicts from an already-materialised
-    task list — single pass over ``tasks`` bucketing by status and
+    """Build the kanban column dicts from an already-materialised task
+    list — single pass over ``tasks`` bucketing by status and
     accumulating per-column substatus stats (``overdue_count``,
     ``active_avatars`` for the header avatar stack, ``done_this_week``
     for the Done column trend line).
 
-    All in-memory work, no DB hits. ``tasks`` is whatever the caller
-    already paid for; this just shape-shifts it for the template.
+    Iterates ``Task.KANBAN_STATUS_VALUES`` so the terminal
+    ``cancelled`` status gets no column — cancelled cards drop off the
+    board (the queryset already hides them, this is a belt-and-braces
+    skip). All in-memory work, no DB hits. ``tasks`` is whatever the
+    caller already paid for; this just shape-shifts it for the template.
     """
     today = today or datetime.date.today()
     week_ago = today - datetime.timedelta(days=7)
 
-    buckets: dict[str, list] = {status: [] for status in Task.STATUS_VALUES}
-    overdue: dict[str, int] = {status: 0 for status in Task.STATUS_VALUES}
-    avatars: dict[str, dict[int, "User"]] = {status: {} for status in Task.STATUS_VALUES}
+    buckets: dict[str, list] = {status: [] for status in Task.KANBAN_STATUS_VALUES}
+    overdue: dict[str, int] = {status: 0 for status in Task.KANBAN_STATUS_VALUES}
+    avatars: dict[str, dict[int, "User"]] = {status: {} for status in Task.KANBAN_STATUS_VALUES}
     done_this_week = 0
 
     for t in tasks:
@@ -4375,7 +4515,7 @@ def _build_kanban_columns(tasks, today=None):
             "active_avatars": list(avatars[status].values()),
             "done_this_week": done_this_week if status == Task.STATUS_DONE else 0,
         }
-        for status in Task.STATUS_VALUES
+        for status in Task.KANBAN_STATUS_VALUES
     ]
 
 

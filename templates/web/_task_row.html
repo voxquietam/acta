@@ -26,6 +26,7 @@ status dot · slug + priority chevron · title (flex-1) · size · labels
     {% elif task.status == 'in-progress' %}bg-violet-500 hover:ring-violet-500/40
     {% elif task.status == 'in-review' %}bg-amber-500 hover:ring-amber-500/40
     {% elif task.status == 'done' %}bg-emerald-500 hover:ring-emerald-500/40
+    {% elif task.status == 'cancelled' %}bg-zinc-600 hover:ring-zinc-600/40
     {% else %}bg-zinc-700 hover:ring-zinc-700/40{% endif %}"
     title="{% trans 'Filter by status' %}: {{ status_labels|get_item:task.status|default:task.status }}"
     @click.prevent.stop="window.acta.toggleFilter('status', '{{ task.status }}')"></span>
@@ -52,7 +53,7 @@ status dot · slug + priority chevron · title (flex-1) · size · labels
   <span class="flex items-center gap-1.5 flex-1 min-w-0">
     {% include "web/projects/_task_link_badges.html" %}
     <span class="truncate min-w-0
-      {% if task.status == 'done' %}line-through text-placeholder-foreground{% else %}text-foreground{% endif %}">
+      {% if task.status == 'done' or task.status == 'cancelled' %}line-through text-placeholder-foreground{% else %}text-foreground{% endif %}">
       {{ task.title }}
     </span>
   </span>

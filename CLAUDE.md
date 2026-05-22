@@ -306,6 +306,9 @@ not italicise interactive elements (the `Unassign` button taught us).
   - `in-progress` → `violet-900` / `violet-300`, dot `violet-500`
   - `in-review` → `amber-900` / `amber-300`, dot `amber-500`
   - `done` → `emerald-900` / `emerald-300`, dot `emerald-500`
+  - `cancelled` → `zinc-100`/`zinc-800` bg, `zinc-500` text **+ `line-through`**,
+    dot `zinc-600`. Terminal "won't do" state: struck-through everywhere a
+    title renders, hidden from the kanban + default lists. See ADR 0004.
 - Priority palette (text + dot) — see `_priority_cell.html`:
   - 1 Urgent → `rose-400` / dot `rose-500`
   - 2 High → `orange-400` / dot `orange-500`

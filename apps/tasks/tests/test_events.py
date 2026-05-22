@@ -8,6 +8,7 @@ import pytest
 from apps.accounts.tests.factories import UserFactory
 from apps.activity.models import ActivityLog
 from apps.labels.tests.factories import LabelFactory
+from apps.projects.tests.factories import ProjectFactory
 from apps.tasks.events import build_diff_events, emit_task_diff_events, snapshot_task
 from apps.tasks.models import Task
 from apps.tasks.tests.factories import TaskFactory
@@ -118,7 +119,12 @@ class TestBuildDiffEventsWatchedFields:
 
 @pytest.mark.django_db
 class TestBuildDiffEventsCatchAll:
-    """Title / description / size / project / number land in ``task.updated``."""
+    """Title / description / size land in ``task.updated``.
+
+    A project / number change is reported by the dedicated
+    ``task.project_changed`` event instead — see
+    :class:`TestBuildDiffEventsProjectChange`.
+    """
 
     def test_title_change_in_task_updated(self):
         task = TaskFactory(title="old")
@@ -154,6 +160,29 @@ class TestBuildDiffEventsCatchAll:
         # No mutation.
         events = build_diff_events(old_state=old, task=task, actor=task.reporter)
         assert events == []
+
+
+@pytest.mark.django_db
+class TestBuildDiffEventsProjectChange:
+    """Moving a task to another project emits ``task.project_changed``."""
+
+    def test_project_change_emits_dedicated_event(self):
+        task = TaskFactory()
+        old = snapshot_task(task)
+        target = ProjectFactory(workspace=task.project.workspace)
+        task.project = target
+        task.number = 999
+        task.save(update_fields=["project", "number"])
+        events = build_diff_events(old_state=old, task=task, actor=task.reporter)
+        types = _event_types(events)
+        assert "task.project_changed" in types
+        # project / number must not leak into the catch-all task.updated.
+        assert "task.updated" not in types
+        e = next(e for e in events if e.event_type == "task.project_changed")
+        assert e.payload["from_project_id"] == old["project_id"]
+        assert e.payload["to_project_id"] == target.id
+        assert e.payload["from_slug"] == old["slug"]
+        assert e.payload["to_slug"] == task.slug
 
 
 @pytest.mark.django_db

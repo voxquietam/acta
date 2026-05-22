@@ -61,7 +61,7 @@ handler in ``_kanban.html`` restores it for middle / Ctrl+click.
   </div>
 
   <div class="text-sm leading-snug mt-1.5 line-clamp-3
-    {% if task.status == 'done' %}line-through text-placeholder-foreground{% else %}text-foreground{% endif %}">
+    {% if task.status == 'done' or task.status == 'cancelled' %}line-through text-placeholder-foreground{% else %}text-foreground{% endif %}">
     {{ task.title }}
   </div>
 

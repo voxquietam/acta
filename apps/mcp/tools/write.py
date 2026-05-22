@@ -164,6 +164,8 @@ def task_update(user: User, arguments: dict[str, Any]) -> Any:
     produces its own ``ActivityLog`` row — matches the granular event
     emission the web UI's DRF ``perform_update`` does.
     """
+    from django.db import transaction
+
     from apps.tasks.events import emit_task_diff_events, snapshot_task
     from apps.tasks.serializers import TaskSerializer
 
@@ -191,13 +193,62 @@ def task_update(user: User, arguments: dict[str, Any]) -> Any:
         labels = _resolve_or_create_labels(task.project.workspace, names)
         data["labels"] = [lab.id for lab in labels]
 
-    old_state = snapshot_task(task)
-    serializer = TaskSerializer(instance=task, data=data, partial=True, context={"request": FakeRequest(user)})
-    if not serializer.is_valid():
-        raise ValueError(f"Task validation failed: {serializer.errors}")
-    task = serializer.save()
-    emit_task_diff_events(old_state=old_state, task=task, actor=user)
+    # Resolve a project move up front so an invalid target fails before we
+    # touch anything. Workspace-only for now (cross-workspace moves would
+    # orphan labels / assignee — see the move-task ADR note).
+    move_target = None
+    if args.get("project"):
+        move_target = resolve_project(user, args["project"])
+        if move_target.workspace_id != task.project.workspace_id:
+            raise ValueError("Cross-workspace moves are not supported; pick a project in the same workspace.")
+        if task.parent_id is not None:
+            raise ValueError("A subtask moves with its parent — move the parent task instead.")
+
+    with transaction.atomic():
+        old_state = snapshot_task(task)
+        serializer = TaskSerializer(instance=task, data=data, partial=True, context={"request": FakeRequest(user)})
+        if not serializer.is_valid():
+            raise ValueError(f"Task validation failed: {serializer.errors}")
+        task = serializer.save()
+        if move_target is not None and move_target.id != task.project_id:
+            _move_task_to_project(task, move_target, actor=user)
+        emit_task_diff_events(old_state=old_state, task=task, actor=user)
     return serialize_task_summary(task)
+
+
+def _move_task_to_project(task, target, *, actor) -> None:
+    """Move ``task`` and its subtasks to ``target``, renumbering each.
+
+    Mirrors the web ``set_task_project`` view: reserves a fresh
+    per-project ``number`` for the task and every subtask in one locked
+    counter step (the ``subtask.project == parent.project`` invariant
+    forces the cascade), then renumbers them. The caller emits the
+    parent's diff (folding the project change into a single event); this
+    helper emits each subtask's diff itself.
+
+    Must run inside ``transaction.atomic()`` — ``allocate_task_numbers``
+    holds a row lock until commit.
+
+    Args:
+        task: The top-level :class:`Task` being moved (already saved with
+            any other field updates applied).
+        target: The destination :class:`Project`.
+        actor: The :class:`User` performing the move.
+    """
+    from apps.tasks.events import emit_task_diff_events, snapshot_task
+
+    subtasks = list(task.subtasks.select_related("project__workspace").all())
+    movers = [task, *subtasks]
+    numbers = target.allocate_task_numbers(len(movers))
+    for mover, new_number in zip(movers, numbers):
+        mover.project = target
+        mover.number = new_number
+        if mover is task:
+            mover.save(update_fields=["project", "number", "updated_at"])
+            continue
+        sub_old = snapshot_task(mover)
+        mover.save(update_fields=["project", "number", "updated_at"])
+        emit_task_diff_events(old_state=sub_old, task=mover, actor=actor)
 
 
 def task_archive(user: User, arguments: dict[str, Any]) -> Any:
@@ -537,10 +588,14 @@ TOOLS: list[Tool] = [
         description=(
             "Update an existing task (partial / PATCH-style). "
             "Required: ``slug``. Any combination of optional fields: "
-            "``title``, ``description``, ``status``, ``priority``, ``size`` "
-            "(Fibonacci 1/2/3/5/8/13), ``due_date``, ``assignee_username`` "
+            "``title``, ``description``, ``status`` (``cancelled`` is the "
+            "terminal 'won't do' state — distinct from done), ``priority``, "
+            "``size`` (Fibonacci 1/2/3/5/8/13), ``due_date``, ``assignee_username`` "
             "(pass ``null`` to clear), ``label_names`` (replaces the full "
-            "label set; missing labels are auto-created — see ``acta_task_create``). "
+            "label set; missing labels are auto-created — see ``acta_task_create``), "
+            "``project`` (slug prefix of a project IN THE SAME WORKSPACE to move "
+            "the task to — renumbers the slug, e.g. ACTA-12 → HRW-89, and moves "
+            "any subtasks along; only top-level tasks can be moved). "
             "Same validation as create. Returns the updated task summary."
         ),
         inputSchema={
@@ -551,13 +606,14 @@ TOOLS: list[Tool] = [
                 "description": {"type": "string"},
                 "status": {
                     "type": "string",
-                    "enum": ["planned", "to-do", "in-progress", "in-review", "done"],
+                    "enum": ["planned", "to-do", "in-progress", "in-review", "done", "cancelled"],
                 },
                 "priority": {"type": "integer", "minimum": 0, "maximum": 4},
                 "size": {"type": ["integer", "null"], "enum": [1, 2, 3, 5, 8, 13, None]},
                 "due_date": {"type": ["string", "null"]},
                 "assignee_username": {"type": ["string", "null"]},
                 "label_names": {"type": "array", "items": {"type": "string"}},
+                "project": {"type": "string", "description": "Target project slug prefix (same workspace)."},
             },
             "required": ["slug"],
             "additionalProperties": False,
@@ -775,13 +831,14 @@ TOOLS: list[Tool] = [
                             "description": {"type": "string"},
                             "status": {
                                 "type": "string",
-                                "enum": ["planned", "to-do", "in-progress", "in-review", "done"],
+                                "enum": ["planned", "to-do", "in-progress", "in-review", "done", "cancelled"],
                             },
                             "priority": {"type": "integer", "minimum": 0, "maximum": 4},
                             "size": {"type": ["integer", "null"], "enum": [1, 2, 3, 5, 8, 13, None]},
                             "due_date": {"type": ["string", "null"]},
                             "assignee_username": {"type": ["string", "null"]},
                             "label_names": {"type": "array", "items": {"type": "string"}},
+                            "project": {"type": "string", "description": "Target project slug prefix."},
                         },
                         "required": ["slug"],
                         "additionalProperties": False,

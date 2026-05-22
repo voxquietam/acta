@@ -20,7 +20,7 @@
          data-task-list-root
          class="flex-1 min-w-0 min-h-0 flex flex-col"
          hx-get="{{ request.path }}"
-         hx-trigger="acta:task-created from:body, acta:bulk-archived from:body"
+         hx-trigger="acta:task-created from:body, acta:bulk-archived from:body, acta:task-moved from:body"
          hx-target="this"
          hx-swap="innerHTML">
       {% include "web/_all_tasks_inner.html" %}

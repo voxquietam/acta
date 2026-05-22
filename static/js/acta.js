@@ -1278,6 +1278,21 @@
     handle("task.archived", applyTaskUpdate);
     handle("task.unarchived", applyTaskUpdate);
 
+    handle("task.project_changed", (d) => {
+      // A move changes which project a task belongs to (and its slug).
+      // Drop the now-stale card / table row immediately so a peer never
+      // sees a foreign slug sitting in the old project's board, then let
+      // the board panel refetch itself (``data-task-list-root`` listens
+      // for ``acta:task-moved``). The refetch re-renders for whatever
+      // scope this page is: the old project loses the task, the new one
+      // gains it, and the cross-project All Tasks view shows the updated
+      // project + slug. List view re-syncs via its own panel refetch.
+      applyCardRemove(d.target_id);
+      document.querySelectorAll(`tr[data-task-id="${d.target_id}"]`).forEach((el) => el.remove());
+      document.body.dispatchEvent(new CustomEvent("acta:task-moved", { bubbles: true }));
+      refreshListPanel();
+    });
+
     // Link events bypass the self-filter on purpose: adding a link only
     // swapped the rail panel (#task-links), so the board card / table row
     // for this task — and the linked task — are still stale and need the

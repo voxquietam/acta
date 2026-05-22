@@ -31,6 +31,7 @@ WATCHED_EVENT_FIELDS = (
     "priority",
     "parent",
     "labels",
+    "project",
 )
 
 
@@ -62,6 +63,11 @@ def snapshot_task(task: Task) -> dict[str, Any]:
         "parent_id": task.parent_id,
         "project_id": task.project_id,
         "number": task.number,
+        # User-facing slug before the mutation. Captured so a project move
+        # can emit a human-readable ``moved AUD-167 → HRW-89`` event; reads
+        # ``project.slug_prefix`` which every snapshot source queryset
+        # already select_relates (project__workspace).
+        "slug": task.slug,
         "archived_at": task.archived_at,
         "labels_ids": [label.id for label in task.labels.all()],
     }
@@ -174,6 +180,20 @@ def build_diff_events(
             ),
         )
 
+    if old_state.get("project_id") != task.project_id:
+        events.append(
+            ActivityLog(
+                event_type="task.project_changed",
+                payload={
+                    "from_project_id": old_state.get("project_id"),
+                    "to_project_id": task.project_id,
+                    "from_slug": old_state.get("slug"),
+                    "to_slug": task.slug,
+                },
+                **common,
+            ),
+        )
+
     old_archived = old_state.get("archived_at")
     new_archived = task.archived_at
     if (old_archived is None) != (new_archived is None):
@@ -208,10 +228,9 @@ def build_diff_events(
         }
     if old_state["size"] != task.size:
         changes["size"] = {"old": old_state["size"], "new": task.size}
-    if old_state.get("project_id") != task.project_id:
-        changes["project"] = {"old": old_state.get("project_id"), "new": task.project_id}
-    if old_state.get("number") != task.number:
-        changes["number"] = {"old": old_state.get("number"), "new": task.number}
+    # ``project`` + ``number`` changes are reported by the dedicated
+    # ``task.project_changed`` event above (a move renumbers the task), so
+    # they're intentionally left out of the catch-all ``task.updated``.
     if changes:
         events.append(
             ActivityLog(

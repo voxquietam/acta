@@ -152,10 +152,11 @@ class TestBulkProjectMove:
         a.refresh_from_db()
         assert a.project_id == dst.id
         assert a.number == 1
-        # An event captures the project move.
+        # A dedicated event captures the project move (from/to ids + slugs).
         evt = ActivityLog.objects.get(bulk_id=bulk_id)
-        assert evt.event_type == "task.updated"
-        assert "project" in evt.payload["changes"]
+        assert evt.event_type == "task.project_changed"
+        assert evt.payload["from_project_id"] == src.id
+        assert evt.payload["to_project_id"] == dst.id
 
     def test_top_level_move_cascades_subtasks(self):
         ws = WorkspaceFactory()

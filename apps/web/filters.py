@@ -87,12 +87,21 @@ def resolve_show_archived(request):
 
 
 def _filter_status(qs, params, *, default_show_done):
-    """Apply ``status`` / ``xstatus`` (logical workflow column)."""
+    """Apply ``status`` / ``xstatus`` (logical workflow column).
+
+    Cancelled tasks are terminal and hidden by default in every list /
+    table / kanban queryset — only an explicit ``?status=cancelled``
+    (the sidebar status chip) brings them back. This is more aggressive
+    than done (which ``default_show_done`` keeps visible) because a
+    cancelled task is "won't do" and should stay out of the way.
+    """
     statuses = params.getlist("status")
     if statuses:
         qs = qs.filter(status__in=statuses)
-    elif not default_show_done:
-        qs = qs.exclude(status=Task.STATUS_DONE)
+    else:
+        if not default_show_done:
+            qs = qs.exclude(status=Task.STATUS_DONE)
+        qs = qs.exclude(status=Task.STATUS_CANCELLED)
     excluded = params.getlist("xstatus")
     if excluded:
         qs = qs.exclude(status__in=excluded)
@@ -191,6 +200,7 @@ _STATUS_ORDER = Case(
     When(status=Task.STATUS_IN_PROGRESS, then=Value(2)),
     When(status=Task.STATUS_IN_REVIEW, then=Value(3)),
     When(status=Task.STATUS_DONE, then=Value(4)),
+    When(status=Task.STATUS_CANCELLED, then=Value(5)),
     default=Value(99),
     output_field=IntegerField(),
 )

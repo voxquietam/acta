@@ -965,6 +965,100 @@ class TestArchiveTask:
 
 
 @pytest.mark.django_db
+class TestCancelTask:
+    """Cancel / reopen endpoint — sets the terminal ``cancelled`` status
+    (and back to ``to-do``) via the standard status-change diff path."""
+
+    def _url(self, project, task):
+        return reverse(
+            "web:cancel_task",
+            kwargs={"slug_prefix": project.slug_prefix, "number": task.number},
+        )
+
+    def test_cancel_sets_status_and_logs_status_change(self, client, setup):
+        user, project, task = setup
+        client.force_login(user)
+        resp = client.post(self._url(project, task))
+        assert resp.status_code == 200
+        task.refresh_from_db()
+        assert task.status == Task.STATUS_CANCELLED
+        evt = ActivityLog.objects.get(target_id=task.id, event_type="task.status_changed")
+        assert evt.payload["to"] == Task.STATUS_CANCELLED
+
+    def test_reopen_returns_to_todo(self, client, setup):
+        user, project, task = setup
+        task.status = Task.STATUS_CANCELLED
+        task.save(update_fields=["status"])
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"reopen": "1"})
+        assert resp.status_code == 200
+        task.refresh_from_db()
+        assert task.status == Task.STATUS_TODO
+
+    def test_double_cancel_returns_400(self, client, setup):
+        user, project, task = setup
+        task.status = Task.STATUS_CANCELLED
+        task.save(update_fields=["status"])
+        client.force_login(user)
+        assert client.post(self._url(project, task)).status_code == 400
+
+    def test_reopen_when_active_returns_400(self, client, setup):
+        user, project, task = setup
+        client.force_login(user)
+        assert client.post(self._url(project, task), {"reopen": "1"}).status_code == 400
+
+
+@pytest.mark.django_db
+class TestSetTaskProject:
+    """Move-task endpoint — reassigns project, renumbers, cascades subtasks."""
+
+    def _url(self, project, task):
+        return reverse(
+            "web:set_task_project",
+            kwargs={"slug_prefix": project.slug_prefix, "number": task.number},
+        )
+
+    def test_move_reassigns_and_renumbers(self, client, setup):
+        user, project, task = setup
+        dst = ProjectFactory(workspace=project.workspace)
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"project_id": str(dst.id)})
+        assert resp.status_code == 204
+        assert f"/projects/{dst.slug_prefix}/" in resp["HX-Location"]
+        task.refresh_from_db()
+        assert task.project_id == dst.id
+        evt = ActivityLog.objects.get(target_id=task.id, event_type="task.project_changed")
+        assert evt.payload["to_project_id"] == dst.id
+
+    def test_move_cascades_subtasks(self, client, setup):
+        user, project, task = setup
+        child = TaskFactory(project=project, parent=task, reporter=user)
+        dst = ProjectFactory(workspace=project.workspace)
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"project_id": str(dst.id)})
+        assert resp.status_code == 204
+        child.refresh_from_db()
+        assert child.project_id == dst.id
+        assert child.parent_id == task.id
+
+    def test_subtask_cannot_move_alone(self, client, setup):
+        user, project, task = setup
+        child = TaskFactory(project=project, parent=task, reporter=user)
+        dst = ProjectFactory(workspace=project.workspace)
+        client.force_login(user)
+        resp = client.post(self._url(project, child), {"project_id": str(dst.id)})
+        assert resp.status_code == 400
+
+    def test_cross_workspace_target_404(self, client, setup):
+        user, project, task = setup
+        other_ws = WorkspaceFactory()
+        foreign = ProjectFactory(workspace=other_ws)
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"project_id": str(foreign.id)})
+        assert resp.status_code == 404
+
+
+@pytest.mark.django_db
 class TestArchivedFilter:
     """``apply_task_filters`` hides archived rows unless
     ``?show_archived=1``."""

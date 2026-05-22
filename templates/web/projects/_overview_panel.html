@@ -149,6 +149,13 @@ Members with role badges.
               <span class="text-foreground tabular-nums font-semibold">{{ overview_status_counts|get_item:'done' }}</span>
               <span>{% trans "done" %}</span>
             </span>
+            {% if overview_cancelled %}
+            <span class="inline-flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-zinc-600"></span>
+              <span class="text-foreground tabular-nums font-semibold line-through">{{ overview_cancelled }}</span>
+              <span>{% trans "cancelled" %}</span>
+            </span>
+            {% endif %}
           </div>
           {% else %}
           <p class="text-[12px] text-placeholder-foreground italic">{% trans "No tasks yet — bring this project to life." %}</p>
