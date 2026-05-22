@@ -77,7 +77,11 @@
   {# that actually changed, instead of removing + re-inserting the   #}
   {# whole element. Removes the "row disappears for a frame, then    #}
   {# reappears" flicker on peer-driven updates.                      #}
-  <script src="https://unpkg.com/idiomorph@0.3.0/dist/idiomorph-ext.min.js"></script>
+  {# Pinned to 0.7.x: 0.3.0's ext predates htmx 2's isInlineSwap     #}
+  {# signature and threw "Cannot read properties of undefined        #}
+  {# (reading 'swapStyle')" on every OOB swap (e.g. posting a        #}
+  {# comment). 0.7.x is the htmx-2-compatible line.                  #}
+  <script src="https://unpkg.com/idiomorph@0.7.3/dist/idiomorph-ext.min.js"></script>
   <script defer src="https://unpkg.com/alpinejs@3"></script>
 </head>
 <body class="bg-background text-foreground min-h-screen">
