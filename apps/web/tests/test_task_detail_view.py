@@ -6,6 +6,7 @@ import pytest
 
 from apps.activity.models import ActivityLog
 from apps.activity.services import log_event
+from apps.attachments.tests.factories import AttachmentFactory
 from apps.comments.tests.factories import CommentFactory
 from apps.projects.tests.factories import ProjectFactory
 from apps.tasks.tests.factories import TaskFactory
@@ -145,12 +146,17 @@ class TestTaskDetailQueryCount:
         client,
         task_setup,
         django_assert_max_num_queries,
+        settings,
+        tmp_path,
     ):
+        settings.MEDIA_ROOT = str(tmp_path / "media")
         user, project, task = task_setup
         for _ in range(5):
             TaskFactory(project=project, parent=task, reporter=user)
         for _ in range(5):
             CommentFactory(task=task, author=user)
+        for _ in range(5):
+            AttachmentFactory(task=task, workspace=project.workspace, uploader=user)
         for i in range(5):
             log_event(
                 workspace=project.workspace,
@@ -166,9 +172,10 @@ class TestTaskDetailQueryCount:
         # added by the context processor (ADR 0021); +2 for the task's own
         # reaction summary and the comment-reaction batch; +1 for the
         # comment-replies prefetch; +1 for the workspace-admin role check
-        # (drives the comment edit/delete affordances). All single queries
-        # regardless of row count — constant, not N+1.
-        with django_assert_max_num_queries(25):
+        # (drives the comment edit/delete affordances); +1 for the
+        # attachments panel (one query for all of the task's files). All
+        # single queries regardless of row count — constant, not N+1.
+        with django_assert_max_num_queries(26):
             client.get(
                 reverse(
                     "web:task_detail",

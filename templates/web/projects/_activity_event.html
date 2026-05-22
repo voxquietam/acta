@@ -75,6 +75,12 @@ with ``truncate`` so the row never wraps.
     {% else %}
       <span class="text-placeholder-foreground truncate">{{ event.event_type|event_label }}</span>
     {% endif %}
+  {% elif event.event_type == "attachment.created" %}
+    <span class="text-placeholder-foreground shrink-0">{% trans "attached" %}</span>
+    <span class="text-placeholder-foreground truncate">{{ event.payload.filename }}</span>
+  {% elif event.event_type == "attachment.deleted" %}
+    <span class="text-placeholder-foreground shrink-0">{% trans "removed attachment" %}</span>
+    <span class="text-placeholder-foreground truncate">{{ event.payload.filename }}</span>
   {% else %}
     <span class="text-placeholder-foreground truncate">{{ event.event_type|event_label }}</span>
   {% endif %}

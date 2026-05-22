@@ -1,0 +1,80 @@
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+Task attachments panel — image thumbnails + document chips, with an
+upload picker and per-row remove. Wrapped in #task-attachments so the
+upload/delete endpoints swap it outer-HTML. Delete is shown to the
+uploader (the server also allows workspace admins). Mirrors the
+_links_panel structure and design tokens.
+{% endcomment %}
+<div id="task-attachments" class="bg-card border border-border rounded-lg p-4 mt-4 space-y-3"
+     x-data="{ uploading: false }">
+
+  {% with atts=task.file_attachments %}
+  <div class="flex items-center justify-between gap-2">
+    <div class="flex items-center gap-2 min-w-0">
+      <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Attachments" %}</div>
+      {% if not atts %}
+      <span class="text-[11px] text-placeholder-foreground italic">{% trans "No files yet." %}</span>
+      {% endif %}
+    </div>
+    <form hx-post="{% url 'web:upload_task_attachment' slug_prefix=task.project.slug_prefix number=task.number %}"
+          hx-target="#task-attachments"
+          hx-swap="outerHTML"
+          hx-encoding="multipart/form-data"
+          @htmx:before-request="uploading = true"
+          @htmx:after-request="uploading = false">
+      {% csrf_token %}
+      <input type="file" name="file" class="hidden" x-ref="fileInput"
+             @change="if ($el.files.length) $el.form.requestSubmit()">
+      <button type="button" @click="$refs.fileInput.click()"
+              :disabled="uploading"
+              class="text-placeholder-foreground hover:text-foreground p-0.5 rounded disabled:opacity-50"
+              data-tooltip="{% trans 'Upload file' %}">
+        <span x-show="!uploading">{% lucide "plus" "w-3.5 h-3.5" %}</span>
+        <span x-show="uploading" x-cloak>{% lucide "loader-circle" "w-3.5 h-3.5 animate-spin" %}</span>
+      </button>
+    </form>
+  </div>
+
+  {% if attachment_error %}
+  <div class="text-[11px] text-rose-400">{{ attachment_error }}</div>
+  {% endif %}
+
+  {% if atts %}
+  <div class="space-y-1.5">
+    {% for a in atts %}
+    <div class="group/att flex items-center gap-2 text-xs">
+      {% if a.is_image %}
+      <a href="{% url 'web:serve_attachment' pk=a.id %}" target="_blank" rel="noopener"
+         class="shrink-0">
+        <img src="{% url 'web:serve_attachment' pk=a.id %}" alt="{{ a.original_name }}"
+             class="w-9 h-9 rounded object-cover border border-border">
+      </a>
+      {% else %}
+      <span class="w-9 h-9 rounded bg-muted border border-border grid place-items-center shrink-0 text-placeholder-foreground">
+        {% lucide "file" "w-4 h-4" %}
+      </span>
+      {% endif %}
+      <div class="min-w-0 flex-1">
+        <a href="{% url 'web:serve_attachment' pk=a.id %}" target="_blank" rel="noopener"
+           class="block truncate text-subtle-foreground hover:text-foreground">{{ a.original_name }}</a>
+        <div class="text-[10px] text-placeholder-foreground">{{ a.size|filesizeformat }}</div>
+      </div>
+      {% if request.user.id == a.uploader_id %}
+      <form hx-post="{% url 'web:delete_attachment' pk=a.id %}"
+            hx-target="#task-attachments" hx-swap="outerHTML"
+            hx-confirm="{% trans 'Delete this file?' %}" class="shrink-0">
+        {% csrf_token %}
+        <button type="submit"
+                class="text-placeholder-foreground hover:text-rose-400 opacity-0 group-hover/att:opacity-100 transition">
+          {% lucide "x" "w-3 h-3" %}
+        </button>
+      </form>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endwith %}
+</div>

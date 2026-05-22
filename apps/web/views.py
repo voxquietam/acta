@@ -13,7 +13,7 @@ from urllib.parse import urlencode
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models import Count, Exists, F, Max, OuterRef, Q, Subquery
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
@@ -28,6 +28,9 @@ from django.views.generic import DetailView, ListView, TemplateView
 
 from apps.activity.models import ActivityLog
 from apps.activity.services import log_event
+from apps.attachments.models import Attachment
+from apps.attachments.services import create_task_attachment
+from apps.attachments.serving import serve_attachment_response
 from apps.comments.models import Comment
 from apps.labels.models import Label
 from apps.notifications.models import Notification
@@ -2774,6 +2777,113 @@ def remove_task_link(request, slug_prefix, number):
             actor=request.user,
         )
     return _links_panel_response(request, task)
+
+
+def _attachments_panel_response(request, task, *, error=None, with_activity=True):
+    """Render the task attachments panel, optionally + OOB activity refresh.
+
+    Args:
+        request: The current request (drives ``can_modify`` per attachment).
+        task: The task whose panel to render.
+        error: An inline error message to show in the panel, or ``None``.
+        with_activity: Append the OOB activity-timeline fragment. Skipped on
+            an error response, where nothing actually changed.
+
+    Returns:
+        An ``HttpResponse`` carrying the panel HTML (status 200 so HTMX
+        swaps it even on a validation error).
+    """
+    html = render_to_string(
+        "web/projects/_attachments_panel.html",
+        {"task": task, "attachment_error": error},
+        request=request,
+    )
+    if with_activity and error is None:
+        html += render_to_string(
+            "web/projects/_activity_oob.html",
+            {
+                "task": task,
+                "timeline": _build_timeline(task, request.user.id),
+                "status_labels": Task.STATUS_LABELS,
+                "priority_labels": dict(Task.PRIORITY_CHOICES),
+            },
+            request=request,
+        )
+    return HttpResponse(html)
+
+
+@require_POST
+@login_required
+def upload_task_attachment(request, slug_prefix, number):
+    """Attach an uploaded file to a task (multipart POST, field ``file``)."""
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    upload = request.FILES.get("file")
+    if upload is None:
+        return HttpResponseBadRequest("file required")
+    try:
+        with transaction.atomic():
+            attachment = create_task_attachment(task=task, uploader=request.user, uploaded_file=upload)
+            log_event(
+                workspace=task.project.workspace,
+                project=task.project,
+                actor=request.user,
+                event_type="attachment.created",
+                target_type=ActivityLog.TARGET_ATTACHMENT,
+                target_id=attachment.id,
+                payload={
+                    "task_id": task.id,
+                    "filename": attachment.original_name,
+                    "size": attachment.size,
+                },
+            )
+    except ValidationError as exc:
+        return _attachments_panel_response(request, task, error="; ".join(exc.messages))
+    return _attachments_panel_response(request, task)
+
+
+@require_POST
+@login_required
+def delete_attachment(request, pk):
+    """Delete one attachment, by its uploader or a workspace admin."""
+    attachment = get_object_or_404(
+        Attachment.objects.select_related("workspace", "task__project__workspace", "uploader"),
+        pk=pk,
+        workspace__memberships__user=request.user,
+    )
+    task = attachment.task
+    if task is None:
+        return HttpResponseBadRequest("not a task attachment")
+    if attachment.uploader_id != request.user.id and not _is_workspace_admin(request.user.id, attachment.workspace_id):
+        raise PermissionDenied
+    filename = attachment.original_name
+    attachment_id = attachment.id
+    with transaction.atomic():
+        attachment.delete()
+        log_event(
+            workspace=task.project.workspace,
+            project=task.project,
+            actor=request.user,
+            event_type="attachment.deleted",
+            target_type=ActivityLog.TARGET_ATTACHMENT,
+            target_id=attachment_id,
+            payload={"task_id": task.id, "filename": filename},
+        )
+    return _attachments_panel_response(request, task)
+
+
+@login_required
+def serve_attachment(request, pk):
+    """Stream an attachment's file after a workspace-membership check.
+
+    The membership filter on the queryset is the access gate — a non-member
+    gets a 404, never the bytes. Delivery honors ATTACHMENT_SENDFILE_BACKEND
+    (see ADR 0025 and ``apps.attachments.serving``).
+    """
+    attachment = get_object_or_404(
+        Attachment.objects.filter(workspace__memberships__user=request.user),
+        pk=pk,
+    )
+    return serve_attachment_response(attachment)
 
 
 @require_POST

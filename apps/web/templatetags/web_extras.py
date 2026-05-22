@@ -223,6 +223,8 @@ _EVENT_LABELS = {
     "comment.created": _("added a comment"),
     "comment.edited": _("edited a comment"),
     "comment.deleted": _("deleted a comment"),
+    "attachment.created": _("attached a file"),
+    "attachment.deleted": _("removed an attachment"),
     "member.added": _("added a member"),
     "member.removed": _("removed a member"),
     "member.role_changed": _("changed a member role"),

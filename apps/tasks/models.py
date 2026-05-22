@@ -301,6 +301,23 @@ class Task(models.Model):
         return len(self.incomplete_blockers) > 0
 
     @property
+    def file_attachments(self):
+        """Return this task's panel file attachments, uploader preloaded.
+
+        Excludes inline editor images (``kind="inline_image"``), which live
+        in the description rather than the attachments panel. Evaluated
+        once per task-detail render, so it stays a single query; not for
+        use across a list of tasks.
+
+        Returns:
+            A queryset of :class:`apps.attachments.models.Attachment`,
+            oldest first.
+        """
+        from apps.attachments.models import Attachment
+
+        return self.attachments.filter(kind=Attachment.KIND_FILE).select_related("uploader")
+
+    @property
     def is_blocking(self) -> bool:
         """``True`` when this task blocks at least one still-open task.
 

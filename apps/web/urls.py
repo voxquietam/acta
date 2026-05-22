@@ -22,6 +22,7 @@ from .views import (
     create_task,
     create_workspace,
     create_workspace_invite,
+    delete_attachment,
     delete_comment,
     delete_project_update,
     edit_comment,
@@ -37,6 +38,7 @@ from .views import (
     remove_workspace_member,
     resend_workspace_invite,
     revoke_workspace_invite,
+    serve_attachment,
     set_notification_read,
     set_project_description,
     set_project_icon,
@@ -66,6 +68,7 @@ from .views import (
     toggle_task_label,
     update_card_fragment,
     update_edit_form,
+    upload_task_attachment,
 )
 
 app_name = "web"
@@ -252,6 +255,21 @@ urlpatterns = [
         "projects/<str:slug_prefix>/<int:number>/links/remove/",
         remove_task_link,
         name="remove_task_link",
+    ),
+    path(
+        "projects/<str:slug_prefix>/<int:number>/attachments/upload/",
+        upload_task_attachment,
+        name="upload_task_attachment",
+    ),
+    path(
+        "attachments/<int:pk>/delete/",
+        delete_attachment,
+        name="delete_attachment",
+    ),
+    path(
+        "attachments/<int:pk>/",
+        serve_attachment,
+        name="serve_attachment",
     ),
     path(
         "projects/<str:slug_prefix>/<int:number>/comments/",
