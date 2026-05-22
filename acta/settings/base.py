@@ -256,6 +256,112 @@ STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "static_collected"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 
+# Uploaded files — attachments, inline editor images, user avatars. Stored
+# on the local filesystem under MEDIA_ROOT (a folder on the VM, mounted to
+# the ``acta-media`` Docker volume in production so files survive container
+# rebuilds). The storage backend is chosen via ``STORAGES["default"]``
+# (FileSystemStorage now, S3-compatible later) — see ADR 0025.
+#
+# Media is NOT served publicly: there is no ``/media/`` route in dev or
+# prod. Every file is streamed by the auth-gated download view in
+# ``apps.attachments`` after a workspace-membership check, so dev and prod
+# behave identically. MEDIA_URL is nominal (Django wants a value for
+# ``FieldFile.url``) and is not routed.
+MEDIA_ROOT = Path(os.environ.get("DJANGO_MEDIA_ROOT", str(BASE_DIR / "media")))
+MEDIA_URL = "/media/"
+
+
+# -----------------------------------------------------------------------------
+# File attachments (see docs/decisions/0025-file-storage.md)
+# -----------------------------------------------------------------------------
+
+# Per-category raw-upload size caps, in bytes. Images are re-encoded on
+# upload, so their cap guards the *raw* upload, not the stored size;
+# documents and archives are stored as-is and need more headroom. This is
+# policy, not a DB constraint — change it with an edit + restart, no
+# migration, and already-stored files are unaffected.
+ATTACHMENT_MAX_UPLOAD_BYTES = {
+    "image": 5 * 1024 * 1024,
+    "document": 15 * 1024 * 1024,
+    "archive": 15 * 1024 * 1024,
+    "avatar": 3 * 1024 * 1024,
+}
+
+# Allowed upload types, grouped by category. The category selects the size
+# cap above and whether the file is image-normalized. Extensions and the
+# browser-supplied content type are advisory; the upload path sniffs the
+# real content type and rejects mismatches. Category keys are internal
+# codes and are never translated.
+ATTACHMENT_ALLOWED_TYPES = {
+    "image": {
+        "extensions": [
+            "png",
+            "jpg",
+            "jpeg",
+            "gif",
+            "webp",
+            "svg",
+        ],
+        "content_types": [
+            "image/png",
+            "image/jpeg",
+            "image/gif",
+            "image/webp",
+            "image/svg+xml",
+        ],
+    },
+    "document": {
+        "extensions": [
+            "pdf",
+            "txt",
+            "md",
+            "csv",
+            "docx",
+            "xlsx",
+            "pptx",
+        ],
+        "content_types": [
+            "application/pdf",
+            "text/plain",
+            "text/markdown",
+            "text/csv",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        ],
+    },
+    "archive": {
+        "extensions": [
+            "zip",
+        ],
+        "content_types": [
+            "application/zip",
+        ],
+    },
+}
+
+# Image normalization bounds (Pillow). Uploaded raster images are
+# downscaled so the long edge fits within the bound, re-encoded at
+# ATTACHMENT_IMAGE_QUALITY, and stripped of EXIF (orientation applied
+# first). SVG is vector and skips raster normalization. Avatars use the
+# smaller square bound.
+ATTACHMENT_IMAGE_MAX_EDGE = 2048
+ATTACHMENT_AVATAR_MAX_EDGE = 512
+ATTACHMENT_IMAGE_QUALITY = 85
+
+# Serving offload backend for the auth-gated download view (ADR 0025):
+#   "simple" — stream via Django's FileResponse. Correct on any proxy,
+#              including the current Traefik-only prod stack and dev.
+#   "nginx"  — return X-Accel-Redirect and let an nginx sidecar stream the
+#              bytes (frees the ASGI worker). Requires that sidecar; the
+#              admin's Traefik edge alone cannot do this.
+# Switching backends never changes the view code — only this setting (and
+# the deployment topology for "nginx").
+ATTACHMENT_SENDFILE_BACKEND = os.environ.get("DJANGO_SENDFILE_BACKEND", "simple")
+# Internal location prefix the nginx sidecar maps onto MEDIA_ROOT; only
+# consulted when ATTACHMENT_SENDFILE_BACKEND == "nginx".
+ATTACHMENT_SENDFILE_NGINX_LOCATION = "/media-internal/"
+
 
 # -----------------------------------------------------------------------------
 # django-unfold (admin theme)

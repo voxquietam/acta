@@ -55,6 +55,16 @@ services:
       EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
       DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-}
       ACTA_PUBLIC_BASE_URL: ${ACTA_PUBLIC_BASE_URL:-}
+      DJANGO_MEDIA_ROOT: ${DJANGO_MEDIA_ROOT:-/app/media}
+      DJANGO_SENDFILE_BACKEND: ${DJANGO_SENDFILE_BACKEND:-simple}
+    # Uploaded media (attachments, inline images, avatars) lives in a named
+    # volume so it survives ``docker compose up --build`` / image rebuilds —
+    # the container filesystem is otherwise ephemeral. Mounted at
+    # ``/app/media``, matching MEDIA_ROOT. In dev the repo bind-mount masks
+    # this path with the named volume at the subpath; that's fine — dev
+    # media just lives in the volume too.
+    volumes:
+      - acta-media:/app/media
     # Host port 8001 by default — ksu24.back's runserver lives on 8000.
     # Override via WEB_HOST_PORT in .env when needed.
     ports:
@@ -62,3 +72,4 @@ services:
 
 volumes:
   acta-pgdata:
+  acta-media:
