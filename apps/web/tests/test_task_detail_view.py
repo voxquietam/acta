@@ -153,10 +153,11 @@ class TestTaskDetailQueryCount:
         user, project, task = task_setup
         for _ in range(5):
             TaskFactory(project=project, parent=task, reporter=user)
-        for _ in range(5):
-            CommentFactory(task=task, author=user)
+        comments = [CommentFactory(task=task, author=user) for _ in range(5)]
         for _ in range(5):
             AttachmentFactory(task=task, workspace=project.workspace, uploader=user)
+        for comment in comments:
+            AttachmentFactory(task=None, comment=comment, workspace=project.workspace, uploader=user)
         for i in range(5):
             log_event(
                 workspace=project.workspace,
@@ -173,9 +174,11 @@ class TestTaskDetailQueryCount:
         # reaction summary and the comment-reaction batch; +1 for the
         # comment-replies prefetch; +1 for the workspace-admin role check
         # (drives the comment edit/delete affordances); +1 for the
-        # attachments panel (one query for all of the task's files). All
-        # single queries regardless of row count — constant, not N+1.
-        with django_assert_max_num_queries(26):
+        # attachments panel (one query for all of the task's files); +2
+        # for the comment-attachment prefetches (comment.attachments and
+        # replies.attachments). All single queries regardless of row
+        # count — constant, not N+1.
+        with django_assert_max_num_queries(28):
             client.get(
                 reverse(
                     "web:task_detail",

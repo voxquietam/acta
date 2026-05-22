@@ -26,6 +26,7 @@ Expects ``comment`` (a reply).
     <div class="prose dark:prose-invert prose-sm max-w-none text-muted-foreground">
       {{ comment.body|markdown }}
     </div>
+    {% include "web/projects/_comment_attachments.html" %}
     <div class="mt-2">
       {% include "web/_reaction_bar.html" with target_type="comment" target_id=comment.id reactions=comment.reaction_summary can_react=True %}
     </div>

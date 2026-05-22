@@ -111,18 +111,38 @@ def _sniff(uploaded_file, category: str, ext: str) -> None:
             uploaded_file.seek(0)
 
 
-def create_task_attachment(*, task, uploader, uploaded_file) -> Attachment:
-    """Validate, normalize, and store an uploaded file against a task.
-
-    Runs inside the caller's ``transaction.atomic()``. Raster images are
-    downscaled and stripped of metadata (see :func:`images.normalize_image`);
-    documents and archives are stored as-is. The stored content type is
-    derived from the validated extension, never the browser's claim.
+def _comment_workspace(comment):
+    """Return the workspace a comment lives in (task or project update).
 
     Args:
-        task: The owning :class:`apps.tasks.models.Task`.
+        comment: A :class:`apps.comments.models.Comment`. Its owner FK
+            (``task`` or ``project_update``) must be loaded.
+
+    Returns:
+        The owning :class:`apps.workspaces.models.Workspace`.
+    """
+    if comment.task_id:
+        return comment.task.project.workspace
+    return comment.project_update.project.workspace
+
+
+def _store_attachment(*, workspace, owner_field, owner, uploader, uploaded_file) -> Attachment:
+    """Validate, normalize, and persist one uploaded file as an Attachment.
+
+    Shared core of the per-owner ``create_*_attachment`` helpers. Raster
+    images are downscaled and stripped of metadata (see
+    :func:`images.normalize_image`); documents and archives are stored
+    as-is. The stored content type is derived from the validated
+    extension, never the browser's claim. Runs inside the caller's
+    ``transaction.atomic()``.
+
+    Args:
+        workspace: The owning workspace (denormalized onto the row).
+        owner_field: The owner FK field name (``task`` / ``comment`` /
+            ``project``).
+        owner: The owner instance assigned to that field.
         uploader: The :class:`User` uploading the file.
-        uploaded_file: The validated ``UploadedFile``.
+        uploaded_file: The ``UploadedFile`` to validate and store.
 
     Returns:
         The created, persisted :class:`Attachment`.
@@ -148,15 +168,62 @@ def create_task_attachment(*, task, uploader, uploaded_file) -> Attachment:
             stored, content_type = result
 
     attachment = Attachment(
-        workspace=task.project.workspace,
-        task=task,
+        workspace=workspace,
         kind=Attachment.KIND_FILE,
         uploader=uploader,
         original_name=original_name,
         content_type=content_type,
+        **{owner_field: owner},
     )
     attachment.clean()
     attachment.file.save(original_name, stored, save=False)
     attachment.size = attachment.file.size
     attachment.save()
     return attachment
+
+
+def create_task_attachment(*, task, uploader, uploaded_file) -> Attachment:
+    """Validate, normalize, and store an uploaded file against a task.
+
+    Args:
+        task: The owning :class:`apps.tasks.models.Task`.
+        uploader: The :class:`User` uploading the file.
+        uploaded_file: The ``UploadedFile`` to store.
+
+    Returns:
+        The created, persisted :class:`Attachment`.
+
+    Raises:
+        ValidationError: On a disallowed, oversized, or mismatched file.
+    """
+    return _store_attachment(
+        workspace=task.project.workspace,
+        owner_field="task",
+        owner=task,
+        uploader=uploader,
+        uploaded_file=uploaded_file,
+    )
+
+
+def create_comment_attachment(*, comment, uploader, uploaded_file) -> Attachment:
+    """Validate, normalize, and store an uploaded file against a comment.
+
+    Args:
+        comment: The owning :class:`apps.comments.models.Comment` (its
+            ``task`` / ``project_update`` owner must be loaded).
+        uploader: The :class:`User` uploading the file.
+        uploaded_file: The ``UploadedFile`` to store.
+
+    Returns:
+        The created, persisted :class:`Attachment`.
+
+    Raises:
+        ValidationError: On a disallowed, oversized, or mismatched file.
+    """
+    return _store_attachment(
+        workspace=_comment_workspace(comment),
+        owner_field="comment",
+        owner=comment,
+        uploader=uploader,
+        uploaded_file=uploaded_file,
+    )

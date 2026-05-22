@@ -29,7 +29,7 @@ from django.views.generic import DetailView, ListView, TemplateView
 from apps.activity.models import ActivityLog
 from apps.activity.services import log_event
 from apps.attachments.models import Attachment
-from apps.attachments.services import create_task_attachment
+from apps.attachments.services import categorize, create_comment_attachment, create_task_attachment
 from apps.attachments.serving import serve_attachment_response
 from apps.comments.models import Comment
 from apps.labels.models import Label
@@ -2124,7 +2124,7 @@ def _task_comments(task, user_id):
     comments = list(
         task.comments.filter(parent__isnull=True)
         .select_related("author")
-        .prefetch_related("replies__author")
+        .prefetch_related("replies__author", "attachments", "replies__attachments")
         .order_by("created_at")
     )
     _decorate_comments(comments, task, user_id)
@@ -2147,7 +2147,11 @@ def _render_comment_card(request, task, comment_id):
         An :class:`HttpResponse` with the rendered fragment.
     """
     comment = get_object_or_404(
-        task.comments.select_related("author").prefetch_related("replies__author"),
+        task.comments.select_related("author").prefetch_related(
+            "replies__author",
+            "attachments",
+            "replies__attachments",
+        ),
         pk=comment_id,
     )
     _decorate_comments([comment], task, request.user.id)
@@ -3504,8 +3508,9 @@ def post_comment(request, slug_prefix, number):
     """
     task = _get_user_task_or_404(request.user, slug_prefix, number)
     body = (request.POST.get("body") or "").strip()
-    if not body:
-        return HttpResponseBadRequest("body required")
+    files = request.FILES.getlist("file")
+    if not body and not files:
+        return HttpResponseBadRequest("body or file required")
     parent = None
     parent_raw = (request.GET.get("parent") or request.POST.get("parent") or "").strip()
     if parent_raw:
@@ -3514,16 +3519,26 @@ def post_comment(request, slug_prefix, number):
         parent = task.comments.filter(parent__isnull=True, pk=int(parent_raw)).first()
         if parent is None:
             return HttpResponseBadRequest("invalid parent")
-    comment = Comment.objects.create(task=task, author=request.user, parent=parent, body=body)
-    log_event(
-        workspace=task.project.workspace,
-        project=task.project,
-        actor=request.user,
-        event_type="comment.created",
-        target_type=ActivityLog.TARGET_COMMENT,
-        target_id=comment.id,
-        payload={"task_id": task.id, "body_preview": body[:120]},
-    )
+    # Validate every file up front so a bad upload never leaves a
+    # half-created comment or an orphaned blob on disk.
+    try:
+        for upload in files:
+            categorize(upload)
+    except ValidationError as exc:
+        return HttpResponseBadRequest("; ".join(exc.messages))
+    with transaction.atomic():
+        comment = Comment.objects.create(task=task, author=request.user, parent=parent, body=body)
+        for upload in files:
+            create_comment_attachment(comment=comment, uploader=request.user, uploaded_file=upload)
+        log_event(
+            workspace=task.project.workspace,
+            project=task.project,
+            actor=request.user,
+            event_type="comment.created",
+            target_type=ActivityLog.TARGET_COMMENT,
+            target_id=comment.id,
+            payload={"task_id": task.id, "body_preview": body[:120]},
+        )
     notify_comment_created(comment=comment, actor=request.user)
     comment.reaction_summary = []
     comment.can_modify = True
