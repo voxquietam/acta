@@ -396,6 +396,119 @@ def compute_velocity(workspace, limit: int = 6) -> list[dict]:
     return out
 
 
+# How many days before a cycle's end to fire the "ending soon" notice.
+# 1 = the day before the last day (reads as "ends tomorrow").
+CYCLE_ENDING_SOON_DAYS = 1
+
+
+def _cycle_open_task_count(cycle) -> int:
+    """Count the cycle's still-open (unfinished, non-archived) tasks."""
+    from apps.tasks.models import Task
+
+    return cycle.tasks.filter(
+        status__in=(Task.STATUS_TODO, Task.STATUS_IN_PROGRESS, Task.STATUS_IN_REVIEW),
+        archived_at__isnull=True,
+    ).count()
+
+
+def _cycle_recipient_ids(workspace) -> list:
+    """Workspace member user ids — the audience for cycle notifications."""
+    from apps.workspaces.models import WorkspaceMember
+
+    return list(
+        WorkspaceMember.objects.filter(workspace=workspace).values_list("user_id", flat=True),
+    )
+
+
+def notify_cycle_started(cycle) -> int:
+    """Fan out a "cycle started" notification to every workspace member.
+
+    System notification (no actor). Idempotent at the call site via
+    ``Cycle.start_notified_at`` (the management command stamps it). Returns
+    the number of notifications created.
+
+    Args:
+        cycle: The :class:`~apps.cycles.models.Cycle` that just became active.
+
+    Returns:
+        Count of notifications created.
+    """
+    from django.utils.translation import gettext as _
+
+    from apps.notifications.services import notify
+
+    title = _("%(label)s started") % {"label": cycle.display_name}
+    preview = _("Runs %(start)s – %(end)s") % {
+        "start": cycle.start_date.strftime("%b %-d"),
+        "end": cycle.end_date.strftime("%b %-d"),
+    }
+    payload = {"title": str(title), "event": "started", "cycle_number": cycle.number}
+    created = 0
+    for user_id in _cycle_recipient_ids(cycle.workspace):
+        if notify(
+            recipient_id=user_id,
+            actor=None,
+            kind="cycle",
+            workspace_id=cycle.workspace_id,
+            preview=str(preview),
+            payload=payload,
+        ):
+            created += 1
+    return created
+
+
+def notify_cycle_ending(cycle, today: datetime.date | None = None) -> int:
+    """Fan out a "cycle ending soon" notification to every workspace member.
+
+    Phrases the deadline relative to ``today`` (ends today / tomorrow / in
+    N days) and previews how many tasks are still open. System
+    notification; idempotent via ``Cycle.end_notified_at``.
+
+    Args:
+        cycle: The active :class:`~apps.cycles.models.Cycle`.
+        today: Reference date; defaults to local today.
+
+    Returns:
+        Count of notifications created.
+    """
+    from django.utils.translation import gettext as _
+    from django.utils.translation import ngettext
+
+    from apps.notifications.services import notify
+
+    today = today or timezone.localdate()
+    days_left = (cycle.end_date - today).days
+    if days_left <= 0:
+        when = _("ends today")
+    elif days_left == 1:
+        when = _("ends tomorrow")
+    else:
+        when = _("ends in %(days)s days") % {"days": days_left}
+    title = _("%(label)s %(when)s") % {"label": cycle.display_name, "when": when}
+    open_count = _cycle_open_task_count(cycle)
+    if open_count:
+        preview = ngettext(
+            "%(n)s task still open",
+            "%(n)s tasks still open",
+            open_count,
+        ) % {"n": open_count}
+    else:
+        preview = _("Everything's done — nice.")
+    payload = {"title": str(title), "event": "ending", "cycle_number": cycle.number, "open": open_count}
+    created = 0
+    for user_id in _cycle_recipient_ids(cycle.workspace):
+        if notify(
+            recipient_id=user_id,
+            actor=None,
+            kind="cycle",
+            workspace_id=cycle.workspace_id,
+            preview=str(preview),
+            payload=payload,
+        ):
+            created += 1
+    return created
+
+
 def current_cycle(workspace, today: datetime.date | None = None):
     """Return the workspace's active cycle without materializing rows.
 

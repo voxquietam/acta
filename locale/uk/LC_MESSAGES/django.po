@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Acta 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-05-22 20:56+0000\n"
+"POT-Creation-Date: 2026-05-22 21:07+0000\n"
 "PO-Revision-Date: 2026-05-16 15:30+0000\n"
 "Last-Translator: Acta team\n"
 "Language-Team: Ukrainian\n"
@@ -91,7 +91,7 @@ msgstr "Активність"
 msgid "Activity log"
 msgstr "Журнал активності"
 
-#: acta/settings/base.py:475 apps/notifications/models.py:30
+#: acta/settings/base.py:475 apps/notifications/models.py:31
 msgid "System"
 msgstr "Система"
 
@@ -257,7 +257,7 @@ msgid "Only PNG, JPG, GIF, or WebP images can be embedded."
 msgstr "Вбудовувати можна лише зображення PNG, JPG, GIF або WebP."
 
 #: apps/comments/models.py:61 apps/notifications/models.py:26
-#: templates/web/_inbox_preview.html:52
+#: templates/web/_inbox_preview.html:62
 #: templates/web/projects/_update_comments.html:22
 msgid "Comment"
 msgstr "Коментар"
@@ -291,8 +291,8 @@ msgstr "Активний"
 msgid "Completed"
 msgstr "Завершено"
 
-#: apps/cycles/models.py:67 templates/web/_filters_sidebar.html:348
-#: templates/web/_task_row.html:73
+#: apps/cycles/models.py:77 apps/notifications/models.py:30
+#: templates/web/_filters_sidebar.html:348 templates/web/_task_row.html:73
 #: templates/web/projects/_bulk_context_menu.html:209
 #: templates/web/projects/_table_row.html:67
 #: templates/web/projects/_task_context_menu.html:290
@@ -300,17 +300,58 @@ msgstr "Завершено"
 msgid "Cycle"
 msgstr "Цикл"
 
-#: apps/cycles/models.py:68 templates/base_app.html:128
-#: templates/base_app.html:129 templates/web/cycles/overview.html:14
-#: templates/web/cycles/overview.html:18
+#: apps/cycles/models.py:78 templates/base_app.html:128
+#: templates/base_app.html:129 templates/web/_inbox_preview.html:39
+#: templates/web/cycles/overview.html:14 templates/web/cycles/overview.html:18
 #: templates/web/workspaces/settings.html:109
 msgid "Cycles"
 msgstr "Цикли"
 
-#: apps/cycles/models.py:97
+#: apps/cycles/models.py:107
 #, python-format
 msgid "Cycle %(number)s"
 msgstr "Цикл %(number)s"
+
+#: apps/cycles/services.py:440
+#, python-format
+msgid "%(label)s started"
+msgstr "%(label)s розпочато"
+
+#: apps/cycles/services.py:441
+#, python-format
+msgid "Runs %(start)s – %(end)s"
+msgstr "Триває %(start)s – %(end)s"
+
+#: apps/cycles/services.py:482
+msgid "ends today"
+msgstr "завершується сьогодні"
+
+#: apps/cycles/services.py:484
+msgid "ends tomorrow"
+msgstr "завершується завтра"
+
+#: apps/cycles/services.py:486
+#, python-format
+msgid "ends in %(days)s days"
+msgstr "завершується через %(days)s дн."
+
+#: apps/cycles/services.py:487
+#, python-format
+msgid "%(label)s %(when)s"
+msgstr "%(label)s %(when)s"
+
+#: apps/cycles/services.py:491
+#, python-format
+msgid "%(n)s task still open"
+msgid_plural "%(n)s tasks still open"
+msgstr[0] "%(n)s задача ще відкрита"
+msgstr[1] "%(n)s задачі ще відкриті"
+msgstr[2] "%(n)s задач ще відкрито"
+msgstr[3] "%(n)s задач ще відкрито"
+
+#: apps/cycles/services.py:496
+msgid "Everything's done — nice."
+msgstr "Усе зроблено — чудово."
 
 #: apps/labels/models.py:7
 msgid "Color must be a hex code: #RRGGBB or #RRGGBBAA (e.g. #a855f7 for purple)."
@@ -357,11 +398,11 @@ msgstr "Зміна пріоритету"
 msgid "Project update"
 msgstr "Оновлення проєкту"
 
-#: apps/notifications/models.py:120 templates/web/_inbox_preview.html:32
+#: apps/notifications/models.py:121 templates/web/_inbox_preview.html:42
 msgid "Notification"
 msgstr "Сповіщення"
 
-#: apps/notifications/models.py:121 templates/web/inbox.html:29
+#: apps/notifications/models.py:122 templates/web/inbox.html:29
 msgid "Notifications"
 msgstr "Сповіщення"
 
@@ -1214,7 +1255,7 @@ msgstr "колишній учасник — досі призначений ви
 
 #: templates/web/_bulk_archive_confirm.html:73
 #: templates/web/_bulk_archive_confirm.html:110
-#: templates/web/_inbox_list.html:112 templates/web/_notification_row.html:69
+#: templates/web/_inbox_list.html:112 templates/web/_notification_row.html:70
 #: templates/web/projects/_bulk_context_menu.html:99
 #: templates/web/projects/_task_context_menu.html:133
 #: templates/web/projects/_task_meta.html:108
@@ -1439,11 +1480,11 @@ msgstr "Нічого не відповідає фільтру"
 msgid "Reset filter"
 msgstr "Скинути фільтр"
 
-#: templates/web/_inbox_list.html:104 templates/web/_notification_row.html:61
+#: templates/web/_inbox_list.html:104 templates/web/_notification_row.html:62
 msgid "Mark read"
 msgstr "Позначити прочитаним"
 
-#: templates/web/_inbox_list.html:108 templates/web/_notification_row.html:61
+#: templates/web/_inbox_list.html:108 templates/web/_notification_row.html:62
 msgid "Mark unread"
 msgstr "Позначити непрочитаним"
 
@@ -1451,16 +1492,16 @@ msgstr "Позначити непрочитаним"
 msgid "Open"
 msgstr "Відкрити"
 
-#: templates/web/_inbox_preview.html:43
+#: templates/web/_inbox_preview.html:53
 #: templates/web/_inbox_update_preview.html:31
 msgid "ago"
 msgstr "тому"
 
-#: templates/web/_inbox_preview.html:49
+#: templates/web/_inbox_preview.html:59
 msgid "mentioned you"
 msgstr "згадав(ла) вас"
 
-#: templates/web/_inbox_preview.html:64
+#: templates/web/_inbox_preview.html:74
 msgid "Pick something on the left to see details."
 msgstr "Виберіть щось ліворуч, щоб побачити деталі."
 
@@ -1469,7 +1510,7 @@ msgid "Pick an update on the left to read it."
 msgstr "Виберіть апдейт ліворуч, щоб прочитати його."
 
 #: templates/web/_inbox_updates_list.html:47
-#: templates/web/_notification_row.html:46
+#: templates/web/_notification_row.html:47
 msgid "posted an update to"
 msgstr "опублікував апдейт у"
 
@@ -1513,40 +1554,40 @@ msgstr "На вас нічого не призначено"
 msgid "When someone assigns you a task it shows up here."
 msgstr "Коли вам призначать задачу, вона зʼявиться тут."
 
-#: templates/web/_notification_row.html:46
+#: templates/web/_notification_row.html:47
 msgid "mentioned you in"
 msgstr "згадав(ла) вас у"
 
-#: templates/web/_notification_row.html:46
+#: templates/web/_notification_row.html:47
 msgid "assigned"
 msgstr "призначив(ла)"
 
-#: templates/web/_notification_row.html:46
+#: templates/web/_notification_row.html:47
 msgid "commented on"
 msgstr "прокоментував(ла)"
 
-#: templates/web/_notification_row.html:46
+#: templates/web/_notification_row.html:47
 #: templates/web/projects/_activity_event.html:40
 msgid "moved"
 msgstr "перемістив(ла)"
 
-#: templates/web/_notification_row.html:46
+#: templates/web/_notification_row.html:47
 msgid "changed priority of"
 msgstr "змінив(ла) пріоритет"
 
-#: templates/web/_notification_row.html:46
+#: templates/web/_notification_row.html:47
 msgid "due soon:"
 msgstr "незабаром дедлайн:"
 
-#: templates/web/_notification_row.html:46
+#: templates/web/_notification_row.html:47
 msgid "updated"
 msgstr "оновив(ла)"
 
-#: templates/web/_notification_row.html:47
+#: templates/web/_notification_row.html:48
 msgid "to you"
 msgstr "вам"
 
-#: templates/web/_notification_row.html:47
+#: templates/web/_notification_row.html:48
 msgid "to"
 msgstr "до"
 

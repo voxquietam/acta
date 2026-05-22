@@ -27,6 +27,7 @@ class Notification(models.Model):
         STATUS_CHANGE = "status_change", _("Status change")
         PRIORITY_CHANGE = "priority_change", _("Priority change")
         PROJECT_UPDATE = "project_update", _("Project update")
+        CYCLE = "cycle", _("Cycle")
         SYSTEM = "system", _("System")
 
     recipient = models.ForeignKey(

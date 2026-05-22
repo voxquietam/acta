@@ -62,6 +62,16 @@ class Cycle(models.Model):
         blank=True,
         help_text="When the cycle first transitioned to completed; frozen once set",
     )
+    start_notified_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the cycle-started notification was fanned out; stamped once to stay idempotent",
+    )
+    end_notified_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the cycle-ending-soon notification was fanned out; stamped once to stay idempotent",
+    )
 
     class Meta:
         verbose_name = _("Cycle")

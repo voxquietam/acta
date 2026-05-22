@@ -104,6 +104,30 @@ Flags:
 - `--older-than-hours N` — grace window (default 24); raise it if users
   routinely take longer than a day between pasting and saving.
 
+### Daily: cycle start / ending-soon notifications
+
+For every workspace running cadence (cycles), this materializes the
+rolling windows (same `ensure_cycles` the web pages call — so it also
+performs auto roll-over) and fans out inbox notifications: once when a
+cycle becomes active ("Cycle N started") and once when an active cycle is
+within a day of its end ("Cycle N ends tomorrow — M tasks open").
+Idempotent — re-runs the same day send nothing (the `Cycle` row stamps
+`start_notified_at` / `end_notified_at`). Cadence-off workspaces are
+skipped.
+
+```cron
+# At 06:00 every day (before the team starts — cycle starts/ends are dated).
+0 6 * * * cd /opt/acta && docker compose exec -T web python manage.py notify_cycle_events >> /var/log/acta/cycle-notify.log 2>&1
+```
+
+Flags:
+- `--dry-run` — report what would be sent without writing notifications.
+- `--workspace <slug>` — limit to one workspace.
+
+> Note: these recurring jobs are slated to move off raw crontab into an
+> admin-manageable scheduler (so schedules are editable in Django admin
+> without SSH). The management commands stay; only the trigger changes.
+
 ### Future hooks
 
 When these subsystems land they will need their own scheduled jobs —

@@ -29,7 +29,7 @@ Type-icon colour + glyph are keyed off ``n.kind`` (6 + priority kinds).
     {% else %}
     <span class="w-8 h-8 rounded-full bg-muted text-placeholder-foreground grid place-items-center">{% lucide "bell" "w-4 h-4" %}</span>
     {% endif %}
-    <span class="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full grid place-items-center text-white ring-2 ring-background {% if n.kind == 'mention' %}bg-rose-500{% elif n.kind == 'assigned' %}bg-brand-500{% elif n.kind == 'due' %}bg-amber-500{% elif n.kind == 'comment' %}bg-emerald-500{% elif n.kind == 'status_change' %}bg-violet-500{% elif n.kind == 'priority_change' %}bg-orange-500{% elif n.kind == 'project_update' %}bg-sky-500{% else %}bg-zinc-500{% endif %}">
+    <span class="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full grid place-items-center text-white ring-2 ring-background {% if n.kind == 'mention' %}bg-rose-500{% elif n.kind == 'assigned' %}bg-brand-500{% elif n.kind == 'due' %}bg-amber-500{% elif n.kind == 'comment' %}bg-emerald-500{% elif n.kind == 'status_change' %}bg-violet-500{% elif n.kind == 'priority_change' %}bg-orange-500{% elif n.kind == 'project_update' %}bg-sky-500{% elif n.kind == 'cycle' %}bg-cyan-500{% else %}bg-zinc-500{% endif %}">
       {% if n.kind == 'mention' %}{% lucide "at-sign" "w-2.5 h-2.5" %}
       {% elif n.kind == 'assigned' %}{% lucide "user-plus" "w-2.5 h-2.5" %}
       {% elif n.kind == 'due' %}{% lucide "clock" "w-2.5 h-2.5" %}
@@ -37,13 +37,14 @@ Type-icon colour + glyph are keyed off ``n.kind`` (6 + priority kinds).
       {% elif n.kind == 'status_change' %}{% lucide "git-commit-horizontal" "w-2.5 h-2.5" %}
       {% elif n.kind == 'priority_change' %}{% lucide "flag" "w-2.5 h-2.5" %}
       {% elif n.kind == 'project_update' %}{% lucide "message-circle" "w-2.5 h-2.5" %}
+      {% elif n.kind == 'cycle' %}{% lucide "iteration-cw" "w-2.5 h-2.5" %}
       {% else %}{% lucide "bell" "w-2.5 h-2.5" %}{% endif %}
     </span>
   </div>
 
   <div class="min-w-0 flex-1">
     <div class="text-[13px] leading-snug truncate {% if n.is_read %}text-subtle-foreground{% else %}text-muted-foreground{% endif %}">
-      {% if n.actor %}<b class="font-semibold {% if n.is_read %}text-muted-foreground{% else %}text-foreground{% endif %}">{{ n.actor.display_name }}</b> {% endif %}{% if n.kind == 'mention' %}{% trans "mentioned you in" %}{% elif n.kind == 'assigned' %}{% trans "assigned" %}{% elif n.kind == 'comment' %}{% trans "commented on" %}{% elif n.kind == 'status_change' %}{% trans "moved" %}{% elif n.kind == 'priority_change' %}{% trans "changed priority of" %}{% elif n.kind == 'due' %}{% trans "due soon:" %}{% elif n.kind == 'project_update' %}{% trans "posted an update to" %}{% else %}{% trans "updated" %}{% endif %}
+      {% if n.actor %}<b class="font-semibold {% if n.is_read %}text-muted-foreground{% else %}text-foreground{% endif %}">{{ n.actor.display_name }}</b> {% endif %}{% if n.kind == 'mention' %}{% trans "mentioned you in" %}{% elif n.kind == 'assigned' %}{% trans "assigned" %}{% elif n.kind == 'comment' %}{% trans "commented on" %}{% elif n.kind == 'status_change' %}{% trans "moved" %}{% elif n.kind == 'priority_change' %}{% trans "changed priority of" %}{% elif n.kind == 'due' %}{% trans "due soon:" %}{% elif n.kind == 'project_update' %}{% trans "posted an update to" %}{% elif n.kind == 'cycle' %}<b class="font-semibold {% if n.is_read %}text-muted-foreground{% else %}text-foreground{% endif %}">{{ n.payload.title }}</b>{% else %}{% trans "updated" %}{% endif %}
       {% if n.task %}<span class="font-mono text-xs px-1 rounded bg-muted text-foreground">{{ n.task.slug }}</span>{% endif %}{% if n.kind == 'project_update' and n.project_update %}<span class="font-mono text-xs px-1 rounded bg-muted text-foreground">{{ n.project_update.project.slug_prefix }}</span>{% endif %}{% if n.kind == 'assigned' %} {% trans "to you" %}{% endif %}{% if n.kind == 'status_change' and n.payload.to %} {% trans "to" %} <b class="text-foreground">{{ n.payload.to|status_label }}</b>{% endif %}
     </div>
     {% if n.preview %}
