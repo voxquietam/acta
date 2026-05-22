@@ -9,6 +9,7 @@ reconstructed from the log rather than a snapshot table: replaying gives
 full history immediately, whereas a snapshot populated by a daily cron
 would start empty. Cheap enough for the insights page (bounded by a
 trailing window, not a hot path), so no snapshot table / cron is needed.
+See docs/decisions/0026-scrumban-metrics.md.
 
 All durations are in **hours** (float); the view layer formats them.
 """
