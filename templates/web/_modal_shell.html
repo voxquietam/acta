@@ -25,7 +25,7 @@ there. Empty by default.
 {% endcomment %}
 <div class="acta-modal-backdrop"
      @click.self="close()"
-     @keydown.escape.window="close()"
+     @keydown.escape.window="$event.preventDefault(); close()"
      {% block root_attrs %}{% endblock %}>
   <div class="acta-modal-panel {% block panel_class %}max-w-md{% endblock %}"
        {% block panel_attrs %}{% endblock %}>
