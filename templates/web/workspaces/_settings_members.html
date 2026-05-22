@@ -17,43 +17,41 @@ themselves only when they are also admin / owner per the guard in
 {% endcomment %}
 <div id="workspace-members">
 
-  {# ---------- Add member form — admin only ---------- #}
+  {% comment %}
+  Bring people in by EMAIL INVITE — not by picking from every user on
+  the instance (that exposed the whole roster across workspaces and
+  bypassed the closed-signup invite flow). The form posts to
+  ``create_workspace_invite`` and refreshes the pending-invites panel
+  (``#workspace-invites``); the new invite shows there. Admin only.
+  {% endcomment %}
   {% if viewer_is_admin %}
-  <form hx-post="{% url 'web:add_workspace_member' slug=workspace.slug %}"
-        hx-target="#workspace-members"
+  <form hx-post="{% url 'web:create_workspace_invite' slug=workspace.slug %}"
+        hx-target="#workspace-invites"
         hx-swap="outerHTML"
+        hx-on::after-request="if (event.detail.successful) this.reset()"
         class="flex items-end gap-2 pb-4 mb-4 border-b border-border">
     {% csrf_token %}
     <div class="flex-1 min-w-0">
-      <label for="add-member-user" class="text-[10px] uppercase tracking-wider text-placeholder-foreground">
-        {% trans "Add member" %}
+      <label for="member-invite-email" class="text-[10px] uppercase tracking-wider text-placeholder-foreground">
+        {% trans "Invite by email" %}
       </label>
-      <select name="user_id" id="add-member-user" required
-              class="mt-1 acta-input">
-        <option value="">{% trans "Choose user…" %}</option>
-        {% for candidate in candidates %}
-        <option value="{{ candidate.id }}">
-          {{ candidate.display_name }} (@{{ candidate.username }})
-        </option>
-        {% endfor %}
-      </select>
+      <input type="email" name="email" id="member-invite-email" required autocomplete="off"
+             placeholder="name@example.com"
+             class="mt-1 acta-input">
     </div>
     <div>
-      <label for="add-member-role" class="text-[10px] uppercase tracking-wider text-placeholder-foreground">
+      <label for="member-invite-role" class="text-[10px] uppercase tracking-wider text-placeholder-foreground">
         {% trans "Role" %}
       </label>
-      <select name="role" id="add-member-role"
-              class="mt-1 acta-input">
-        {% for value, label in role_choices %}
-          {% if value != "owner" %}
-          <option value="{{ value }}" {% if value == 'member' %}selected{% endif %}>{{ label }}</option>
-          {% endif %}
+      <select name="role" id="member-invite-role" class="mt-1 acta-input">
+        {% for value, label in invite_role_choices %}
+        <option value="{{ value }}" {% if value == 'member' %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
     </div>
-    <button type="submit"
-            class="acta-btn-primary">
-      {% trans "Add" %}
+    <button type="submit" class="acta-btn-primary">
+      {% lucide "mail" "w-4 h-4" %}
+      {% trans "Send invite" %}
     </button>
   </form>
   {% endif %}

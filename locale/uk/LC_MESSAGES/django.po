@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Acta 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-05-22 17:33+0000\n"
+"POT-Creation-Date: 2026-05-22 17:39+0000\n"
 "PO-Revision-Date: 2026-05-16 15:30+0000\n"
 "Last-Translator: Acta team\n"
 "Language-Team: Ukrainian\n"
@@ -40,7 +40,7 @@ msgstr "Робочі простори"
 msgid "Members"
 msgstr "Учасники"
 
-#: acta/settings/base.py:414 templates/web/workspaces/settings.html:40
+#: acta/settings/base.py:414
 msgid "Invites"
 msgstr "Запрошення"
 
@@ -338,7 +338,7 @@ msgstr "Сповіщення"
 msgid "Notifications"
 msgstr "Сповіщення"
 
-#: apps/projects/models.py:11 apps/web/views.py:5334
+#: apps/projects/models.py:11 apps/web/views.py:5332
 msgid "Slug prefix must be 2–6 uppercase Latin letters."
 msgstr "Префікс slug має містити 2–6 великих латинських літер."
 
@@ -350,7 +350,7 @@ msgstr "Префікс slug має містити 2–6 великих лати�
 msgid "Project"
 msgstr "Проєкт"
 
-#: apps/projects/models.py:132 apps/web/views.py:5352
+#: apps/projects/models.py:132 apps/web/views.py:5350
 msgid "Lead must be a member of the project's workspace."
 msgstr "Лід повинен бути учасником робочого простору проєкту."
 
@@ -658,7 +658,7 @@ msgid "Edits"
 msgstr "Правки"
 
 #: apps/web/views.py:4988 apps/web/views.py:5026 apps/web/views.py:5053
-#: apps/web/views.py:5157 apps/web/views.py:5189 apps/web/views.py:5214
+#: apps/web/views.py:5155 apps/web/views.py:5187 apps/web/views.py:5212
 msgid "Admin or owner only"
 msgstr "Тільки для адміна або власника"
 
@@ -666,7 +666,7 @@ msgstr "Тільки для адміна або власника"
 msgid "Email is required"
 msgstr "Email обов'язковий"
 
-#: apps/web/views.py:4994 apps/web/views.py:5164 apps/web/views.py:5197
+#: apps/web/views.py:4994 apps/web/views.py:5162 apps/web/views.py:5195
 msgid "Invalid role"
 msgstr "Неправильна роль"
 
@@ -701,71 +701,71 @@ msgstr "Запрошення повторно надіслано на %(email)s.
 msgid "Resend failed — try again later."
 msgstr "Не вдалося надіслати повторно — спробуйте пізніше."
 
-#: apps/web/views.py:5161
+#: apps/web/views.py:5159
 msgid "Invalid user_id"
 msgstr "Неправильний user_id"
 
-#: apps/web/views.py:5169
+#: apps/web/views.py:5167
 msgid "Cannot add another owner"
 msgstr "Не можна додати ще одного власника"
 
-#: apps/web/views.py:5172
+#: apps/web/views.py:5170
 msgid "User not found"
 msgstr "Користувача не знайдено"
 
-#: apps/web/views.py:5174
+#: apps/web/views.py:5172
 msgid "User already a member"
 msgstr "Користувач вже є учасником"
 
-#: apps/web/views.py:5192 apps/web/views.py:5217
+#: apps/web/views.py:5190 apps/web/views.py:5215
 msgid "Not a member"
 msgstr "Не є учасником"
 
-#: apps/web/views.py:5194
+#: apps/web/views.py:5192
 msgid "Transfer ownership first"
 msgstr "Спочатку передай право власності"
 
-#: apps/web/views.py:5199
+#: apps/web/views.py:5197
 msgid "Ownership transfer not supported here"
 msgstr "Передача права власності тут не підтримується"
 
-#: apps/web/views.py:5219
+#: apps/web/views.py:5217
 msgid "Cannot remove owner"
 msgstr "Не можна видалити власника"
 
-#: apps/web/views.py:5318
+#: apps/web/views.py:5316
 msgid "Invalid workspace"
 msgstr "Неправильний робочий простір"
 
-#: apps/web/views.py:5324
+#: apps/web/views.py:5322
 msgid "Workspace not accessible"
 msgstr "Робочий простір недоступний"
 
-#: apps/web/views.py:5328 apps/web/views.py:5432
+#: apps/web/views.py:5326 apps/web/views.py:5430
 msgid "Name is required"
 msgstr "Ім'я обов'язкове"
 
-#: apps/web/views.py:5330 apps/web/views.py:5434
+#: apps/web/views.py:5328 apps/web/views.py:5432
 msgid "Name too long"
 msgstr "Назва задовга"
 
-#: apps/web/views.py:5336
+#: apps/web/views.py:5334
 msgid "Slug prefix already used in this workspace"
 msgstr "Префікс slug вже використовується в цьому робочому просторі"
 
-#: apps/web/views.py:5346
+#: apps/web/views.py:5344
 msgid "Invalid lead"
 msgstr "Неправильний лід"
 
-#: apps/web/views.py:5440
+#: apps/web/views.py:5438
 msgid "Invalid slug"
 msgstr "Неправильний slug"
 
-#: apps/web/views.py:5442
+#: apps/web/views.py:5440
 msgid "Slug already taken"
 msgstr "Slug вже зайнятий"
 
-#: apps/web/views.py:5451
+#: apps/web/views.py:5449
 msgid "Cannot generate unique slug"
 msgstr "Не вдалось згенерувати унікальний slug"
 
@@ -999,7 +999,7 @@ msgid "Revoke"
 msgstr "Відкликати"
 
 #: templates/accounts/settings.html:222
-#: templates/web/workspaces/_settings_invites.html:100
+#: templates/web/workspaces/_settings_invites.html:66
 msgid "Revoke?"
 msgstr "Відкликати?"
 
@@ -1155,7 +1155,7 @@ msgid "Try clearing some filters."
 msgstr "Спробуйте зняти частину фільтрів."
 
 #: templates/web/_assignee_strip.html:43
-#: templates/web/workspaces/_settings_members.html:72
+#: templates/web/workspaces/_settings_members.html:71
 msgid "you"
 msgstr "ви"
 
@@ -1212,8 +1212,8 @@ msgstr "щоб скасувати"
 #: templates/web/projects/_overview_panel.html:236
 #: templates/web/projects/_task_meta.html:82
 #: templates/web/projects/_update_edit_form.html:40
-#: templates/web/workspaces/_settings_invites.html:109
-#: templates/web/workspaces/_settings_members.html:138
+#: templates/web/workspaces/_settings_invites.html:75
+#: templates/web/workspaces/_settings_members.html:137
 msgid "Cancel"
 msgstr "Скасувати"
 
@@ -2039,7 +2039,6 @@ msgid "Remove from project"
 msgstr "Видалити з проєкту"
 
 #: templates/web/projects/_overview_members.html:35
-#: templates/web/workspaces/_settings_members.html:56
 msgid "Add"
 msgstr "Додати"
 
@@ -2538,68 +2537,63 @@ msgstr "Поки що немає проєктів."
 msgid "Create your first project"
 msgstr "Створи свій перший проєкт"
 
-#: templates/web/workspaces/_settings_invites.html:22
-msgid "Invite by email"
-msgstr "Запросити за email"
-
-#: templates/web/workspaces/_settings_invites.html:30
-#: templates/web/workspaces/_settings_members.html:43
-msgid "Role"
-msgstr "Роль"
-
-#: templates/web/workspaces/_settings_invites.html:41
-msgid "Send invite"
-msgstr "Надіслати запрошення"
-
-#: templates/web/workspaces/_settings_invites.html:60
+#: templates/web/workspaces/_settings_invites.html:26
 msgid "expired"
 msgstr "термін минув"
 
-#: templates/web/workspaces/_settings_invites.html:62
+#: templates/web/workspaces/_settings_invites.html:28
 #, python-format
 msgid "expires %(d)s"
 msgstr "діє до %(d)s"
 
-#: templates/web/workspaces/_settings_invites.html:65
+#: templates/web/workspaces/_settings_invites.html:31
 #, python-format
 msgid "sent by %(name)s"
 msgstr "надіслав %(name)s"
 
-#: templates/web/workspaces/_settings_invites.html:80
+#: templates/web/workspaces/_settings_invites.html:46
 msgid "Resend email"
 msgstr "Надіслати лист ще раз"
 
-#: templates/web/workspaces/_settings_invites.html:90
+#: templates/web/workspaces/_settings_invites.html:56
 msgid "Revoke invite"
 msgstr "Відкликати запрошення"
 
-#: templates/web/workspaces/_settings_invites.html:103
+#: templates/web/workspaces/_settings_invites.html:69
 msgid "Confirm revoke"
 msgstr "Підтвердити відкликання"
 
-#: templates/web/workspaces/_settings_invites.html:121
+#: templates/web/workspaces/_settings_invites.html:87
 msgid "No pending invites."
 msgstr "Немає активних запрошень."
 
-#: templates/web/workspaces/_settings_members.html:29
-msgid "Add member"
-msgstr "Додати учасника"
+#: templates/web/workspaces/_settings_members.html:37
+msgid "Invite by email"
+msgstr "Запросити за email"
 
-#: templates/web/workspaces/_settings_members.html:33
-msgid "Choose user…"
-msgstr "Вибери користувача…"
+#: templates/web/workspaces/_settings_members.html:45
+msgid "Role"
+msgstr "Роль"
 
-#: templates/web/workspaces/_settings_members.html:119
+#: templates/web/workspaces/_settings_members.html:55
+msgid "Send invite"
+msgstr "Надіслати запрошення"
+
+#: templates/web/workspaces/_settings_members.html:118
 msgid "Remove from workspace"
 msgstr "Видалити з робочого простору"
 
-#: templates/web/workspaces/_settings_members.html:129
+#: templates/web/workspaces/_settings_members.html:128
 msgid "Remove?"
 msgstr "Видалити?"
 
-#: templates/web/workspaces/_settings_members.html:132
+#: templates/web/workspaces/_settings_members.html:131
 msgid "Confirm removal"
 msgstr "Підтвердити видалення"
+
+#: templates/web/workspaces/settings.html:40
+msgid "Pending invites"
+msgstr "Активні запрошення"
 
 #: templates/web/workspaces/settings.html:42
 #, python-format
@@ -2641,6 +2635,12 @@ msgstr "Порожньо або 0 = без ліміту для статусу."
 #: templates/web/workspaces/settings.html:96
 msgid "Only workspace admins can change WIP limits."
 msgstr "Змінювати WIP-ліміти можуть лише адміни воркспейсу."
+
+#~ msgid "Add member"
+#~ msgstr "Додати учасника"
+
+#~ msgid "Choose user…"
+#~ msgstr "Вибери користувача…"
 
 #~ msgid "none"
 #~ msgstr "немає"

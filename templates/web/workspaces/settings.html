@@ -37,7 +37,7 @@ remove flows can swap just that block without reloading the page.
 
   <section class="bg-card border border-border rounded-lg p-5">
     <header class="flex items-center justify-between mb-4">
-      <h2 class="text-sm font-medium text-foreground">{% trans "Invites" %}</h2>
+      <h2 class="text-sm font-medium text-foreground">{% trans "Pending invites" %}</h2>
       <span class="text-xs text-placeholder-foreground">
         {% blocktrans count counter=pending_invites|length %}{{ counter }} pending{% plural %}{{ counter }} pending{% endblocktrans %}
       </span>

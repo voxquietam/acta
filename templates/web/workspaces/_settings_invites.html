@@ -1,47 +1,13 @@
 {% load i18n %}
 {% load lucide %}
 {% comment %}
-Invites panel — mint a workspace invite, see pending ones, revoke or
-resend. Mirrors the members-panel pattern: every mutation hits a
-dedicated POST view that returns THIS partial and swaps outer-HTML.
-
-Only admins (owner / admin) see the form + revoke / resend controls.
-Plain members see the pending list read-only.
+Pending-invites panel — list of unaccepted invites with revoke / resend.
+The invite FORM lives in the Members panel now (invite-by-email replaced
+the all-users add-member picker); this panel just shows what's pending.
+Every mutation hits a POST view that returns THIS partial (outer-HTML
+swap). Admins get revoke / resend; plain members see it read-only.
 {% endcomment %}
 <div id="workspace-invites">
-
-  {# Send invite form — admin only. #}
-  {% if viewer_is_admin %}
-  <form hx-post="{% url 'web:create_workspace_invite' slug=workspace.slug %}"
-        hx-target="#workspace-invites"
-        hx-swap="outerHTML"
-        class="flex items-end gap-2 pb-4 mb-4 border-b border-border">
-    {% csrf_token %}
-    <div class="flex-1 min-w-0">
-      <label for="invite-email" class="text-[10px] uppercase tracking-wider text-placeholder-foreground">
-        {% trans "Invite by email" %}
-      </label>
-      <input type="email" name="email" id="invite-email" required autocomplete="off"
-             placeholder="name@example.com"
-             class="mt-1 acta-input">
-    </div>
-    <div>
-      <label for="invite-role" class="text-[10px] uppercase tracking-wider text-placeholder-foreground">
-        {% trans "Role" %}
-      </label>
-      <select name="role" id="invite-role"
-              class="mt-1 acta-input">
-        {% for value, label in invite_role_choices %}
-        <option value="{{ value }}" {% if value == 'member' %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <button type="submit" class="acta-btn-primary">
-      {% lucide "mail" "w-4 h-4" %}
-      {% trans "Send invite" %}
-    </button>
-  </form>
-  {% endif %}
 
   {# Pending invites list — visible to everyone in the workspace. #}
   {% if pending_invites %}

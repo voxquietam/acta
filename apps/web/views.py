@@ -5076,20 +5076,18 @@ def _render_workspace_members(workspace, *, viewer):
             "user__username",
         )
     )
-    member_user_ids = {m.user_id for m in memberships}
-    candidates = list(
-        User.objects.exclude(pk__in=member_user_ids).order_by(
-            "first_name",
-            "last_name",
-            "username",
-        )
-    )
     viewer_membership = _workspace_member_or_none(viewer, workspace)
     return {
         "workspace": workspace,
         "memberships": memberships,
-        "candidates": candidates,
         "role_choices": WorkspaceMember.ROLE_CHOICES,
+        # The Members panel brings people in by email invite (not by
+        # picking from every user on the instance — that leaked the whole
+        # roster across workspaces), so it needs the invite role choices.
+        "invite_role_choices": [
+            (WorkspaceMember.ADMIN, WorkspaceMember.ROLE_CHOICES[1][1]),
+            (WorkspaceMember.MEMBER, WorkspaceMember.ROLE_CHOICES[2][1]),
+        ],
         "viewer_membership": viewer_membership,
         "viewer_is_admin": (
             viewer_membership is not None and viewer_membership.role in (WorkspaceMember.OWNER, WorkspaceMember.ADMIN)
