@@ -60,8 +60,9 @@ status dot · slug + priority chevron · title (flex-1) · size · labels
 
   <div class="flex items-center gap-2 shrink-0 text-xs">
     {% if task.size %}
-    <span class="text-subtle-foreground font-mono inline-flex items-center gap-1"
-          title="{% trans 'Size estimate' %}">
+    <span class="text-subtle-foreground font-mono inline-flex items-center gap-1 cursor-pointer rounded transition hover:ring-1 hover:ring-offset-1 hover:ring-offset-card hover:ring-zinc-500/40"
+          title="{% trans 'Filter by size' %}: {{ task.size }}"
+          @click.prevent.stop="window.acta.toggleFilter('size', '{{ task.size }}')">
       {% lucide "gauge" "w-3 h-3" %}{{ task.size }}
     </span>
     {% endif %}

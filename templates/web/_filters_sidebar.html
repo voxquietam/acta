@@ -279,6 +279,52 @@ rail are queued in [[project-todo-filter-sidebar-presets-views]]
         </div>
       </div>
 
+      {# ---------- Size ---------- #}
+      <div x-data="{
+             open: (() => { const v = localStorage.getItem('acta:filter-sec:size'); return v === null ? true : v === '1'; })(),
+             toggle() { this.open = !this.open; localStorage.setItem('acta:filter-sec:size', this.open ? '1' : '0'); }
+           }">
+        <button type="button"
+                @click="toggle()"
+                class="w-full flex items-center gap-1.5 px-3 py-2 text-[10px] uppercase tracking-wider text-placeholder-foreground hover:text-foreground font-semibold transition">
+          <span :class="open ? '' : '-rotate-90'" class="inline-flex transition-transform">
+            {% lucide "chevron-down" "w-3 h-3" %}
+          </span>
+          <span class="flex-1 text-left">{% trans "Size" %}</span>
+          {% with sc=selected_sizes|length xc=excluded_sizes|length %}
+          <span data-filter-section-count="size"
+                class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-300 normal-case tracking-normal{% if not sc|add:xc %} hidden{% endif %}">{{ sc|add:xc }}</span>
+          {% endwith %}
+        </button>
+        <div x-show="open" x-cloak class="px-3 pb-3">
+          <div class="flex gap-1 flex-wrap">
+            {% for value in size_values %}
+            <label class="cursor-pointer"
+                   data-filter-name="size"
+                   data-filter-value="{{ value }}"
+                   x-data="{ state: '{% if value in excluded_sizes %}excluded{% elif value in selected_sizes %}included{% else %}none{% endif %}' }"
+                   @acta:filter-reset.window="state = 'none'"
+                   @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $nextTick(() => document.getElementById('filter-form').requestSubmit())">
+              <input type="checkbox"
+                     :name="state === 'excluded' ? 'xsize' : 'size'"
+                     value="{{ value }}"
+                     :checked="state !== 'none'"
+                     class="peer sr-only"
+                     @change.stop="state = $event.target.checked ? 'included' : 'none'; $event.target.form.requestSubmit()">
+              <span :class="{
+                      'border-rose-500/70 bg-rose-500/15 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 line-through': state === 'excluded',
+                      'border-brand-400 bg-brand-600 text-white dark:bg-brand-500/25 dark:text-white': state === 'included',
+                      'border-border bg-background text-subtle-foreground hover:bg-muted': state === 'none',
+                    }"
+                    class="flex items-center gap-1 px-2 py-1 rounded-md border text-[11px] font-mono transition">
+                {% lucide "gauge" "w-3 h-3" %}{{ value }}
+              </span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
       {# ---------- Project ---------- #}
       {% if not filter_hide_project %}
       {% comment %}

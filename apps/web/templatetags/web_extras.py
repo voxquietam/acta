@@ -29,6 +29,7 @@ def task_filter_attrs(context, task):
 
     * ``data-status`` — internal status key (``planned`` / ``to-do``…)
     * ``data-priority`` — integer 0..4
+    * ``data-size`` — Fibonacci estimate or empty (no size)
     * ``data-assignee-id`` — ``Task.assignee_id`` or empty
     * ``data-assignee-me`` — ``"1"`` when assigned to ``request.user``
     * ``data-project-id`` — ``Task.project_id``
@@ -63,6 +64,7 @@ def task_filter_attrs(context, task):
     attrs = (
         f'data-status="{html.escape(task.status or "")}" '
         f'data-priority="{task.priority or 0}" '
+        f'data-size="{task.size or ""}" '
         f'data-assignee-id="{task.assignee_id or ""}" '
         f'data-assignee-me="{is_me}" '
         f'data-project-id="{task.project_id}" '

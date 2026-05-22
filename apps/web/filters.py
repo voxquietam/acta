@@ -39,6 +39,7 @@ def apply_task_filters(qs, params, *, request_user, default_show_done=True):
     qs = _filter_archived(qs, params)
     qs = _filter_status(qs, params, default_show_done=default_show_done)
     qs = _filter_int_field(qs, params, field="priority", include="priority", exclude="xpriority")
+    qs = _filter_int_field(qs, params, field="size", include="size", exclude="xsize")
     qs = _filter_int_field(qs, params, field="project_id", include="project", exclude="xproject")
     # Workspace is no longer a filter axis — it's the global active-workspace
     # scope (see apps.web.nav.resolve_active_workspace); the queryset reaching
@@ -408,6 +409,7 @@ def filter_sidebar_context(
 
     selected_statuses = set(params.getlist("status"))
     selected_priorities = {int(p) for p in params.getlist("priority") if p.isdigit()}
+    selected_sizes = {int(s) for s in params.getlist("size") if s.isdigit()}
     selected_projects = {int(p) for p in params.getlist("project") if p.isdigit()}
     selected_labels = {int(i) for i in params.getlist("label") if i.isdigit()}
     selected_assignees = set(params.getlist("assignee"))
@@ -418,6 +420,7 @@ def filter_sidebar_context(
     # ``apply_task_filters`` translates them into ``.exclude(...)``.
     excluded_statuses = set(params.getlist("xstatus"))
     excluded_priorities = {int(p) for p in params.getlist("xpriority") if p.isdigit()}
+    excluded_sizes = {int(s) for s in params.getlist("xsize") if s.isdigit()}
     excluded_projects = {int(p) for p in params.getlist("xproject") if p.isdigit()}
     excluded_labels = {int(i) for i in params.getlist("xlabel") if i.isdigit()}
     excluded_assignees = set(params.getlist("xassignee"))
@@ -429,11 +432,13 @@ def filter_sidebar_context(
         + len(selected_assignees)
         + len(selected_statuses)
         + len(selected_priorities)
+        + len(selected_sizes)
         + len(selected_projects)
         + len(selected_labels)
         + len(excluded_assignees)
         + len(excluded_statuses)
         + len(excluded_priorities)
+        + len(excluded_sizes)
         + len(excluded_projects)
         + len(excluded_labels)
         + (1 if show_archived else 0)
@@ -461,11 +466,13 @@ def filter_sidebar_context(
         "filter_hide_status": hide_status,
         "selected_statuses": selected_statuses,
         "selected_priorities": selected_priorities,
+        "selected_sizes": selected_sizes,
         "selected_projects": selected_projects,
         "selected_labels": selected_labels,
         "selected_assignees": selected_assignees,
         "excluded_statuses": excluded_statuses,
         "excluded_priorities": excluded_priorities,
+        "excluded_sizes": excluded_sizes,
         "excluded_projects": excluded_projects,
         "excluded_labels": excluded_labels,
         "excluded_assignees": excluded_assignees,
@@ -477,5 +484,6 @@ def filter_sidebar_context(
         "active_filter_count": active_filter_count,
         "status_labels": Task.STATUS_LABELS,
         "priority_labels": dict(Task.PRIORITY_CHOICES),
+        "size_values": Task.SIZE_VALUES,
         "today": timezone.localdate(),
     }

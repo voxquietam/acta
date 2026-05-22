@@ -342,6 +342,8 @@
       xstatus: new Set(multi("xstatus")),
       priority: new Set(multi("priority")),
       xpriority: new Set(multi("xpriority")),
+      size: new Set(multi("size")),
+      xsize: new Set(multi("xsize")),
       assignee: new Set(multi("assignee")),
       xassignee: new Set(multi("xassignee")),
       project: new Set(multi("project")),
@@ -364,6 +366,10 @@
     const p = row.dataset.priority || "0";
     if (state.priority.size && !state.priority.has(p)) return false;
     if (state.xpriority.size && state.xpriority.has(p)) return false;
+    // Size — DOM carries the Fibonacci estimate, empty string for no size.
+    const sz = row.dataset.size || "";
+    if (state.size.size && !state.size.has(sz)) return false;
+    if (state.xsize.size && state.xsize.has(sz)) return false;
     // Assignee — server-side tokens ``me`` / ``unassigned`` join numeric
     // user ids. We match by intersecting the requested set with the row's
     // possible tokens (numeric id, ``me``, ``unassigned``).
@@ -414,6 +420,8 @@
       state.xstatus.size +
       state.priority.size +
       state.xpriority.size +
+      state.size.size +
+      state.xsize.size +
       state.assignee.size +
       state.xassignee.size +
       state.project.size +
