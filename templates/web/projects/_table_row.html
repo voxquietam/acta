@@ -153,10 +153,7 @@ in context.
     <span class="flex items-center gap-1.5 min-w-0 cursor-pointer group/asg"
           title="{% trans 'Filter by assignee' %}: {{ task.assignee.display_name }}"
           @click.stop="window.acta.toggleFilter('assignee', '{% if task.assignee == request.user %}me{% else %}{{ task.assignee.id }}{% endif %}')">
-      <span class="w-5 h-5 rounded-full text-white grid place-items-center font-medium text-[10px] shrink-0 transition group-hover/asg:ring-2 group-hover/asg:ring-offset-1 group-hover/asg:ring-offset-card group-hover/asg:ring-brand-400/40"
-            style="background-color: {{ task.assignee.avatar_color }};">
-        {{ task.assignee.display_name|slice:":1"|upper }}
-      </span>
+      {% include "web/_user_avatar.html" with user=task.assignee class="w-5 h-5 shrink-0 transition group-hover/asg:ring-2 group-hover/asg:ring-offset-1 group-hover/asg:ring-offset-card group-hover/asg:ring-brand-400/40" text_class="text-[10px]" %}
       <span class="text-muted-foreground truncate group-hover/asg:text-foreground group-hover/asg:underline">{{ task.assignee.display_name }}</span>
     </span>
     {% else %}

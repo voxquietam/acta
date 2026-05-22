@@ -104,12 +104,20 @@ status dot · slug + priority chevron · title (flex-1) · size · labels
     id — otherwise the lookup in ``window.acta.toggleFilter`` finds no
     matching label and silently no-ops.
     {% endcomment %}
+    {% if task.assignee.avatar %}
+    <img src="{% url 'accounts:serve_avatar' user_id=task.assignee.id %}"
+         alt="{{ task.assignee.display_name }}"
+         class="w-[22px] h-[22px] rounded-full object-cover shrink-0 cursor-pointer transition hover:ring-2 hover:ring-offset-1 hover:ring-offset-card hover:ring-brand-400/40"
+         title="{% trans 'Filter by assignee' %}: {{ task.assignee.display_name }}"
+         @click.prevent.stop="window.acta.toggleFilter('assignee', '{% if task.assignee == request.user %}me{% else %}{{ task.assignee.id }}{% endif %}')">
+    {% else %}
     <span class="w-[22px] h-[22px] rounded-full text-white grid place-items-center font-medium text-[11px] shrink-0 cursor-pointer transition hover:ring-2 hover:ring-offset-1 hover:ring-offset-card hover:ring-brand-400/40"
           style="background-color: {{ task.assignee.avatar_color }};"
           title="{% trans 'Filter by assignee' %}: {{ task.assignee.display_name }}"
           @click.prevent.stop="window.acta.toggleFilter('assignee', '{% if task.assignee == request.user %}me{% else %}{{ task.assignee.id }}{% endif %}')">
       {{ task.assignee.display_name|slice:":1"|upper }}
     </span>
+    {% endif %}
     {% else %}
     <span class="w-[22px] h-[22px] rounded-full border border-dashed border-border-strong grid place-items-center text-placeholder-foreground text-[10px] shrink-0 cursor-pointer transition hover:ring-2 hover:ring-offset-1 hover:ring-offset-card hover:ring-zinc-500/40"
           title="{% trans 'Filter by assignee' %}: {% trans 'Unassigned' %}"
