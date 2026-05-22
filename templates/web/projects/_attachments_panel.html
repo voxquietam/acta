@@ -30,7 +30,7 @@ _links_panel structure and design tokens.
       <button type="button" @click="$refs.fileInput.click()"
               :disabled="uploading"
               class="text-placeholder-foreground hover:text-foreground p-0.5 rounded disabled:opacity-50"
-              data-tooltip="{% trans 'Upload file' %}">
+              data-tooltip="{% trans 'Upload file' %}" data-tooltip-pos="below-left">
         <span x-show="!uploading">{% lucide "plus" "w-3.5 h-3.5" %}</span>
         <span x-show="uploading" x-cloak>{% lucide "loader-circle" "w-3.5 h-3.5 animate-spin" %}</span>
       </button>
@@ -64,12 +64,20 @@ _links_panel structure and design tokens.
       {% if request.user.id == a.uploader_id %}
       <form hx-post="{% url 'web:delete_attachment' pk=a.id %}"
             hx-target="#task-attachments" hx-swap="outerHTML"
-            hx-confirm="{% trans 'Delete this file?' %}" class="shrink-0">
+            x-data="{ confirming: false }"
+            class="shrink-0 opacity-0 group-hover/att:opacity-100 transition"
+            :class="confirming && '!opacity-100'">
         {% csrf_token %}
-        <button type="submit"
-                class="text-placeholder-foreground hover:text-rose-400 opacity-0 group-hover/att:opacity-100 transition">
-          {% lucide "x" "w-3 h-3" %}
+        <button x-show="!confirming" type="button" @click="confirming = true"
+                data-tooltip="{% trans 'Delete' %}" data-tooltip-pos="below-left"
+                class="text-placeholder-foreground hover:text-rose-400 transition p-0.5">
+          {% lucide "trash-2" "w-3.5 h-3.5" %}
         </button>
+        <span x-show="confirming" x-cloak class="inline-flex items-center gap-1 text-[11px]">
+          <span class="text-rose-400">{% trans "Delete?" %}</span>
+          <button type="submit" class="text-emerald-400 hover:text-emerald-300 px-0.5">{% lucide "check" "w-3.5 h-3.5" %}</button>
+          <button type="button" @click="confirming = false" class="text-placeholder-foreground hover:text-foreground px-0.5">{% lucide "x" "w-3.5 h-3.5" %}</button>
+        </span>
       </form>
       {% endif %}
     </div>
