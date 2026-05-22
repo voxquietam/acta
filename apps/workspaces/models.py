@@ -76,8 +76,9 @@ class Workspace(models.Model):
         blank=True,
         help_text=(
             'Cadence config for workspace cycles as {"enabled": bool, "length_weeks": int, '
-            '"start_date": "YYYY-MM-DD"}. start_date is the anchor of cycle 1; subsequent '
-            "cycles roll automatically every length_weeks. Empty / disabled hides cycles"
+            '"start_date": "YYYY-MM-DD", "auto_rollover": bool}. start_date is the anchor of '
+            "cycle 1; subsequent cycles roll automatically every length_weeks. auto_rollover "
+            "moves unfinished tasks into the next cycle when one completes. Empty / disabled hides cycles"
         ),
     )
 
@@ -105,6 +106,7 @@ class Workspace(models.Model):
             "enabled": bool(raw.get("enabled")) and start is not None,
             "length_weeks": length,
             "start_date": start,
+            "auto_rollover": bool(raw.get("auto_rollover")),
         }
 
     def wip_config(self):

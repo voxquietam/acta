@@ -140,6 +140,15 @@ remove flows can swap just that block without reloading the page.
                  class="acta-input w-44">
           <p class="text-[11px] text-placeholder-foreground mt-1.5">{% trans "Anchor for cycle 1; later cycles roll from here. Defaults to today." %}</p>
         </div>
+
+        <label class="flex items-start gap-2 cursor-pointer">
+          <input type="checkbox" name="auto_rollover" {% if cycle_auto_rollover %}checked{% endif %}
+                 class="mt-0.5 rounded border-border-strong bg-muted text-brand-600 focus:ring-brand-500">
+          <span class="text-xs text-subtle-foreground">
+            {% trans "Auto roll over unfinished tasks" %}
+            <span class="block text-[11px] text-placeholder-foreground">{% trans "When a cycle ends, its unfinished tasks move into the next active cycle. Done and cancelled tasks stay." %}</span>
+          </span>
+        </label>
       </div>
 
       <button type="submit" class="text-xs px-3 py-1.5 rounded-md bg-brand-600 hover:bg-brand-500 text-white">{% trans "Save" %}</button>

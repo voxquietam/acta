@@ -63,19 +63,25 @@ def _status_for(start: datetime.date, end: datetime.date, today: datetime.date) 
     return Cycle.ACTIVE
 
 
-def reconcile_statuses(workspace, today: datetime.date) -> None:
+def reconcile_statuses(workspace, today: datetime.date) -> list:
     """Recompute every cycle's status for ``workspace`` from ``today``.
 
     Sets ``completed_at`` the first time a cycle crosses into completed
     and leaves it frozen thereafter. Only writes rows whose status (or
     newly-set ``completed_at``) actually changed.
+
+    Returns:
+        The list of cycles that transitioned **into** ``completed`` during
+        this call (used to trigger task roll-over). Empty on steady state.
     """
     from .models import Cycle
 
+    newly_completed = []
     for cycle in workspace.cycles.all():
         new_status = _status_for(cycle.start_date, cycle.end_date, today)
         fields = []
-        if cycle.status != new_status:
+        status_changed = cycle.status != new_status
+        if status_changed:
             cycle.status = new_status
             fields.append("status")
         if new_status == Cycle.COMPLETED and cycle.completed_at is None:
@@ -83,6 +89,55 @@ def reconcile_statuses(workspace, today: datetime.date) -> None:
             fields.append("completed_at")
         if fields:
             cycle.save(update_fields=fields)
+        if status_changed and new_status == Cycle.COMPLETED:
+            newly_completed.append(cycle)
+    return newly_completed
+
+
+def _rollover_unfinished(workspace, active_cycle, from_cycle_ids: list) -> None:
+    """Move unfinished tasks out of just-completed cycles into the active one.
+
+    Unfinished = ``to-do`` / ``in-progress`` / ``in-review`` and not
+    archived. Done / cancelled stay put (they belong to the cycle that
+    delivered — or didn't — them, and feed velocity). Emits a
+    ``task.cycle_changed`` event per moved task with a ``None`` (system)
+    actor, so timelines record the roll-over and peer boards refresh over
+    SSE. Idempotent: a second pass finds nothing left to move.
+
+    Args:
+        workspace: The :class:`~apps.workspaces.models.Workspace`.
+        active_cycle: The current active :class:`Cycle` to move into.
+        from_cycle_ids: Ids of the cycles that just completed.
+    """
+    from apps.activity.models import ActivityLog
+    from apps.tasks.events import broadcast_task_events, build_diff_events, snapshot_task
+    from apps.tasks.models import Task
+
+    if active_cycle is None or not from_cycle_ids:
+        return
+    movers = list(
+        Task.objects.filter(
+            cycle_id__in=from_cycle_ids,
+            status__in=(Task.STATUS_TODO, Task.STATUS_IN_PROGRESS, Task.STATUS_IN_REVIEW),
+            archived_at__isnull=True,
+        )
+        .exclude(cycle_id=active_cycle.id)
+        .select_related("project__workspace", "cycle", "assignee")
+        .prefetch_related("labels", "blocks", "blocked_by")
+    )
+    if not movers:
+        return
+    now = timezone.now()
+    events = []
+    for task in movers:
+        old_state = snapshot_task(task)
+        task.cycle = active_cycle
+        task.updated_at = now
+        events.extend(build_diff_events(old_state=old_state, task=task, actor=None))
+    Task.objects.bulk_update(movers, ["cycle", "updated_at"])
+    if events:
+        ActivityLog.objects.bulk_create(events)
+        broadcast_task_events(events, {t.pk: t for t in movers}, None)
 
 
 def ensure_cycles(workspace, today: datetime.date | None = None):
@@ -124,9 +179,14 @@ def ensure_cycles(workspace, today: datetime.date | None = None):
                     "end_date": end,
                 },
             )
-        reconcile_statuses(workspace, today)
+        newly_completed = reconcile_statuses(workspace, today)
+        active = workspace.cycles.filter(number=idx + 1).first()
+        # Auto roll-over: when cadence config opts in, unfinished tasks of a
+        # cycle that just ended follow the team into the new active cycle.
+        if cfg.get("auto_rollover") and newly_completed and active is not None and active.status == Cycle.ACTIVE:
+            _rollover_unfinished(workspace, active, [c.id for c in newly_completed])
 
-    return workspace.cycles.filter(number=idx + 1).first()
+    return active
 
 
 def apply_cycle_policy(task) -> bool:

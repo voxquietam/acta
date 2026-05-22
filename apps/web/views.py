@@ -3682,6 +3682,7 @@ def set_workspace_cycles(request, slug):
         "enabled": enabled,
         "length_weeks": length,
         "start_date": start_date,
+        "auto_rollover": bool(request.POST.get("auto_rollover")),
     }
     workspace.save(update_fields=["cycle_settings"])
     if workspace.cycle_config()["enabled"]:
@@ -5375,6 +5376,7 @@ class WorkspaceSettingsView(LoginRequiredMixin, TemplateView):
         ctx["cycle_enabled"] = cycle_cfg["enabled"]
         ctx["cycle_length_weeks"] = cycle_cfg["length_weeks"]
         ctx["cycle_start_date"] = cycle_cfg["start_date"]
+        ctx["cycle_auto_rollover"] = cycle_cfg["auto_rollover"]
         ctx["cycle_length_choices"] = [
             1,
             2,
