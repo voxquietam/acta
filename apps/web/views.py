@@ -3977,22 +3977,27 @@ def _attach_update_thread_reactions(update, user_id):
     attach_reactions(objs=comments, target_field="comment", user_id=user_id)
 
 
-def _user_accessible_projects(user):
+def _user_accessible_projects(user, workspace=None):
     """Return projects the user can post tasks to, with workspace eager-loaded.
+
+    When ``workspace`` is given, scoped to it — the active-workspace
+    boundary (the sidebar switcher): once a workspace is active, project
+    pickers and the create-task path must never offer projects from another
+    workspace. ``None`` spans all the user's workspaces (used only when
+    there's no active workspace to scope to).
 
     Args:
         user: The acting :class:`User`.
+        workspace: Optional :class:`Workspace` to scope to.
 
     Returns:
         A queryset of :class:`Project` rows ordered by workspace name,
         then project name. Empty workspaces don't surface (no projects).
     """
-    return (
-        Project.objects.filter(workspace__memberships__user=user)
-        .select_related("workspace")
-        .order_by("workspace__name", "name")
-        .distinct()
-    )
+    qs = Project.objects.filter(workspace__memberships__user=user)
+    if workspace is not None:
+        qs = qs.filter(workspace=workspace)
+    return qs.select_related("workspace").order_by("workspace__name", "name").distinct()
 
 
 def _project_members_qs(project):
@@ -4063,7 +4068,7 @@ def _create_task_get(request):
     Returns:
         Rendered HTML of the modal partial.
     """
-    projects = list(_user_accessible_projects(request.user))
+    projects = list(_user_accessible_projects(request.user, resolve_active_workspace(request)))
     requested_slug = request.GET.get("project") or ""
     selected_project = None
     for project in projects:
@@ -4161,7 +4166,7 @@ def _create_task_post(request):
     if len(title) > 200:
         return HttpResponseBadRequest("title too long")
     project = get_object_or_404(
-        _user_accessible_projects(request.user),
+        _user_accessible_projects(request.user, resolve_active_workspace(request)),
         slug_prefix=project_slug,
     )
     description = request.POST.get("description") or ""

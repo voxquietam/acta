@@ -373,3 +373,40 @@ class TestCreateTaskPost:
             data={"project": project.slug_prefix, "title": "x"},
         )
         assert resp.status_code in (302, 301)
+
+
+@pytest.mark.django_db
+class TestCreateTaskActiveWorkspaceScoping:
+    """The picker + POST are confined to the user's ACTIVE workspace."""
+
+    def _two_ws(self):
+        ws1 = WorkspaceFactory()
+        ws2 = WorkspaceFactory()
+        user = ws1.owner
+        WorkspaceMemberFactory(user=user, workspace=ws2)
+        user.active_workspace = ws1
+        user.save(update_fields=["active_workspace"])
+        proj_a = ProjectFactory(workspace=ws1)
+        proj_b = ProjectFactory(workspace=ws2)
+        return user, proj_a, proj_b
+
+    def test_picker_only_shows_active_workspace_projects(self, client):
+        user, proj_a, proj_b = self._two_ws()
+        client.force_login(user)
+        body = client.get(reverse("web:create_task")).content.decode()
+        assert proj_a.slug_prefix in body
+        assert proj_b.slug_prefix not in body
+
+    def test_cannot_create_in_non_active_workspace(self, client):
+        user, proj_a, proj_b = self._two_ws()
+        client.force_login(user)
+        resp = client.post(reverse("web:create_task"), data={"project": proj_b.slug_prefix, "title": "x"})
+        assert resp.status_code == 404
+        assert not Task.objects.filter(project=proj_b).exists()
+
+    def test_can_create_in_active_workspace(self, client):
+        user, proj_a, proj_b = self._two_ws()
+        client.force_login(user)
+        resp = client.post(reverse("web:create_task"), data={"project": proj_a.slug_prefix, "title": "ok"})
+        assert resp.status_code == 204
+        assert Task.objects.filter(project=proj_a, title="ok").exists()
