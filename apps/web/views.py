@@ -2401,6 +2401,39 @@ def set_task_priority(request, slug_prefix, number):
 
 @require_POST
 @login_required
+def set_task_size(request, slug_prefix, number):
+    """Inline size (story-point) change; returns the size cell fragment.
+
+    An empty ``size`` clears the field; a non-empty value must be one of
+    ``Task.SIZE_VALUES`` (the Fibonacci set). Routed through the diff path
+    so the change logs activity and refreshes peer cards over SSE.
+
+    Returns:
+        Rendered ``_size_cell.html`` with the updated task, or 400 on an
+        invalid value.
+    """
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    raw = (request.POST.get("size") or "").strip()
+    if raw == "":
+        size = None
+    else:
+        try:
+            size = int(raw)
+        except (TypeError, ValueError):
+            return HttpResponseBadRequest("invalid size")
+        if size not in Task.SIZE_VALUES:
+            return HttpResponseBadRequest("invalid size")
+    _apply_task_field_change(task, "size", size, request.user)
+    return _inline_edit_response(
+        request,
+        task,
+        "web/projects/_size_cell.html",
+        {"task": task},
+    )
+
+
+@require_POST
+@login_required
 def set_task_description(request, slug_prefix, number):
     """Inline description change; returns only the OOB activity list.
 

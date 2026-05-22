@@ -1,0 +1,78 @@
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+Size (story-point) cell — same click-to-edit + teleported dropdown pattern
+as the priority cell. An empty size shows a muted "Set size" trigger; the
+panel offers "No size" (clear) plus the Fibonacci values (``Task.SIZE_VALUES``).
+The dropdown's left is clamped to the viewport so it never runs off the
+right edge of the rail. Expects ``task``.
+{% endcomment %}
+<div id="size-cell"
+     x-data="{
+       open: false,
+       rect: { top: 0, left: 0, bottom: 0, right: 0 },
+       measure() {
+         const r = this.$refs.trigger.getBoundingClientRect();
+         this.rect = { top: r.top, left: r.left, bottom: r.bottom, right: r.right };
+       },
+       toggle() { if (!this.open) this.measure(); this.open = !this.open; }
+     }"
+     x-init="
+       const onScroll = (e) => {
+         if (!$el.isConnected) { document.removeEventListener('scroll', onScroll, true); return; }
+         if (open && !($refs.panel && $refs.panel.contains(e.target))) open = false;
+       };
+       document.addEventListener('scroll', onScroll, true);
+     "
+     @resize.window="if (open) open = false"
+     class="inline-block">
+  <button type="button"
+          x-ref="trigger"
+          @click="toggle()"
+          class="text-xs cursor-pointer inline-flex items-center gap-1.5 hover:text-foreground
+            {% if task.size %}text-subtle-foreground{% else %}text-placeholder-foreground{% endif %}">
+    {% if task.size %}
+    {% lucide "gauge" "w-3.5 h-3.5" %}<span>{{ task.size }}</span>
+    {% else %}
+    <span class="italic">{% trans "Set size" %}</span>
+    {% endif %}
+  </button>
+  <template x-teleport="body">
+  <div x-ref="panel"
+       x-show="open"
+       @click.outside="open = false"
+       x-init="$nextTick(() => window.htmx && window.htmx.process($el))"
+       x-cloak
+       :style="`position:fixed; top:${rect.bottom + 4}px; left:${Math.min(rect.left, window.innerWidth - 184)}px; width:11rem;`"
+       class="bg-card border border-border rounded-lg shadow-lg overflow-hidden z-50">
+    <form method="post"
+          hx-post="{% url 'web:set_task_size' slug_prefix=task.project.slug_prefix number=task.number %}"
+          hx-target="#size-cell"
+          hx-swap="outerHTML"
+          @htmx:after-request="open = false">
+      {% csrf_token %}
+      <input type="hidden" name="size" value="">
+      <button type="submit"
+              class="w-full text-left px-3 py-1.5 text-xs hover:bg-muted flex items-center gap-1.5
+                {% if not task.size %}text-brand-500{% else %}text-muted-foreground{% endif %}">
+        <span class="flex-1">{% trans "No size" %}</span>
+      </button>
+    </form>
+    {% for s in task.SIZE_VALUES %}
+    <form method="post"
+          hx-post="{% url 'web:set_task_size' slug_prefix=task.project.slug_prefix number=task.number %}"
+          hx-target="#size-cell"
+          hx-swap="outerHTML"
+          @htmx:after-request="open = false">
+      {% csrf_token %}
+      <input type="hidden" name="size" value="{{ s }}">
+      <button type="submit"
+              class="w-full text-left px-3 py-1.5 text-xs hover:bg-muted flex items-center gap-1.5
+                {% if s == task.size %}text-brand-500{% else %}text-muted-foreground{% endif %}">
+        {% lucide "gauge" "w-3.5 h-3.5" %}<span class="flex-1">{{ s }}</span>
+      </button>
+    </form>
+    {% endfor %}
+  </div>
+  </template>
+</div>

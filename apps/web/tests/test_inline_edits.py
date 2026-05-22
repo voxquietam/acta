@@ -139,6 +139,45 @@ class TestSetTaskPriority:
 
 
 @pytest.mark.django_db
+class TestSetTaskSize:
+    """``POST /projects/<slug>/<number>/size/`` sets/clears the story-point size."""
+
+    def _url(self, project, task):
+        return reverse("web:set_task_size", kwargs={"slug_prefix": project.slug_prefix, "number": task.number})
+
+    def test_valid_change(self, client, setup):
+        user, project, task = setup
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"size": "5"})
+        assert resp.status_code == 200
+        task.refresh_from_db()
+        assert task.size == 5
+
+    def test_clear_size(self, client, setup):
+        user, project, task = setup
+        task.size = 8
+        task.save(update_fields=["size"])
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"size": ""})
+        assert resp.status_code == 200
+        task.refresh_from_db()
+        assert task.size is None
+
+    def test_non_fibonacci_returns_400(self, client, setup):
+        user, project, task = setup
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"size": "7"})
+        assert resp.status_code == 400
+        task.refresh_from_db()
+        assert task.size is None
+
+    def test_non_int_returns_400(self, client, setup):
+        user, project, task = setup
+        client.force_login(user)
+        assert client.post(self._url(project, task), {"size": "abc"}).status_code == 400
+
+
+@pytest.mark.django_db
 class TestSetTaskDueDate:
     """``POST /projects/<slug>/<number>/due-date/`` updates the deadline."""
 

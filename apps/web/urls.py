@@ -47,6 +47,7 @@ from .views import (
     set_task_description,
     set_task_due_date,
     set_task_priority,
+    set_task_size,
     set_task_start_date,
     set_task_status,
     set_task_title,
@@ -212,6 +213,11 @@ urlpatterns = [
         "projects/<str:slug_prefix>/<int:number>/priority/",
         set_task_priority,
         name="set_task_priority",
+    ),
+    path(
+        "projects/<str:slug_prefix>/<int:number>/size/",
+        set_task_size,
+        name="set_task_size",
     ),
     path(
         "projects/<str:slug_prefix>/<int:number>/assignee/",
