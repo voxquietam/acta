@@ -445,7 +445,14 @@ class AllTasksView(LoginRequiredMixin, ListView):
                     -t.updated_at.timestamp(),
                 ),
             )
-            ctx["columns"] = _build_kanban_columns(kanban_tasks)
+            wip_mode, wip_limits, wip_over = _wip_context(resolve_active_workspace(self.request))
+            ctx["wip_mode"] = wip_mode
+            ctx["columns"] = _build_kanban_columns(
+                kanban_tasks,
+                wip_mode=wip_mode,
+                wip_limits=wip_limits,
+                over_by_status=wip_over,
+            )
             list_axis_keys = ("deadline", "status", "priority", "assignee", "project")
             list_axis = _resolve_list_axis(self.request, default="project", options=list_axis_keys)
             ctx["list_axis"] = list_axis
