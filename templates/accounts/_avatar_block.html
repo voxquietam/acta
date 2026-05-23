@@ -12,10 +12,20 @@ greys the buttons while the server resizes the image.
   <div class="space-y-1.5 min-w-0">
     <div class="flex items-center gap-2">
       <form hx-post="{% url 'accounts:upload_avatar' %}" hx-encoding="multipart/form-data"
-            hx-target="#avatar-block" hx-swap="outerHTML" hx-disabled-elt="find button" x-data>
+            hx-target="#avatar-block" hx-swap="outerHTML" hx-disabled-elt="find button"
+            x-data="{
+              async pick(input) {
+                if (!input.files.length) return;
+                try {
+                  const small = await window.actaResizeImage(input.files[0], 1024);
+                  if (small) { const dt = new DataTransfer(); dt.items.add(small); input.files = dt.files; }
+                } catch (e) { /* fall back to the original file */ }
+                input.form.requestSubmit();
+              }
+            }">
         {% csrf_token %}
         <input type="file" name="avatar" accept="image/png,image/jpeg,image/gif,image/webp"
-               class="hidden" x-ref="avatarInput" @change="if ($el.files.length) $el.form.requestSubmit()">
+               class="hidden" x-ref="avatarInput" @change="pick($el)">
         <button type="button" @click="$refs.avatarInput.click()"
                 class="px-3 py-1.5 text-xs rounded-md border border-border text-foreground hover:bg-muted transition disabled:opacity-40 disabled:cursor-not-allowed">
           {% trans "Upload photo" %}
