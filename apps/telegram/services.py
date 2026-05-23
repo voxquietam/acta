@@ -84,27 +84,42 @@ def link_deep_link(user) -> str | None:
     return f"https://t.me/{bot}?start={make_link_token(user)}"
 
 
-def _link(token: str, chat_id: int, username: str) -> bool:
-    """Bind a chat to the token's user. Returns whether it linked."""
-    user = resolve_link_token(token)
-    if user is None:
-        return False
-    # Re-point any existing chat for this user, and steal the chat_id from
-    # a stale link if one exists (a chat maps to exactly one account).
+def _link_user(user, chat_id: int, username: str) -> None:
+    """Bind ``chat_id`` to ``user`` (token already resolved by the caller).
+
+    A chat maps to exactly one account: steal the chat_id from any stale
+    link and (re)create this user's account. ``enabled`` resets to True so
+    re-linking re-enables delivery.
+    """
     TelegramAccount.objects.filter(chat_id=chat_id).exclude(user=user).delete()
     TelegramAccount.objects.update_or_create(
         user=user,
         defaults={"chat_id": chat_id, "username": username or "", "enabled": True},
     )
-    return True
+
+
+def _chat_language(chat_id, user=None) -> str:
+    """Best-guess UI language for replies to a chat.
+
+    Prefers the just-resolved ``user``, then any account already linked to
+    this chat, then the project default. Lets bot replies match the
+    member's Acta language even though the webhook has no session.
+    """
+    if user is not None:
+        return getattr(user, "language", "") or settings.LANGUAGE_CODE
+    account = TelegramAccount.objects.filter(chat_id=chat_id).select_related("user").first()
+    if account is not None:
+        return getattr(account.user, "language", "") or settings.LANGUAGE_CODE
+    return settings.LANGUAGE_CODE
 
 
 def process_update(update: dict) -> None:
     """Handle one inbound Telegram update (link / unlink commands).
 
     Recognises ``/start <token>`` (link this chat to the token's Acta
-    user) and ``/stop`` (unlink). Everything else gets a short hint. All
-    outbound replies are best-effort via :mod:`apps.telegram.client`.
+    user) and ``/stop`` (unlink). Everything else gets a short hint.
+    Replies are rendered in the linked member's language when known, and
+    sent best-effort via :mod:`apps.telegram.client`.
     """
     message = (update or {}).get("message") or {}
     chat = message.get("chat") or {}
@@ -117,22 +132,28 @@ def process_update(update: dict) -> None:
     if text.startswith("/start"):
         parts = text.split(maxsplit=1)
         token = parts[1].strip() if len(parts) > 1 else ""
-        if token and _link(token, chat_id, username):
-            client.send_message(chat_id, _("✅ Linked to Acta. You'll get notifications here."))
-        else:
-            client.send_message(
-                chat_id,
-                _("This link is invalid or expired. Open Acta settings and start the connection again."),
-            )
+        linked_user = resolve_link_token(token) if token else None
+        if linked_user is not None:
+            _link_user(linked_user, chat_id, username)
+        with translation.override(_chat_language(chat_id, linked_user)):
+            if linked_user is not None:
+                client.send_message(chat_id, _("✅ Linked to Acta. You'll get notifications here."))
+            else:
+                client.send_message(
+                    chat_id,
+                    _("This link is invalid or expired. Open Acta settings and start the connection again."),
+                )
         return
 
     if text.startswith("/stop"):
-        deleted, _count = TelegramAccount.objects.filter(chat_id=chat_id).delete()
-        if deleted:
-            client.send_message(chat_id, _("Disconnected. You won't get Acta notifications here anymore."))
+        with translation.override(_chat_language(chat_id)):
+            deleted, _count = TelegramAccount.objects.filter(chat_id=chat_id).delete()
+            if deleted:
+                client.send_message(chat_id, _("Disconnected. You won't get Acta notifications here anymore."))
         return
 
-    client.send_message(chat_id, _("Connect this chat from Acta → Settings → Telegram."))
+    with translation.override(_chat_language(chat_id)):
+        client.send_message(chat_id, _("Connect this chat from Acta → Settings → Telegram."))
 
 
 def _task_url(task) -> str | None:
@@ -198,6 +219,8 @@ def notify_via_telegram(notification) -> bool:
         TelegramAccount.objects.filter(user_id=notification.recipient_id, enabled=True).select_related("user").first()
     )
     if account is None:
+        return False
+    if notification.kind in (account.muted_kinds or []):
         return False
     lang = getattr(account.user, "language", "") or settings.LANGUAGE_CODE
     with translation.override(lang):

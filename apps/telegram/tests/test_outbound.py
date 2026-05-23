@@ -57,6 +57,17 @@ class TestNotifyViaTelegram:
         assert tg.notify_via_telegram(n) is False
         assert sent == []
 
+    def test_skips_muted_kind(self, sent):
+        ws = WorkspaceFactory()
+        user = UserFactory()
+        _linked(user)
+        TelegramAccount.objects.filter(user=user).update(muted_kinds=[Notification.Kind.STATUS_CHANGE])
+        muted = Notification.objects.create(recipient=user, workspace=ws, kind=Notification.Kind.STATUS_CHANGE)
+        kept = Notification.objects.create(recipient=user, workspace=ws, kind=Notification.Kind.MENTION, preview="hi")
+        assert tg.notify_via_telegram(muted) is False
+        assert tg.notify_via_telegram(kept) is True
+        assert len(sent) == 1
+
 
 @pytest.mark.django_db
 class TestNotifyHookFiresOnCommit:
@@ -92,3 +103,17 @@ class TestToggleView:
         assert resp.status_code == 200
         acct.refresh_from_db()
         assert acct.enabled is False
+
+    def test_toggle_kind_mutes_and_unmutes(self, client):
+        from django.urls import reverse
+
+        user = UserFactory()
+        acct = _linked(user)
+        client.force_login(user)
+        url = reverse("telegram:toggle_kind")
+        client.post(url, {"kind": Notification.Kind.COMMENT})
+        acct.refresh_from_db()
+        assert Notification.Kind.COMMENT in acct.muted_kinds
+        client.post(url, {"kind": Notification.Kind.COMMENT})
+        acct.refresh_from_db()
+        assert Notification.Kind.COMMENT not in acct.muted_kinds

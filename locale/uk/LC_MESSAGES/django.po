@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Acta 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-05-23 16:45+0000\n"
+"POT-Creation-Date: 2026-05-23 16:55+0000\n"
 "PO-Revision-Date: 2026-05-16 15:30+0000\n"
 "Last-Translator: Acta team\n"
 "Language-Team: Ukrainian\n"
@@ -380,11 +380,11 @@ msgstr "Згадка"
 
 #: apps/notifications/models.py:24 templates/web/_inbox_list.html:36
 msgid "Assigned"
-msgstr "Призначено"
+msgstr "Призначення"
 
 #: apps/notifications/models.py:25
 msgid "Due soon"
-msgstr "Незабаром дедлайн"
+msgstr "Скоро дедлайн"
 
 #: apps/notifications/models.py:27
 msgid "Status change"
@@ -570,85 +570,85 @@ msgstr "Мітки %(ids)s не належать робочому простор
 msgid "User %(user)s is not a member of this project's workspace."
 msgstr "Користувач %(user)s не є учасником робочого простору цього проєкту."
 
-#: apps/telegram/models.py:40
+#: apps/telegram/models.py:45
 msgid "Telegram account"
 msgstr "Акаунт Telegram"
 
-#: apps/telegram/models.py:41
+#: apps/telegram/models.py:46
 msgid "Telegram accounts"
 msgstr "Акаунти Telegram"
 
-#: apps/telegram/models.py:76
+#: apps/telegram/models.py:81
 #, fuzzy
 #| msgid "Telegram notifications"
 msgid "Telegram link token"
 msgstr "Сповіщення в Telegram"
 
-#: apps/telegram/models.py:77
+#: apps/telegram/models.py:82
 #, fuzzy
 #| msgid "Telegram notifications"
 msgid "Telegram link tokens"
 msgstr "Сповіщення в Telegram"
 
-#: apps/telegram/services.py:121
+#: apps/telegram/services.py:140
 msgid "✅ Linked to Acta. You'll get notifications here."
 msgstr "✅ Привʼязано до Acta. Сповіщення приходитимуть сюди."
 
-#: apps/telegram/services.py:125
+#: apps/telegram/services.py:144
 msgid "This link is invalid or expired. Open Acta settings and start the connection again."
 msgstr "Це посилання недійсне або застаріле. Відкрийте налаштування Acta й почніть підключення знову."
 
-#: apps/telegram/services.py:132
+#: apps/telegram/services.py:152
 msgid "Disconnected. You won't get Acta notifications here anymore."
 msgstr "Відключено. Сповіщення Acta більше сюди не приходитимуть."
 
-#: apps/telegram/services.py:135
+#: apps/telegram/services.py:156
 msgid "Connect this chat from Acta → Settings → Telegram."
 msgstr "Підключіть цей чат з Acta → Налаштування → Telegram."
 
-#: apps/telegram/services.py:156
+#: apps/telegram/services.py:177
 msgid "Someone"
 msgstr "Хтось"
 
-#: apps/telegram/services.py:160
+#: apps/telegram/services.py:181
 #, python-format
 msgid "%(actor)s mentioned you"
 msgstr "%(actor)s згадав вас"
 
-#: apps/telegram/services.py:162
+#: apps/telegram/services.py:183
 #, python-format
 msgid "%(actor)s assigned you a task"
 msgstr "%(actor)s призначив вам задачу"
 
-#: apps/telegram/services.py:164
+#: apps/telegram/services.py:185
 #, python-format
 msgid "%(actor)s commented"
 msgstr "%(actor)s залишив коментар"
 
-#: apps/telegram/services.py:166
+#: apps/telegram/services.py:187
 #, python-format
 msgid "%(actor)s changed a task's status"
 msgstr "%(actor)s змінив статус задачі"
 
-#: apps/telegram/services.py:168
+#: apps/telegram/services.py:189
 #, python-format
 msgid "%(actor)s changed a task's priority"
 msgstr "%(actor)s змінив пріоритет задачі"
 
-#: apps/telegram/services.py:170
+#: apps/telegram/services.py:191
 msgid "Task due soon"
 msgstr "Скоро дедлайн задачі"
 
-#: apps/telegram/services.py:172
+#: apps/telegram/services.py:193
 #, python-format
 msgid "%(actor)s posted a project update"
 msgstr "%(actor)s опублікував оновлення проєкту"
 
-#: apps/telegram/services.py:174
+#: apps/telegram/services.py:195
 msgid "Cycle update"
 msgstr "Оновлення циклу"
 
-#: apps/telegram/services.py:176
+#: apps/telegram/services.py:197
 msgid "Update in Acta"
 msgstr "Оновлення в Acta"
 
@@ -1332,19 +1332,23 @@ msgstr "Вимкнено"
 msgid "Disconnect"
 msgstr "Відключити"
 
-#: templates/telegram/_settings.html:43
+#: templates/telegram/_settings.html:48
+msgid "What to send here"
+msgstr "Що надсилати сюди"
+
+#: templates/telegram/_settings.html:67
 msgid "Get task notifications in Telegram instead of email. Open the bot and tap Start — this page updates automatically once you're connected."
 msgstr "Отримуйте сповіщення про задачі в Telegram замість пошти. Відкрийте бота й натисніть Start — сторінка оновиться сама після підключення."
 
-#: templates/telegram/_settings.html:47
+#: templates/telegram/_settings.html:71
 msgid "Connect Telegram"
 msgstr "Підключити Telegram"
 
-#: templates/telegram/_settings.html:50
+#: templates/telegram/_settings.html:74
 msgid "waiting for connection…"
 msgstr "очікую підключення…"
 
-#: templates/telegram/_settings.html:55
+#: templates/telegram/_settings.html:79
 msgid "Telegram isn't configured on this server yet — ask an admin to set the bot up."
 msgstr "Telegram ще не налаштовано на цьому сервері — попросіть адміна підключити бота."
 

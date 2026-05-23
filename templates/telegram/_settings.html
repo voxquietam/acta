@@ -38,6 +38,29 @@ swapped-in markup carries no poll trigger, so polling stops. Expects
     </form>
   </div>
 
+  {% comment %}
+  Per-kind delivery toggles — only meaningful while the master switch is on.
+  Each chip mutes/unmutes one notification kind for this chat.
+  {% endcomment %}
+  {% if telegram_account.enabled and telegram_kind_prefs %}
+  <div class="mt-3 pt-3 border-t border-border">
+    <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground mb-2">{% trans "What to send here" %}</div>
+    <div class="flex flex-wrap gap-1.5">
+      {% for value, label, on in telegram_kind_prefs %}
+      <form hx-post="{% url 'telegram:toggle_kind' %}" hx-target="#telegram-settings" hx-swap="outerHTML" class="inline">
+        {% csrf_token %}
+        <input type="hidden" name="kind" value="{{ value }}">
+        <button type="submit"
+                class="text-[11px] px-2 py-1 rounded-md border transition
+                  {% if on %}border-brand-400 bg-brand-600 text-white dark:bg-brand-500/25 dark:text-white{% else %}border-border bg-background text-placeholder-foreground hover:bg-muted{% endif %}">
+          {{ label }}
+        </button>
+      </form>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
   {% elif telegram_link_url %}
   <p class="text-xs text-placeholder-foreground mb-3">
     {% trans "Get task notifications in Telegram instead of email. Open the bot and tap Start — this page updates automatically once you're connected." %}

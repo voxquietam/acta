@@ -48,12 +48,30 @@ def telegram_webhook(request, secret):
     return HttpResponse(status=200)
 
 
+# Notification kinds offered as per-chat delivery toggles (SYSTEM omitted —
+# it isn't user-facing). Order = how they read in the settings list.
+def _kind_pref_kinds():
+    from apps.notifications.models import Notification
+
+    K = Notification.Kind
+    return [K.MENTION, K.ASSIGNED, K.COMMENT, K.STATUS_CHANGE, K.PRIORITY_CHANGE, K.DUE, K.PROJECT_UPDATE, K.CYCLE]
+
+
 def _settings_context(user):
     """Build the context the Telegram settings partial expects."""
-    return {
-        "telegram_account": getattr(user, "telegram", None),
+    account = getattr(user, "telegram", None)
+    ctx = {
+        "telegram_account": account,
         "telegram_link_url": link_deep_link(user),
     }
+    if account is not None:
+        from apps.notifications.models import Notification
+
+        muted = set(account.muted_kinds or [])
+        labels = dict(Notification.Kind.choices)
+        # (value, label, is_on) per offered kind — "on" = not muted.
+        ctx["telegram_kind_prefs"] = [(k, labels[k], k not in muted) for k in _kind_pref_kinds()]
+    return ctx
 
 
 @login_required
@@ -84,5 +102,26 @@ def telegram_toggle(request):
     if account is not None:
         account.enabled = not account.enabled
         account.save(update_fields=["enabled"])
+    html = render_to_string("telegram/_settings.html", _settings_context(request.user), request=request)
+    return HttpResponse(html)
+
+
+@require_POST
+@login_required
+def telegram_toggle_kind(request):
+    """Mute / unmute one notification kind for the user's chat."""
+    from apps.notifications.models import Notification
+
+    kind = request.POST.get("kind", "")
+    valid = {value for value, _label in Notification.Kind.choices}
+    account = TelegramAccount.objects.filter(user=request.user).first()
+    if account is not None and kind in valid:
+        muted = list(account.muted_kinds or [])
+        if kind in muted:
+            muted.remove(kind)
+        else:
+            muted.append(kind)
+        account.muted_kinds = muted
+        account.save(update_fields=["muted_kinds"])
     html = render_to_string("telegram/_settings.html", _settings_context(request.user), request=request)
     return HttpResponse(html)

@@ -29,7 +29,12 @@ class TelegramAccount(models.Model):
     )
     enabled = models.BooleanField(
         default=True,
-        help_text="Whether to deliver notifications to this chat; user toggle, defaults on when linked",
+        help_text="Master switch for delivery to this chat; user toggle, defaults on when linked",
+    )
+    muted_kinds = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Notification kinds (Notification.Kind values) NOT delivered here; empty = all kinds sent",
     )
     linked_at = models.DateTimeField(
         auto_now_add=True,
