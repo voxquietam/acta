@@ -247,6 +247,27 @@ def _priority_chip(priority) -> str:
     return f"{_PRIORITY_EMOJI[priority]} {label}" if label else ""
 
 
+# Status key → dot emoji, tracking the kanban palette. Cyan (ready) has no
+# circle emoji, so it borrows blue; the label always disambiguates.
+_STATUS_EMOJI = {
+    "planned": "⚪",
+    "ready": "🔵",
+    "to-do": "🔵",
+    "in-progress": "🟣",
+    "in-review": "🟠",
+    "done": "🟢",
+    "cancelled": "⚫",
+}
+
+
+def _status_chip(status_key) -> str:
+    """Return a localized ``<dot> Label`` status chip, ``""`` when unknown."""
+    from apps.tasks.models import Task
+
+    label = Task.STATUS_LABELS.get(status_key) if status_key else None
+    return f"{_STATUS_EMOJI.get(status_key, '⚪')} {label}" if label else ""
+
+
 def _due_chip(due) -> str:
     """Return a localized ``📅 due <date>`` chip, ``""`` when there's no date."""
     if not due:
@@ -278,6 +299,10 @@ def _template_context(notification) -> dict:
     priority = _priority_chip(task.priority) if task is not None else ""
     due = _due_chip(task.due_date) if task is not None else ""
     meta = " · ".join(chip for chip in (priority, due) if chip)
+    payload = notification.payload or {}
+    status_to = _status_chip(payload.get("to") or (task.status if task is not None else ""))
+    status_from = _status_chip(payload.get("from"))
+    status_change = f"{status_from} → {status_to}" if status_from and status_to else status_to
     return {
         "actor": escape(actor),
         "slug": escape(slug),
@@ -288,6 +313,10 @@ def _template_context(notification) -> dict:
         "priority": priority,
         "due": due,
         "meta": meta,
+        "status": status_to,
+        "status_from": status_from,
+        "status_to": status_to,
+        "status_change": status_change,
     }
 
 

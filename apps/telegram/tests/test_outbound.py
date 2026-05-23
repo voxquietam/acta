@@ -207,6 +207,54 @@ class TestChips:
         assert tg._due_chip(None) == ""
         assert tg._due_chip(datetime.date(2026, 5, 30)).startswith("📅 due")
 
+    def test_status_chip(self):
+        assert tg._status_chip("in-progress") == "🟣 In progress"
+        assert tg._status_chip("done") == "🟢 Done"
+        assert tg._status_chip("") == ""
+        assert tg._status_chip("bogus") == ""
+
+
+@pytest.mark.django_db
+class TestStatusContext:
+    """{status} / {status_from} / {status_to} / {status_change} placeholders."""
+
+    def _status_notif(self, payload):
+        ws = WorkspaceFactory()
+        project = ProjectFactory(workspace=ws)
+        task = TaskFactory(project=project)
+        return Notification.objects.create(
+            recipient=UserFactory(),
+            actor=UserFactory(),
+            workspace=ws,
+            kind=Notification.Kind.STATUS_CHANGE,
+            task=task,
+            payload=payload,
+        )
+
+    def test_transition_placeholders(self):
+        from apps.telegram.models import TelegramMessageTemplate
+
+        n = self._status_notif({"from": "to-do", "to": "in-progress"})
+        TelegramMessageTemplate.objects.create(kind=Notification.Kind.STATUS_CHANGE, body="{status_from} → {status_to}")
+        assert tg._format_notification(n) == "🔵 To do → 🟣 In progress"
+
+    def test_status_change_joins_when_from_present(self):
+        from apps.telegram.models import TelegramMessageTemplate
+
+        n = self._status_notif({"from": "in-progress", "to": "done"})
+        TelegramMessageTemplate.objects.create(kind=Notification.Kind.STATUS_CHANGE, body="{status_change}")
+        assert tg._format_notification(n) == "🟣 In progress → 🟢 Done"
+
+    def test_status_falls_back_to_task_status(self):
+        from apps.tasks.models import Task
+        from apps.telegram.models import TelegramMessageTemplate
+
+        n = self._status_notif({})
+        Task.objects.filter(pk=n.task_id).update(status=Task.STATUS_IN_REVIEW)
+        n.task.refresh_from_db()
+        TelegramMessageTemplate.objects.create(kind=Notification.Kind.STATUS_CHANGE, body="{status}")
+        assert tg._format_notification(n) == "🟠 In review"
+
 
 @pytest.mark.django_db
 class TestAssignedContext:
