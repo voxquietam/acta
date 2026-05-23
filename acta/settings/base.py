@@ -302,7 +302,10 @@ ATTACHMENT_MAX_UPLOAD_BYTES = {
     "image": 5 * 1024 * 1024,
     "document": 15 * 1024 * 1024,
     "archive": 15 * 1024 * 1024,
-    "avatar": 3 * 1024 * 1024,
+    # Generous: the avatar is downscaled to a 512px JPEG on upload anyway, so
+    # we accept full-size phone photos and let the server compress them — the
+    # cap only bounds Pillow's decode memory.
+    "avatar": 20 * 1024 * 1024,
 }
 
 # Allowed upload types, grouped by category. The category selects the size
