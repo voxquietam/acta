@@ -286,6 +286,46 @@ def _due_chip(due) -> str:
     return _("📅 due %(date)s") % {"date": date_format(due, "j M")}
 
 
+def _parse_date(value):
+    """Parse an ISO date string (a payload value) to a date, or ``None``."""
+    if not value:
+        return None
+    try:
+        return datetime.date.fromisoformat(value)
+    except (ValueError, TypeError):
+        return None
+
+
+def _due_date(value) -> str:
+    """Bare ``📅 <date>`` from a date or ISO string, ``""`` when empty."""
+    date = value if hasattr(value, "year") else _parse_date(value)
+    if not date:
+        return ""
+    from django.utils.formats import date_format
+
+    return f"📅 {date_format(date, 'j M')}"
+
+
+def _due_change(payload) -> str:
+    """Describe a due-date change from a ``{from, to}`` (ISO) payload.
+
+    Three cases: a first-time set (``📅 due <to>``), a change between two
+    dates (``📅 <from> → <to>``), and a removal (``📅 due date removed``).
+    Empty when the payload carries no parseable dates.
+    """
+    from_date = _parse_date(payload.get("from"))
+    to_date = _parse_date(payload.get("to"))
+    if from_date and to_date:
+        from django.utils.formats import date_format
+
+        return f"📅 {date_format(from_date, 'j M')} → {date_format(to_date, 'j M')}"
+    if to_date:
+        return _due_chip(to_date)
+    if from_date:
+        return _("📅 due date removed")
+    return ""
+
+
 def _tidy(text: str) -> str:
     """Drop blank lines (e.g. from an empty placeholder) and trim the edges."""
     return "\n".join(line for line in text.split("\n") if line.strip())
@@ -315,6 +355,8 @@ def _template_context(notification) -> dict:
     priority_from = _priority_chip(payload.get("from"), show_none=True)
     priority_to = _priority_chip(payload.get("to"), show_none=True)
     priority_change = f"{priority_from} → {priority_to}" if priority_from and priority_to else priority_to
+    due_from = _due_date(payload.get("from"))
+    due_to = _due_date(payload.get("to"))
     return {
         "actor": escape(actor),
         "slug": escape(slug),
@@ -332,6 +374,9 @@ def _template_context(notification) -> dict:
         "priority_from": priority_from,
         "priority_to": priority_to,
         "priority_change": priority_change,
+        "due_from": due_from,
+        "due_to": due_to,
+        "due_change": _due_change(payload),
     }
 
 

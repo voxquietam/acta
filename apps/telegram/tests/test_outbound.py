@@ -220,6 +220,22 @@ class TestChips:
         assert tg._priority_chip(Task.NO_PRIORITY, show_none=True) == "⚪ No priority"
         assert tg._priority_chip(Task.URGENT, show_none=True) == "🔴 Urgent"
 
+    def test_due_date_bare(self):
+        assert tg._due_date("2026-05-30") == "📅 30 May"
+        assert tg._due_date(None) == ""
+
+    def test_due_change_between_two_dates(self):
+        assert tg._due_change({"from": "2026-05-30", "to": "2026-06-06"}) == "📅 30 May → 6 Jun"
+
+    def test_due_change_first_set(self):
+        assert tg._due_change({"from": None, "to": "2026-06-06"}) == "📅 due 6 Jun"
+
+    def test_due_change_removed(self):
+        assert tg._due_change({"from": "2026-05-30", "to": None}).endswith("removed")
+
+    def test_due_change_empty_payload(self):
+        assert tg._due_change({}) == ""
+
 
 @pytest.mark.django_db
 class TestStatusContext:
