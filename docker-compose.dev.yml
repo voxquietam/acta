@@ -28,3 +28,15 @@ services:
       --port 8000
       --reload
       --timeout-graceful-shutdown 1
+
+  # Scheduler in dev: dev settings + the repo bind-mount so code edits and
+  # the dev deps apply. Run it with the rest of the stack via ``make up``.
+  qcluster:
+    build:
+      context: .
+      args:
+        REQUIREMENTS: requirements/dev.txt
+    environment:
+      DJANGO_SETTINGS_MODULE: acta.settings.dev
+    volumes:
+      - .:/app

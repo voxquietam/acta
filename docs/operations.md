@@ -39,16 +39,19 @@ below.
 2. `compilemessages` (builds the `uk` `.mo`)
 3. `collectstatic`
 4. `createsuperuser`
-5. Create the **Telegram message templates** in `/admin/` (see §5 below)
-6. `telegram_set_webhook --base-url https://actaspace.com` (prod uses a webhook, not polling)
-7. Create the Google **SocialApp** in `/admin/` (once OAuth is wired)
+5. `setup_scheduled_jobs` (seeds the recurring-job schedules — see below)
+6. Create the **Telegram message templates** in `/admin/` (see "One-time" §5)
+7. `telegram_set_webhook --base-url https://actaspace.com` (prod uses a webhook, not polling)
+8. Create the Google **SocialApp** in `/admin/` (once OAuth is wired)
 
 ### Recurring jobs
 
-Three daily jobs (auto-archive, attachment GC, cycle notifications). See
-"Recurring jobs" below for the cron lines — or run them from an in-app
-scheduler. **Without these, done tasks never auto-archive, orphan files
-pile up, and cycle start/ending notifications never fire.**
+Run by the **`qcluster`** service (django-q2) — it comes up with the stack;
+no crontab. Three daily jobs (auto-archive, attachment GC, cycle
+notifications), seeded by `setup_scheduled_jobs` and editable in `/admin/`
+→ Django Q. **Without the `qcluster` service running, done tasks never
+auto-archive, orphan files pile up, and cycle start/ending notifications
+never fire.** See "Recurring jobs (admin-managed scheduler)" below.
 
 ## One-time per environment
 
@@ -117,80 +120,54 @@ until you create them. Recreate the agreed templates after deploy:
 for *Announcement* is needed — it falls back to a sensible `📣 {title}`
 default. Without any rows the bot still works, just in English defaults.
 
-## Recurring jobs (cron / scheduler)
+## Recurring jobs (admin-managed scheduler)
 
-### Daily: auto-archive stale done tasks
+Recurring maintenance runs through **django-q2**, not host crontab. A
+single **`qcluster`** process (its own compose service) polls the database
+— which doubles as the broker, so there's no Redis — and runs each
+schedule. Schedules are **editable in the admin** (`/admin/` → *Django Q*
+→ *Scheduled tasks*): change the time, disable a job, or run it now,
+without SSH.
+
+Seed the three default daily schedules once per environment:
+
+```bash
+docker compose exec -T web python manage.py setup_scheduled_jobs
+```
+
+It's idempotent and only creates *missing* schedules, so re-running it on
+each deploy never overwrites a time you've since edited in the admin. The
+`qcluster` service comes up with the stack (`docker compose up -d`); on a
+fresh deploy it restarts until `web` has applied migrations.
+
+Each job is a callable in `apps/common/scheduled.py` wrapping a management
+command — you can still run any of them by hand (e.g. with `--dry-run`).
+
+### archive stale done tasks (~03:30 daily)
 
 Archives every `done` task whose `updated_at` is older than the
-per-workspace `Workspace.auto_archive_done_after_days` threshold.
-Defaults to 30 days; can be set to NULL per-workspace to disable.
+per-workspace `Workspace.auto_archive_done_after_days` threshold (default
+30 days; NULL per-workspace disables it). Idempotent. Emits
+`system.task.archived` activity events with `actor=None`. The first run
+processes the whole backlog of stale done rows — `--dry-run` first to see
+the batch size; `--workspace <slug>` scopes to one workspace.
 
-Suggested cron (host crontab on the deploy node):
+### gc orphan attachments (~04:00 daily)
 
-```cron
-# At 03:30 every day — quiet hours for the team.
-30 3 * * * cd /opt/acta && docker compose exec -T web python manage.py archive_stale_done_tasks >> /var/log/acta/archive.log 2>&1
-```
+Inline editor images are uploaded the instant they're pasted — before the
+text is saved — so they linger if the user removes the image or abandons
+the modal. This deletes inline images older than a grace window (default
+24h) whose serve URL no longer appears in any description/comment body
+(the `post_delete` signal drops the blob too). File attachments
+(`kind=file`) are never touched. Flags: `--dry-run`, `--older-than-hours N`.
 
-Or as a separate systemd timer / k8s CronJob if that fits the deploy
-shape better. The command is idempotent — running it twice the same
-hour is a no-op once the first run has stamped the rows.
+### notify cycle events (~06:00 daily)
 
-Flags:
-- `--dry-run` — count rows that *would* be archived without writing.
-  Run this manually before the very first scheduled run to see the
-  initial batch size.
-- `--workspace <slug>` — scope to a single workspace (handy for
-  one-off cleanups or per-tenant rollouts).
-
-The job emits `system.task.archived` activity events with
-`actor=None`. The first scheduled run after the field ships will
-process the entire backlog of stale done rows — review the dry-run
-output first if the workspace has been around for a while.
-
-### Daily: GC orphaned inline images
-
-Inline editor images (pasted/dropped into a description or comment) are
-uploaded the instant they're pasted — before the text is saved — so they
-linger if the user removes the image or abandons the create-task modal.
-This deletes inline images, older than a grace window (default 24h), whose
-serve URL no longer appears in any task/project description or comment
-body. The `post_delete` signal removes the file blob too. File attachments
-(`kind=file`) are never touched.
-
-```cron
-# At 04:00 every day.
-0 4 * * * cd /opt/acta && docker compose exec -T web python manage.py gc_orphan_attachments >> /var/log/acta/gc-attachments.log 2>&1
-```
-
-Flags:
-- `--dry-run` — report the count that *would* be deleted without deleting.
-- `--older-than-hours N` — grace window (default 24); raise it if users
-  routinely take longer than a day between pasting and saving.
-
-### Daily: cycle start / ending-soon notifications
-
-For every workspace running cadence (cycles), this materializes the
-rolling windows (same `ensure_cycles` the web pages call — so it also
-performs auto roll-over) and fans out inbox notifications: once when a
-cycle becomes active ("Cycle N started") and once when an active cycle is
-within a day of its end ("Cycle N ends tomorrow — M tasks open").
-Idempotent — re-runs the same day send nothing (the `Cycle` row stamps
-`start_notified_at` / `end_notified_at`). Cadence-off workspaces are
-skipped.
-
-```cron
-# At 06:00 every day (before the team starts — cycle starts/ends are dated).
-0 6 * * * cd /opt/acta && docker compose exec -T web python manage.py notify_cycle_events >> /var/log/acta/cycle-notify.log 2>&1
-```
-
-Flags:
-- `--dry-run` — report what would be sent without writing notifications.
-- `--workspace <slug>` — limit to one workspace.
-
-> Note: these recurring jobs are slated to move off raw crontab into an
-> admin-manageable scheduler (so schedules are editable in Django admin
-> without SSH). The management commands stay; only the trigger changes.
+For every cadence-running workspace, materializes the rolling cycle windows
+(same `ensure_cycles` the web uses — so it also auto-rolls) and fans out
+"Cycle N started" / "Cycle N ends tomorrow — M open" notifications.
+Idempotent (the `Cycle` row stamps `start_notified_at` /
+`end_notified_at`). Flags: `--dry-run`, `--workspace <slug>`.
 
 ### Future hooks
 

@@ -12,3 +12,4 @@ django-eventstream>=5
 uvicorn[standard]>=0.32
 whitenoise>=6.7
 mcp>=1.0
+django-q2>=1.7

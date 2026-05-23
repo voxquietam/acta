@@ -73,6 +73,11 @@ THIRD_PARTY_APPS = [
     "allauth.socialaccount.providers.google",
     # SSE real-time updates — see ADR 0015. Requires ASGI runtime.
     "django_eventstream",
+    # Admin-managed scheduler for recurring jobs (archive / GC / cycle
+    # notifications) — replaces host crontab. Runs via a ``qcluster``
+    # process; schedules are editable in the admin. Uses the DB as broker
+    # (no Redis). See ``Q_CLUSTER`` below and docs/operations.md.
+    "django_q",
 ]
 
 LOCAL_APPS = [
@@ -93,6 +98,22 @@ LOCAL_APPS = [
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
+
+# django-q2 — recurring-job scheduler. The DB doubles as the broker
+# (``orm``), so there's no Redis to run; a single ``qcluster`` process polls
+# it. ``catch_up`` False means jobs missed during downtime run once at the
+# next tick, not all at once. Schedules live in the admin (Django Q →
+# Scheduled tasks); seed them with ``manage.py setup_scheduled_jobs``.
+Q_CLUSTER = {
+    "name": "acta",
+    "orm": "default",
+    "workers": 2,
+    "timeout": 300,
+    "retry": 600,
+    "max_attempts": 1,
+    "catch_up": False,
+    "label": "Django Q",
+}
 
 
 # -----------------------------------------------------------------------------

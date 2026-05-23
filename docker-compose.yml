@@ -33,7 +33,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    environment:
+    environment: &django_env
       DJANGO_SETTINGS_MODULE: acta.settings.prod
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS}
@@ -73,6 +73,27 @@ services:
     # Override via WEB_HOST_PORT in .env when needed.
     ports:
       - "${WEB_HOST_PORT:-8001}:8000"
+
+  # Recurring-job scheduler (django-q2). Reuses the web image + env (same DB
+  # broker + media volume so file-touching jobs like gc_orphan_attachments
+  # work). Replaces host crontab; schedules are editable in the admin.
+  qcluster:
+    build:
+      context: .
+      args:
+        REQUIREMENTS: requirements/prod.txt
+    container_name: acta.qcluster
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment: *django_env
+    volumes:
+      - acta-media:/app/media
+    # Bypass the web entrypoint (migrate / collectstatic) — the web service
+    # owns those. The cluster just needs the DB, guaranteed ready by the
+    # healthy ``depends_on``; it restarts until web has applied migrations.
+    entrypoint: ["python", "manage.py", "qcluster"]
 
 volumes:
   acta-pgdata:
