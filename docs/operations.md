@@ -53,6 +53,28 @@ docker compose exec web python manage.py createsuperuser
 Subsequent users sign in via Google OAuth (ADR 0002) and get added to
 workspaces from the admin or via the workspace owner flow.
 
+### 5. Create the Telegram message templates (admin)
+
+The per-kind Telegram DM wording lives in **`TelegramMessageTemplate`**
+rows (Django admin → *Telegram message templates*), **not** in code — they
+are data, so a fresh environment starts with the built-in English defaults
+until you create them. Recreate the agreed templates after deploy:
+
+| Kind | Body |
+|------|------|
+| Mention | `💬 <b>{actor}</b> mentioned you\n{task} — {title}\n{quote}` |
+| Assigned | `📌 <b>{actor}</b> assigned you a task\n{task} — {title}\n{quote}\n{meta}` |
+| Comment | `🗨️ <b>{actor}</b> commented\n{task} — {title}\n{quote}` |
+| Status change | `🔄 <b>{actor}</b> moved {status_from} → {status_to}\n{task} — {title}` |
+| Priority change | `🎚️ <b>{actor}</b> changed priority {priority_from} → {priority_to}\n{task} — {title}` |
+| Due soon | `⏰ <b>{actor}</b> changed the due date\n{task} — {title}\n{due_change}` |
+| Project update | `📊 <b>{actor}</b> posted an update · {project}\n{health}\n{quote}` |
+| Cycle | `🔁 <b>{cycle}</b>\n{preview}` |
+
+(Use real newlines in the admin textarea, not the literal `\n`.) No template
+for *Announcement* is needed — it falls back to a sensible `📣 {title}`
+default. Without any rows the bot still works, just in English defaults.
+
 ## Recurring jobs (cron / scheduler)
 
 ### Daily: auto-archive stale done tasks
