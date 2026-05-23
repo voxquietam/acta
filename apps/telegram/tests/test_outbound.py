@@ -131,6 +131,65 @@ class TestMessageTemplates:
         out = tg._format_notification(n)
         assert task.slug in out  # default format still renders the task
 
+    def test_default_wraps_preview_in_blockquote(self):
+        n, _actor, _task = self._notif()
+        out = tg._format_notification(n)
+        assert "<blockquote expandable>snippet</blockquote>" in out
+
+    def test_quote_placeholder_renders_blockquote(self):
+        from apps.telegram.models import TelegramMessageTemplate
+
+        n, actor, _task = self._notif()
+        TelegramMessageTemplate.objects.create(kind=Notification.Kind.ASSIGNED, body="{actor}: {quote}")
+        out = tg._format_notification(n)
+        assert out == f"{actor.display_name}: <blockquote expandable>snippet</blockquote>"
+
+    def test_quote_placeholder_empty_without_preview(self):
+        from apps.telegram.models import TelegramMessageTemplate
+
+        ws = WorkspaceFactory()
+        n = Notification.objects.create(recipient=UserFactory(), workspace=ws, kind=Notification.Kind.ASSIGNED)
+        TelegramMessageTemplate.objects.create(kind=Notification.Kind.ASSIGNED, body="hi{quote}")
+        assert tg._format_notification(n) == "hi"
+
+
+class TestCleanPreview:
+    """`_clean_preview` turns raw markdown into a tidy plain-text snippet."""
+
+    def test_empty_is_empty(self):
+        assert tg._clean_preview("") == ""
+
+    def test_unwraps_mention_and_task_tokens(self):
+        out = tg._clean_preview("ping [@bob](mention:7) on [VND-2](task:5) please")
+        assert out == "ping @bob on VND-2 please"
+
+    def test_drops_recipients_own_mention(self):
+        out = tg._clean_preview("[@me](mention:42) take a look", recipient_id=42)
+        assert out == "take a look"
+
+    def test_keeps_other_mentions_when_dropping_own(self):
+        out = tg._clean_preview("[@me](mention:42) and [@bob](mention:7)", recipient_id=42)
+        assert out == "and @bob"
+
+    def test_image_only_falls_back_to_marker(self):
+        assert tg._clean_preview("![](http://x/y.png)") == "🖼 image"
+
+    def test_mention_only_of_recipient_with_image_is_marker(self):
+        out = tg._clean_preview("[@me](mention:42) ![shot](http://x/y.png)", recipient_id=42)
+        assert out == "🖼 image"
+
+    def test_strips_emphasis_and_collapses_whitespace(self):
+        out = tg._clean_preview("this is **very**\n\n  _important_")
+        assert out == "this is very important"
+
+    def test_unwraps_plain_markdown_links(self):
+        assert tg._clean_preview("see [the docs](https://x/y)") == "see the docs"
+
+    def test_truncates_long_text_with_ellipsis(self):
+        out = tg._clean_preview("word " * 100, limit=40)
+        assert out.endswith("…")
+        assert len(out) <= 41
+
 
 @pytest.mark.django_db
 class TestToggleView:

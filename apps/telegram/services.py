@@ -28,6 +28,14 @@ from .models import TelegramAccount, TelegramLinkToken, TelegramMessageTemplate
 
 _PLACEHOLDER_RE = re.compile(r"\{(\w+)\}")
 
+_PREVIEW_LIMIT = 200
+_IMAGE_RE = re.compile(r"!\[[^\]]*\]\([^)]*\)")
+_LINK_TOKEN_RE = re.compile(r"\[([^\]]+)\]\((?:mention|task):\d+\)")
+_MARKDOWN_LINK_RE = re.compile(r"\[([^\]]+)\]\([^)]*\)")
+_EMPHASIS_RE = re.compile(r"[*_`~]{1,3}")
+_HEADING_RE = re.compile(r"(?m)^\s{0,3}#{1,6}\s*")
+_WHITESPACE_RE = re.compile(r"\s+")
+
 logger = logging.getLogger(__name__)
 
 LINK_TOKEN_MAX_AGE = 900  # 15 minutes
@@ -168,19 +176,72 @@ def _task_url(task) -> str | None:
     return base.rstrip("/") + path
 
 
+def _clean_preview(text: str, recipient_id: int | None = None, *, limit: int = _PREVIEW_LIMIT) -> str:
+    """Reduce a raw-markdown snippet to a short plain-text Telegram preview.
+
+    Comment previews are stored as raw markdown, so without cleanup a DM
+    would leak ``[@user](mention:id)`` tokens, image markdown, and emphasis
+    markers. This drops the recipient's own mention (the headline already
+    says they were tagged), removes images, unwraps the remaining
+    mention/task tokens and links to their labels, strips emphasis/heading
+    markers, and collapses whitespace. Truncates on a word boundary with an
+    ellipsis. Falls back to an image marker when an image-only snippet
+    leaves no text.
+
+    Args:
+        text: Raw markdown preview (already length-capped upstream).
+        recipient_id: Notification recipient; their own mention is dropped.
+        limit: Max characters before truncating with ``…``.
+
+    Returns:
+        Clean plain text; the caller is responsible for HTML-escaping it.
+    """
+    if not text:
+        return ""
+    if recipient_id is not None:
+        text = re.sub(r"\[[^\]]*\]\(mention:%d\)" % recipient_id, "", text)
+    had_image = bool(_IMAGE_RE.search(text))
+    cleaned = _IMAGE_RE.sub("", text)
+    cleaned = _LINK_TOKEN_RE.sub(r"\1", cleaned)
+    cleaned = _MARKDOWN_LINK_RE.sub(r"\1", cleaned)
+    cleaned = _HEADING_RE.sub("", cleaned)
+    cleaned = _EMPHASIS_RE.sub("", cleaned)
+    cleaned = _WHITESPACE_RE.sub(" ", cleaned).strip()
+    if not cleaned:
+        return _("🖼 image") if had_image else ""
+    if len(cleaned) > limit:
+        cleaned = (cleaned[:limit].rsplit(" ", 1)[0] or cleaned[:limit]).rstrip() + "…"
+    return cleaned
+
+
+def _blockquote(text: str) -> str:
+    """Wrap text in an expandable Telegram blockquote, or ``""`` when empty.
+
+    ``expandable`` lets a long quote collapse with a "show more" affordance
+    in modern Telegram clients (older ones just show it in full).
+    """
+    return f"<blockquote expandable>{text}</blockquote>" if text else ""
+
+
 def _template_context(notification) -> dict:
-    """Build the escaped ``{placeholder}`` values for a notification."""
+    """Build the escaped ``{placeholder}`` values for a notification.
+
+    ``{preview}`` is the cleaned snippet inline; ``{quote}`` is the same
+    snippet wrapped in a Telegram blockquote (empty when there's no preview).
+    """
     actor = notification.actor.display_name if notification.actor else _("Someone")
     task = notification.task
     slug = task.slug if task is not None else ""
     url = _task_url(task) if task is not None else None
     task_ref = (f'<a href="{url}">{escape(slug)}</a>' if url else escape(slug)) if slug else ""
+    preview = escape(_clean_preview(notification.preview, notification.recipient_id))
     return {
         "actor": escape(actor),
         "slug": escape(slug),
         "task": task_ref,
         "title": escape(task.title) if task is not None else "",
-        "preview": escape(notification.preview[:200]) if notification.preview else "",
+        "preview": preview,
+        "quote": _blockquote(preview),
     }
 
 
@@ -236,8 +297,9 @@ def _format_notification(notification) -> str:
         slug = escape(task.slug)
         slug_html = f'<a href="{url}">{slug}</a>' if url else slug
         lines.append(f"{slug_html} {escape(task.title)}")
-    if notification.preview:
-        lines.append(escape(notification.preview[:200]))
+    preview = _clean_preview(notification.preview, notification.recipient_id)
+    if preview:
+        lines.append(_blockquote(escape(preview)))
     return "\n".join(lines)
 
 
