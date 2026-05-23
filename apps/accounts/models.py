@@ -102,6 +102,20 @@ class User(AbstractUser):
         hue = int(digest[:6], 16) % 360
         return f"hsl({hue}, 60%, 40%)"
 
+    @property
+    def avatar_version(self) -> str:
+        """Cache-busting token from the avatar file name.
+
+        The serve URL (``/avatar/<id>/``) is stable across re-uploads, so
+        without a changing query the browser would keep showing the stale
+        cached photo. The stored filename carries a fresh UUID each upload.
+
+        Returns:
+            The avatar's UUID stem, or ``""`` when there's no avatar.
+        """
+        name = self.avatar.name if self.avatar else ""
+        return name.rsplit("/", 1)[-1].rsplit(".", 1)[0] if name else ""
+
 
 class ApiToken(models.Model):
     """A revocable per-user API token for non-browser clients.

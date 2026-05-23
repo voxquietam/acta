@@ -1,0 +1,43 @@
+{% load i18n %}
+{% comment %}
+Avatar block for the settings page — its own multipart form (kept OUTSIDE
+the profile form below; nested forms aren't allowed). Picking a file
+auto-submits via HTMX, which swaps just this block (no full page reload).
+The view re-renders this partial: on success with the new photo, on a
+validation error with ``avatar_error`` shown inline. ``hx-disabled-elt``
+greys the buttons while the server resizes the image.
+{% endcomment %}
+<div id="avatar-block" class="flex items-center gap-4 mb-4">
+  {% include "web/_user_avatar.html" with user=request.user class="w-16 h-16 shrink-0" text_class="text-xl" %}
+  <div class="space-y-1.5 min-w-0">
+    <div class="flex items-center gap-2">
+      <form hx-post="{% url 'accounts:upload_avatar' %}" hx-encoding="multipart/form-data"
+            hx-target="#avatar-block" hx-swap="outerHTML" hx-disabled-elt="find button" x-data>
+        {% csrf_token %}
+        <input type="file" name="avatar" accept="image/png,image/jpeg,image/gif,image/webp"
+               class="hidden" x-ref="avatarInput" @change="if ($el.files.length) $el.form.requestSubmit()">
+        <button type="button" @click="$refs.avatarInput.click()"
+                class="px-3 py-1.5 text-xs rounded-md border border-border text-foreground hover:bg-muted transition disabled:opacity-40 disabled:cursor-not-allowed">
+          {% trans "Upload photo" %}
+        </button>
+      </form>
+      {% if request.user.avatar %}
+      <form hx-post="{% url 'accounts:remove_avatar' %}" hx-target="#avatar-block" hx-swap="outerHTML"
+            hx-disabled-elt="find button">
+        {% csrf_token %}
+        <button type="submit" class="text-xs text-placeholder-foreground hover:text-rose-400 transition disabled:opacity-40">
+          {% trans "Remove" %}
+        </button>
+      </form>
+      {% endif %}
+    </div>
+    {% if avatar_error %}
+    <p class="text-[11px] text-rose-400">{{ avatar_error }}</p>
+    {% else %}
+    <div class="text-[10px] text-placeholder-foreground">
+      {% trans "JPG, PNG, GIF or WebP — we resize and square-crop it for you." %}
+      <span class="font-mono text-foreground">@{{ request.user.username }}</span>
+    </div>
+    {% endif %}
+  </div>
+</div>

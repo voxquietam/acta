@@ -79,6 +79,39 @@ class TestAvatarViews:
         user.refresh_from_db()
         assert not user.avatar
 
+    def test_htmx_upload_swaps_block_without_reload(self, client):
+        user = UserFactory()
+        client.force_login(user)
+        resp = client.post(
+            reverse("accounts:upload_avatar"), {"avatar": png_upload(size=(120, 90))}, HTTP_HX_REQUEST="true"
+        )
+        assert resp.status_code == 200
+        assert 'id="avatar-block"' in resp.content.decode()
+        user.refresh_from_db()
+        assert user.avatar
+
+    def test_htmx_upload_error_renders_inline(self, client, settings):
+        settings.ATTACHMENT_MAX_UPLOAD_BYTES = {"image": 8, "document": 8, "archive": 8, "avatar": 8}
+        user = UserFactory()
+        client.force_login(user)
+        resp = client.post(
+            reverse("accounts:upload_avatar"), {"avatar": png_upload(size=(200, 200))}, HTTP_HX_REQUEST="true"
+        )
+        assert resp.status_code == 200
+        assert "too large" in resp.content.decode().lower()
+        user.refresh_from_db()
+        assert not user.avatar
+
+    def test_htmx_remove_swaps_block(self, client):
+        user = UserFactory()
+        set_user_avatar(user=user, uploaded_file=png_upload(size=(80, 80)))
+        client.force_login(user)
+        resp = client.post(reverse("accounts:remove_avatar"), HTTP_HX_REQUEST="true")
+        assert resp.status_code == 200
+        assert 'id="avatar-block"' in resp.content.decode()
+        user.refresh_from_db()
+        assert not user.avatar
+
     def test_serve_returns_bytes_for_authenticated(self, client):
         owner = UserFactory()
         set_user_avatar(user=owner, uploaded_file=png_upload(size=(80, 80)))

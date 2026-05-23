@@ -17,39 +17,7 @@
       <h2 class="text-sm font-medium text-foreground">{% trans "Profile" %}</h2>
     </header>
 
-    {% comment %}
-    Avatar block — its own multipart form, kept OUTSIDE the profile form
-    below (nested forms aren't allowed). Picking a file auto-submits;
-    the view redirects back here so the new photo renders.
-    {% endcomment %}
-    <div class="flex items-center gap-4 mb-4">
-      {% include "web/_user_avatar.html" with user=request.user class="w-16 h-16 shrink-0" text_class="text-xl" %}
-      <div class="space-y-1.5 min-w-0">
-        <div class="flex items-center gap-2">
-          <form method="post" action="{% url 'accounts:upload_avatar' %}" enctype="multipart/form-data" x-data>
-            {% csrf_token %}
-            <input type="file" name="avatar" accept="image/png,image/jpeg,image/gif,image/webp"
-                   class="hidden" x-ref="avatarInput" @change="if ($el.files.length) $el.form.submit()">
-            <button type="button" @click="$refs.avatarInput.click()"
-                    class="px-3 py-1.5 text-xs rounded-md border border-border text-foreground hover:bg-muted transition">
-              {% trans "Upload photo" %}
-            </button>
-          </form>
-          {% if request.user.avatar %}
-          <form method="post" action="{% url 'accounts:remove_avatar' %}">
-            {% csrf_token %}
-            <button type="submit" class="text-xs text-placeholder-foreground hover:text-rose-400 transition">
-              {% trans "Remove" %}
-            </button>
-          </form>
-          {% endif %}
-        </div>
-        <div class="text-[10px] text-placeholder-foreground">
-          {% trans "JPG, PNG, GIF or WebP — we resize and square-crop it for you." %}
-          <span class="font-mono text-foreground">@{{ request.user.username }}</span>
-        </div>
-      </div>
-    </div>
+    {% include "accounts/_avatar_block.html" %}
 
     <form method="post" action="{% url 'accounts:settings' %}"
           hx-boost="true"

@@ -354,17 +354,25 @@ def upload_avatar(request):
     """Set the current user's avatar from an uploaded image.
 
     Validates + square-crops + resizes via
-    :func:`apps.attachments.services.set_user_avatar`, then redirects back
-    to the settings page where the new photo renders.
+    :func:`apps.attachments.services.set_user_avatar`. For an HTMX request
+    re-renders just the avatar block (the new photo on success, or an inline
+    error) so the settings page doesn't reload; otherwise falls back to a
+    redirect with a flash message.
     """
+    is_htmx = request.headers.get("HX-Request") == "true"
     upload = request.FILES.get("avatar")
     if upload is None:
         return HttpResponseBadRequest("avatar required")
     try:
         set_user_avatar(user=request.user, uploaded_file=upload)
     except ValidationError as exc:
-        messages.error(request, "; ".join(exc.messages))
+        error = "; ".join(exc.messages)
+        if is_htmx:
+            return render(request, "accounts/_avatar_block.html", {"avatar_error": error})
+        messages.error(request, error)
         return HttpResponseRedirect(reverse("accounts:settings"))
+    if is_htmx:
+        return render(request, "accounts/_avatar_block.html")
     messages.success(request, _("Avatar updated."))
     return HttpResponseRedirect(reverse("accounts:settings"))
 
@@ -372,10 +380,18 @@ def upload_avatar(request):
 @require_POST
 @login_required
 def remove_avatar(request):
-    """Remove the current user's avatar, reverting to the colour circle."""
+    """Remove the current user's avatar, reverting to the colour circle.
+
+    HTMX swaps the avatar block in place; a non-HTMX post redirects back to
+    settings with a flash message.
+    """
+    is_htmx = request.headers.get("HX-Request") == "true"
     if request.user.avatar:
         request.user.avatar.delete(save=True)
-        messages.success(request, _("Avatar removed."))
+        if not is_htmx:
+            messages.success(request, _("Avatar removed."))
+    if is_htmx:
+        return render(request, "accounts/_avatar_block.html")
     return HttpResponseRedirect(reverse("accounts:settings"))
 
 

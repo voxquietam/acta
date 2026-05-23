@@ -12,7 +12,7 @@ Usage:
                  "text-[10px]"); ignored when a photo is shown.
 {% endcomment %}
 {% if user.avatar %}
-<img src="{% url 'accounts:serve_avatar' user_id=user.id %}"
+<img src="{% url 'accounts:serve_avatar' user_id=user.id %}?v={{ user.avatar_version }}"
      alt="{{ user.display_name }}"
      class="{{ class }} rounded-full object-cover">
 {% else %}
