@@ -141,6 +141,15 @@ class TestCommentFanout:
         assert n.preview == "store this body"
         assert n.comment_id == comment.id
 
+    def test_long_comment_preview_is_truncated_with_ellipsis(self, trio):
+        project, assignee, reporter, actor = trio
+        task = TaskFactory(project=project, assignee=assignee, reporter=reporter)
+        comment = Comment.objects.create(task=task, author=actor, body="x" * 500)
+        notify_comment_created(comment=comment, actor=actor)
+        preview = Notification.objects.filter(recipient=assignee).first().preview
+        assert preview.endswith("…")
+        assert len(preview) == 281  # 280 chars + the ellipsis
+
     def test_reply_notifies_parent_author(self, trio):
         project, assignee, reporter, actor = trio
         # Parent comment authored by a member who is neither assignee nor

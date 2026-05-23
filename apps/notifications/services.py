@@ -9,6 +9,26 @@ from .models import Notification
 
 _COMMENT_PREVIEW_CHARS = 280
 
+
+def _truncate_preview(body: str | None) -> str:
+    """Cap a comment/update body for the stored preview, flagging truncation.
+
+    Appends an ellipsis when the body exceeds :data:`_COMMENT_PREVIEW_CHARS`
+    so every surface (inbox, Telegram) shows that the snippet was cut rather
+    than ending mid-sentence with no signal.
+
+    Args:
+        body: The raw comment / update markdown body.
+
+    Returns:
+        The body unchanged when short enough, else the capped body plus ``…``.
+    """
+    body = body or ""
+    if len(body) <= _COMMENT_PREVIEW_CHARS:
+        return body
+    return body[:_COMMENT_PREVIEW_CHARS].rstrip() + "…"
+
+
 # Mention tokens are stored in Markdown as ``[@username](mention:<id>)``.
 # Fan-out reads the user id straight from the token — no HTML parse.
 _MENTION_TOKEN_RE = re.compile(r"\(mention:(\d+)\)")
@@ -314,7 +334,7 @@ def notify_comment_created(*, comment, actor) -> None:
     """
     task = comment.task
     workspace_id = task.project.workspace_id
-    preview = (comment.body or "")[:_COMMENT_PREVIEW_CHARS]
+    preview = _truncate_preview(comment.body)
 
     mentioned = notify_mentions(
         user_ids=parse_mentioned_user_ids(comment.body),
@@ -358,7 +378,7 @@ def notify_project_update_created(*, update, actor) -> None:
     from apps.workspaces.models import WorkspaceMember
 
     workspace_id = update.project.workspace_id
-    preview = (update.body or "")[:_COMMENT_PREVIEW_CHARS]
+    preview = _truncate_preview(update.body)
     member_ids = WorkspaceMember.objects.filter(workspace_id=workspace_id).values_list("user_id", flat=True)
     for recipient_id in member_ids:
         notify(
