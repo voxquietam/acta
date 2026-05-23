@@ -405,6 +405,7 @@ def _template_context(notification) -> dict:
         "project": escape(project_name),
         "health": health,
         "cycle": escape(str(payload.get("title") or "")),
+        "headline": escape(str(payload.get("title") or "")),
     }
 
 
@@ -450,6 +451,8 @@ def _format_notification(notification) -> str:
         head = _("%(actor)s posted a project update") % {"actor": actor}
     elif kind == K.CYCLE:
         head = notification.payload.get("title") or _("Cycle update")
+    elif kind == K.ANNOUNCEMENT:
+        head = "📣 " + (notification.payload.get("title") or _("Announcement"))
     else:
         head = _("Update in Acta")
 
@@ -474,15 +477,19 @@ def notify_via_telegram(notification) -> bool:
     """Deliver a notification to the recipient's Telegram, if linked + enabled.
 
     Best-effort and silent when the recipient has no linked chat or has
-    muted delivery. Renders the message in the recipient's language.
-    Returns whether a message was sent.
+    muted the kind. Announcements are force-delivered: members can't mute
+    them and there's no sender opt-out — only unlinking / disabling Telegram
+    stops them. Renders the message in the recipient's language. Returns
+    whether a message was sent.
     """
+    from apps.notifications.models import Notification
+
     account = (
         TelegramAccount.objects.filter(user_id=notification.recipient_id, enabled=True).select_related("user").first()
     )
     if account is None:
         return False
-    if notification.kind in (account.muted_kinds or []):
+    if notification.kind != Notification.Kind.ANNOUNCEMENT and notification.kind in (account.muted_kinds or []):
         return False
     lang = getattr(account.user, "language", "") or settings.LANGUAGE_CODE
     with translation.override(lang):

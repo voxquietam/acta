@@ -51,11 +51,39 @@ class TestNotifyViaTelegram:
         assert tg.notify_via_telegram(n) is False
         assert sent == []
 
+    def test_sender_gets_own_announcement_dm(self, sent):
+        # the sender of a broadcast also gets their own Telegram copy
+        ws = WorkspaceFactory()
+        user = UserFactory()
+        _linked(user, chat_id=9)
+        n = Notification.objects.create(
+            recipient=user,
+            actor=user,
+            workspace=ws,
+            kind=Notification.Kind.ANNOUNCEMENT,
+            preview="x",
+            payload={"title": "t"},
+        )
+        assert tg.notify_via_telegram(n) is True
+        assert len(sent) == 1
+
     def test_skips_when_not_linked(self, sent):
         ws = WorkspaceFactory()
         n = Notification.objects.create(recipient=UserFactory(), workspace=ws, kind=Notification.Kind.COMMENT)
         assert tg.notify_via_telegram(n) is False
         assert sent == []
+
+    def test_announcement_is_force_delivered_ignoring_mute(self, sent):
+        ws = WorkspaceFactory()
+        user = UserFactory()
+        acct = _linked(user, chat_id=42)
+        # even with the announcement kind muted, it is force-delivered
+        TelegramAccount.objects.filter(pk=acct.pk).update(muted_kinds=[Notification.Kind.ANNOUNCEMENT])
+        n = Notification.objects.create(
+            recipient=user, workspace=ws, kind=Notification.Kind.ANNOUNCEMENT, preview="x", payload={"title": "t"}
+        )
+        assert tg.notify_via_telegram(n) is True
+        assert len(sent) == 1
 
     def test_skips_muted_kind(self, sent):
         ws = WorkspaceFactory()
@@ -281,6 +309,38 @@ class TestProjectUpdateContext:
         )
         TelegramMessageTemplate.objects.create(kind=Notification.Kind.COMMENT, body="{project}")
         assert tg._format_notification(n) == "Mobile"
+
+
+@pytest.mark.django_db
+class TestAnnouncementContext:
+    """{headline} placeholder + default 📣 headline for announcements."""
+
+    def test_default_announcement_headline_and_body(self):
+        ws = WorkspaceFactory()
+        n = Notification.objects.create(
+            recipient=UserFactory(),
+            workspace=ws,
+            kind=Notification.Kind.ANNOUNCEMENT,
+            preview="downtime saturday",
+            payload={"title": "Maintenance"},
+        )
+        out = tg._format_notification(n)
+        assert "📣 Maintenance" in out
+        assert "<blockquote expandable>downtime saturday</blockquote>" in out
+
+    def test_headline_placeholder(self):
+        from apps.telegram.models import TelegramMessageTemplate
+
+        ws = WorkspaceFactory()
+        n = Notification.objects.create(
+            recipient=UserFactory(),
+            workspace=ws,
+            kind=Notification.Kind.ANNOUNCEMENT,
+            preview="body",
+            payload={"title": "All hands"},
+        )
+        TelegramMessageTemplate.objects.create(kind=Notification.Kind.ANNOUNCEMENT, body="📣 {headline}\n{quote}")
+        assert tg._format_notification(n) == "📣 All hands\n<blockquote expandable>body</blockquote>"
 
 
 @pytest.mark.django_db

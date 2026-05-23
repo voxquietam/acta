@@ -53,8 +53,19 @@ def telegram_webhook(request, secret):
 def _kind_pref_kinds():
     from apps.notifications.models import Notification
 
+    # ANNOUNCEMENT is intentionally absent: announcements are force-delivered
+    # and cannot be muted per-kind.
     K = Notification.Kind
-    return [K.MENTION, K.ASSIGNED, K.COMMENT, K.STATUS_CHANGE, K.PRIORITY_CHANGE, K.DUE, K.PROJECT_UPDATE, K.CYCLE]
+    return [
+        K.MENTION,
+        K.ASSIGNED,
+        K.COMMENT,
+        K.STATUS_CHANGE,
+        K.PRIORITY_CHANGE,
+        K.DUE,
+        K.PROJECT_UPDATE,
+        K.CYCLE,
+    ]
 
 
 def _settings_context(user):
