@@ -188,6 +188,11 @@ SERVER_EMAIL = DEFAULT_FROM_EMAIL
 #   TELEGRAM_BOT_TOKEN     — from @BotFather.
 #   TELEGRAM_BOT_USERNAME  — the bot's @handle (no @), for the t.me deep link.
 #   TELEGRAM_WEBHOOK_SECRET — random string; guards the webhook path + header.
+# Public base URL — absolute links built outside a request (Telegram DMs,
+# invite emails, management commands). Empty falls back to relative / a
+# provider default; set it in prod to the real https origin.
+ACTA_PUBLIC_BASE_URL = os.environ.get("ACTA_PUBLIC_BASE_URL") or ""
+
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN") or ""
 TELEGRAM_BOT_USERNAME = os.environ.get("TELEGRAM_BOT_USERNAME") or ""
 TELEGRAM_WEBHOOK_SECRET = os.environ.get("TELEGRAM_WEBHOOK_SECRET") or ""
