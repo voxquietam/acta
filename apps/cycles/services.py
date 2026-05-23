@@ -226,8 +226,14 @@ def apply_cycle_policy(task) -> bool:
         return False
     committed = (Task.STATUS_TODO, Task.STATUS_IN_PROGRESS, Task.STATUS_IN_REVIEW)
     if task.status in committed and task.cycle_id is None:
-        ensure_cycles(workspace)
+        # Cheap path first: the active cycle is almost always already
+        # materialized (page loads run ensure_cycles). Only fall back to
+        # the full materialize/reconcile when there's no active cycle yet,
+        # so a routine status change doesn't pay for it every time.
         active = current_cycle(workspace)
+        if active is None:
+            ensure_cycles(workspace)
+            active = current_cycle(workspace)
         if active is not None:
             task.cycle = active
             return True
@@ -278,6 +284,55 @@ def cycle_summary(cycle, today: datetime.date | None = None) -> dict:
         "percent": percent,
         "days_remaining": cycle.days_remaining(today),
     }
+
+
+def cycle_summaries(cycles, today: datetime.date | None = None) -> dict:
+    """Batch :func:`cycle_summary` for many cycles in a single query.
+
+    Avoids the N-query loop of calling :func:`cycle_summary` per cycle on
+    the dashboard — one grouped aggregate covers the whole list.
+
+    Args:
+        cycles: Iterable of :class:`~apps.cycles.models.Cycle`.
+        today: Reference date for ``days_remaining``; defaults to today.
+
+    Returns:
+        ``{cycle_id: summary_dict}`` with the same shape as
+        :func:`cycle_summary`.
+    """
+    from django.db.models import Count, Q, Sum
+
+    from apps.tasks.models import Task
+
+    cycles = list(cycles)
+    ids = [c.id for c in cycles]
+    rows = (
+        Task.objects.filter(cycle_id__in=ids)
+        .exclude(status=Task.STATUS_CANCELLED)
+        .filter(archived_at__isnull=True)
+        .values("cycle_id")
+        .annotate(
+            total=Count("id"),
+            done=Count("id", filter=Q(status=Task.STATUS_DONE)),
+            points_total=Sum("size"),
+            points_done=Sum("size", filter=Q(status=Task.STATUS_DONE)),
+        )
+    )
+    by_id = {r["cycle_id"]: r for r in rows}
+    out = {}
+    for cycle in cycles:
+        row = by_id.get(cycle.id, {})
+        total = row.get("total") or 0
+        done = row.get("done") or 0
+        out[cycle.id] = {
+            "total": total,
+            "done": done,
+            "points_total": row.get("points_total") or 0,
+            "points_done": row.get("points_done") or 0,
+            "percent": round(done / total * 100) if total else 0,
+            "days_remaining": cycle.days_remaining(today),
+        }
+    return out
 
 
 def _done_dates(task_ids: list[int]) -> dict[int, datetime.date]:
@@ -377,6 +432,8 @@ def compute_velocity(workspace, limit: int = 6) -> list[dict]:
     Returns:
         ``[{"label", "count", "points"}]`` oldest cycle first.
     """
+    from django.db.models import Count, Sum
+
     from apps.cycles.models import Cycle
     from apps.tasks.models import Task
 
@@ -384,15 +441,27 @@ def compute_velocity(workspace, limit: int = 6) -> list[dict]:
         workspace.cycles.exclude(status=Cycle.PLANNING).order_by("-start_date")[:limit],
     )
     cycles.reverse()
+    # One grouped query for the whole window — not one per cycle.
+    rows = (
+        Task.objects.filter(
+            cycle_id__in=[c.id for c in cycles],
+            status=Task.STATUS_DONE,
+            archived_at__isnull=True,
+        )
+        .values("cycle_id")
+        .annotate(count=Count("id"), points=Sum("size"))
+    )
+    by_id = {r["cycle_id"]: r for r in rows}
     out = []
     for cycle in cycles:
-        count = points = 0
-        for size in cycle.tasks.filter(status=Task.STATUS_DONE, archived_at__isnull=True).values_list(
-            "size", flat=True
-        ):
-            count += 1
-            points += size or 0
-        out.append({"label": str(cycle.display_name), "count": count, "points": points})
+        row = by_id.get(cycle.id, {})
+        out.append(
+            {
+                "label": str(cycle.display_name),
+                "count": row.get("count") or 0,
+                "points": row.get("points") or 0,
+            },
+        )
     return out
 
 

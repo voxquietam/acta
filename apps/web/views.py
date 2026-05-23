@@ -38,6 +38,7 @@ from apps.cycles.services import (
     compute_cycle_burndown,
     compute_velocity,
     current_cycle,
+    cycle_summaries,
     cycle_summary,
     ensure_cycles,
 )
@@ -3805,9 +3806,11 @@ def cycles_overview(request):
     ensure_cycles(workspace, today)
     active = current_cycle(workspace, today)
     # Most recent cycles first, decorated with their progress summary.
+    # Batch the summaries in one query (not one per cycle).
     cycles = list(workspace.cycles.order_by("-start_date")[:12])
+    summaries = cycle_summaries(cycles, today)
     for cycle in cycles:
-        cycle.summary = cycle_summary(cycle, today)
+        cycle.summary = summaries[cycle.id]
     velocity = compute_velocity(workspace)
     ctx = {
         "cycle_enabled": True,

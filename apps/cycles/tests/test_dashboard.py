@@ -110,3 +110,40 @@ class TestCyclesDashboardPage:
         resp = client.get(reverse("web:cycles_overview"))
         assert resp.status_code == 200
         assert b"Cycles are off" in resp.content
+
+    def test_dashboard_query_count_does_not_grow_with_cycles(self, client, workspace):
+        """No N+1: adding cycles/tasks must not raise the dashboard's query count."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        project = ProjectFactory(workspace=workspace)
+        c1 = CycleFactory(workspace=workspace, number=1, status=Cycle.ACTIVE)
+        TaskFactory(project=project, cycle=c1, status=Task.STATUS_DONE, size=3)
+        client.force_login(workspace.owner)
+        url = reverse("web:cycles_overview")
+        client.get(url)  # warm any one-time work
+        with CaptureQueriesContext(connection) as ctx:
+            client.get(url)
+        baseline = len(ctx.captured_queries)
+        # Add several more cycles + tasks (high numbers avoid colliding
+        # with the auto-materialized current/next; kept under the 12 cap).
+        # ``completed_at`` is pre-set so the status reconcile doesn't stamp
+        # it on first view (a one-time write, not a per-request N+1).
+        from django.utils import timezone
+
+        for n in range(10, 16):
+            cyc = CycleFactory(
+                workspace=workspace,
+                number=n,
+                status=Cycle.COMPLETED,
+                completed_at=timezone.now(),
+            )
+            TaskFactory(project=project, cycle=cyc, status=Task.STATUS_DONE, size=5)
+            TaskFactory(project=project, cycle=cyc, status=Task.STATUS_TODO)
+        client.get(url)  # warm: absorb any one-time reconciliation writes
+        with CaptureQueriesContext(connection) as ctx:
+            client.get(url)
+        grown = len(ctx.captured_queries)
+        # Per-cycle work is batched, so the count is flat (small tolerance
+        # for incidental variance, far below the +6 a per-cycle loop adds).
+        assert grown <= baseline + 1, f"query count grew {baseline} → {grown} with cycles (N+1?)"
