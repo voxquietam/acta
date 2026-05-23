@@ -41,6 +41,10 @@ fresh chip-count row. The chips are HTMX GETs that push the ?filter= URL.
        class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] border cursor-pointer transition {% if inbox_filter == 'comments' %}bg-brand-600 text-white border-brand-500{% else %}bg-muted/50 border-border text-muted-foreground hover:bg-muted{% endif %}">
       {% trans "Comments" %}{% if inbox_counts.comments %}<span class="font-mono text-[9.5px] {% if inbox_filter == 'comments' %}text-white/70{% else %}text-placeholder-foreground{% endif %}">{{ inbox_counts.comments }}</span>{% endif %}
     </a>
+    <a hx-get="{% url 'web:inbox' %}?filter=announcements" hx-target="#inbox-list" hx-swap="outerHTML" hx-push-url="true" hx-include="[name='project']:checked, [name='xproject']:checked"
+       class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] border cursor-pointer transition {% if inbox_filter == 'announcements' %}bg-brand-600 text-white border-brand-500{% else %}bg-muted/50 border-border text-muted-foreground hover:bg-muted{% endif %}">
+      {% trans "Announcements" %}{% if inbox_counts.announcements %}<span class="font-mono text-[9.5px] {% if inbox_filter == 'announcements' %}text-white/70{% else %}text-placeholder-foreground{% endif %}">{{ inbox_counts.announcements }}</span>{% endif %}
+    </a>
     {% if inbox_counts.unread %}
     <button type="button"
             hx-post="{% url 'web:notifications_read_all' %}?filter={{ inbox_filter }}"

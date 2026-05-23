@@ -34,6 +34,7 @@ from .views import (
     inbox_update_preview,
     mention_search,
     open_notification,
+    post_announcement,
     post_comment,
     post_project_update,
     post_update_comment,
@@ -170,6 +171,11 @@ urlpatterns = [
         "projects/<str:slug_prefix>/updates/post/",
         post_project_update,
         name="post_project_update",
+    ),
+    path(
+        "announcements/post/",
+        post_announcement,
+        name="post_announcement",
     ),
     path(
         "updates/<int:pk>/comment/",

@@ -13,7 +13,7 @@ import pytest
 
 from apps.comments.models import Comment
 from apps.notifications.models import Notification
-from apps.notifications.services import notify_comment_created, notify_project_update_created
+from apps.notifications.services import notify_announcement, notify_comment_created, notify_project_update_created
 from apps.projects.tests.factories import ProjectFactory, ProjectUpdateFactory
 from apps.tasks.events import emit_task_diff_events, snapshot_task
 from apps.tasks.models import Task
@@ -251,6 +251,30 @@ class TestProjectUpdateFanout:
         outsider = WorkspaceFactory().owner
         update = ProjectUpdateFactory(project=project, author=ws.owner, body="x")
         notify_project_update_created(update=update, actor=ws.owner)
+        assert not Notification.objects.filter(recipient=outsider).exists()
+
+
+@pytest.mark.django_db
+class TestAnnouncementFanout:
+    def test_broadcasts_to_all_including_sender(self):
+        ws = WorkspaceFactory()
+        sender = ws.owner
+        member = WorkspaceMemberFactory(workspace=ws).user
+        count = notify_announcement(workspace_id=ws.id, actor=sender, title="Heads up", body="server maintenance sat")
+        notifs = Notification.objects.filter(kind=Notification.Kind.ANNOUNCEMENT)
+        recipients = set(notifs.values_list("recipient_id", flat=True))
+        assert recipients == {member.id, sender.id}  # the sender keeps a copy too
+        assert count == 2
+        # the sender's own copy is pre-read; the member's is a fresh alert
+        assert notifs.get(recipient=sender).is_read is True
+        assert notifs.get(recipient=member).is_read is False
+        assert notifs.get(recipient=member).payload["title"] == "Heads up"
+        assert "server maintenance sat" in notifs.get(recipient=member).preview
+
+    def test_does_not_reach_other_workspaces(self):
+        ws = WorkspaceFactory()
+        outsider = WorkspaceFactory().owner
+        notify_announcement(workspace_id=ws.id, actor=ws.owner, title="t", body="b")
         assert not Notification.objects.filter(recipient=outsider).exists()
 
     def test_project_update_not_counted_as_unread(self):

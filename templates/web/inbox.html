@@ -37,6 +37,19 @@ while the sidebar stays mounted.
 </nav>
 {% endblock %}
 
+{% block topbar_right_prepend %}
+{% if can_announce %}
+<button type="button"
+        onclick="window.dispatchEvent(new CustomEvent('acta:announce-open'))"
+        data-tooltip="{% trans 'New announcement' %}"
+        data-tooltip-pos="below"
+        aria-label="{% trans 'New announcement' %}"
+        class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs bg-card border border-border text-subtle-foreground hover:text-foreground hover:bg-muted transition">
+  {% lucide "megaphone" "w-3.5 h-3.5" %}<span class="hidden sm:inline">{% trans "Announce" %}</span>
+</button>
+{% endif %}
+{% endblock %}
+
 {% block app_main %}
 <div class="-mx-4 md:-mx-8 -mt-5 -mb-6 flex flex-col h-[calc(100vh-3.5rem)]"
      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
@@ -88,4 +101,72 @@ while the sidebar stays mounted.
     {% endif %}
   </div>
 </div>
+
+{% if can_announce %}
+{% comment %}
+Broadcast-announcement composer modal. Embedded in the page (not fetched
+into #modal-root) so the TipTap editor mounts on the inbox's htmx:afterSwap
+like the project-update composer. Opened by the topbar "Announce" button
+via the ``acta:announce-open`` window event; closes on the
+``acta:announcement-sent`` trigger the POST returns (HX-Trigger).
+{% endcomment %}
+<div x-data="{ open: false, empty: true }"
+     @acta:announce-open.window="open = true; $nextTick(() => $refs.title?.focus())"
+     @acta:announcement-sent.window="open = false;
+        const ed = $el.querySelector('[data-description-editor]')?._editor;
+        if (ed) ed.commands.clearContent();
+        if ($refs.title) $refs.title.value = '';"
+     x-show="open" x-cloak
+     class="acta-modal-backdrop"
+     @click.self="open = false"
+     @keydown.escape.window="open = false">
+  <div class="acta-modal-panel max-w-lg">
+    <header class="flex items-center justify-between px-4 py-3 border-b border-border">
+      <h2 class="text-sm font-medium text-foreground inline-flex items-center gap-2">
+        {% lucide "megaphone" "w-4 h-4 text-fuchsia-400" %}{% trans "New announcement" %}
+      </h2>
+      <button type="button" @click="open = false" aria-label="{% trans 'Close' %}"
+              class="p-1.5 rounded-md text-placeholder-foreground hover:bg-muted hover:text-foreground transition">
+        {% lucide "x" "w-4 h-4" %}
+      </button>
+    </header>
+    <form hx-post="{% url 'web:post_announcement' %}" hx-swap="none"
+          hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+          @editor:change="empty = $event.detail.empty">
+      {% csrf_token %}
+      <div class="p-4 space-y-3">
+        <div>
+          <label for="ann-title" class="text-[10px] uppercase tracking-wider text-placeholder-foreground">
+            {% trans "Subject" %}
+          </label>
+          <input type="text" name="title" id="ann-title" required maxlength="120" x-ref="title"
+                 placeholder="{% trans 'Short subject' %}" class="mt-1 acta-input">
+        </div>
+        <div>
+          <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Message" %}</label>
+          <div data-description-editor data-no-autosave class="mt-1"
+               data-placeholder="{% trans 'Write your announcement…' %}">
+            <input type="hidden" name="body" value="" data-editor-output>
+            <textarea class="description-editor-source hidden" readonly></textarea>
+            {% include "web/projects/_editor_toolbar.html" %}
+            <div class="description-editor-mount min-h-[4rem] bg-card border border-border rounded-lg p-3"></div>
+          </div>
+        </div>
+      </div>
+      <footer class="flex items-center justify-between gap-2 px-4 py-3 border-t border-border bg-subtle/60">
+        <p class="text-[11px] text-placeholder-foreground inline-flex items-center gap-1.5">
+          {% lucide "send" "w-3 h-3" %}{% trans "Goes to everyone's inbox and Telegram." %}
+        </p>
+        <div class="flex items-center gap-2">
+          <button type="button" @click="open = false" class="acta-btn-ghost">{% trans "Cancel" %}</button>
+          <button type="submit" :disabled="empty"
+                  class="acta-btn-primary disabled:opacity-40 disabled:cursor-not-allowed">
+            {% trans "Send announcement" %}
+          </button>
+        </div>
+      </footer>
+    </form>
+  </div>
+</div>
+{% endif %}
 {% endblock %}

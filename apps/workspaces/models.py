@@ -82,6 +82,14 @@ class Workspace(models.Model):
         ),
     )
 
+    allow_member_announcements = models.BooleanField(
+        default=False,
+        help_text=(
+            "When true, any workspace member can broadcast an announcement to everyone; "
+            "when false (default), only owners and admins can"
+        ),
+    )
+
     CYCLE_DEFAULT_LENGTH_WEEKS = 2
     CYCLE_MAX_LENGTH_WEEKS = 8
 

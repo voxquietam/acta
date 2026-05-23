@@ -44,7 +44,7 @@ from apps.cycles.services import (
 )
 from apps.labels.models import Label
 from apps.notifications.models import Notification
-from apps.notifications.services import notify_comment_created, notify_project_update_created
+from apps.notifications.services import notify_announcement, notify_comment_created, notify_project_update_created
 from apps.projects.models import Project, ProjectUpdate
 from apps.reactions.services import TARGET_TYPES, attach_reactions, summarize_reactions, toggle_reaction
 from apps.tasks.events import broadcast_link_change, broadcast_task_events, emit_task_diff_events, snapshot_task
@@ -654,6 +654,7 @@ _INBOX_FILTERS = {
     "assigned",
     "due",
     "comments",
+    "announcements",
 }
 
 _INBOX_FILTER_KINDS = {
@@ -661,6 +662,7 @@ _INBOX_FILTER_KINDS = {
     "assigned": Notification.Kind.ASSIGNED,
     "due": Notification.Kind.DUE,
     "comments": Notification.Kind.COMMENT,
+    "announcements": Notification.Kind.ANNOUNCEMENT,
 }
 
 _INBOX_PAGE_SIZE = 100
@@ -734,7 +736,8 @@ def _inbox_counts(user):
 
     Returns:
         A dict with ``all`` / ``unread`` / ``mentions`` / ``assigned`` /
-        ``due`` / ``comments`` integer counts over active notifications.
+        ``due`` / ``comments`` / ``announcements`` integer counts over
+        active notifications.
     """
     return _inbox_base_qs(user).aggregate(
         all=Count("id"),
@@ -743,6 +746,7 @@ def _inbox_counts(user):
         assigned=Count("id", filter=Q(kind=Notification.Kind.ASSIGNED)),
         due=Count("id", filter=Q(kind=Notification.Kind.DUE)),
         comments=Count("id", filter=Q(kind=Notification.Kind.COMMENT)),
+        announcements=Count("id", filter=Q(kind=Notification.Kind.ANNOUNCEMENT)),
     )
 
 
@@ -889,6 +893,9 @@ class InboxView(LoginRequiredMixin, TemplateView):
             available_projects=available_projects,
             selected_projects=selected_projects,
             excluded_projects=excluded_projects,
+            can_announce=bool(
+                active and (_is_workspace_admin(user.id, active.id) or active.allow_member_announcements)
+            ),
         )
 
         if tab == "updates":
@@ -3913,6 +3920,45 @@ def post_project_update(request, slug_prefix):
             request=request,
         ),
     )
+
+
+@require_POST
+@login_required
+def post_announcement(request):
+    """Broadcast an announcement to every member of the active workspace.
+
+    Gated to owners/admins, or any member when the workspace enables
+    ``allow_member_announcements``. Reads a ``title`` (subject) and a
+    Markdown ``body``. Fans out one ANNOUNCEMENT notification per member via
+    :func:`notify_announcement` (the sender is self-suppressed); linked
+    members are always force-notified on Telegram too.
+
+    Args:
+        request: Django request carrying ``title`` / ``body``.
+
+    Returns:
+        ``HttpResponse`` 204 with an ``HX-Trigger`` carrying the recipient
+        count on success; 400 when the active workspace or fields are
+        missing; 403 when the user may not announce here.
+    """
+    workspace = resolve_active_workspace(request)
+    if workspace is None:
+        return HttpResponseBadRequest("no active workspace")
+    if not (_is_workspace_admin(request.user.id, workspace.id) or workspace.allow_member_announcements):
+        return HttpResponseForbidden("not allowed to announce")
+    title = (request.POST.get("title") or "").strip()
+    body = (request.POST.get("body") or "").strip()
+    if not title or not body:
+        return HttpResponseBadRequest("title and body required")
+    count = notify_announcement(
+        workspace_id=workspace.id,
+        actor=request.user,
+        title=title,
+        body=body,
+    )
+    response = HttpResponse(status=204)
+    response["HX-Trigger"] = json.dumps({"acta:announcement-sent": {"count": count}})
+    return response
 
 
 def _get_user_update_or_404(user, pk):

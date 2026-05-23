@@ -4,6 +4,7 @@ import re
 from typing import Any, Iterable
 
 from django.db import transaction
+from django.utils import timezone
 
 from .models import Notification
 
@@ -53,6 +54,7 @@ def notify(
     project_update=None,
     preview: str = "",
     payload: dict[str, Any] | None = None,
+    include_actor: bool = False,
 ) -> Notification | None:
     """Create one inbox notification, suppressing self-notifications.
 
@@ -73,6 +75,8 @@ def notify(
         project_update: The target :class:`ProjectUpdate`, if any.
         preview: Denormalized snippet for the inbox list.
         payload: Event-specific JSON details (status diff, tint, etc.).
+        include_actor: When True, deliver even if the recipient is the actor
+            (broadcasts like announcements want the sender to keep a copy).
 
     Returns:
         The created :class:`Notification`, or ``None`` when the row was
@@ -81,7 +85,7 @@ def notify(
     if recipient_id is None:
         return None
     actor_id = actor.id if actor is not None else None
-    if actor_id is not None and recipient_id == actor_id:
+    if not include_actor and actor_id is not None and recipient_id == actor_id:
         return None
     notification = Notification.objects.create(
         recipient_id=recipient_id,
@@ -393,3 +397,46 @@ def notify_project_update_created(*, update, actor) -> None:
             project_update=update,
             preview=preview,
         )
+
+
+def notify_announcement(*, workspace_id, actor, title, body) -> int:
+    """Broadcast an announcement to every member of a workspace.
+
+    Creates one ``ANNOUNCEMENT`` notification per member; the author is
+    dropped by :func:`notify`'s self-suppression. Announcements are always
+    force-mirrored to Telegram for linked members (no sender opt-out and not
+    mutable per-kind) — see :func:`apps.telegram.services.notify_via_telegram`.
+
+    Args:
+        workspace_id: Target workspace whose members receive the broadcast.
+        actor: The user sending the announcement.
+        title: Short subject line, shown bold / as the Telegram headline.
+        body: Markdown body of the announcement.
+
+    Returns:
+        Count of notifications created (members minus the author).
+    """
+    from apps.workspaces.models import WorkspaceMember
+
+    payload = {"title": title}
+    preview = _truncate_preview(body)
+    member_ids = WorkspaceMember.objects.filter(workspace_id=workspace_id).values_list("user_id", flat=True)
+    count = 0
+    for recipient_id in member_ids:
+        notification = notify(
+            recipient_id=recipient_id,
+            actor=actor,
+            kind=Notification.Kind.ANNOUNCEMENT,
+            workspace_id=workspace_id,
+            preview=preview,
+            payload=payload,
+            include_actor=True,
+        )
+        if notification is None:
+            continue
+        count += 1
+        if recipient_id == actor.id:
+            # The sender keeps a copy as a record, but it's not an alert for
+            # them — pre-read it so it doesn't sit in their unread badge.
+            Notification.objects.filter(pk=notification.pk).update(is_read=True, read_at=timezone.now())
+    return count
