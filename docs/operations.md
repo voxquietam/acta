@@ -8,6 +8,48 @@ The deploy target shape is set by ADR 0015 ("real-time"): ASGI app
 under **uvicorn** behind **Caddy** (or nginx). Postgres is a managed
 service or a sibling container. No Gunicorn — sync workers break SSE.
 
+## Deploy checklist (TL;DR)
+
+Everything needed for a fresh prod, in order. Details in the sections
+below.
+
+### Environment variables — required (the app breaks without these)
+
+| Variable | Notes |
+|----------|-------|
+| `DJANGO_SETTINGS_MODULE=acta.settings.prod` | else it runs the **dev** config |
+| `DJANGO_SECRET_KEY` | a real secret (not the dev placeholder) — prod refuses to boot without it |
+| `DJANGO_ALLOWED_HOSTS=actaspace.com` | else every request is rejected |
+| `DJANGO_CSRF_TRUSTED_ORIGINS=https://actaspace.com` | else POST/forms over HTTPS fail the CSRF check |
+| `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_HOST` (+ `POSTGRES_PORT`) | database |
+| `DJANGO_MEDIA_ROOT=/…/media` on a **persistent** volume | else avatars + attachments vanish on container rebuild |
+
+### Environment variables — feature toggles (the feature silently won't work)
+
+| Variable | Enables |
+|----------|---------|
+| `EMAIL_HOST` / `EMAIL_PORT` / `EMAIL_USE_TLS` / `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` / `DEFAULT_FROM_EMAIL` | sending **workspace invites** by email |
+| `ACTA_PUBLIC_BASE_URL=https://actaspace.com` | absolute links in invite emails + task links in Telegram |
+| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_BOT_USERNAME` / `TELEGRAM_WEBHOOK_SECRET` | the Telegram notification bot |
+| `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | "Sign in with Google" |
+
+### One-time per environment
+
+1. `migrate`
+2. `compilemessages` (builds the `uk` `.mo`)
+3. `collectstatic`
+4. `createsuperuser`
+5. Create the **Telegram message templates** in `/admin/` (see §5 below)
+6. `telegram_set_webhook --base-url https://actaspace.com` (prod uses a webhook, not polling)
+7. Create the Google **SocialApp** in `/admin/` (once OAuth is wired)
+
+### Recurring jobs
+
+Three daily jobs (auto-archive, attachment GC, cycle notifications). See
+"Recurring jobs" below for the cron lines — or run them from an in-app
+scheduler. **Without these, done tasks never auto-archive, orphan files
+pile up, and cycle start/ending notifications never fire.**
+
 ## One-time per environment
 
 These run once when the environment is first provisioned.
