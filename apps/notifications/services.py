@@ -223,8 +223,12 @@ def notify_for_task_diff(*, events: Iterable, task, actor) -> None:
             payload = event.payload or {}
             recipients = {payload.get("to_user_id"), payload.get("from_user_id")}
             recipients.discard(None)
+            # The new assignee benefits from the task's description, not its
+            # title (the title is already shown next to the task link).
+            preview = _truncate_preview(task.description)
         else:
             recipients = set(involved)
+            preview = task.title
         for recipient_id in recipients:
             notify(
                 recipient_id=recipient_id,
@@ -233,7 +237,7 @@ def notify_for_task_diff(*, events: Iterable, task, actor) -> None:
                 workspace_id=event.workspace_id,
                 task=task,
                 activity=event,
-                preview=task.title,
+                preview=preview,
                 payload=event.payload or {},
             )
 

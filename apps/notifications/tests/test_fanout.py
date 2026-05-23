@@ -83,6 +83,15 @@ class TestTaskDiffFanout:
         rows = Notification.objects.filter(kind=Notification.Kind.ASSIGNED)
         assert list(rows.values_list("recipient_id", flat=True)) == [assignee.id]
 
+    def test_assignment_preview_is_task_description(self, trio):
+        project, assignee, reporter, actor = trio
+        task = TaskFactory(
+            project=project, assignee=None, reporter=reporter, description="ship the login page by friday"
+        )
+        _reassign(task, assignee, actor)
+        row = Notification.objects.get(kind=Notification.Kind.ASSIGNED, recipient=assignee)
+        assert row.preview == "ship the login page by friday"
+
     def test_reassignment_notifies_old_and_new_assignee(self, trio):
         project, old_assignee, reporter, actor = trio
         new_assignee = WorkspaceMemberFactory(workspace=project.workspace).user
