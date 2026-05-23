@@ -223,11 +223,51 @@ def _blockquote(text: str) -> str:
     return f"<blockquote expandable>{text}</blockquote>" if text else ""
 
 
-def _template_context(notification) -> dict:
-    """Build the escaped ``{placeholder}`` values for a notification.
+# Priority value → (emoji, label) for the {priority} chip. ``NO_PRIORITY`` (0)
+# is intentionally absent so it renders empty rather than as noise.
+_PRIORITY_EMOJI = {
+    1: "🔴",
+    2: "🟠",
+    3: "🟡",
+    4: "🔵",
+}
 
-    ``{preview}`` is the cleaned snippet inline; ``{quote}`` is the same
-    snippet wrapped in a Telegram blockquote (empty when there's no preview).
+
+def _priority_chip(priority) -> str:
+    """Return a localized ``emoji Label`` priority chip, ``""`` for no priority."""
+    from apps.tasks.models import Task
+
+    labels = {
+        Task.URGENT: _("Urgent"),
+        Task.HIGH: _("High"),
+        Task.MEDIUM: _("Medium"),
+        Task.LOW: _("Low"),
+    }
+    label = labels.get(priority)
+    return f"{_PRIORITY_EMOJI[priority]} {label}" if label else ""
+
+
+def _due_chip(due) -> str:
+    """Return a localized ``📅 due <date>`` chip, ``""`` when there's no date."""
+    if not due:
+        return ""
+    from django.utils.formats import date_format
+
+    return _("📅 due %(date)s") % {"date": date_format(due, "j M")}
+
+
+def _tidy(text: str) -> str:
+    """Drop blank lines (e.g. from an empty placeholder) and trim the edges."""
+    return "\n".join(line for line in text.split("\n") if line.strip())
+
+
+def _template_context(notification) -> dict:
+    """Build the ``{placeholder}`` values for a notification.
+
+    ``{preview}`` is the cleaned snippet inline; ``{quote}`` wraps it in a
+    Telegram blockquote. ``{priority}`` / ``{due}`` are per-task chips and
+    ``{meta}`` joins the non-empty ones with `` · `` (so a task with no due
+    date doesn't leave a dangling separator). All empty when not applicable.
     """
     actor = notification.actor.display_name if notification.actor else _("Someone")
     task = notification.task
@@ -235,6 +275,9 @@ def _template_context(notification) -> dict:
     url = _task_url(task) if task is not None else None
     task_ref = (f'<a href="{url}">{escape(slug)}</a>' if url else escape(slug)) if slug else ""
     preview = escape(_clean_preview(notification.preview, notification.recipient_id))
+    priority = _priority_chip(task.priority) if task is not None else ""
+    due = _due_chip(task.due_date) if task is not None else ""
+    meta = " · ".join(chip for chip in (priority, due) if chip)
     return {
         "actor": escape(actor),
         "slug": escape(slug),
@@ -242,6 +285,9 @@ def _template_context(notification) -> dict:
         "title": escape(task.title) if task is not None else "",
         "preview": preview,
         "quote": _blockquote(preview),
+        "priority": priority,
+        "due": due,
+        "meta": meta,
     }
 
 
@@ -266,7 +312,7 @@ def _format_notification(notification) -> str:
 
     custom = TelegramMessageTemplate.objects.filter(kind=notification.kind).first()
     if custom is not None and custom.body.strip():
-        return _render_template(custom.body, _template_context(notification))
+        return _tidy(_render_template(custom.body, _template_context(notification)))
 
     actor = notification.actor.display_name if notification.actor else _("Someone")
     kind = notification.kind
@@ -298,8 +344,12 @@ def _format_notification(notification) -> str:
         slug_html = f'<a href="{url}">{slug}</a>' if url else slug
         lines.append(f"{slug_html} {escape(task.title)}")
     preview = _clean_preview(notification.preview, notification.recipient_id)
-    if preview:
+    if preview and not (task is not None and notification.preview == task.title):
         lines.append(_blockquote(escape(preview)))
+    if task is not None and kind == K.ASSIGNED:
+        meta = " · ".join(chip for chip in (_priority_chip(task.priority), _due_chip(task.due_date)) if chip)
+        if meta:
+            lines.append(meta)
     return "\n".join(lines)
 
 

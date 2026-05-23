@@ -191,6 +191,77 @@ class TestCleanPreview:
         assert len(out) <= 41
 
 
+class TestChips:
+    """Pure priority / due chip formatting (no DB)."""
+
+    def test_priority_chip(self):
+        from apps.tasks.models import Task
+
+        assert tg._priority_chip(Task.URGENT) == "🔴 Urgent"
+        assert tg._priority_chip(Task.LOW) == "🔵 Low"
+        assert tg._priority_chip(Task.NO_PRIORITY) == ""
+
+    def test_due_chip(self):
+        import datetime
+
+        assert tg._due_chip(None) == ""
+        assert tg._due_chip(datetime.date(2026, 5, 30)).startswith("📅 due")
+
+
+@pytest.mark.django_db
+class TestAssignedContext:
+    """{priority} / {due} / {meta} placeholders and default ASSIGNED enrichment."""
+
+    def _assigned(self, priority, due):
+        ws = WorkspaceFactory()
+        project = ProjectFactory(workspace=ws)
+        task = TaskFactory(project=project, priority=priority, due_date=due)
+        return Notification.objects.create(
+            recipient=UserFactory(),
+            actor=UserFactory(),
+            workspace=ws,
+            kind=Notification.Kind.ASSIGNED,
+            task=task,
+            preview=task.title,
+        )
+
+    def test_meta_joins_priority_and_due(self):
+        import datetime
+
+        from apps.tasks.models import Task
+        from apps.telegram.models import TelegramMessageTemplate
+
+        n = self._assigned(Task.URGENT, datetime.date(2026, 5, 30))
+        TelegramMessageTemplate.objects.create(kind=Notification.Kind.ASSIGNED, body="{meta}")
+        out = tg._format_notification(n)
+        assert "🔴 Urgent" in out and "📅 due" in out and " · " in out
+
+    def test_meta_drops_separator_without_due(self):
+        from apps.tasks.models import Task
+        from apps.telegram.models import TelegramMessageTemplate
+
+        n = self._assigned(Task.HIGH, None)
+        TelegramMessageTemplate.objects.create(kind=Notification.Kind.ASSIGNED, body="{meta}")
+        assert tg._format_notification(n) == "🟠 High"
+
+    def test_tidy_drops_empty_meta_line(self):
+        from apps.tasks.models import Task
+        from apps.telegram.models import TelegramMessageTemplate
+
+        n = self._assigned(Task.NO_PRIORITY, None)
+        TelegramMessageTemplate.objects.create(kind=Notification.Kind.ASSIGNED, body="head\n{meta}\ntail")
+        assert tg._format_notification(n) == "head\ntail"
+
+    def test_default_assigned_enriches_and_skips_title_quote(self):
+        from apps.tasks.models import Task
+
+        n = self._assigned(Task.URGENT, None)
+        out = tg._format_notification(n)
+        assert out.count(n.task.title) == 1  # title shown once, not also quoted
+        assert "🔴 Urgent" in out
+        assert "<blockquote" not in out
+
+
 @pytest.mark.django_db
 class TestToggleView:
 
