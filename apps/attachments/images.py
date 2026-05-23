@@ -97,6 +97,10 @@ def normalize_avatar(uploaded_file, *, size: int):
     uploaded_file.seek(0)
     try:
         image = Image.open(uploaded_file)
+        # Decode JPEGs at roughly the target edge (a no-op for other formats):
+        # avoids fully decoding a multi-megapixel phone photo just to shrink
+        # it to ``size`` — the slow part of an avatar upload.
+        image.draft("RGB", (size * 2, size * 2))
         image.load()
     except Exception:
         return None

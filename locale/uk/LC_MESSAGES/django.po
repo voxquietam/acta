@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Acta 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-05-23 19:10+0000\n"
+"POT-Creation-Date: 2026-05-23 19:35+0000\n"
 "PO-Revision-Date: 2026-05-16 15:30+0000\n"
 "Last-Translator: Acta team\n"
 "Language-Team: Ukrainian\n"
@@ -25,48 +25,48 @@ msgstr "Англійська"
 msgid "Ukrainian"
 msgstr "Українська"
 
-#: acta/settings/base.py:417 apps/workspaces/models.py:144
+#: acta/settings/base.py:420 apps/workspaces/models.py:144
 #: templates/web/_create_project_modal.html:71
 msgid "Workspace"
 msgstr "Робочий простір"
 
-#: acta/settings/base.py:421 apps/workspaces/models.py:145
+#: acta/settings/base.py:424 apps/workspaces/models.py:145
 #: templates/base_app.html:176
 msgid "Workspaces"
 msgstr "Робочі простори"
 
-#: acta/settings/base.py:426 templates/web/projects/_overview_panel.html:301
+#: acta/settings/base.py:429 templates/web/projects/_overview_panel.html:301
 #: templates/web/workspaces/settings.html:29
 msgid "Members"
 msgstr "Учасники"
 
-#: acta/settings/base.py:431
+#: acta/settings/base.py:434
 msgid "Invites"
 msgstr "Запрошення"
 
-#: acta/settings/base.py:438 acta/settings/base.py:442
+#: acta/settings/base.py:441 acta/settings/base.py:445
 #: apps/projects/models.py:106 templates/base_app.html:120
 #: templates/base_app.html:121 templates/web/projects/detail.html:8
 #: templates/web/projects/list.html:5 templates/web/projects/list.html:8
 msgid "Projects"
 msgstr "Проєкти"
 
-#: acta/settings/base.py:447 apps/projects/models.py:244
+#: acta/settings/base.py:450 apps/projects/models.py:244
 msgid "Project updates"
 msgstr "Оновлення проєктів"
 
-#: acta/settings/base.py:454 acta/settings/base.py:458
+#: acta/settings/base.py:457 acta/settings/base.py:461
 #: templates/web/cycles/overview.html:184
 msgid "Tasks"
 msgstr "Задачі"
 
-#: acta/settings/base.py:463 apps/comments/models.py:62 apps/web/views.py:1173
+#: acta/settings/base.py:466 apps/comments/models.py:62 apps/web/views.py:1173
 #: templates/web/_inbox_list.html:44 templates/web/_my_activity_inner.html:14
 #: templates/web/projects/_update_comments.html:14
 msgid "Comments"
 msgstr "Коментарі"
 
-#: acta/settings/base.py:468 apps/labels/models.py:94 apps/web/views.py:1172
+#: acta/settings/base.py:471 apps/labels/models.py:94 apps/web/views.py:1172
 #: templates/web/_create_task_modal.html:150
 #: templates/web/_filters_sidebar.html:476
 #: templates/web/projects/_bulk_context_menu.html:227
@@ -76,46 +76,46 @@ msgstr "Коментарі"
 msgid "Labels"
 msgstr "Мітки"
 
-#: acta/settings/base.py:473 apps/labels/models.py:41
+#: acta/settings/base.py:476 apps/labels/models.py:41
 msgid "Label groups"
 msgstr "Групи міток"
 
-#: acta/settings/base.py:480 templates/web/_my_activity_inner.html:19
+#: acta/settings/base.py:483 templates/web/_my_activity_inner.html:19
 #: templates/web/projects/_task_detail_body.html:80
 #: templates/web/projects/_task_detail_body.html:121
 #: templates/web/projects/_task_detail_modal_body.html:77
 msgid "Activity"
 msgstr "Активність"
 
-#: acta/settings/base.py:484 apps/activity/models.py:80
+#: acta/settings/base.py:487 apps/activity/models.py:80
 msgid "Activity log"
 msgstr "Журнал активності"
 
-#: acta/settings/base.py:491 apps/notifications/models.py:32
+#: acta/settings/base.py:494 apps/notifications/models.py:32
 msgid "System"
 msgstr "Система"
 
-#: acta/settings/base.py:496 apps/accounts/models.py:79
+#: acta/settings/base.py:499 apps/accounts/models.py:79
 msgid "Users"
 msgstr "Користувачі"
 
-#: acta/settings/base.py:501
+#: acta/settings/base.py:504
 msgid "Groups"
 msgstr "Групи"
 
-#: acta/settings/base.py:507
+#: acta/settings/base.py:510
 msgid "Sites"
 msgstr "Сайти"
 
-#: acta/settings/base.py:513
+#: acta/settings/base.py:516
 msgid "Email addresses"
 msgstr "Електронні адреси"
 
-#: acta/settings/base.py:519
+#: acta/settings/base.py:522
 msgid "Social apps"
 msgstr "Соціальні застосунки"
 
-#: acta/settings/base.py:525
+#: acta/settings/base.py:528
 msgid "Social accounts"
 msgstr "Соціальні акаунти"
 
@@ -1112,8 +1112,8 @@ msgid "Remove"
 msgstr "Видалити"
 
 #: templates/accounts/settings.html:49
-msgid "JPG, PNG, GIF or WebP, up to 3 MB. Square-cropped automatically."
-msgstr "JPG, PNG, GIF або WebP, до 3 МБ. Автоматична квадратна обрізка."
+msgid "JPG, PNG, GIF or WebP — we resize and square-crop it for you."
+msgstr "JPG, PNG, GIF або WebP — ми самі змінимо розмір і обріжемо до квадрата."
 
 #: templates/accounts/settings.html:66
 msgid "First name"
@@ -1321,36 +1321,36 @@ msgstr "Перейти на тему опівнічно-синю"
 msgid "Switch to light mode"
 msgstr "Перейти на світлу тему"
 
-#: templates/base_app.html:373
+#: templates/base_app.html:367 templates/base_app.html:447
+msgid "Dismiss"
+msgstr "Закрити"
+
+#: templates/base_app.html:402
 msgid "Previous"
 msgstr "Назад"
 
-#: templates/base_app.html:379 templates/web/workspaces/settings.html:178
+#: templates/base_app.html:408 templates/web/workspaces/settings.html:178
 msgid "Next"
 msgstr "Далі"
 
-#: templates/base_app.html:385
+#: templates/base_app.html:414
 msgid "Open original"
 msgstr "Відкрити оригінал"
 
-#: templates/base_app.html:387 templates/web/_modal_shell.html:40
+#: templates/base_app.html:416 templates/web/_modal_shell.html:40
 #: templates/web/_modal_shell.html:41 templates/web/inbox.html:131
 msgid "Close"
 msgstr "Закрити"
 
-#: templates/base_app.html:418
-msgid "Dismiss"
-msgstr "Закрити"
-
-#: templates/base_app.html:477 templates/web/_inbox_list.html:103
+#: templates/base_app.html:506 templates/web/_inbox_list.html:103
 msgid "selected"
 msgstr "виділено"
 
-#: templates/base_app.html:493
+#: templates/base_app.html:522
 msgid "Actions"
 msgstr "Дії"
 
-#: templates/base_app.html:500 templates/web/_inbox_list.html:121
+#: templates/base_app.html:529 templates/web/_inbox_list.html:121
 msgid "Clear selection"
 msgstr "Зняти вибір"
 
