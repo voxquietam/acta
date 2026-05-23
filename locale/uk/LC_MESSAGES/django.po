@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Acta 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-05-22 21:07+0000\n"
+"POT-Creation-Date: 2026-05-23 16:45+0000\n"
 "PO-Revision-Date: 2026-05-16 15:30+0000\n"
 "Last-Translator: Acta team\n"
 "Language-Team: Ukrainian\n"
@@ -17,56 +17,56 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=4; plural=(n % 1 == 0 && n % 10 == 1 && n % 100 != 11 ? 0 : n % 1 == 0 && n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 1 : n % 1 == 0 && (n % 10 ==0 || (n % 10 >=5 && n % 10 <=9) || (n % 100 >=11 && n % 100 <=14 )) ? 2: 3);\n"
 
-#: acta/settings/base.py:245
+#: acta/settings/base.py:256
 msgid "English"
 msgstr "Англійська"
 
-#: acta/settings/base.py:246
+#: acta/settings/base.py:257
 msgid "Ukrainian"
 msgstr "Українська"
 
-#: acta/settings/base.py:401 apps/workspaces/models.py:136
+#: acta/settings/base.py:412 apps/workspaces/models.py:136
 #: templates/web/_create_project_modal.html:71
 msgid "Workspace"
 msgstr "Робочий простір"
 
-#: acta/settings/base.py:405 apps/workspaces/models.py:137
+#: acta/settings/base.py:416 apps/workspaces/models.py:137
 #: templates/base_app.html:176
 msgid "Workspaces"
 msgstr "Робочі простори"
 
-#: acta/settings/base.py:410 templates/web/projects/_overview_panel.html:301
+#: acta/settings/base.py:421 templates/web/projects/_overview_panel.html:301
 #: templates/web/workspaces/settings.html:29
 msgid "Members"
 msgstr "Учасники"
 
-#: acta/settings/base.py:415
+#: acta/settings/base.py:426
 msgid "Invites"
 msgstr "Запрошення"
 
-#: acta/settings/base.py:422 acta/settings/base.py:426
+#: acta/settings/base.py:433 acta/settings/base.py:437
 #: apps/projects/models.py:106 templates/base_app.html:120
 #: templates/base_app.html:121 templates/web/projects/detail.html:8
 #: templates/web/projects/list.html:5 templates/web/projects/list.html:8
 msgid "Projects"
 msgstr "Проєкти"
 
-#: acta/settings/base.py:431 apps/projects/models.py:244
+#: acta/settings/base.py:442 apps/projects/models.py:244
 msgid "Project updates"
 msgstr "Оновлення проєктів"
 
-#: acta/settings/base.py:438 acta/settings/base.py:442
+#: acta/settings/base.py:449 acta/settings/base.py:453
 #: templates/web/cycles/overview.html:184
 msgid "Tasks"
 msgstr "Задачі"
 
-#: acta/settings/base.py:447 apps/comments/models.py:62 apps/web/views.py:1165
+#: acta/settings/base.py:458 apps/comments/models.py:62 apps/web/views.py:1166
 #: templates/web/_inbox_list.html:44 templates/web/_my_activity_inner.html:14
 #: templates/web/projects/_update_comments.html:14
 msgid "Comments"
 msgstr "Коментарі"
 
-#: acta/settings/base.py:452 apps/labels/models.py:94 apps/web/views.py:1164
+#: acta/settings/base.py:463 apps/labels/models.py:94 apps/web/views.py:1165
 #: templates/web/_create_task_modal.html:150
 #: templates/web/_filters_sidebar.html:476
 #: templates/web/projects/_bulk_context_menu.html:227
@@ -76,46 +76,46 @@ msgstr "Коментарі"
 msgid "Labels"
 msgstr "Мітки"
 
-#: acta/settings/base.py:457 apps/labels/models.py:41
+#: acta/settings/base.py:468 apps/labels/models.py:41
 msgid "Label groups"
 msgstr "Групи міток"
 
-#: acta/settings/base.py:464 templates/web/_my_activity_inner.html:19
+#: acta/settings/base.py:475 templates/web/_my_activity_inner.html:19
 #: templates/web/projects/_task_detail_body.html:80
 #: templates/web/projects/_task_detail_body.html:121
 #: templates/web/projects/_task_detail_modal_body.html:77
 msgid "Activity"
 msgstr "Активність"
 
-#: acta/settings/base.py:468 apps/activity/models.py:80
+#: acta/settings/base.py:479 apps/activity/models.py:80
 msgid "Activity log"
 msgstr "Журнал активності"
 
-#: acta/settings/base.py:475 apps/notifications/models.py:31
+#: acta/settings/base.py:486 apps/notifications/models.py:31
 msgid "System"
 msgstr "Система"
 
-#: acta/settings/base.py:480 apps/accounts/models.py:79
+#: acta/settings/base.py:491 apps/accounts/models.py:79
 msgid "Users"
 msgstr "Користувачі"
 
-#: acta/settings/base.py:485
+#: acta/settings/base.py:496
 msgid "Groups"
 msgstr "Групи"
 
-#: acta/settings/base.py:491
+#: acta/settings/base.py:502
 msgid "Sites"
 msgstr "Сайти"
 
-#: acta/settings/base.py:497
+#: acta/settings/base.py:508
 msgid "Email addresses"
 msgstr "Електронні адреси"
 
-#: acta/settings/base.py:503
+#: acta/settings/base.py:514
 msgid "Social apps"
 msgstr "Соціальні застосунки"
 
-#: acta/settings/base.py:509
+#: acta/settings/base.py:520
 msgid "Social accounts"
 msgstr "Соціальні акаунти"
 
@@ -156,41 +156,41 @@ msgstr "Email не збігається із запрошенням — його
 msgid "Unsupported language"
 msgstr "Непідтримувана мова"
 
-#: apps/accounts/views.py:237
+#: apps/accounts/views.py:241
 msgid "Token name is required."
 msgstr "Потрібно вказати назву токена."
 
-#: apps/accounts/views.py:271
+#: apps/accounts/views.py:275
 #, python-format
 msgid "Token “%(name)s” revoked."
 msgstr "Токен «%(name)s» відкликано."
 
-#: apps/accounts/views.py:294
+#: apps/accounts/views.py:298
 #, python-format
 msgid "Token “%(name)s” deleted."
 msgstr "Токен «%(name)s» видалено."
 
-#: apps/accounts/views.py:322
+#: apps/accounts/views.py:326
 msgid "You're already signed in — share the invite link with someone who needs an account."
 msgstr "Ви вже увійшли — поділіться посиланням-запрошенням з тим, кому потрібен акаунт."
 
-#: apps/accounts/views.py:329
+#: apps/accounts/views.py:333
 msgid "That invite link is not valid."
 msgstr "Це посилання-запрошення недійсне."
 
-#: apps/accounts/views.py:334
+#: apps/accounts/views.py:338
 msgid "That invite link has already been used."
 msgstr "Це посилання-запрошення вже використано."
 
-#: apps/accounts/views.py:336
+#: apps/accounts/views.py:340
 msgid "That invite link has expired — ask the admin to resend it."
 msgstr "Термін дії посилання-запрошення минув — попросіть адміністратора надіслати його ще раз."
 
-#: apps/accounts/views.py:364
+#: apps/accounts/views.py:368
 msgid "Avatar updated."
 msgstr "Аватар оновлено."
 
-#: apps/accounts/views.py:374
+#: apps/accounts/views.py:378
 msgid "Avatar removed."
 msgstr "Аватар видалено."
 
@@ -312,35 +312,35 @@ msgstr "Цикли"
 msgid "Cycle %(number)s"
 msgstr "Цикл %(number)s"
 
-#: apps/cycles/services.py:440
+#: apps/cycles/services.py:509
 #, python-format
 msgid "%(label)s started"
 msgstr "%(label)s розпочато"
 
-#: apps/cycles/services.py:441
+#: apps/cycles/services.py:510
 #, python-format
 msgid "Runs %(start)s – %(end)s"
 msgstr "Триває %(start)s – %(end)s"
 
-#: apps/cycles/services.py:482
+#: apps/cycles/services.py:551
 msgid "ends today"
 msgstr "завершується сьогодні"
 
-#: apps/cycles/services.py:484
+#: apps/cycles/services.py:553
 msgid "ends tomorrow"
 msgstr "завершується завтра"
 
-#: apps/cycles/services.py:486
+#: apps/cycles/services.py:555
 #, python-format
 msgid "ends in %(days)s days"
 msgstr "завершується через %(days)s дн."
 
-#: apps/cycles/services.py:487
+#: apps/cycles/services.py:556
 #, python-format
 msgid "%(label)s %(when)s"
 msgstr "%(label)s %(when)s"
 
-#: apps/cycles/services.py:491
+#: apps/cycles/services.py:560
 #, python-format
 msgid "%(n)s task still open"
 msgid_plural "%(n)s tasks still open"
@@ -349,7 +349,7 @@ msgstr[1] "%(n)s задачі ще відкриті"
 msgstr[2] "%(n)s задач ще відкрито"
 msgstr[3] "%(n)s задач ще відкрито"
 
-#: apps/cycles/services.py:496
+#: apps/cycles/services.py:565
 msgid "Everything's done — nice."
 msgstr "Усе зроблено — чудово."
 
@@ -406,7 +406,7 @@ msgstr "Сповіщення"
 msgid "Notifications"
 msgstr "Сповіщення"
 
-#: apps/projects/models.py:11 apps/web/views.py:5603
+#: apps/projects/models.py:11 apps/web/views.py:5606
 msgid "Slug prefix must be 2–6 uppercase Latin letters."
 msgstr "Префікс slug має містити 2–6 великих латинських літер."
 
@@ -418,7 +418,7 @@ msgstr "Префікс slug має містити 2–6 великих лати�
 msgid "Project"
 msgstr "Проєкт"
 
-#: apps/projects/models.py:132 apps/web/views.py:5621
+#: apps/projects/models.py:132 apps/web/views.py:5624
 msgid "Lead must be a member of the project's workspace."
 msgstr "Лід повинен бути учасником робочого простору проєкту."
 
@@ -570,6 +570,88 @@ msgstr "Мітки %(ids)s не належать робочому простор
 msgid "User %(user)s is not a member of this project's workspace."
 msgstr "Користувач %(user)s не є учасником робочого простору цього проєкту."
 
+#: apps/telegram/models.py:40
+msgid "Telegram account"
+msgstr "Акаунт Telegram"
+
+#: apps/telegram/models.py:41
+msgid "Telegram accounts"
+msgstr "Акаунти Telegram"
+
+#: apps/telegram/models.py:76
+#, fuzzy
+#| msgid "Telegram notifications"
+msgid "Telegram link token"
+msgstr "Сповіщення в Telegram"
+
+#: apps/telegram/models.py:77
+#, fuzzy
+#| msgid "Telegram notifications"
+msgid "Telegram link tokens"
+msgstr "Сповіщення в Telegram"
+
+#: apps/telegram/services.py:121
+msgid "✅ Linked to Acta. You'll get notifications here."
+msgstr "✅ Привʼязано до Acta. Сповіщення приходитимуть сюди."
+
+#: apps/telegram/services.py:125
+msgid "This link is invalid or expired. Open Acta settings and start the connection again."
+msgstr "Це посилання недійсне або застаріле. Відкрийте налаштування Acta й почніть підключення знову."
+
+#: apps/telegram/services.py:132
+msgid "Disconnected. You won't get Acta notifications here anymore."
+msgstr "Відключено. Сповіщення Acta більше сюди не приходитимуть."
+
+#: apps/telegram/services.py:135
+msgid "Connect this chat from Acta → Settings → Telegram."
+msgstr "Підключіть цей чат з Acta → Налаштування → Telegram."
+
+#: apps/telegram/services.py:156
+msgid "Someone"
+msgstr "Хтось"
+
+#: apps/telegram/services.py:160
+#, python-format
+msgid "%(actor)s mentioned you"
+msgstr "%(actor)s згадав вас"
+
+#: apps/telegram/services.py:162
+#, python-format
+msgid "%(actor)s assigned you a task"
+msgstr "%(actor)s призначив вам задачу"
+
+#: apps/telegram/services.py:164
+#, python-format
+msgid "%(actor)s commented"
+msgstr "%(actor)s залишив коментар"
+
+#: apps/telegram/services.py:166
+#, python-format
+msgid "%(actor)s changed a task's status"
+msgstr "%(actor)s змінив статус задачі"
+
+#: apps/telegram/services.py:168
+#, python-format
+msgid "%(actor)s changed a task's priority"
+msgstr "%(actor)s змінив пріоритет задачі"
+
+#: apps/telegram/services.py:170
+msgid "Task due soon"
+msgstr "Скоро дедлайн задачі"
+
+#: apps/telegram/services.py:172
+#, python-format
+msgid "%(actor)s posted a project update"
+msgstr "%(actor)s опублікував оновлення проєкту"
+
+#: apps/telegram/services.py:174
+msgid "Cycle update"
+msgstr "Оновлення циклу"
+
+#: apps/telegram/services.py:176
+msgid "Update in Acta"
+msgstr "Оновлення в Acta"
+
 #: apps/web/grouping.py:123
 msgid "Overdue"
 msgstr "Прострочено"
@@ -698,7 +780,7 @@ msgstr "учасника виключено з простору"
 msgid "changed a member role"
 msgstr "змінено роль учасника"
 
-#: apps/web/views.py:1160 templates/web/_create_task_modal.html:105
+#: apps/web/views.py:1161 templates/web/_create_task_modal.html:105
 #: templates/web/_filters_sidebar.html:195
 #: templates/web/projects/_bulk_context_menu.html:121
 #: templates/web/projects/_table.html:61
@@ -707,7 +789,7 @@ msgstr "змінено роль учасника"
 msgid "Status"
 msgstr "Статус"
 
-#: apps/web/views.py:1161 templates/web/_create_task_modal.html:116
+#: apps/web/views.py:1162 templates/web/_create_task_modal.html:116
 #: templates/web/_filters_sidebar.html:249
 #: templates/web/projects/_bulk_context_menu.html:135
 #: templates/web/projects/_task_context_menu.html:212
@@ -715,136 +797,136 @@ msgstr "Статус"
 msgid "Priority"
 msgstr "Пріоритет"
 
-#: apps/web/views.py:1162 templates/web/_assignee_strip.html:13
+#: apps/web/views.py:1163 templates/web/_assignee_strip.html:13
 #: templates/web/_create_task_modal.html:134
 #: templates/web/projects/_table.html:74
 #: templates/web/projects/_task_meta.html:42
 msgid "Assignee"
 msgstr "Виконавець"
 
-#: apps/web/views.py:1163 templates/web/_inbox_list.html:40
+#: apps/web/views.py:1164 templates/web/_inbox_list.html:40
 #: templates/web/projects/_table.html:86
 #: templates/web/projects/_task_card.html:107
 msgid "Due"
 msgstr "Дедлайн"
 
-#: apps/web/views.py:1166 templates/web/projects/_links_panel.html:51
+#: apps/web/views.py:1167 templates/web/projects/_links_panel.html:51
 msgid "Links"
 msgstr "Зв'язки"
 
-#: apps/web/views.py:1167
+#: apps/web/views.py:1168
 msgid "Edits"
 msgstr "Правки"
 
-#: apps/web/views.py:5238 apps/web/views.py:5276 apps/web/views.py:5303
-#: apps/web/views.py:5426 apps/web/views.py:5458 apps/web/views.py:5483
+#: apps/web/views.py:5241 apps/web/views.py:5279 apps/web/views.py:5306
+#: apps/web/views.py:5429 apps/web/views.py:5461 apps/web/views.py:5486
 msgid "Admin or owner only"
 msgstr "Тільки для адміна або власника"
 
-#: apps/web/views.py:5241
+#: apps/web/views.py:5244
 msgid "Email is required"
 msgstr "Email обов'язковий"
 
-#: apps/web/views.py:5244 apps/web/views.py:5433 apps/web/views.py:5466
+#: apps/web/views.py:5247 apps/web/views.py:5436 apps/web/views.py:5469
 msgid "Invalid role"
 msgstr "Неправильна роль"
 
-#: apps/web/views.py:5253
+#: apps/web/views.py:5256
 #, python-format
 msgid "Invite sent to %(email)s."
 msgstr "Запрошення надіслано на %(email)s."
 
-#: apps/web/views.py:5256
+#: apps/web/views.py:5259
 msgid "Invite created but email failed — copy the link from the list."
 msgstr "Запрошення створено, але лист не надіслався — скопіюйте посилання зі списку."
 
-#: apps/web/views.py:5279
+#: apps/web/views.py:5282
 msgid "Invite not found"
 msgstr "Запрошення не знайдено"
 
-#: apps/web/views.py:5285
+#: apps/web/views.py:5288
 #, python-format
 msgid "Invite to %(email)s revoked."
 msgstr "Запрошення для %(email)s відкликано."
 
-#: apps/web/views.py:5306
+#: apps/web/views.py:5309
 msgid "Invite not found or already accepted"
 msgstr "Запрошення не знайдено або вже прийнято"
 
-#: apps/web/views.py:5309
+#: apps/web/views.py:5312
 #, python-format
 msgid "Invite re-sent to %(email)s."
 msgstr "Запрошення повторно надіслано на %(email)s."
 
-#: apps/web/views.py:5311
+#: apps/web/views.py:5314
 msgid "Resend failed — try again later."
 msgstr "Не вдалося надіслати повторно — спробуйте пізніше."
 
-#: apps/web/views.py:5430
+#: apps/web/views.py:5433
 msgid "Invalid user_id"
 msgstr "Неправильний user_id"
 
-#: apps/web/views.py:5438
+#: apps/web/views.py:5441
 msgid "Cannot add another owner"
 msgstr "Не можна додати ще одного власника"
 
-#: apps/web/views.py:5441
+#: apps/web/views.py:5444
 msgid "User not found"
 msgstr "Користувача не знайдено"
 
-#: apps/web/views.py:5443
+#: apps/web/views.py:5446
 msgid "User already a member"
 msgstr "Користувач вже є учасником"
 
-#: apps/web/views.py:5461 apps/web/views.py:5486
+#: apps/web/views.py:5464 apps/web/views.py:5489
 msgid "Not a member"
 msgstr "Не є учасником"
 
-#: apps/web/views.py:5463
+#: apps/web/views.py:5466
 msgid "Transfer ownership first"
 msgstr "Спочатку передай право власності"
 
-#: apps/web/views.py:5468
+#: apps/web/views.py:5471
 msgid "Ownership transfer not supported here"
 msgstr "Передача права власності тут не підтримується"
 
-#: apps/web/views.py:5488
+#: apps/web/views.py:5491
 msgid "Cannot remove owner"
 msgstr "Не можна видалити власника"
 
-#: apps/web/views.py:5587
+#: apps/web/views.py:5590
 msgid "Invalid workspace"
 msgstr "Неправильний робочий простір"
 
-#: apps/web/views.py:5593
+#: apps/web/views.py:5596
 msgid "Workspace not accessible"
 msgstr "Робочий простір недоступний"
 
-#: apps/web/views.py:5597 apps/web/views.py:5701
+#: apps/web/views.py:5600 apps/web/views.py:5704
 msgid "Name is required"
 msgstr "Ім'я обов'язкове"
 
-#: apps/web/views.py:5599 apps/web/views.py:5703
+#: apps/web/views.py:5602 apps/web/views.py:5706
 msgid "Name too long"
 msgstr "Назва задовга"
 
-#: apps/web/views.py:5605
+#: apps/web/views.py:5608
 msgid "Slug prefix already used in this workspace"
 msgstr "Префікс slug вже використовується в цьому робочому просторі"
 
-#: apps/web/views.py:5615
+#: apps/web/views.py:5618
 msgid "Invalid lead"
 msgstr "Неправильний лід"
 
-#: apps/web/views.py:5709
+#: apps/web/views.py:5712
 msgid "Invalid slug"
 msgstr "Неправильний slug"
 
-#: apps/web/views.py:5711
+#: apps/web/views.py:5714
 msgid "Slug already taken"
 msgstr "Slug вже зайнятий"
 
-#: apps/web/views.py:5720
+#: apps/web/views.py:5723
 msgid "Cannot generate unique slug"
 msgstr "Не вдалось згенерувати унікальний slug"
 
@@ -1112,10 +1194,18 @@ msgid "For Cursor / Cline use the same URL and header in their MCP settings pane
 msgstr "Для Cursor / Cline використовуйте той самий URL і заголовок у їхній панелі налаштувань MCP. Обмеження — 60 запитів на хвилину на токен. Відкличте будь-який токен вище, щоб негайно припинити доступ."
 
 #: templates/accounts/settings.html:303
+msgid "Telegram notifications"
+msgstr "Сповіщення в Telegram"
+
+#: templates/accounts/settings.html:304
+msgid "Where Acta pings you when you're mentioned, assigned, or commented on."
+msgstr "Куди Acta пінгує вас при згадках, призначеннях і коментарях."
+
+#: templates/accounts/settings.html:310
 msgid "Session"
 msgstr "Сесія"
 
-#: templates/accounts/settings.html:309 templates/base_app.html:322
+#: templates/accounts/settings.html:316 templates/base_app.html:322
 msgid "Log out"
 msgstr "Вийти"
 
@@ -1220,6 +1310,43 @@ msgstr "Дії"
 #: templates/base_app.html:500 templates/web/_inbox_list.html:117
 msgid "Clear selection"
 msgstr "Зняти вибір"
+
+#: templates/telegram/_settings.html:21
+msgid "Connected"
+msgstr "Підключено"
+
+#: templates/telegram/_settings.html:23
+#, python-format
+msgid "linked %(d)s"
+msgstr "привʼязано %(d)s"
+
+#: templates/telegram/_settings.html:30
+msgid "Notifications on"
+msgstr "Сповіщення увімкнені"
+
+#: templates/telegram/_settings.html:30
+msgid "Muted"
+msgstr "Вимкнено"
+
+#: templates/telegram/_settings.html:36
+msgid "Disconnect"
+msgstr "Відключити"
+
+#: templates/telegram/_settings.html:43
+msgid "Get task notifications in Telegram instead of email. Open the bot and tap Start — this page updates automatically once you're connected."
+msgstr "Отримуйте сповіщення про задачі в Telegram замість пошти. Відкрийте бота й натисніть Start — сторінка оновиться сама після підключення."
+
+#: templates/telegram/_settings.html:47
+msgid "Connect Telegram"
+msgstr "Підключити Telegram"
+
+#: templates/telegram/_settings.html:50
+msgid "waiting for connection…"
+msgstr "очікую підключення…"
+
+#: templates/telegram/_settings.html:55
+msgid "Telegram isn't configured on this server yet — ask an admin to set the bot up."
+msgstr "Telegram ще не налаштовано на цьому сервері — попросіть адміна підключити бота."
 
 #: templates/web/_all_tasks_inner.html:31
 #: templates/web/projects/_list_panel.html:81

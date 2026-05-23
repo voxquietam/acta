@@ -87,6 +87,7 @@ LOCAL_APPS = [
     "apps.notifications",
     "apps.reactions",
     "apps.attachments",
+    "apps.telegram",
     "apps.web",
     "apps.mcp",
 ]
@@ -180,6 +181,16 @@ EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER") or ""
 EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD") or ""
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL") or (EMAIL_HOST_USER or "no-reply@actaspace.com")
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
+
+# Telegram bot — DM notification delivery (alternative to email, which
+# nobody reads). All env-supplied; absent token = integration off (the
+# settings UI shows a "not configured" state and nothing sends).
+#   TELEGRAM_BOT_TOKEN     — from @BotFather.
+#   TELEGRAM_BOT_USERNAME  — the bot's @handle (no @), for the t.me deep link.
+#   TELEGRAM_WEBHOOK_SECRET — random string; guards the webhook path + header.
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN") or ""
+TELEGRAM_BOT_USERNAME = os.environ.get("TELEGRAM_BOT_USERNAME") or ""
+TELEGRAM_WEBHOOK_SECRET = os.environ.get("TELEGRAM_WEBHOOK_SECRET") or ""
 
 # Public changelog link (sidebar version kicker). Override for forks.
 CHANGELOG_URL = os.environ.get("ACTA_CHANGELOG_URL") or "https://github.com/voxquietam/acta/blob/master/CHANGELOG.md"

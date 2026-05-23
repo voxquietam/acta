@@ -76,7 +76,24 @@ def notify(
         payload=payload or {},
     )
     _broadcast_notification(notification)
+    _mirror_to_telegram(notification)
     return notification
+
+
+def _mirror_to_telegram(notification) -> None:
+    """Fan a notification out to the recipient's Telegram chat, on commit.
+
+    Best-effort: the Telegram send (a network call) is deferred to
+    ``transaction.on_commit`` so a rolled-back transaction never DMs, and
+    the lazy import keeps notifications → telegram a runtime edge.
+    """
+
+    def _send():
+        from apps.telegram.services import notify_via_telegram
+
+        notify_via_telegram(notification)
+
+    transaction.on_commit(_send)
 
 
 def _unread_count(recipient_id: int) -> int:

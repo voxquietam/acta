@@ -31,6 +31,7 @@ urlpatterns = [
     # MCP HTTP transport — single endpoint, JSON-RPC over POST. See
     # apps/mcp/views.py for protocol notes; docs/mcp.md for client setup.
     path("mcp/", include("apps.mcp.urls", namespace="mcp")),
+    path("telegram/", include("apps.telegram.urls", namespace="telegram")),
     # Real-time SSE — one stream per workspace. See ADR 0015. The
     # channel name is templated from the URL kwarg so a client
     # connecting to ``/events/workspace/3`` subscribes to the

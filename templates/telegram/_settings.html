@@ -1,0 +1,58 @@
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+Telegram connection state for the settings page. Self-replacing
+(``outerHTML``): while unlinked + the bot is configured it HTMX-polls
+``telegram:status`` every 4s, so completing the link in Telegram flips
+this card to "connected" without a manual refresh. Once linked the
+swapped-in markup carries no poll trigger, so polling stops. Expects
+``telegram_account`` + ``telegram_link_url``.
+{% endcomment %}
+<div id="telegram-settings"
+     {% if not telegram_account and telegram_link_url %}hx-get="{% url 'telegram:status' %}" hx-trigger="every 4s" hx-swap="outerHTML"{% endif %}>
+
+  {% if telegram_account %}
+  <div class="flex items-center gap-3">
+    <span class="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-cyan-500/15 text-cyan-400">
+      {% lucide "send" "w-4 h-4" %}
+    </span>
+    <div class="min-w-0 flex-1">
+      <div class="text-sm text-foreground">
+        {% trans "Connected" %}{% if telegram_account.username %} · <span class="text-muted-foreground">@{{ telegram_account.username }}</span>{% endif %}
+      </div>
+      <div class="text-[11px] text-placeholder-foreground">{% blocktrans with d=telegram_account.linked_at|date:"M j, Y" %}linked {{ d }}{% endblocktrans %}</div>
+    </div>
+    <form hx-post="{% url 'telegram:toggle' %}" hx-target="#telegram-settings" hx-swap="outerHTML" class="shrink-0">
+      {% csrf_token %}
+      <button type="submit"
+              class="text-xs px-3 py-1.5 rounded-md border transition
+                {% if telegram_account.enabled %}border-emerald-500/40 text-emerald-400{% else %}border-border text-placeholder-foreground{% endif %}">
+        {% if telegram_account.enabled %}{% trans "Notifications on" %}{% else %}{% trans "Muted" %}{% endif %}
+      </button>
+    </form>
+    <form hx-post="{% url 'telegram:disconnect' %}" hx-target="#telegram-settings" hx-swap="outerHTML" class="shrink-0">
+      {% csrf_token %}
+      <button type="submit" class="text-xs px-3 py-1.5 rounded-md border border-border text-subtle-foreground hover:text-rose-400 hover:border-rose-400/40 transition">
+        {% trans "Disconnect" %}
+      </button>
+    </form>
+  </div>
+
+  {% elif telegram_link_url %}
+  <p class="text-xs text-placeholder-foreground mb-3">
+    {% trans "Get task notifications in Telegram instead of email. Open the bot and tap Start — this page updates automatically once you're connected." %}
+  </p>
+  <a href="{{ telegram_link_url }}" target="_blank" rel="noopener"
+     class="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md bg-brand-600 hover:bg-brand-500 text-white">
+    {% lucide "send" "w-3.5 h-3.5" %}{% trans "Connect Telegram" %}
+  </a>
+  <span class="ml-2 inline-flex items-center gap-1 text-[11px] text-placeholder-foreground">
+    <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>{% trans "waiting for connection…" %}
+  </span>
+
+  {% else %}
+  <p class="text-xs text-placeholder-foreground italic">
+    {% trans "Telegram isn't configured on this server yet — ask an admin to set the bot up." %}
+  </p>
+  {% endif %}
+</div>

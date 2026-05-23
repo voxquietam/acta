@@ -295,6 +295,13 @@
     </details>
   </section>
 
+  {# ----- Telegram section ----- #}
+  <section class="bg-card border border-border rounded-lg p-4">
+    <h2 class="text-sm font-medium text-foreground mb-1">{% trans "Telegram notifications" %}</h2>
+    <p class="text-[11px] text-placeholder-foreground mb-3">{% trans "Where Acta pings you when you're mentioned, assigned, or commented on." %}</p>
+    {% include "telegram/_settings.html" %}
+  </section>
+
   {# ----- Session section ----- #}
   <section class="bg-card border border-border rounded-lg p-4">
     <h2 class="text-sm font-medium text-foreground mb-3">{% trans "Session" %}</h2>

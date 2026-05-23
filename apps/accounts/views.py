@@ -202,6 +202,8 @@ def user_settings(request):
     # the plain token, shown ONCE on redirect back here, then cleared.
     created_secret = request.session.pop("created_api_token_secret", None)
     created_name = request.session.pop("created_api_token_name", None)
+    from apps.telegram.services import link_deep_link
+
     return render(
         request,
         "accounts/settings.html",
@@ -210,6 +212,8 @@ def user_settings(request):
             "api_tokens": list(user.api_tokens.order_by("revoked_at", "-created_at")),
             "created_api_token_secret": created_secret,
             "created_api_token_name": created_name,
+            "telegram_account": getattr(user, "telegram", None),
+            "telegram_link_url": link_deep_link(user),
         },
     )
 
