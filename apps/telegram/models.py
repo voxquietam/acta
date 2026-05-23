@@ -51,6 +51,47 @@ class TelegramAccount(models.Model):
         return f"{self.user} ↔ {handle}"
 
 
+class TelegramMessageTemplate(models.Model):
+    """Admin-editable wording for the Telegram DM of one notification kind.
+
+    When a row exists for a kind, its ``body`` (with ``{placeholder}``
+    tokens) replaces the built-in default text for that kind's outbound
+    message. Kinds without a row keep the localized default. Lets an admin
+    tune phrasing without code. See
+    :func:`apps.telegram.services._format_notification`.
+
+    Available placeholders: ``{actor}`` (who triggered it), ``{task}``
+    (task ref, linked when a public URL is set), ``{slug}`` (plain task
+    ref), ``{title}`` (task title), ``{preview}`` (the short snippet).
+    Unknown placeholders are left as-is. Basic HTML is allowed (``<b>``,
+    ``<a>``) — Telegram parses it; placeholder values are auto-escaped.
+    """
+
+    kind = models.CharField(
+        max_length=20,
+        unique=True,
+        help_text="Notification kind this template applies to (one row per kind)",
+    )
+    body = models.TextField(
+        help_text=(
+            "Message text with {placeholder} tokens: {actor} {task} {slug} {title} {preview}. "
+            "Empty falls back to the built-in default for this kind"
+        ),
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="When the template was last edited",
+    )
+
+    class Meta:
+        verbose_name = _("Telegram message template")
+        verbose_name_plural = _("Telegram message templates")
+
+    def __str__(self) -> str:
+        """Return the kind this template customises."""
+        return f"telegram template · {self.kind}"
+
+
 class TelegramLinkToken(models.Model):
     """A short one-use token that ties a ``/start`` deep link to a user.
 

@@ -91,6 +91,48 @@ class TestNotifyHookFiresOnCommit:
 
 
 @pytest.mark.django_db
+class TestMessageTemplates:
+
+    def _notif(self):
+        ws = WorkspaceFactory()
+        project = ProjectFactory(workspace=ws)
+        task = TaskFactory(project=project)
+        actor = UserFactory()
+        return (
+            Notification.objects.create(
+                recipient=UserFactory(),
+                actor=actor,
+                workspace=ws,
+                kind=Notification.Kind.ASSIGNED,
+                task=task,
+                preview="snippet",
+            ),
+            actor,
+            task,
+        )
+
+    def test_custom_template_overrides_default(self):
+        from apps.telegram.models import TelegramMessageTemplate
+
+        n, actor, task = self._notif()
+        TelegramMessageTemplate.objects.create(kind=Notification.Kind.ASSIGNED, body="🔔 {actor} → {slug}: {title}")
+        out = tg._format_notification(n)
+        assert out == f"🔔 {actor.display_name} → {task.slug}: {task.title}"
+
+    def test_unknown_placeholder_left_as_is(self):
+        from apps.telegram.models import TelegramMessageTemplate
+
+        n, _actor, _task = self._notif()
+        TelegramMessageTemplate.objects.create(kind=Notification.Kind.ASSIGNED, body="hi {bogus}")
+        assert tg._format_notification(n) == "hi {bogus}"
+
+    def test_falls_back_to_default_without_template(self):
+        n, _actor, task = self._notif()
+        out = tg._format_notification(n)
+        assert task.slug in out  # default format still renders the task
+
+
+@pytest.mark.django_db
 class TestToggleView:
 
     def test_toggle_flips_enabled(self, client):

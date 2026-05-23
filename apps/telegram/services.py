@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import datetime
 import logging
+import re
 import secrets
 
 from django.conf import settings
@@ -23,7 +24,9 @@ from django.utils.html import escape
 from django.utils.translation import gettext as _
 
 from . import client
-from .models import TelegramAccount, TelegramLinkToken
+from .models import TelegramAccount, TelegramLinkToken, TelegramMessageTemplate
+
+_PLACEHOLDER_RE = re.compile(r"\{(\w+)\}")
 
 logger = logging.getLogger(__name__)
 
@@ -165,14 +168,44 @@ def _task_url(task) -> str | None:
     return base.rstrip("/") + path
 
 
+def _template_context(notification) -> dict:
+    """Build the escaped ``{placeholder}`` values for a notification."""
+    actor = notification.actor.display_name if notification.actor else _("Someone")
+    task = notification.task
+    slug = task.slug if task is not None else ""
+    url = _task_url(task) if task is not None else None
+    task_ref = (f'<a href="{url}">{escape(slug)}</a>' if url else escape(slug)) if slug else ""
+    return {
+        "actor": escape(actor),
+        "slug": escape(slug),
+        "task": task_ref,
+        "title": escape(task.title) if task is not None else "",
+        "preview": escape(notification.preview[:200]) if notification.preview else "",
+    }
+
+
+def _render_template(body: str, context: dict) -> str:
+    """Substitute ``{key}`` tokens from ``context``; leave unknown ones as-is.
+
+    Regex-based (not ``str.format``) so a stray brace or unknown placeholder
+    in admin-entered text never raises.
+    """
+    return _PLACEHOLDER_RE.sub(lambda m: context.get(m.group(1), m.group(0)), body)
+
+
 def _format_notification(notification) -> str:
     """Render a notification as a compact HTML message for Telegram.
 
-    Mirrors the inbox phrasing per ``kind``: a bold headline, the task
-    (linked when a public base URL is configured), and the preview snippet.
+    Uses an admin-edited :class:`TelegramMessageTemplate` for the kind when
+    one exists; otherwise the built-in localized default (a bold headline,
+    the task linked when a public base URL is set, and the preview).
     Assumes the caller has activated the recipient's language.
     """
     from apps.notifications.models import Notification
+
+    custom = TelegramMessageTemplate.objects.filter(kind=notification.kind).first()
+    if custom is not None and custom.body.strip():
+        return _render_template(custom.body, _template_context(notification))
 
     actor = notification.actor.display_name if notification.actor else _("Someone")
     kind = notification.kind
