@@ -284,6 +284,25 @@ class TestProjectUpdateContext:
 
 
 @pytest.mark.django_db
+class TestCycleContext:
+    """{cycle} placeholder carries the cycle event headline from the payload."""
+
+    def test_cycle_placeholder_from_payload(self):
+        from apps.telegram.models import TelegramMessageTemplate
+
+        ws = WorkspaceFactory()
+        n = Notification.objects.create(
+            recipient=UserFactory(),
+            workspace=ws,
+            kind=Notification.Kind.CYCLE,
+            preview="Runs May 1 – May 14",
+            payload={"title": "Cycle 5 started", "event": "started"},
+        )
+        TelegramMessageTemplate.objects.create(kind=Notification.Kind.CYCLE, body="🔁 <b>{cycle}</b>\n{preview}")
+        assert tg._format_notification(n) == "🔁 <b>Cycle 5 started</b>\nRuns May 1 – May 14"
+
+
+@pytest.mark.django_db
 class TestStatusContext:
     """{status} / {status_from} / {status_to} / {status_change} placeholders."""
 

@@ -404,6 +404,7 @@ def _template_context(notification) -> dict:
         "due_change": _due_change(payload),
         "project": escape(project_name),
         "health": health,
+        "cycle": escape(str(payload.get("title") or "")),
     }
 
 
