@@ -213,6 +213,13 @@ class TestChips:
         assert tg._status_chip("") == ""
         assert tg._status_chip("bogus") == ""
 
+    def test_priority_chip_show_none(self):
+        from apps.tasks.models import Task
+
+        assert tg._priority_chip(Task.NO_PRIORITY) == ""
+        assert tg._priority_chip(Task.NO_PRIORITY, show_none=True) == "⚪ No priority"
+        assert tg._priority_chip(Task.URGENT, show_none=True) == "🔴 Urgent"
+
 
 @pytest.mark.django_db
 class TestStatusContext:
@@ -254,6 +261,42 @@ class TestStatusContext:
         n.task.refresh_from_db()
         TelegramMessageTemplate.objects.create(kind=Notification.Kind.STATUS_CHANGE, body="{status}")
         assert tg._format_notification(n) == "🟠 In review"
+
+
+@pytest.mark.django_db
+class TestPriorityChangeContext:
+    """{priority_from} / {priority_to} / {priority_change} placeholders."""
+
+    def _prio_notif(self, payload):
+        ws = WorkspaceFactory()
+        project = ProjectFactory(workspace=ws)
+        task = TaskFactory(project=project)
+        return Notification.objects.create(
+            recipient=UserFactory(),
+            actor=UserFactory(),
+            workspace=ws,
+            kind=Notification.Kind.PRIORITY_CHANGE,
+            task=task,
+            payload=payload,
+        )
+
+    def test_priority_transition_shows_no_priority(self):
+        from apps.tasks.models import Task
+        from apps.telegram.models import TelegramMessageTemplate
+
+        n = self._prio_notif({"from": Task.NO_PRIORITY, "to": Task.URGENT})
+        TelegramMessageTemplate.objects.create(kind=Notification.Kind.PRIORITY_CHANGE, body="{priority_change}")
+        assert tg._format_notification(n) == "⚪ No priority → 🔴 Urgent"
+
+    def test_priority_to_and_from(self):
+        from apps.tasks.models import Task
+        from apps.telegram.models import TelegramMessageTemplate
+
+        n = self._prio_notif({"from": Task.LOW, "to": Task.HIGH})
+        TelegramMessageTemplate.objects.create(
+            kind=Notification.Kind.PRIORITY_CHANGE, body="{priority_from}|{priority_to}"
+        )
+        assert tg._format_notification(n) == "🔵 Low|🟠 High"
 
 
 @pytest.mark.django_db

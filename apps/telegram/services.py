@@ -233,8 +233,13 @@ _PRIORITY_EMOJI = {
 }
 
 
-def _priority_chip(priority) -> str:
-    """Return a localized ``emoji Label`` priority chip, ``""`` for no priority."""
+def _priority_chip(priority, *, show_none: bool = False) -> str:
+    """Return a localized ``emoji Label`` priority chip.
+
+    Empty for ``NO_PRIORITY`` by default (so it adds no noise to the assigned
+    meta line). ``show_none=True`` renders ``⚪ No priority`` instead — wanted
+    when displaying a priority *change* to/from "no priority".
+    """
     from apps.tasks.models import Task
 
     labels = {
@@ -244,7 +249,11 @@ def _priority_chip(priority) -> str:
         Task.LOW: _("Low"),
     }
     label = labels.get(priority)
-    return f"{_PRIORITY_EMOJI[priority]} {label}" if label else ""
+    if label:
+        return f"{_PRIORITY_EMOJI[priority]} {label}"
+    if show_none and priority == Task.NO_PRIORITY:
+        return f"⚪ {_('No priority')}"
+    return ""
 
 
 # Status key → dot emoji, tracking the kanban palette. Cyan (ready) has no
@@ -303,6 +312,9 @@ def _template_context(notification) -> dict:
     status_to = _status_chip(payload.get("to") or (task.status if task is not None else ""))
     status_from = _status_chip(payload.get("from"))
     status_change = f"{status_from} → {status_to}" if status_from and status_to else status_to
+    priority_from = _priority_chip(payload.get("from"), show_none=True)
+    priority_to = _priority_chip(payload.get("to"), show_none=True)
+    priority_change = f"{priority_from} → {priority_to}" if priority_from and priority_to else priority_to
     return {
         "actor": escape(actor),
         "slug": escape(slug),
@@ -317,6 +329,9 @@ def _template_context(notification) -> dict:
         "status_from": status_from,
         "status_to": status_to,
         "status_change": status_change,
+        "priority_from": priority_from,
+        "priority_to": priority_to,
+        "priority_change": priority_change,
     }
 
 
