@@ -236,6 +236,52 @@ class TestChips:
     def test_due_change_empty_payload(self):
         assert tg._due_change({}) == ""
 
+    def test_health_chip(self):
+        assert tg._health_chip("on_track") == "🟢 On track"
+        assert tg._health_chip("off_track") == "🔴 Off track"
+        assert tg._health_chip("") == ""
+
+
+@pytest.mark.django_db
+class TestProjectUpdateContext:
+    """{project} / {health} placeholders for project-update DMs."""
+
+    def test_project_and_health_placeholders(self):
+        from apps.projects.tests.factories import ProjectFactory, ProjectUpdateFactory
+        from apps.telegram.models import TelegramMessageTemplate
+
+        ws = WorkspaceFactory()
+        project = ProjectFactory(workspace=ws, name="Website")
+        update = ProjectUpdateFactory(project=project, health="at_risk", body="shipping slipped")
+        n = Notification.objects.create(
+            recipient=UserFactory(),
+            actor=UserFactory(),
+            workspace=ws,
+            kind=Notification.Kind.PROJECT_UPDATE,
+            project_update=update,
+            preview="shipping slipped",
+        )
+        TelegramMessageTemplate.objects.create(
+            kind=Notification.Kind.PROJECT_UPDATE, body="{project} {health}\n{quote}"
+        )
+        out = tg._format_notification(n)
+        assert "Website" in out
+        assert "🟡 At risk" in out
+        assert "<blockquote expandable>shipping slipped</blockquote>" in out
+
+    def test_project_resolves_from_task_when_no_update(self):
+        from apps.projects.tests.factories import ProjectFactory
+        from apps.telegram.models import TelegramMessageTemplate
+
+        ws = WorkspaceFactory()
+        project = ProjectFactory(workspace=ws, name="Mobile")
+        task = TaskFactory(project=project)
+        n = Notification.objects.create(
+            recipient=UserFactory(), actor=UserFactory(), workspace=ws, kind=Notification.Kind.COMMENT, task=task
+        )
+        TelegramMessageTemplate.objects.create(kind=Notification.Kind.COMMENT, body="{project}")
+        assert tg._format_notification(n) == "Mobile"
+
 
 @pytest.mark.django_db
 class TestStatusContext:

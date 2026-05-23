@@ -277,6 +277,23 @@ def _status_chip(status_key) -> str:
     return f"{_STATUS_EMOJI.get(status_key, '⚪')} {label}" if label else ""
 
 
+# Project-update health key → dot emoji, tracking the health-pill palette.
+_HEALTH_EMOJI = {
+    "on_track": "🟢",
+    "at_risk": "🟡",
+    "off_track": "🔴",
+    "completed": "✅",
+}
+
+
+def _health_chip(health) -> str:
+    """Return a localized ``<emoji> Label`` project-health chip, ``""`` if unknown."""
+    from apps.projects.models import ProjectUpdate
+
+    label = dict(ProjectUpdate.HEALTH_CHOICES).get(health) if health else None
+    return f"{_HEALTH_EMOJI.get(health, '')} {label}".strip() if label else ""
+
+
 def _due_chip(due) -> str:
     """Return a localized ``📅 due <date>`` chip, ``""`` when there's no date."""
     if not due:
@@ -357,6 +374,14 @@ def _template_context(notification) -> dict:
     priority_change = f"{priority_from} → {priority_to}" if priority_from and priority_to else priority_to
     due_from = _due_date(payload.get("from"))
     due_to = _due_date(payload.get("to"))
+    update = notification.project_update if notification.project_update_id else None
+    if update is not None:
+        project_name = update.project.name
+    elif task is not None:
+        project_name = task.project.name
+    else:
+        project_name = ""
+    health = _health_chip(update.health) if update is not None else ""
     return {
         "actor": escape(actor),
         "slug": escape(slug),
@@ -377,6 +402,8 @@ def _template_context(notification) -> dict:
         "due_from": due_from,
         "due_to": due_to,
         "due_change": _due_change(payload),
+        "project": escape(project_name),
+        "health": health,
     }
 
 
