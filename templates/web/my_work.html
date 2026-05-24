@@ -1,11 +1,23 @@
 {% extends "base_app.html" %}
 {% load i18n %}
 {% load web_extras %}
+{% load lucide %}
 
 {% block title %}{% trans "My Work" %} · Acta{% endblock %}
 
 {% block topbar_left %}
 <h1 class="text-base font-medium text-muted-foreground">{% trans "My Work" %}</h1>
+{% endblock %}
+
+{% block topbar_right_prepend %}
+<button type="button"
+        @click="window.location.href = '{% url 'web:export_my_work_json' %}' + window.location.search"
+        data-tooltip="{% trans 'Export filtered tasks as JSON' %}"
+        data-tooltip-pos="below"
+        aria-label="{% trans 'Export JSON' %}"
+        class="grid place-items-center p-1.5 rounded-md text-placeholder-foreground hover:bg-muted hover:text-foreground">
+  {% lucide "download" "w-4 h-4" %}
+</button>
 {% endblock %}
 
 {% block app_main %}

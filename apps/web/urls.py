@@ -31,6 +31,10 @@ from .views import (
     delete_task,
     edit_comment,
     edit_project_update,
+    export_all_tasks_json,
+    export_my_work_json,
+    export_project_overview_json,
+    export_project_tasks_json,
     inbox_update_preview,
     mention_search,
     open_notification,
@@ -90,6 +94,7 @@ app_name = "web"
 urlpatterns = [
     path("", DashboardView.as_view(), name="dashboard"),
     path("my-work/", MyWorkView.as_view(), name="my_work"),
+    path("my-work/export.json", export_my_work_json, name="export_my_work_json"),
     path("my-activity/", MyActivityView.as_view(), name="my_activity"),
     path("inbox/", InboxView.as_view(), name="inbox"),
     path("inbox/bulk/", bulk_notifications, name="notifications_bulk"),
@@ -99,6 +104,7 @@ urlpatterns = [
     path("inbox/<int:pk>/read/", set_notification_read, name="notification_read"),
     path("inbox/<int:pk>/archive/", archive_notification, name="notification_archive"),
     path("tasks/", AllTasksView.as_view(), name="all_tasks"),
+    path("tasks/export.json", export_all_tasks_json, name="export_all_tasks_json"),
     path("cycles/", cycles_overview, name="cycles_overview"),
     path("tasks/new/", create_task, name="create_task"),
     path("tasks/bulk-menu/", bulk_context_menu, name="bulk_context_menu"),
@@ -152,6 +158,16 @@ urlpatterns = [
     path("projects/", ProjectListView.as_view(), name="project_list"),
     path("projects/new/", create_project, name="create_project"),
     path("projects/<str:slug_prefix>/", ProjectDetailView.as_view(), name="project_detail"),
+    path(
+        "projects/<str:slug_prefix>/export-tasks.json",
+        export_project_tasks_json,
+        name="export_project_tasks_json",
+    ),
+    path(
+        "projects/<str:slug_prefix>/export-overview.json",
+        export_project_overview_json,
+        name="export_project_overview_json",
+    ),
     path(
         "projects/<str:slug_prefix>/mention-search/",
         mention_search,

@@ -1,5 +1,6 @@
 {% extends "base_app.html" %}
 {% load i18n %}
+{% load lucide %}
 
 {% block title %}{{ project.slug_prefix }} · {{ project.name }} · Acta{% endblock %}
 
@@ -16,6 +17,21 @@
 
 {% block topbar_mid %}
 {% include "web/projects/_view_tabs.html" with allow_overview=True %}
+{% endblock %}
+
+{% block topbar_right_prepend %}
+<button type="button"
+        @click="window.location.href = ($store.viewMode.current === 'overview'
+          ? '{% url 'web:export_project_overview_json' project.slug_prefix %}'
+          : '{% url 'web:export_project_tasks_json' project.slug_prefix %}' + window.location.search)"
+        :data-tooltip="$store.viewMode.current === 'overview'
+          ? '{% trans 'Export overview as JSON' %}'
+          : '{% trans 'Export filtered tasks as JSON' %}'"
+        data-tooltip-pos="below"
+        aria-label="{% trans 'Export JSON' %}"
+        class="grid place-items-center p-1.5 rounded-md text-placeholder-foreground hover:bg-muted hover:text-foreground">
+  {% lucide "download" "w-4 h-4" %}
+</button>
 {% endblock %}
 
 {% block app_main %}

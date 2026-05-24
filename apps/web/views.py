@@ -8,7 +8,7 @@ endpoints (or from `/api/v1/...` for JSON-only consumers).
 import datetime
 import json
 import re
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
@@ -50,6 +50,7 @@ from apps.reactions.services import TARGET_TYPES, attach_reactions, summarize_re
 from apps.tasks.events import broadcast_link_change, broadcast_task_events, emit_task_diff_events, snapshot_task
 from apps.tasks.metrics import compute_bottlenecks, compute_cfd, compute_flow_metrics
 from apps.tasks.models import Task
+from apps.web.exports import serialize_project_overview, serialize_tasks
 from apps.web.filters import (
     SORTABLE_COLUMNS,
     apply_task_filters,
@@ -361,7 +362,7 @@ def _my_work_tasks(user, params, workspace):
         .filter(
             Q(status__in=_OPEN_STATUSES) | Q(status=Task.STATUS_DONE, updated_at__gte=done_cutoff),
         )
-        .select_related("project__workspace", "assignee", "reporter")
+        .select_related("project__workspace", "assignee", "reporter", "parent__project")
         .prefetch_related("labels", "blocks", "blocked_by")
     )
     base = apply_task_filters(base, params, request_user=user)
@@ -5795,3 +5796,120 @@ def _create_workspace_post(request):
         }
     )
     return response
+
+
+# -----------------------------------------------------------------------------
+# JSON export — download the current filtered view
+# -----------------------------------------------------------------------------
+
+
+def _json_download(payload, filename):
+    """Build an attachment ``HttpResponse`` carrying pretty-printed JSON.
+
+    Args:
+        payload: A JSON-serializable object.
+        filename: The download filename (RFC 5987 encoded in the header).
+
+    Returns:
+        An ``HttpResponse`` with ``application/json`` + a
+        ``Content-Disposition: attachment`` header.
+    """
+    response = HttpResponse(
+        json.dumps(payload, indent=2, ensure_ascii=False, default=str),
+        content_type="application/json; charset=utf-8",
+    )
+    response["Content-Disposition"] = f"attachment; filename*=UTF-8''{quote(filename)}"
+    return response
+
+
+def _export_tasks_payload(tasks, *, scope):
+    """Wrap a serialized task list with export metadata.
+
+    Args:
+        tasks: An iterable of :class:`~apps.tasks.models.Task` (filtered + ordered).
+        scope: A short label describing what was exported (workspace or project name).
+
+    Returns:
+        A dict with ``scope`` / ``exported_at`` / ``count`` / ``tasks``.
+    """
+    serialized = serialize_tasks(tasks, include_comments=True)
+    return {
+        "scope": scope,
+        "exported_at": timezone.now().isoformat(),
+        "count": len(serialized),
+        "tasks": serialized,
+    }
+
+
+@login_required
+def export_all_tasks_json(request):
+    """Download the All Tasks view (active workspace + querystring filters) as JSON.
+
+    Mirrors :class:`AllTasksView.get_queryset` — same active-workspace
+    scope, ``apply_task_filters``, and ordering — so the file matches what
+    the page shows. Adds ``reporter`` + ``parent__project`` joins the lean
+    table queryset omits, keeping the export N+1-free.
+    """
+    active = resolve_active_workspace(request)
+    if active is None:
+        return _json_download(_export_tasks_payload([], scope=None), "acta-tasks.json")
+    qs = _user_task_qs(request.user).select_related("reporter", "parent__project").filter(project__workspace=active)
+    params = _params_with_archive_cookie(request)
+    qs = apply_task_filters(qs, params, request_user=request.user)
+    qs = apply_task_ordering(qs, params)
+    filename = f"acta-tasks-{timezone.now():%Y%m%d}.json"
+    return _json_download(_export_tasks_payload(list(qs), scope=active.name), filename)
+
+
+@login_required
+def export_my_work_json(request):
+    """Download the My Work view (assigned, querystring-filtered) as JSON.
+
+    Reuses :func:`_my_work_tasks` so the export reflects the same
+    recently-done window, assignee scope, and ordering as the page.
+    """
+    active = resolve_active_workspace(request)
+    params = _params_with_archive_cookie(request)
+    tasks = _my_work_tasks(request.user, params, active)
+    filename = f"acta-my-work-{timezone.now():%Y%m%d}.json"
+    return _json_download(_export_tasks_payload(tasks, scope=active.name if active else None), filename)
+
+
+def _project_for_export(request, slug_prefix):
+    """Resolve a project by slug for export, enforcing membership (404 otherwise)."""
+    return get_object_or_404(
+        Project.objects.filter(
+            slug_prefix=slug_prefix,
+            workspace__memberships__user=request.user,
+        ).select_related("workspace", "lead"),
+    )
+
+
+@login_required
+def export_project_tasks_json(request, slug_prefix):
+    """Download a project's task list (querystring-filtered) as JSON.
+
+    Mirrors :class:`ProjectDetailView`'s table queryset — same filters and
+    ordering — scoped to the one project.
+    """
+    project = _project_for_export(request, slug_prefix)
+    qs = (
+        Task.objects.filter(project=project)
+        .select_related("project__workspace", "assignee", "reporter", "parent__project")
+        .prefetch_related("labels")
+    )
+    params = _params_with_archive_cookie(request)
+    qs = apply_task_filters(qs, params, request_user=request.user)
+    qs = apply_task_ordering(qs, params)
+    filename = f"acta-{project.slug_prefix}-tasks-{timezone.now():%Y%m%d}.json"
+    return _json_download(_export_tasks_payload(list(qs), scope=project.name), filename)
+
+
+@login_required
+def export_project_overview_json(request, slug_prefix):
+    """Download a project's overview (description + updates + comments) as JSON."""
+    project = _project_for_export(request, slug_prefix)
+    payload = serialize_project_overview(project, viewer_id=request.user.id)
+    payload["exported_at"] = timezone.now().isoformat()
+    filename = f"acta-{project.slug_prefix}-overview-{timezone.now():%Y%m%d}.json"
+    return _json_download(payload, filename)
