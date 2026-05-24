@@ -72,6 +72,7 @@ from .views import (
     task_context_menu,
     task_description_fragment,
     task_link_search,
+    task_links_fragment,
     task_meta_compact_fragment,
     task_meta_fragment,
     task_row_fragment,
@@ -327,6 +328,11 @@ urlpatterns = [
         "projects/<str:slug_prefix>/<int:number>/links/search/",
         task_link_search,
         name="task_link_search",
+    ),
+    path(
+        "projects/<str:slug_prefix>/<int:number>/links/",
+        task_links_fragment,
+        name="task_links_fragment",
     ),
     path(
         "projects/<str:slug_prefix>/<int:number>/links/add/",

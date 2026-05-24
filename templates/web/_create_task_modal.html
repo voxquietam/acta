@@ -76,6 +76,15 @@ x-data="{
              value="{{ pre_title|default:'' }}"
              class="mt-1 acta-input"
              placeholder="{% trans 'What needs to be done?' %}">
+      {% if link_related_task %}
+      {# Carried from "Create task from comment / selection": the new task #}
+      {# is linked as a related task to this origin on save. #}
+      <input type="hidden" name="link_related" value="{{ link_related_task.slug }}">
+      <p class="mt-1 text-[11px] text-placeholder-foreground flex items-center gap-1">
+        {% lucide "link" "w-3 h-3" %}
+        {% blocktrans with slug=link_related_task.slug title=link_related_task.title %}Links to {{ slug }} · {{ title }}{% endblocktrans %}
+      </p>
+      {% endif %}
     </div>
 
     <div>

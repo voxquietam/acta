@@ -2951,6 +2951,19 @@ def _links_panel_response(request, task):
 
 
 @login_required
+def task_links_fragment(request, slug_prefix, number):
+    """Re-render the links panel for a live refresh.
+
+    Used when a link changes outside the panel's own add / remove forms —
+    e.g. "Create task from comment" links the new task server-side, then
+    fires ``acta:link-changed`` so the panel (which listens for it)
+    refetches and shows the freshly linked task without a page reload.
+    """
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    return _links_panel_response(request, task)
+
+
+@login_required
 def task_link_search(request, slug_prefix, number):
     """Typeahead search for the link-target picker.
 
@@ -4881,6 +4894,12 @@ def _create_task_get(request):
         except (TypeError, ValueError):
             continue
     pre_label_ids = {label.id for label in labels if label.id in requested_label_ids}
+    # ``link_related`` (a PREFIX-NUMBER slug) opts the new task into being
+    # linked as a related task to an origin — set by "Create task from
+    # comment" / "Create task from selection". Resolve it now so the modal
+    # can show which task it'll link to (and skip silently if it doesn't
+    # resolve to a task the user can see).
+    link_related_task = _resolve_link_target(request.user, request.GET.get("link_related") or "")
     return HttpResponse(
         render_to_string(
             "web/_create_task_modal.html",
@@ -4896,6 +4915,7 @@ def _create_task_get(request):
                 "pre_description": pre_description,
                 "pre_due_date": pre_due_date,
                 "pre_label_ids": pre_label_ids,
+                "link_related_task": link_related_task,
                 "status_labels": Task.STATUS_LABELS,
                 "priority_labels": dict(Task.PRIORITY_CHOICES),
             },
@@ -5010,7 +5030,32 @@ def _create_task_post(request):
             target_id=task.id,
             payload={"title": task.title, "status": task.status},
         )
+        # "Create task from comment / selection" passes ``link_related``;
+        # link the fresh task to the origin as a related (symmetric) task,
+        # recording the link on the origin's timeline. Skipped when the
+        # slug doesn't resolve to a visible task or points at itself.
+        origin = _resolve_link_target(request.user, (request.POST.get("link_related") or "").strip())
+        linked = origin is not None and origin.pk != task.pk
+        if linked:
+            task.related.add(origin)
+            broadcast_link_change(
+                task=origin,
+                target=task,
+                event_type="task.link_added",
+                payload={"kind": "related", "target_slug": task.slug, "target_title": task.title},
+                actor=request.user,
+            )
     detail_url = f"/projects/{project.slug_prefix}/{task.number}/"
+    # ``acta:link-changed`` makes the origin's links panel + activity log
+    # refetch live (they have no SSE subscription; the modal returns 204).
+    # Fire it FIRST and via JSON: the modal closes on ``acta:task-created``
+    # by emptying ``#modal-root`` (detaching the form HTMX dispatches these
+    # events on), so anything after that no longer bubbles to ``body``.
+    # JSON also avoids the ambiguous comma-separated parse.
+    if linked:
+        created_trigger = json.dumps({"acta:link-changed": True, "acta:task-created": True})
+    else:
+        created_trigger = "acta:task-created"
     response = HttpResponse(status=204)
     open_after = request.POST.get("open_after_create") == "1"
     if open_after:
@@ -5020,7 +5065,7 @@ def _create_task_post(request):
         # closes the modal; the panel-refetch it also triggers on the
         # current page is harmless here since ``#app-content`` (panels
         # included) is being replaced wholesale by the swap.
-        response["HX-Trigger"] = "acta:task-created"
+        response["HX-Trigger"] = created_trigger
         response["HX-Location"] = json.dumps(
             {
                 "path": detail_url,
@@ -5035,7 +5080,7 @@ def _create_task_post(request):
         # refresh its task list. Connected HTMX listeners on
         # ``acta:task-created`` re-fetch their fragment; the modal
         # picks up the same event and closes itself.
-        response["HX-Trigger"] = "acta:task-created"
+        response["HX-Trigger"] = created_trigger
     return response
 
 

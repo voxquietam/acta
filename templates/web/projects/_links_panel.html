@@ -7,6 +7,9 @@ swap it outer-HTML. Status dot on each linked task: red ring on a
 blocker that's still open (the thing actually blocking this task).
 {% endcomment %}
 <div id="task-links" class="bg-card border border-border rounded-lg p-4 mt-4 space-y-3"
+     hx-get="{% url 'web:task_links_fragment' slug_prefix=task.project.slug_prefix number=task.number %}"
+     hx-trigger="acta:link-changed from:body"
+     hx-swap="outerHTML"
      x-data="{
        adding: false,
        kind: 'related',

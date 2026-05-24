@@ -10,10 +10,23 @@ then either refreshes the task timeline (task: ``hx-swap=none`` → OOB) or
 removes the card (update: target the card, empty response). Expects
 ``comment`` (with ``can_modify``) + ``is_task``.
 {% endcomment %}
-{% if comment.can_modify %}
-<div class="flex items-center gap-0.5 max-w-0 opacity-0 overflow-hidden transition-all duration-200 ease-out group-hover:max-w-[10rem] group-hover:opacity-100 group-hover:ml-1.5 focus-within:max-w-[10rem] focus-within:opacity-100 focus-within:ml-1.5"
-     :class="confirming && '!max-w-[10rem] !opacity-100 !ml-1.5'"
+{% if is_task or comment.can_modify %}
+<div class="flex items-center gap-0.5 max-w-0 opacity-0 overflow-hidden transition-all duration-200 ease-out group-hover:max-w-[12rem] group-hover:opacity-100 group-hover:ml-1.5 focus-within:max-w-[12rem] focus-within:opacity-100 focus-within:ml-1.5"
+     :class="confirming && '!max-w-[12rem] !opacity-100 !ml-1.5'"
      x-data="{ confirming: false }">
+  {% if is_task %}
+  {# Any member can spin a task off a comment; the new task auto-links #}
+  {# back here as a related task (handled server-side via link_related). #}
+  <button type="button"
+          hx-get="{% url 'web:create_task' %}?project={{ comment.task.project.slug_prefix|urlencode }}&title={{ comment.body|truncatechars:120|urlencode }}&link_related={{ comment.task.slug|urlencode }}"
+          hx-target="#modal-root"
+          hx-swap="innerHTML"
+          data-tooltip="{% trans 'Create task from comment' %}"
+          class="p-1 rounded text-placeholder-foreground hover:text-foreground hover:bg-muted transition">
+    {% lucide "square-plus" "w-3.5 h-3.5" %}
+  </button>
+  {% endif %}
+  {% if comment.can_modify %}
   <button type="button"
           hx-get="{% url 'web:comment_edit_form' comment_id=comment.id %}"
           hx-target="#{% if is_task %}comment-body-{% else %}update-comment-body-{% endif %}{{ comment.id }}"
@@ -36,5 +49,6 @@ removes the card (update: target the card, empty response). Expects
     <button type="submit" class="text-emerald-400 hover:text-emerald-300 p-0.5">{% lucide "check" "w-3.5 h-3.5" %}</button>
     <button type="button" @click="confirming = false" class="text-placeholder-foreground hover:text-foreground p-0.5">{% lucide "x" "w-3.5 h-3.5" %}</button>
   </form>
+  {% endif %}
 </div>
 {% endif %}

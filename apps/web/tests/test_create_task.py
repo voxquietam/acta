@@ -14,6 +14,7 @@ from apps.activity.models import ActivityLog
 from apps.labels.tests.factories import LabelFactory
 from apps.projects.tests.factories import ProjectFactory
 from apps.tasks.models import Task
+from apps.tasks.tests.factories import TaskFactory
 from apps.workspaces.tests.factories import WorkspaceFactory, WorkspaceMemberFactory
 
 
@@ -410,3 +411,78 @@ class TestCreateTaskActiveWorkspaceScoping:
         resp = client.post(reverse("web:create_task"), data={"project": proj_a.slug_prefix, "title": "ok"})
         assert resp.status_code == 204
         assert Task.objects.filter(project=proj_a, title="ok").exists()
+
+
+@pytest.mark.django_db
+class TestCreateTaskLinkRelated:
+    """``link_related`` auto-links the new task to an origin (from comment / selection)."""
+
+    def test_post_links_new_task_as_related(self, client, setup):
+        ws, project, user = setup
+        origin = TaskFactory(project=project, title="Origin")
+        client.force_login(user)
+        resp = client.post(
+            reverse("web:create_task"),
+            data={"project": project.slug_prefix, "title": "Spun off", "link_related": origin.slug},
+        )
+        assert resp.status_code == 204
+        new = Task.objects.get(project=project, title="Spun off")
+        # related is symmetric — both sides see the link.
+        assert origin in new.related.all()
+        assert new in origin.related.all()
+        # Fires the extra trigger so the origin's links panel refetches live.
+        assert "acta:link-changed" in resp.headers.get("HX-Trigger", "")
+
+    def test_unlinked_create_omits_link_trigger(self, client, setup):
+        ws, project, user = setup
+        client.force_login(user)
+        resp = client.post(
+            reverse("web:create_task"),
+            data={"project": project.slug_prefix, "title": "Plain"},
+        )
+        assert resp.headers.get("HX-Trigger") == "acta:task-created"
+
+    def test_links_fragment_shows_related(self, client, setup):
+        ws, project, user = setup
+        origin = TaskFactory(project=project, title="Origin")
+        related = TaskFactory(project=project, title="Related one")
+        origin.related.add(related)
+        client.force_login(user)
+        url = reverse("web:task_links_fragment", args=[project.slug_prefix, origin.number])
+        resp = client.get(url)
+        assert resp.status_code == 200
+        assert related.slug in resp.content.decode()
+
+    def test_post_ignores_unresolvable_link(self, client, setup):
+        ws, project, user = setup
+        client.force_login(user)
+        resp = client.post(
+            reverse("web:create_task"),
+            data={"project": project.slug_prefix, "title": "No link", "link_related": "NOPE-999"},
+        )
+        assert resp.status_code == 204
+        new = Task.objects.get(project=project, title="No link")
+        assert new.related.count() == 0  # bad slug → task created, no link
+
+    def test_post_ignores_foreign_link_target(self, client, setup):
+        ws, project, user = setup
+        foreign = TaskFactory()  # task in a workspace the user isn't in
+        client.force_login(user)
+        resp = client.post(
+            reverse("web:create_task"),
+            data={"project": project.slug_prefix, "title": "No cross link", "link_related": foreign.slug},
+        )
+        assert resp.status_code == 204
+        new = Task.objects.get(project=project, title="No cross link")
+        assert new.related.count() == 0
+
+    def test_get_shows_link_caption_for_visible_origin(self, client, setup):
+        ws, project, user = setup
+        origin = TaskFactory(project=project, title="Origin task")
+        client.force_login(user)
+        resp = client.get(reverse("web:create_task"), {"link_related": origin.slug})
+        body = resp.content.decode()
+        assert f'name="link_related" value="{origin.slug}"' in body
+        # Caption pairs slug + title (never a bare slug).
+        assert origin.slug in body
+        assert "Origin task" in body
