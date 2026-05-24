@@ -31,7 +31,10 @@ below.
 | `EMAIL_HOST` / `EMAIL_PORT` / `EMAIL_USE_TLS` / `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` / `DEFAULT_FROM_EMAIL` | sending **workspace invites** by email |
 | `ACTA_PUBLIC_BASE_URL=https://actaspace.com` | absolute links in invite emails + task links in Telegram |
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_BOT_USERNAME` / `TELEGRAM_WEBHOOK_SECRET` | the Telegram notification bot |
-| `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | "Sign in with Google" |
+
+"Sign in with Google" is **not** configured via env vars — the Client ID
+and Secret are stored in a `SocialApp` row in Django admin. See "One-time"
+§6 below.
 
 ### One-time per environment
 
@@ -42,7 +45,7 @@ below.
 5. `setup_scheduled_jobs` (seeds the recurring-job schedules — see below)
 6. Create the **Telegram message templates** in `/admin/` (see "One-time" §5)
 7. `telegram_set_webhook --base-url https://actaspace.com` (prod uses a webhook, not polling)
-8. Create the Google **SocialApp** in `/admin/` (once OAuth is wired)
+8. Set up **Google OAuth** — create the `SocialApp` in `/admin/` (see "One-time" §6)
 
 ### Recurring jobs
 
@@ -119,6 +122,67 @@ until you create them. Recreate the agreed templates after deploy:
 (Use real newlines in the admin textarea, not the literal `\n`.) No template
 for *Announcement* is needed — it falls back to a sensible `📣 {title}`
 default. Without any rows the bot still works, just in English defaults.
+
+### 6. Set up Google OAuth ("Sign in with Google")
+
+The "Continue with Google" button only appears once a Google `SocialApp`
+row exists, so this step is what turns the feature on. The OAuth
+credentials are **DB-held in Django admin**, not in env/settings — there
+are no `GOOGLE_OAUTH_*` env vars to set despite the historical
+placeholders in `.env.example`.
+
+There are two halves: the Google Cloud side (once per Google project) and
+the Acta admin side (once per Acta environment).
+
+#### A. Google Cloud — create the OAuth client
+
+Billing is **not** required for OAuth — skip / dismiss any "Start free
+trial / add a card" prompt. OAuth clients are free.
+
+1. <https://console.cloud.google.com/> → create a project (e.g. `Acta`).
+   Don't go through the `/freetrial/` billing flow.
+2. **APIs & Services → OAuth consent screen** (newer console labels this
+   **Google Auth Platform**). Configure it once:
+   - **App name:** `Acta`, support + developer contact emails.
+   - **Audience / User type:** **External**.
+3. **Audience** tab → note the **Publishing status**:
+   - **Testing** (default): only emails listed under **Test users** can
+     sign in. Add every Google account that needs access via
+     **+ Add users**, or click **Publish app** to open it to anyone.
+     A testing/unverified app shows a Google interstitial — the user
+     clicks *Advanced → Go to Acta* to proceed.
+   - **In production**: any Google account is allowed.
+4. **Clients → Create OAuth client**:
+   - **Application type:** Web application.
+   - **Authorized redirect URIs** → add one per environment:
+     - `https://actaspace.com/accounts/google/login/callback/`
+     - `http://localhost:8001/accounts/google/login/callback/` (dev)
+     - The trailing slash and the exact `/accounts/google/login/callback/`
+       path matter — that's the route allauth exposes.
+   - **Authorized JavaScript origins:** leave empty. We use the
+     server-side redirect flow, not the browser JS flow.
+5. After **Create**, open the client under **Clients** to read its
+   **Client ID** and **Client secret** (the "Download JSON" button is
+   optional and sometimes a no-op — the two values are all we need).
+
+#### B. Acta admin — create the SocialApp
+
+6. Admin → **Sites** (`django.contrib.sites`): set the `SITE_ID = 1` row's
+   domain to the real host (`actaspace.com` on prod). allauth filters
+   `SocialApp`s by the current Site, so this must match.
+7. Admin → **Social applications → Add**:
+   - **Provider:** Google
+   - **Name:** `Google` (any label)
+   - **Client id:** from step 5
+   - **Secret key:** from step 5 (leave **Key** empty)
+   - **Sites:** move the `SITE_ID = 1` site into *Chosen sites* — without
+     this the button stays hidden.
+8. Save. Reload `/accounts/login/` — the "Continue with Google" button
+   now renders.
+
+Behaviour (see ADR 0002 update): an existing account logs in when its
+verified Google email matches; a brand-new account is created via Google
+only when an active workspace invite for that exact email is in flight.
 
 ## Recurring jobs (admin-managed scheduler)
 

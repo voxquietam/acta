@@ -233,6 +233,14 @@ ACCOUNT_EMAIL_VERIFICATION = "none"
 ACCOUNT_ADAPTER = "apps.accounts.adapters.NoSignupAccountAdapter"
 SOCIALACCOUNT_ADAPTER = "apps.accounts.adapters.NoSignupSocialAccountAdapter"
 SOCIALACCOUNT_AUTO_SIGNUP = True
+# A Google login whose verified email matches an existing local account
+# logs that user in (and links the social account) without requiring an
+# invite. Google is a fully-trusted IdP for Acta (internal tool on Google
+# Workspace), which is exactly the scenario these settings are meant for.
+# First-time accounts still require a matching invite — see
+# ``NoSignupSocialAccountAdapter``.
+SOCIALACCOUNT_EMAIL_AUTHENTICATION = True
+SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
 SOCIALACCOUNT_PROVIDERS = {
     "google": {
         "SCOPE": ["profile", "email"],

@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Acta 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-05-23 19:35+0000\n"
+"POT-Creation-Date: 2026-05-24 06:24+0000\n"
 "PO-Revision-Date: 2026-05-16 15:30+0000\n"
 "Last-Translator: Acta team\n"
 "Language-Team: Ukrainian\n"
@@ -17,56 +17,56 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=4; plural=(n % 1 == 0 && n % 10 == 1 && n % 100 != 11 ? 0 : n % 1 == 0 && n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 1 : n % 1 == 0 && (n % 10 ==0 || (n % 10 >=5 && n % 10 <=9) || (n % 100 >=11 && n % 100 <=14 )) ? 2: 3);\n"
 
-#: acta/settings/base.py:261
+#: acta/settings/base.py:290
 msgid "English"
 msgstr "Англійська"
 
-#: acta/settings/base.py:262
+#: acta/settings/base.py:291
 msgid "Ukrainian"
 msgstr "Українська"
 
-#: acta/settings/base.py:420 apps/workspaces/models.py:144
+#: acta/settings/base.py:449 apps/workspaces/models.py:144
 #: templates/web/_create_project_modal.html:71
 msgid "Workspace"
 msgstr "Робочий простір"
 
-#: acta/settings/base.py:424 apps/workspaces/models.py:145
+#: acta/settings/base.py:453 apps/workspaces/models.py:145
 #: templates/base_app.html:176
 msgid "Workspaces"
 msgstr "Робочі простори"
 
-#: acta/settings/base.py:429 templates/web/projects/_overview_panel.html:301
+#: acta/settings/base.py:458 templates/web/projects/_overview_panel.html:301
 #: templates/web/workspaces/settings.html:29
 msgid "Members"
 msgstr "Учасники"
 
-#: acta/settings/base.py:434
+#: acta/settings/base.py:463
 msgid "Invites"
 msgstr "Запрошення"
 
-#: acta/settings/base.py:441 acta/settings/base.py:445
+#: acta/settings/base.py:470 acta/settings/base.py:474
 #: apps/projects/models.py:106 templates/base_app.html:120
 #: templates/base_app.html:121 templates/web/projects/detail.html:8
 #: templates/web/projects/list.html:5 templates/web/projects/list.html:8
 msgid "Projects"
 msgstr "Проєкти"
 
-#: acta/settings/base.py:450 apps/projects/models.py:244
+#: acta/settings/base.py:479 apps/projects/models.py:244
 msgid "Project updates"
 msgstr "Оновлення проєктів"
 
-#: acta/settings/base.py:457 acta/settings/base.py:461
+#: acta/settings/base.py:486 acta/settings/base.py:490
 #: templates/web/cycles/overview.html:184
 msgid "Tasks"
 msgstr "Задачі"
 
-#: acta/settings/base.py:466 apps/comments/models.py:62 apps/web/views.py:1173
+#: acta/settings/base.py:495 apps/comments/models.py:62 apps/web/views.py:1173
 #: templates/web/_inbox_list.html:44 templates/web/_my_activity_inner.html:14
 #: templates/web/projects/_update_comments.html:14
 msgid "Comments"
 msgstr "Коментарі"
 
-#: acta/settings/base.py:471 apps/labels/models.py:94 apps/web/views.py:1172
+#: acta/settings/base.py:500 apps/labels/models.py:94 apps/web/views.py:1172
 #: templates/web/_create_task_modal.html:150
 #: templates/web/_filters_sidebar.html:476
 #: templates/web/projects/_bulk_context_menu.html:227
@@ -76,46 +76,46 @@ msgstr "Коментарі"
 msgid "Labels"
 msgstr "Мітки"
 
-#: acta/settings/base.py:476 apps/labels/models.py:41
+#: acta/settings/base.py:505 apps/labels/models.py:41
 msgid "Label groups"
 msgstr "Групи міток"
 
-#: acta/settings/base.py:483 templates/web/_my_activity_inner.html:19
+#: acta/settings/base.py:512 templates/web/_my_activity_inner.html:19
 #: templates/web/projects/_task_detail_body.html:80
 #: templates/web/projects/_task_detail_body.html:121
 #: templates/web/projects/_task_detail_modal_body.html:77
 msgid "Activity"
 msgstr "Активність"
 
-#: acta/settings/base.py:487 apps/activity/models.py:80
+#: acta/settings/base.py:516 apps/activity/models.py:80
 msgid "Activity log"
 msgstr "Журнал активності"
 
-#: acta/settings/base.py:494 apps/notifications/models.py:32
+#: acta/settings/base.py:523 apps/notifications/models.py:32
 msgid "System"
 msgstr "Система"
 
-#: acta/settings/base.py:499 apps/accounts/models.py:79
+#: acta/settings/base.py:528 apps/accounts/models.py:79
 msgid "Users"
 msgstr "Користувачі"
 
-#: acta/settings/base.py:504
+#: acta/settings/base.py:533
 msgid "Groups"
 msgstr "Групи"
 
-#: acta/settings/base.py:510
+#: acta/settings/base.py:539
 msgid "Sites"
 msgstr "Сайти"
 
-#: acta/settings/base.py:516
+#: acta/settings/base.py:545
 msgid "Email addresses"
 msgstr "Електронні адреси"
 
-#: acta/settings/base.py:522
+#: acta/settings/base.py:551
 msgid "Social apps"
 msgstr "Соціальні застосунки"
 
-#: acta/settings/base.py:528
+#: acta/settings/base.py:557
 msgid "Social accounts"
 msgstr "Соціальні акаунти"
 
@@ -139,11 +139,11 @@ msgstr "Обліковий запис неактивний"
 msgid "User"
 msgstr "Користувач"
 
-#: apps/accounts/models.py:164
+#: apps/accounts/models.py:178
 msgid "API token"
 msgstr "API токен"
 
-#: apps/accounts/models.py:165 templates/accounts/settings.html:122
+#: apps/accounts/models.py:179 templates/accounts/settings.html:89
 msgid "API tokens"
 msgstr "API токени"
 
@@ -186,11 +186,11 @@ msgstr "Це посилання-запрошення вже використан
 msgid "That invite link has expired — ask the admin to resend it."
 msgstr "Термін дії посилання-запрошення минув — попросіть адміністратора надіслати його ще раз."
 
-#: apps/accounts/views.py:368
+#: apps/accounts/views.py:376
 msgid "Avatar updated."
 msgstr "Аватар оновлено."
 
-#: apps/accounts/views.py:378
+#: apps/accounts/views.py:392
 msgid "Avatar removed."
 msgstr "Аватар видалено."
 
@@ -1014,40 +1014,48 @@ msgstr "Запрошення до робочого простору"
 msgid "Workspace invites"
 msgstr "Запрошення до робочого простору"
 
-#: templates/account/login.html:21 templates/account/login.html:24
-#: templates/account/login.html:69 templates/account/signup.html:101
+#: templates/account/login.html:23 templates/account/login.html:26
+#: templates/account/login.html:91 templates/account/signup.html:123
 msgid "Log in"
 msgstr "Увійти"
 
-#: templates/account/login.html:25
+#: templates/account/login.html:27
 msgid "Sign in with your Acta account."
 msgstr "Увійди до свого акаунта Acta."
 
-#: templates/account/login.html:38
+#: templates/account/login.html:39 templates/account/signup.html:41
+msgid "Continue with Google"
+msgstr "Продовжити з Google"
+
+#: templates/account/login.html:44 templates/account/signup.html:46
+msgid "or"
+msgstr "або"
+
+#: templates/account/login.html:60
 msgid "Email or username"
 msgstr "Email або ім'я користувача"
 
-#: templates/account/login.html:50 templates/account/signup.html:66
+#: templates/account/login.html:72 templates/account/signup.html:88
 msgid "Password"
 msgstr "Пароль"
 
-#: templates/account/login.html:65
+#: templates/account/login.html:87
 msgid "Forgot password?"
 msgstr "Забув пароль?"
 
-#: templates/account/login.html:77
+#: templates/account/login.html:99
 msgid "Account required — contact an admin if you need access."
 msgstr "Потрібен акаунт — звернись до адміністратора, щоб отримати доступ."
 
-#: templates/account/signup.html:15 templates/account/signup.html:92
+#: templates/account/signup.html:17 templates/account/signup.html:114
 msgid "Create account"
 msgstr "Створити акаунт"
 
-#: templates/account/signup.html:18
+#: templates/account/signup.html:20
 msgid "Create your account"
 msgstr "Створіть свій акаунт"
 
-#: templates/account/signup.html:21
+#: templates/account/signup.html:23
 #, python-format
 msgid ""
 "\n"
@@ -1058,23 +1066,23 @@ msgstr ""
 "    Ви приєднуєтесь до <span class=\"text-foreground\">%(workspace)s</span> як <span class=\"text-foreground\">%(role)s</span>.\n"
 "    "
 
-#: templates/account/signup.html:26
+#: templates/account/signup.html:28
 msgid "Sign up for an Acta account."
 msgstr "Зареєструйте акаунт Acta."
 
-#: templates/account/signup.html:40 templates/accounts/settings.html:80
+#: templates/account/signup.html:62 templates/accounts/settings.html:47
 msgid "Email"
 msgstr "Email"
 
-#: templates/account/signup.html:54
+#: templates/account/signup.html:76
 msgid "Username"
 msgstr "Ім'я користувача"
 
-#: templates/account/signup.html:77
+#: templates/account/signup.html:99
 msgid "Confirm password"
 msgstr "Підтвердьте пароль"
 
-#: templates/account/signup.html:100
+#: templates/account/signup.html:122
 msgid "Already have an account?"
 msgstr "Вже маєте акаунт?"
 
@@ -1094,6 +1102,18 @@ msgstr "Акаунти Acta створюють адміністратори. З�
 msgid "Back to login"
 msgstr "Повернутись до входу"
 
+#: templates/accounts/_avatar_block.html:31
+msgid "Upload photo"
+msgstr "Завантажити фото"
+
+#: templates/accounts/_avatar_block.html:39
+msgid "Remove"
+msgstr "Видалити"
+
+#: templates/accounts/_avatar_block.html:48
+msgid "JPG, PNG, GIF or WebP — we resize and square-crop it for you."
+msgstr "JPG, PNG, GIF або WebP — ми самі змінимо розмір і обріжемо до квадрата."
+
 #: templates/accounts/settings.html:5 templates/accounts/settings.html:8
 #: templates/base_app.html:310
 msgid "Settings"
@@ -1103,53 +1123,41 @@ msgstr "Налаштування"
 msgid "Profile"
 msgstr "Профіль"
 
-#: templates/accounts/settings.html:36
-msgid "Upload photo"
-msgstr "Завантажити фото"
-
-#: templates/accounts/settings.html:43
-msgid "Remove"
-msgstr "Видалити"
-
-#: templates/accounts/settings.html:49
-msgid "JPG, PNG, GIF or WebP — we resize and square-crop it for you."
-msgstr "JPG, PNG, GIF або WebP — ми самі змінимо розмір і обріжемо до квадрата."
-
-#: templates/accounts/settings.html:66
+#: templates/accounts/settings.html:33
 msgid "First name"
 msgstr "Ім'я"
 
-#: templates/accounts/settings.html:72
+#: templates/accounts/settings.html:39
 msgid "Last name"
 msgstr "Прізвище"
 
-#: templates/accounts/settings.html:84
+#: templates/accounts/settings.html:51
 msgid "Email changes go through the admin for now."
 msgstr "Зміна email наразі виконується через адміністратора."
 
-#: templates/accounts/settings.html:89
+#: templates/accounts/settings.html:56
 msgid "Preferences"
 msgstr "Параметри"
 
-#: templates/accounts/settings.html:91
+#: templates/accounts/settings.html:58
 msgid "Language"
 msgstr "Мова"
 
-#: templates/accounts/settings.html:104
+#: templates/accounts/settings.html:71
 msgid "Save changes"
 msgstr "Зберегти зміни"
 
-#: templates/accounts/settings.html:124
+#: templates/accounts/settings.html:91
 msgid "For non-browser clients (scripts, MCP server, etc.). The plain secret is shown only once on creation."
 msgstr "Для не-браузерних клієнтів (скрипти, MCP сервер тощо). Сам токен показується тільки один раз при створенні."
 
-#: templates/accounts/settings.html:140
+#: templates/accounts/settings.html:107
 #, python-format
 msgid "Token “%(name)s” created — copy it now, it won't be shown again:"
 msgstr "Токен «%(name)s» створено — скопіюйте його зараз, більше він не показуватиметься:"
 
-#: templates/accounts/settings.html:149 templates/accounts/settings.html:150
-#: templates/accounts/settings.html:288 templates/accounts/settings.html:289
+#: templates/accounts/settings.html:116 templates/accounts/settings.html:117
+#: templates/accounts/settings.html:255 templates/accounts/settings.html:256
 #: templates/web/projects/_task_detail_topbar.html:50
 #: templates/web/projects/_task_detail_topbar.html:51
 #: templates/web/projects/_task_detail_topbar.html:59
@@ -1157,98 +1165,98 @@ msgstr "Токен «%(name)s» створено — скопіюйте його
 msgid "Copied!"
 msgstr "Скопійовано!"
 
-#: templates/accounts/settings.html:149 templates/accounts/settings.html:150
+#: templates/accounts/settings.html:116 templates/accounts/settings.html:117
 msgid "Copy to clipboard"
 msgstr "Скопіювати"
 
-#: templates/accounts/settings.html:167
+#: templates/accounts/settings.html:134
 msgid "New token name"
 msgstr "Назва нового токена"
 
-#: templates/accounts/settings.html:169
+#: templates/accounts/settings.html:136
 msgid "e.g. Claude Desktop"
 msgstr "напр. Claude Desktop"
 
-#: templates/accounts/settings.html:174
+#: templates/accounts/settings.html:141
 msgid "Generate"
 msgstr "Згенерувати"
 
-#: templates/accounts/settings.html:191
+#: templates/accounts/settings.html:158
 msgid "revoked"
 msgstr "відкликаний"
 
-#: templates/accounts/settings.html:196
+#: templates/accounts/settings.html:163
 #, python-format
 msgid "created %(d)s"
 msgstr "створено %(d)s"
 
-#: templates/accounts/settings.html:198
+#: templates/accounts/settings.html:165
 #, python-format
 msgid "last used %(t)s ago"
 msgstr "востаннє використано %(t)s тому"
 
-#: templates/accounts/settings.html:200
+#: templates/accounts/settings.html:167
 msgid "never used"
 msgstr "не використовувався"
 
-#: templates/accounts/settings.html:203
+#: templates/accounts/settings.html:170
 #, python-format
 msgid "revoked %(t)s ago"
 msgstr "відкликано %(t)s тому"
 
-#: templates/accounts/settings.html:219
+#: templates/accounts/settings.html:186
 msgid "Revoke"
 msgstr "Відкликати"
 
-#: templates/accounts/settings.html:222
+#: templates/accounts/settings.html:189
 #: templates/web/workspaces/_settings_invites.html:66
 msgid "Revoke?"
 msgstr "Відкликати?"
 
-#: templates/accounts/settings.html:241
+#: templates/accounts/settings.html:208
 msgid "Delete token"
 msgstr "Видалити токен"
 
-#: templates/accounts/settings.html:246
+#: templates/accounts/settings.html:213
 #: templates/web/projects/_attachments_panel.html:75
 #: templates/web/projects/_comment_actions.html:35
 #: templates/web/projects/_update_actions.html:34
 msgid "Delete?"
 msgstr "Видалити?"
 
-#: templates/accounts/settings.html:260
+#: templates/accounts/settings.html:227
 msgid "No API tokens yet."
 msgstr "Поки немає жодного API токена."
 
-#: templates/accounts/settings.html:266
+#: templates/accounts/settings.html:233
 msgid "How to wire the token into Claude Desktop / Cursor"
 msgstr "Як підключити токен у Claude Desktop / Cursor"
 
-#: templates/accounts/settings.html:270
+#: templates/accounts/settings.html:237
 msgid "Acta speaks <strong>HTTP MCP</strong>. One endpoint, one token, no SSH or wrapper scripts. Paste the snippet below into your MCP client's config — for Claude Desktop on macOS that's <code class=\"text-foreground\">~/Library/Application Support/Claude/claude_desktop_config.json</code>. The token is filled in right after you create one (otherwise replace the placeholder); then fully quit and reopen the client."
 msgstr "Acta розуміє <strong>HTTP MCP</strong>. Один endpoint, один токен, без SSH і скриптів-обгорток. Вставте фрагмент нижче в конфіг вашого MCP-клієнта — для Claude Desktop на macOS це <code class=\"text-foreground\">~/Library/Application Support/Claude/claude_desktop_config.json</code>. Токен підставляється одразу після створення (інакше замініть заглушку); потім повністю закрийте клієнта і відкрийте знову."
 
-#: templates/accounts/settings.html:288 templates/accounts/settings.html:289
+#: templates/accounts/settings.html:255 templates/accounts/settings.html:256
 msgid "Copy snippet"
 msgstr "Скопіювати фрагмент"
 
-#: templates/accounts/settings.html:295
+#: templates/accounts/settings.html:262
 msgid "For Cursor / Cline use the same URL and header in their MCP settings panel. Rate limit is 60 requests per minute per token. Revoke any token above to cut access immediately."
 msgstr "Для Cursor / Cline використовуйте той самий URL і заголовок у їхній панелі налаштувань MCP. Обмеження — 60 запитів на хвилину на токен. Відкличте будь-який токен вище, щоб негайно припинити доступ."
 
-#: templates/accounts/settings.html:303
+#: templates/accounts/settings.html:270
 msgid "Telegram notifications"
 msgstr "Сповіщення в Telegram"
 
-#: templates/accounts/settings.html:304
+#: templates/accounts/settings.html:271
 msgid "Where Acta pings you when you're mentioned, assigned, or commented on."
 msgstr "Куди Acta пінгує вас при згадках, призначеннях і коментарях."
 
-#: templates/accounts/settings.html:310
+#: templates/accounts/settings.html:277
 msgid "Session"
 msgstr "Сесія"
 
-#: templates/accounts/settings.html:316 templates/base_app.html:322
+#: templates/accounts/settings.html:283 templates/base_app.html:322
 msgid "Log out"
 msgstr "Вийти"
 

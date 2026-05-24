@@ -6,9 +6,12 @@ The invite is the only path for a new account to land — either via
 ``?invite=<token>`` on the signup URL or via the same token stashed
 in the session by ``apps.accounts.views.invite_landing``.
 
-Open-signup never works through the social adapter on principle: we
-don't want an arbitrary Google login to auto-create accounts even
-when an invite is in flight.
+The social adapter follows the same rule, with one extra guard: a
+Google login can only *create* a new account when an active invite is
+in flight **and** the provider's verified email matches the invite
+address. An existing account is logged in (and linked) by verified
+email without an invite — that path is handled by allauth's
+``SOCIALACCOUNT_EMAIL_AUTHENTICATION`` and never reaches signup.
 """
 
 from django.utils import timezone
@@ -17,6 +20,34 @@ from allauth.account.adapter import DefaultAccountAdapter
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 
 INVITE_SESSION_KEY = "acta_active_invite_token"
+
+
+def claim_invite_for_user(request, user, invite):
+    """Consume the invite and grant the user workspace membership.
+
+    Flips ``accepted_at`` and creates the ``WorkspaceMember`` row inside
+    a single transaction, then clears the session marker so a second
+    concurrent tab can't consume the same invite twice. Shared by both
+    the password and the social signup paths.
+
+    Args:
+        request: The current HttpRequest (its session marker is cleared).
+        user: The freshly created user to grant membership to.
+        invite: The active :class:`WorkspaceInvite` being claimed.
+    """
+    from django.db import transaction
+
+    from apps.workspaces.models import WorkspaceMember
+
+    with transaction.atomic():
+        invite.accepted_at = timezone.now()
+        invite.save(update_fields=["accepted_at"])
+        WorkspaceMember.objects.get_or_create(
+            workspace=invite.workspace,
+            user=user,
+            defaults={"role": invite.role},
+        )
+    request.session.pop(INVITE_SESSION_KEY, None)
 
 
 def resolve_invite_from_request(request):
@@ -73,10 +104,6 @@ class NoSignupAccountAdapter(DefaultAccountAdapter):
         Anyone landing without an invite never reaches this code path
         because :meth:`is_open_for_signup` already rejected them.
         """
-        from django.db import transaction
-
-        from apps.workspaces.models import WorkspaceMember
-
         user = super().save_user(request, user, form, commit=commit)
         invite = resolve_invite_from_request(request)
         if invite is None:
@@ -87,35 +114,24 @@ class NoSignupAccountAdapter(DefaultAccountAdapter):
             # mismatch is caught earlier in ``InviteAwareSignupView``.
             return user
 
-        with transaction.atomic():
-            invite.accepted_at = timezone.now()
-            invite.save(update_fields=["accepted_at"])
-            WorkspaceMember.objects.get_or_create(
-                workspace=invite.workspace,
-                user=user,
-                defaults={"role": invite.role},
-            )
-
-        # Clear the session marker so a second concurrent tab can't
-        # accidentally consume the same invite a second time.
-        request.session.pop(INVITE_SESSION_KEY, None)
+        claim_invite_for_user(request, user, invite)
         return user
 
 
 class NoSignupSocialAccountAdapter(DefaultSocialAccountAdapter):
-    """Social-login adapter that blocks first-time signup unconditionally.
+    """Social-login adapter: signup gated on an invite + matching email.
 
-    Even with an in-flight workspace invite, we don't let an arbitrary
-    Google login auto-create a local account — the email on the
-    social account might not match the invite, and the trust model
-    for invite emails (admin verified the recipient) doesn't carry
-    over to a third-party identity provider. Existing users whose
-    accounts are already linked to a social provider still sign in
-    normally.
+    A Google login creates a new local account only when the request
+    carries an active workspace invite **and** the provider's verified
+    email matches the invite address — the invite was issued to a
+    specific person, so we won't mint an account for a different Google
+    identity that merely holds the link. Logging an *existing* account
+    in by verified email needs no invite and never lands here; that is
+    allauth's ``SOCIALACCOUNT_EMAIL_AUTHENTICATION`` path.
     """
 
     def is_open_for_signup(self, request, sociallogin):
-        """Return False so unknown social logins do not auto-create users.
+        """Allow social signup only with a matching active invite.
 
         Args:
             request: The current HttpRequest.
@@ -123,6 +139,32 @@ class NoSignupSocialAccountAdapter(DefaultSocialAccountAdapter):
                 instance describing the in-flight social auth.
 
         Returns:
-            Always False — signup via social provider is disabled.
+            ``True`` when an active invite is present and its email
+            equals the social account's email; ``False`` otherwise.
         """
-        return False
+        invite = resolve_invite_from_request(request)
+        if invite is None:
+            return False
+        social_email = (sociallogin.user.email or "").strip().lower()
+        return bool(social_email) and social_email == invite.email
+
+    def save_user(self, request, sociallogin, form=None):
+        """Persist the social user, then claim the invite + grant membership.
+
+        Reached only after :meth:`is_open_for_signup` confirmed a
+        matching active invite, so the invite is re-resolved and
+        consumed here exactly as the password signup path does.
+
+        Args:
+            request: The current HttpRequest.
+            sociallogin: The in-flight :class:`SocialLogin`.
+            form: The optional signup form (absent under auto-signup).
+
+        Returns:
+            The newly created user.
+        """
+        user = super().save_user(request, sociallogin, form=form)
+        invite = resolve_invite_from_request(request)
+        if invite is not None:
+            claim_invite_for_user(request, user, invite)
+        return user
