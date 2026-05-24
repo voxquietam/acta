@@ -241,6 +241,11 @@ SOCIALACCOUNT_AUTO_SIGNUP = True
 # ``NoSignupSocialAccountAdapter``.
 SOCIALACCOUNT_EMAIL_AUTHENTICATION = True
 SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
+# Skip allauth's intermediate "You are about to sign in with Google"
+# confirmation page (an unstyled GET interstitial) — clicking the button
+# redirects straight to Google. Acceptable for an internal tool; the
+# login-CSRF surface it guards against is negligible here.
+SOCIALACCOUNT_LOGIN_ON_GET = True
 SOCIALACCOUNT_PROVIDERS = {
     "google": {
         "SCOPE": ["profile", "email"],
