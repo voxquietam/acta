@@ -974,9 +974,11 @@ select:-webkit-autofill {
    on top via additional utilities. */
 @layer components {
   .acta-modal-backdrop {
+    /* A plain dark scrim — no ``backdrop-filter: blur()``. The blur looked
+       nice but recomposites on every repaint over it, which janks cursor
+       movement / editor typing inside the modal on weaker GPUs. The 55%
+       black scrim alone gives enough focus separation. */
     @apply fixed inset-0 z-50 flex items-start justify-center pt-16 px-4 bg-black/55;
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
   }
   .acta-modal-panel {
     @apply w-full bg-card border border-border rounded-xl flex flex-col;
