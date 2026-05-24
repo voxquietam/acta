@@ -282,7 +282,7 @@ rail are queued in [[project-todo-filter-sidebar-presets-views]]
 
       {# ---------- Size ---------- #}
       <div x-data="{
-             open: (() => { const v = localStorage.getItem('acta:filter-sec:size'); return v === null ? true : v === '1'; })(),
+             open: (() => { const v = localStorage.getItem('acta:filter-sec:size'); return v === null ? false : v === '1'; })(),
              toggle() { this.open = !this.open; localStorage.setItem('acta:filter-sec:size', this.open ? '1' : '0'); }
            }">
         <button type="button"
@@ -329,7 +329,7 @@ rail are queued in [[project-todo-filter-sidebar-presets-views]]
       {# ---------- Cycle ---------- #}
       {% if available_cycles %}
       <div x-data="{
-             open: (() => { const v = localStorage.getItem('acta:filter-sec:cycle'); return v === null ? true : v === '1'; })(),
+             open: (() => { const v = localStorage.getItem('acta:filter-sec:cycle'); return v === null ? false : v === '1'; })(),
              toggle() { this.open = !this.open; localStorage.setItem('acta:filter-sec:cycle', this.open ? '1' : '0'); }
            }">
         <button type="button"
@@ -454,7 +454,7 @@ rail are queued in [[project-todo-filter-sidebar-presets-views]]
       {# ---------- Labels (with type-to-filter) ---------- #}
       {% if available_labels %}
       <div x-data="{
-             open: (() => { const v = localStorage.getItem('acta:filter-sec:labels'); return v === null ? true : v === '1'; })(),
+             open: (() => { const v = localStorage.getItem('acta:filter-sec:labels'); return v === null ? false : v === '1'; })(),
              toggle() { this.open = !this.open; localStorage.setItem('acta:filter-sec:labels', this.open ? '1' : '0'); },
              q: ''
            }">
@@ -513,6 +513,78 @@ rail are queued in [[project-todo-filter-sidebar-presets-views]]
         </div>
       </div>
       {% endif %}
+
+      {# ---------- Date range ---------- #}
+      {% comment %}
+      Range filter on a chosen Task date — ``date_field`` picks created /
+      updated / due / completed; presets fill the two native date inputs
+      and submit. Rows missing the chosen date (e.g. completed on an open
+      task, or no due date) drop out once a bound is set. Default-collapsed.
+      {% endcomment %}
+      <div x-data="{
+             open: (() => { const v = localStorage.getItem('acta:filter-sec:date'); return v === null ? false : v === '1'; })(),
+             toggle() { this.open = !this.open; localStorage.setItem('acta:filter-sec:date', this.open ? '1' : '0'); },
+             fmt(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; },
+             submit() { document.getElementById('filter-form').requestSubmit(); },
+             setRange(after, before) { this.$refs.after.value = after; this.$refs.before.value = before; this.submit(); },
+             lastDays(n) { const to = new Date(); const from = new Date(); from.setDate(from.getDate() - (n - 1)); this.setRange(this.fmt(from), this.fmt(to)); },
+             clear() { this.setRange('', ''); }
+           }"
+           @acta:filter-reset.window="$refs.after.value = ''; $refs.before.value = ''">
+        <button type="button"
+                @click="toggle()"
+                class="w-full flex items-center gap-1.5 px-3 py-2 text-[10px] uppercase tracking-wider text-placeholder-foreground hover:text-foreground">
+          <span :class="open ? '' : '-rotate-90'" class="inline-flex transition-transform">
+            {% lucide "chevron-down" "w-3 h-3" %}
+          </span>
+          <span class="flex-1 text-left">{% trans "Date" %}</span>
+          <span data-filter-section-count="date"
+                class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-300
+                       normal-case tracking-normal{% if not date_after and not date_before %} hidden{% endif %}">1</span>
+        </button>
+        <div x-show="open" x-cloak class="px-3 pb-3 space-y-2">
+          <select name="date_field" @change="submit()" class="acta-input text-xs py-1">
+            <option value="completed" {% if date_field == "completed" %}selected{% endif %}>{% trans "Completed" %}</option>
+            <option value="created" {% if date_field == "created" %}selected{% endif %}>{% trans "Created" %}</option>
+            <option value="updated" {% if date_field == "updated" %}selected{% endif %}>{% trans "Updated" %}</option>
+            <option value="due" {% if date_field == "due" %}selected{% endif %}>{% trans "Due" %}</option>
+          </select>
+          <div class="flex gap-1 flex-wrap">
+            <button type="button" @click="lastDays(7)"
+                    class="px-2 py-1 rounded-md border border-border bg-background text-subtle-foreground hover:bg-muted text-[11px] transition">
+              {% trans "Last 7 days" %}
+            </button>
+            <button type="button" @click="lastDays(30)"
+                    class="px-2 py-1 rounded-md border border-border bg-background text-subtle-foreground hover:bg-muted text-[11px] transition">
+              {% trans "Last 30 days" %}
+            </button>
+            {% if active_cycle_start %}
+            <button type="button" @click="setRange('{{ active_cycle_start }}', '{{ active_cycle_end }}')"
+                    class="px-2 py-1 rounded-md border border-border bg-background text-subtle-foreground hover:bg-muted text-[11px] transition">
+              {% trans "This cycle" %}
+            </button>
+            {% endif %}
+            <button type="button" @click="clear()"
+                    class="px-2 py-1 rounded-md text-subtle-foreground hover:text-foreground text-[11px] transition">
+              {% trans "Clear" %}
+            </button>
+          </div>
+          <div class="space-y-2">
+            <label class="block">
+              <span class="block text-[10px] text-placeholder-foreground mb-0.5">{% trans "From" %}</span>
+              <input x-ref="after" type="date" name="date_after"
+                     value="{{ date_after }}" @change="submit()"
+                     class="acta-input text-xs py-1">
+            </label>
+            <label class="block">
+              <span class="block text-[10px] text-placeholder-foreground mb-0.5">{% trans "To" %}</span>
+              <input x-ref="before" type="date" name="date_before"
+                     value="{{ date_before }}" @change="submit()"
+                     class="acta-input text-xs py-1">
+            </label>
+          </div>
+        </div>
+      </div>
 
       {% comment %}
       Show archived toggle. Archive is orthogonal to status — flipping

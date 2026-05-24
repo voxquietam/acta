@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Acta 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-05-24 08:21+0000\n"
+"POT-Creation-Date: 2026-05-24 09:09+0000\n"
 "PO-Revision-Date: 2026-05-16 15:30+0000\n"
 "Last-Translator: Acta team\n"
 "Language-Team: Ukrainian\n"
@@ -287,6 +287,7 @@ msgid "Active"
 msgstr "Активний"
 
 #: apps/cycles/models.py:27 apps/projects/models.py:209
+#: templates/web/_filters_sidebar.html:561
 #: templates/web/projects/insights.html:34
 msgid "Completed"
 msgstr "Завершено"
@@ -495,55 +496,55 @@ msgstr "Мітки не знайдено: %(ids)s"
 msgid "Labels not in affected workspaces: %(ids)s"
 msgstr "Мітки не належать задіяним робочим просторам: %(ids)s"
 
-#: apps/tasks/bulk.py:260
+#: apps/tasks/bulk.py:265
 #, python-format
 msgid "Project %(id)s not found"
 msgstr "Проєкт %(id)s не знайдено"
 
-#: apps/tasks/bulk.py:288
+#: apps/tasks/bulk.py:293
 #, python-format
 msgid "Cycle %(id)s not found"
 msgstr "Цикл %(id)s не знайдено"
 
-#: apps/tasks/bulk.py:495
+#: apps/tasks/bulk.py:500
 #, python-format
 msgid "Cross-workspace bulk move not allowed for tasks: %(ids)s"
 msgstr "Масове переміщення задач між робочими просторами не дозволено: %(ids)sМасове переміщення між робочими просторами заборонене для задач: %(ids)s"
 
-#: apps/tasks/bulk.py:505
+#: apps/tasks/bulk.py:510
 #, python-format
 msgid "Cycle not in the affected workspace for tasks: %(ids)s"
 msgstr "Цикл не з відповідного воркспейсу для задач: %(ids)s"
 
-#: apps/tasks/bulk.py:661 apps/tasks/bulk.py:687
+#: apps/tasks/bulk.py:666 apps/tasks/bulk.py:692
 msgid "Permission denied for one or more tasks in the batch."
 msgstr "Доступ заборонено для однієї або кількох задач у пакеті."
 
-#: apps/tasks/models.py:73
+#: apps/tasks/models.py:74
 msgid "Planned"
 msgstr "Заплановано"
 
-#: apps/tasks/models.py:74
+#: apps/tasks/models.py:75
 msgid "Ready"
 msgstr "Готово до роботи"
 
-#: apps/tasks/models.py:75
+#: apps/tasks/models.py:76
 msgid "To do"
 msgstr "До виконання"
 
-#: apps/tasks/models.py:76
+#: apps/tasks/models.py:77
 msgid "In progress"
 msgstr "У роботі"
 
-#: apps/tasks/models.py:77
+#: apps/tasks/models.py:78
 msgid "In review"
 msgstr "На рев'ю"
 
-#: apps/tasks/models.py:78 templates/web/cycles/overview.html:59
+#: apps/tasks/models.py:79 templates/web/cycles/overview.html:59
 msgid "Done"
 msgstr "Готово"
 
-#: apps/tasks/models.py:79
+#: apps/tasks/models.py:80
 msgid "Cancelled"
 msgstr "Скасовано"
 
@@ -733,93 +734,93 @@ msgstr "Без виконавця"
 msgid "Backlog"
 msgstr "Беклог"
 
-#: apps/web/templatetags/web_extras.py:219
+#: apps/web/templatetags/web_extras.py:230
 msgid "created the task"
 msgstr "створено задачу"
 
-#: apps/web/templatetags/web_extras.py:220
+#: apps/web/templatetags/web_extras.py:231
 #: templates/web/projects/_activity_event.html:18
 msgid "changed status"
 msgstr "змінено статус"
 
-#: apps/web/templatetags/web_extras.py:221
+#: apps/web/templatetags/web_extras.py:232
 #: templates/web/projects/_activity_event.html:35
 msgid "changed assignee"
 msgstr "змінено виконавця"
 
-#: apps/web/templatetags/web_extras.py:222
+#: apps/web/templatetags/web_extras.py:233
 #: templates/web/projects/_activity_event.html:30
 msgid "changed due date"
 msgstr "змінено дедлайн"
 
-#: apps/web/templatetags/web_extras.py:223
+#: apps/web/templatetags/web_extras.py:234
 #: templates/web/projects/_activity_event.html:25
 msgid "changed priority"
 msgstr "змінено пріоритет"
 
-#: apps/web/templatetags/web_extras.py:224
+#: apps/web/templatetags/web_extras.py:235
 #: templates/web/projects/_activity_event.html:54
 msgid "changed labels"
 msgstr "змінено мітки"
 
-#: apps/web/templatetags/web_extras.py:225
+#: apps/web/templatetags/web_extras.py:236
 msgid "changed parent"
 msgstr "змінено батьківську задачу"
 
-#: apps/web/templatetags/web_extras.py:226
+#: apps/web/templatetags/web_extras.py:237
 msgid "updated fields"
 msgstr "оновлено поля"
 
-#: apps/web/templatetags/web_extras.py:227
+#: apps/web/templatetags/web_extras.py:238
 msgid "archived the task"
 msgstr "архівував(ла) задачу"
 
-#: apps/web/templatetags/web_extras.py:228
+#: apps/web/templatetags/web_extras.py:239
 msgid "unarchived the task"
 msgstr "розархівував(ла) задачу"
 
-#: apps/web/templatetags/web_extras.py:229
+#: apps/web/templatetags/web_extras.py:240
 msgid "added a link"
 msgstr "додав(ла) зв'язок"
 
-#: apps/web/templatetags/web_extras.py:230
+#: apps/web/templatetags/web_extras.py:241
 msgid "removed a link"
 msgstr "прибрав(ла) зв'язок"
 
-#: apps/web/templatetags/web_extras.py:231
+#: apps/web/templatetags/web_extras.py:242
 msgid "deleted the task"
 msgstr "видалено задачу"
 
-#: apps/web/templatetags/web_extras.py:232
+#: apps/web/templatetags/web_extras.py:243
 #: templates/web/projects/_activity_event.html:69
 msgid "added a comment"
 msgstr "додано коментар"
 
-#: apps/web/templatetags/web_extras.py:233
+#: apps/web/templatetags/web_extras.py:244
 msgid "edited a comment"
 msgstr "відредаговано коментар"
 
-#: apps/web/templatetags/web_extras.py:234
+#: apps/web/templatetags/web_extras.py:245
 msgid "deleted a comment"
 msgstr "видалено коментар"
 
-#: apps/web/templatetags/web_extras.py:235
+#: apps/web/templatetags/web_extras.py:246
 msgid "attached a file"
 msgstr "прикріпив файл"
 
-#: apps/web/templatetags/web_extras.py:236
+#: apps/web/templatetags/web_extras.py:247
 msgid "removed an attachment"
 msgstr "видалив вкладення"
 
-#: apps/web/templatetags/web_extras.py:237
+#: apps/web/templatetags/web_extras.py:248
 msgid "added a member"
 msgstr "додано учасника"
 
-#: apps/web/templatetags/web_extras.py:238
+#: apps/web/templatetags/web_extras.py:249
 msgid "removed a member"
 msgstr "учасника виключено з простору"
 
-#: apps/web/templatetags/web_extras.py:239
+#: apps/web/templatetags/web_extras.py:250
 msgid "changed a member role"
 msgstr "змінено роль учасника"
 
@@ -847,8 +848,8 @@ msgstr "Пріоритет"
 msgid "Assignee"
 msgstr "Виконавець"
 
-#: apps/web/views.py:1172 templates/web/_inbox_list.html:40
-#: templates/web/projects/_table.html:86
+#: apps/web/views.py:1172 templates/web/_filters_sidebar.html:560
+#: templates/web/_inbox_list.html:40 templates/web/projects/_table.html:86
 #: templates/web/projects/_task_card.html:107
 msgid "Due"
 msgstr "Дедлайн"
@@ -1622,11 +1623,50 @@ msgstr "Розмір"
 msgid "Filter labels…"
 msgstr "Фільтр міток…"
 
-#: templates/web/_filters_sidebar.html:545
+#: templates/web/_filters_sidebar.html:551
+msgid "Date"
+msgstr "Дата"
+
+#: templates/web/_filters_sidebar.html:558
+#: templates/web/projects/_task_meta.html:56
+msgid "Created"
+msgstr "Створено"
+
+#: templates/web/_filters_sidebar.html:559
+#: templates/web/projects/_table.html:91
+#: templates/web/projects/_task_meta.html:57
+msgid "Updated"
+msgstr "Оновлено"
+
+#: templates/web/_filters_sidebar.html:566
+msgid "Last 7 days"
+msgstr "За 7 днів"
+
+#: templates/web/_filters_sidebar.html:570
+msgid "Last 30 days"
+msgstr "За 30 днів"
+
+#: templates/web/_filters_sidebar.html:575
+msgid "This cycle"
+msgstr "Поточний цикл"
+
+#: templates/web/_filters_sidebar.html:580
+msgid "Clear"
+msgstr "Очистити"
+
+#: templates/web/_filters_sidebar.html:585
+msgid "From"
+msgstr "Від"
+
+#: templates/web/_filters_sidebar.html:591
+msgid "To"
+msgstr "До"
+
+#: templates/web/_filters_sidebar.html:618
 msgid "Archived tasks are hidden by default. The toggle is remembered between visits."
 msgstr "Архівні задачі за замовчуванням приховані. Перемикач запам'ятовується між відвідуваннями."
 
-#: templates/web/_filters_sidebar.html:554
+#: templates/web/_filters_sidebar.html:627
 msgid "Show archived"
 msgstr "Показати архівні"
 
@@ -2656,11 +2696,6 @@ msgstr "Типовий"
 msgid "ID"
 msgstr "ID"
 
-#: templates/web/projects/_table.html:91
-#: templates/web/projects/_task_meta.html:57
-msgid "Updated"
-msgstr "Оновлено"
-
 #: templates/web/projects/_table.html:115
 #: templates/web/projects/_timeline.html:286
 msgid "No tasks."
@@ -2761,10 +2796,6 @@ msgstr "Блокує інші задачі"
 #: templates/web/projects/_task_meta.html:53
 msgid "Reporter"
 msgstr "Автор"
-
-#: templates/web/projects/_task_meta.html:56
-msgid "Created"
-msgstr "Створено"
 
 #: templates/web/projects/_task_meta.html:60
 #: templates/web/projects/_task_meta_compact.html:43

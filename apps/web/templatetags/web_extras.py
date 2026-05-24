@@ -42,6 +42,9 @@ def task_filter_attrs(context, task):
     * ``data-done-this-week`` — ``"1"`` when ``status == 'done'`` and
       ``updated_at`` within the last 7 days (for the Done column's
       "++ N this week" substatus recompute on client-side filter)
+    * ``data-completed-at`` / ``data-created-at`` / ``data-updated-at`` /
+      ``data-due-at`` — local ``YYYY-MM-DD`` for each date (empty when
+      unset); the date-range filter compares the one ``date_field`` picks
     * ``data-search-haystack`` — lowercased title + first 160 chars
       of description, used for substring search
 
@@ -63,6 +66,10 @@ def task_filter_attrs(context, task):
     week_cutoff = timezone.now() - datetime.timedelta(days=7)
     is_overdue = "1" if (task.due_date and task.due_date < today and task.status != "done") else "0"
     is_done_this_week = "1" if (task.status == "done" and task.updated_at and task.updated_at >= week_cutoff) else "0"
+    completed_on = timezone.localtime(task.completed_at).date().isoformat() if task.completed_at else ""
+    created_on = timezone.localtime(task.created_at).date().isoformat() if task.created_at else ""
+    updated_on = timezone.localtime(task.updated_at).date().isoformat() if task.updated_at else ""
+    due_on = task.due_date.isoformat() if task.due_date else ""
     menu_url = reverse(
         "web:task_context_menu",
         kwargs={"slug_prefix": task.project.slug_prefix, "number": task.number},
@@ -80,6 +87,10 @@ def task_filter_attrs(context, task):
         f'data-archived="{"1" if task.archived_at else "0"}" '
         f'data-overdue="{is_overdue}" '
         f'data-done-this-week="{is_done_this_week}" '
+        f'data-completed-at="{completed_on}" '
+        f'data-created-at="{created_on}" '
+        f'data-updated-at="{updated_on}" '
+        f'data-due-at="{due_on}" '
         f'data-search-haystack="{html.escape(haystack, quote=True)}"'
     )
     return mark_safe(attrs)

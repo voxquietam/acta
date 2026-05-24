@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 
@@ -208,6 +209,15 @@ class Task(models.Model):
         auto_now=True,
         help_text="When the task was last modified",
     )
+    completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text=(
+            "Timestamp when the task entered the done status; cleared when it leaves done. "
+            "Maintained in save() and the bulk update path. Powers the completed-date filter"
+        ),
+    )
 
     class Meta:
         constraints = [
@@ -385,6 +395,33 @@ class Task(models.Model):
         if self.status not in self.STATUS_VALUES:
             raise ValidationError({"status": f"Unknown status: {self.status!r}."})
 
+    def _sync_completed_at(self, kwargs):
+        """Maintain ``completed_at`` from the current status before saving.
+
+        Stamps the current time the first time the task is saved in the
+        done status and clears it when the status leaves done. When the
+        caller restricts the write to ``update_fields``, ``completed_at``
+        is appended so the change is actually persisted — the bulk path
+        (``QuerySet.update``) bypasses ``save`` entirely and sets the
+        field itself.
+
+        Args:
+            kwargs: The keyword arguments about to be passed to
+                ``Model.save`` (mutated in place to extend
+                ``update_fields`` when needed).
+        """
+        if self.status == self.STATUS_DONE:
+            if self.completed_at is not None:
+                return
+            self.completed_at = timezone.now()
+        else:
+            if self.completed_at is None:
+                return
+            self.completed_at = None
+        update_fields = kwargs.get("update_fields")
+        if update_fields is not None and "completed_at" not in update_fields:
+            kwargs["update_fields"] = list(update_fields) + ["completed_at"]
+
     def save(self, *args, **kwargs):
         """Persist the task, allocating a project-scoped number on first save.
 
@@ -393,12 +430,14 @@ class Task(models.Model):
         :meth:`Project.allocate_task_number`. The allocation runs inside a
         defensive ``transaction.atomic()`` so a missing outer transaction
         does not cause races; if the caller already holds one, the inner
-        block is a savepoint and a no-op.
+        block is a savepoint and a no-op. ``completed_at`` is reconciled
+        from the status on every save (see :meth:`_sync_completed_at`).
 
         Args:
             *args: Positional arguments forwarded to ``Model.save``.
             **kwargs: Keyword arguments forwarded to ``Model.save``.
         """
+        self._sync_completed_at(kwargs)
         if self._state.adding and not self.number:
             with transaction.atomic():
                 self.number = self.project.allocate_task_number()

@@ -364,6 +364,9 @@
       label: new Set(multi("label")),
       xlabel: new Set(multi("xlabel")),
       q: (fd.get("q") || "").toString().trim().toLowerCase(),
+      dateField: (fd.get("date_field") || "completed").toString().trim(),
+      dateAfter: (fd.get("date_after") || "").toString().trim(),
+      dateBefore: (fd.get("date_before") || "").toString().trim(),
       showArchived,
     };
   }
@@ -419,6 +422,16 @@
         for (const id of state.xlabel) if (rowLabels.has(id)) return false;
       }
     }
+    // Date range — applies to whichever field ``date_field`` selects.
+    // Each ``data-*-at`` is a ``YYYY-MM-DD`` (empty when unset); ISO dates
+    // compare correctly as strings. A set bound drops rows missing that date.
+    if (state.dateAfter || state.dateBefore) {
+      const attr = { created: "createdAt", updated: "updatedAt", completed: "completedAt", due: "dueAt" }[state.dateField] || "completedAt";
+      const d = row.dataset[attr] || "";
+      if (!d) return false;
+      if (state.dateAfter && d < state.dateAfter) return false;
+      if (state.dateBefore && d > state.dateBefore) return false;
+    }
     // Search — substring against title + first 160 chars of description.
     if (state.q) {
       const hay = row.dataset.searchHaystack || "";
@@ -442,6 +455,7 @@
       state.label.size +
       state.xlabel.size +
       (state.q ? 1 : 0) +
+      (state.dateAfter || state.dateBefore ? 1 : 0) +
       (state.showArchived ? 1 : 0)
     );
   }
@@ -509,6 +523,7 @@
       priority: state.priority.size + state.xpriority.size,
       project: state.project.size + state.xproject.size,
       label: state.label.size + state.xlabel.size,
+      date: state.dateAfter || state.dateBefore ? 1 : 0,
     };
     document.querySelectorAll("[data-filter-section-count]").forEach((el) => {
       const n = sectionCounts[el.dataset.filterSectionCount] || 0;

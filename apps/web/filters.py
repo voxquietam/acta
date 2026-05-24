@@ -47,6 +47,7 @@ def apply_task_filters(qs, params, *, request_user, default_show_done=True):
     qs = _filter_assignee(qs, params, request_user)
     qs = _filter_labels(qs, params)
     qs = _filter_cycle(qs, params)
+    qs = _filter_date_range(qs, params)
     qs = _filter_search(qs, params)
     return qs
 
@@ -207,6 +208,54 @@ def _filter_cycle(qs, params):
         q |= Q(cycle_id__in=ids)
     if q:
         qs = qs.filter(q)
+    return qs
+
+
+def _parse_date(raw):
+    """Parse a ``YYYY-MM-DD`` string into a date, or ``None`` if invalid."""
+    from datetime import date
+
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(raw)
+    except ValueError:
+        return None
+
+
+# Public ``date_field`` token → the Task column it filters. ``due`` is a
+# DateField; the rest are DateTimeFields compared by calendar day.
+DATE_FILTER_COLUMNS = {
+    "created": "created_at",
+    "updated": "updated_at",
+    "completed": "completed_at",
+    "due": "due_date",
+}
+DATE_FILTER_DEFAULT = "completed"
+
+
+def _filter_date_range(qs, params):
+    """Apply the ``date_after`` / ``date_before`` range on a chosen field.
+
+    ``date_field`` selects which Task date the range applies to — one of
+    ``created`` / ``updated`` / ``completed`` / ``due`` (default
+    ``created``). Both bounds are inclusive and independent. Rows whose
+    chosen date is null (e.g. ``completed`` on an unfinished task, or
+    ``due`` with no deadline) drop out whenever a bound is set.
+    """
+    column = DATE_FILTER_COLUMNS.get((params.get("date_field") or DATE_FILTER_DEFAULT).strip())
+    if column is None:
+        return qs
+    after = _parse_date(params.get("date_after"))
+    before = _parse_date(params.get("date_before"))
+    if not (after or before):
+        return qs
+    prefix = column if column == "due_date" else f"{column}__date"
+    if after:
+        qs = qs.filter(**{f"{prefix}__gte": after})
+    if before:
+        qs = qs.filter(**{f"{prefix}__lte": before})
     return qs
 
 
@@ -478,9 +527,16 @@ def filter_sidebar_context(
     excluded_assignees = set(params.getlist("xassignee"))
 
     q = params.get("q", "")
+    date_field = (params.get("date_field") or DATE_FILTER_DEFAULT).strip()
+    if date_field not in DATE_FILTER_COLUMNS:
+        date_field = DATE_FILTER_DEFAULT
+    date_after = params.get("date_after", "")
+    date_before = params.get("date_before", "")
+    active_cycle = next((c for c in available_cycles if c.status == "active"), None)
 
     active_filter_count = (
         (1 if q else 0)
+        + (1 if (date_after or date_before) else 0)
         + len(selected_assignees)
         + len(selected_statuses)
         + len(selected_priorities)
@@ -533,6 +589,11 @@ def filter_sidebar_context(
         "excluded_assignees": excluded_assignees,
         "show_archived": show_archived,
         "q": q,
+        "date_field": date_field,
+        "date_after": date_after,
+        "date_before": date_before,
+        "active_cycle_start": active_cycle.start_date.isoformat() if active_cycle else "",
+        "active_cycle_end": active_cycle.end_date.isoformat() if active_cycle else "",
         "available_projects": available_projects,
         "available_labels": available_labels,
         "available_assignees": available_assignees,

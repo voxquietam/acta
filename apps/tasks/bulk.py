@@ -211,9 +211,15 @@ def _bulk_apply_scalars(ids: list[int], updates: dict[str, Any]) -> None:
         ids: List of task primary keys to update.
         updates: Validated ``updates`` dict from the request.
     """
+    now = timezone.now()
     payload: dict[str, Any] = {}
     if "status" in updates:
         payload["status"] = updates["status"]
+        # ``Task.save`` maintains ``completed_at`` on status transitions,
+        # but the bulk path bypasses it, so mirror that here: stamp the
+        # done timestamp (overwriting any prior one is acceptable for a
+        # bulk move) and clear it when leaving done.
+        payload["completed_at"] = now if updates["status"] == Task.STATUS_DONE else None
     if "due_date" in updates:
         payload["due_date"] = updates["due_date"]
     if "priority" in updates:
@@ -225,7 +231,6 @@ def _bulk_apply_scalars(ids: list[int], updates: dict[str, Any]) -> None:
     # ``cycle`` is intentionally NOT applied here — it's handled by
     # :func:`_bulk_apply_cycle` so an explicit assignment can skip planned
     # (backlog) tasks, which the cadence policy keeps cycle-free.
-    now = timezone.now()
     if "archived" in updates:
         # ``archived`` is a request-side bool; the column is a timestamp
         # so unarchive clears it and archive stamps "now". The diff
