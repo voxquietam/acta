@@ -986,6 +986,82 @@
     openCreateTaskModal();
   });
 
+  // ── Create task from selected text ────────────────────────────────
+  // Open the create modal prefilled with ``text`` as the title. On a
+  // task detail page (``/projects/<slug>/<n>/``) the new task auto-links
+  // (related) to the current task via ``link_related`` — the server
+  // wires the link. Shared by the rendered-selection bubble below and
+  // the description editor's "Create task" toolbar button.
+  function createTaskFromText(text) {
+    const title = (text || "").replace(/\s+/g, " ").trim().slice(0, 200);
+    if (!title) return;
+    const root = document.getElementById("modal-root");
+    const shell = document.querySelector("[data-create-task-url]");
+    if (!root || root.innerHTML.trim() !== "" || !shell || !window.htmx) return;
+    const params = { title };
+    const m = window.location.pathname.match(/^\/projects\/([^/]+)\/(\d+)\//);
+    if (m) {
+      params.project = m[1];
+      params.link_related = `${m[1]}-${m[2]}`;
+    }
+    const qs = new URLSearchParams(params).toString();
+    window.htmx.ajax("GET", shell.dataset.createTaskUrl + "?" + qs, { target: "#modal-root", swap: "innerHTML" });
+  }
+  window.acta.createTaskFromText = createTaskFromText;
+
+  // Floating "Create task" affordance on a text selection inside any
+  // ``[data-create-from-selection]`` region (rendered comment bodies).
+  (function initSelectionCreateBubble() {
+    let bubble = null;
+    const shell = document.querySelector("[data-create-task-url]");
+    const label = (shell && shell.dataset.createTaskLabel) || "Create task";
+    function hide() {
+      if (bubble) bubble.style.display = "none";
+    }
+    function getBubble() {
+      if (bubble) return bubble;
+      bubble = document.createElement("button");
+      bubble.type = "button";
+      bubble.id = "acta-selection-create";
+      bubble.textContent = label;
+      bubble.className =
+        "fixed z-30 items-center gap-1 px-2 py-1 rounded-md bg-card border border-border shadow-lg text-xs text-foreground hover:bg-muted";
+      bubble.style.display = "none";
+      // Keep the selection alive: a plain click would collapse it first.
+      bubble.addEventListener("mousedown", (e) => e.preventDefault());
+      bubble.addEventListener("click", () => {
+        const sel = window.getSelection();
+        const text = sel ? sel.toString() : "";
+        hide();
+        if (sel) sel.removeAllRanges();
+        createTaskFromText(text);
+      });
+      document.body.appendChild(bubble);
+      return bubble;
+    }
+    function maybeShow() {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || !sel.toString().trim()) return hide();
+      const node = sel.anchorNode;
+      const el = node && (node.nodeType === 1 ? node : node.parentElement);
+      if (!el || !el.closest("[data-create-from-selection]")) return hide();
+      const rect = sel.getRangeAt(0).getBoundingClientRect();
+      const b = getBubble();
+      b.style.display = "inline-flex";
+      let top = rect.top - b.offsetHeight - 6;
+      if (top < 4) top = rect.bottom + 6;
+      const left = Math.max(8, Math.min(rect.left, window.innerWidth - b.offsetWidth - 8));
+      b.style.top = `${top}px`;
+      b.style.left = `${left}px`;
+    }
+    document.addEventListener("mouseup", () => window.setTimeout(maybeShow, 0));
+    document.addEventListener("selectionchange", () => {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed) hide();
+    });
+    document.addEventListener("scroll", hide, true);
+  })();
+
   // Lucide icons used to be ``<i data-lucide="...">`` placeholders
   // hydrated client-side by ``lucide.min.js`` on load + every HTMX
   // swap. Server now renders inline SVG via the ``{% lucide %}``

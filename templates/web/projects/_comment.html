@@ -55,7 +55,7 @@ card for a new top-level comment; replies append via ``_comment_reply``.
     card barely shifts). Save/Cancel re-render the whole card.
     {% endcomment %}
     <div id="comment-body-{{ comment.id }}">
-      <div class="prose dark:prose-invert prose-sm max-w-none text-muted-foreground">
+      <div class="prose dark:prose-invert prose-sm max-w-none text-muted-foreground" data-create-from-selection>
         {{ comment.body|markdown }}
       </div>
       {% include "web/projects/_comment_attachments.html" %}

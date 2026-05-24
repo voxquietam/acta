@@ -486,3 +486,28 @@ class TestCreateTaskLinkRelated:
         # Caption pairs slug + title (never a bare slug).
         assert origin.slug in body
         assert "Origin task" in body
+
+
+@pytest.mark.django_db
+class TestCreateFromSelectionMarkers:
+    """Phase 2 wiring: rendered comment bodies + the description editor
+    carry the affordances the create-from-selection JS hooks onto."""
+
+    def test_comment_body_marked_selectable(self, client, setup):
+        from apps.comments.models import Comment
+
+        ws, project, user = setup
+        task = TaskFactory(project=project)
+        Comment.objects.create(task=task, author=user, body="Some discussion text")
+        client.force_login(user)
+        url = reverse("web:task_comments_fragment", args=[project.slug_prefix, task.number])
+        body = client.get(url).content.decode()
+        assert "data-create-from-selection" in body
+
+    def test_description_editor_has_create_task_button(self, client, setup):
+        ws, project, user = setup
+        task = TaskFactory(project=project, description="hello")
+        client.force_login(user)
+        url = reverse("web:task_description_fragment", args=[project.slug_prefix, task.number])
+        body = client.get(url).content.decode()
+        assert "Create task from selection" in body

@@ -11,6 +11,7 @@ Pages extend this and override the `app_main` block.
 <div id="acta-progress-bar"></div>
 <div x-data
      data-create-task-url="{% url 'web:create_task' %}"
+     data-create-task-label="{% trans 'Create task' %}"
      hx-indicator="#acta-progress-bar"
      hx-ext="morph"
      class="h-screen flex overflow-hidden">

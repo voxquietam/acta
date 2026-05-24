@@ -20,7 +20,7 @@ Expects ``comment`` (a reply).
     </div>
   </div>
   <div id="comment-body-{{ comment.id }}">
-    <div class="prose dark:prose-invert prose-sm max-w-none text-muted-foreground">
+    <div class="prose dark:prose-invert prose-sm max-w-none text-muted-foreground" data-create-from-selection>
       {{ comment.body|markdown }}
     </div>
     {% include "web/projects/_comment_attachments.html" %}

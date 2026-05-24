@@ -1,4 +1,5 @@
 {% load i18n %}
+{% load lucide %}
 {% comment %}
 Selection bubble for the TipTap editor: a floating formatting bar shown
 over a non-empty text selection. Hidden by default (``display:none``);
@@ -115,6 +116,15 @@ the native ``window.prompt`` dialog on link insertion).
             class="w-7 h-7 grid place-items-center rounded hover:bg-muted text-muted-foreground text-xs"
             aria-label="{% trans 'Task list' %}"
             data-tooltip="{% trans 'Task list' %}">☐</button>
+    {% if show_create_task %}
+    {# Spin a task off the current selection; links to this task (server). #}
+    <span class="w-px h-5 bg-border mx-0.5" aria-hidden="true"></span>
+    <button type="button"
+            onclick="event.preventDefault(); var e=this.closest('.description-editor-toolbar')._editor; if(e&&window.acta){var s=e.state.selection; window.acta.createTaskFromText(e.state.doc.textBetween(s.from, s.to, ' '));}"
+            class="w-7 h-7 grid place-items-center rounded hover:bg-muted text-muted-foreground"
+            aria-label="{% trans 'Create task' %}"
+            data-tooltip="{% trans 'Create task from selection' %}">{% lucide "square-plus" "w-4 h-4" %}</button>
+    {% endif %}
   </div>
 
   <div x-show="mode === 'link'" x-cloak class="flex items-center gap-1">
