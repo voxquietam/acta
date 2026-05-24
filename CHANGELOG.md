@@ -7,6 +7,68 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Entries are hand-written from the Conventional Commit history for now.
 Automating this with `git-cliff` is deferred until `v1.0.0`.
 
+## [0.3.0] — 2026-05-24
+
+Large feature release on top of v0.2.x: Telegram notifications, file
+attachments + avatars everywhere, workspace cycles, scrumban (WIP limits,
+aging, insights), an admin-managed job scheduler, single-active-workspace
+scoping, a unified context menu, broadcast announcements, and Google login.
+
+### ⚠ Breaking / migrations
+
+Run migrations and rebuild the image (the scheduler adds a new compose
+service; uploads need the `acta-media` volume + Pillow).
+
+- New apps / models: `apps.attachments` (Attachment, content-addressed
+  dedup, ref-counted delete), `apps.telegram` (account linking, per-kind
+  message templates + delivery prefs), `apps.cycles` (workspace
+  auto-rolling cycles); avatars on `User`; `User.active_workspace`.
+- New task statuses: `ready` (replenishment buffer) and `cancelled`
+  (terminal); tasks can move between projects.
+- WIP limits on projects + workspaces (personal + column).
+- Infra: recurring jobs run via a django-q2 `qcluster` service (no host
+  cron). New `acta-media` volume.
+- Auth: Google login — verified-email links existing accounts; social
+  signup gated on a matching invite. New allauth settings.
+
+### Added
+
+- **Telegram notifications**: account-linking + `notify()` fan-out,
+  admin-editable per-kind message templates, per-kind delivery prefs,
+  localized bot replies, rich placeholders, markdown-cleaned previews.
+- **File attachments**: task + comment attachments (upload / serve /
+  delete), inline image paste/drop everywhere (description editor,
+  comments, project updates + their comments, create-task modal),
+  content-addressed dedup, lightbox gallery (arrow keys),
+  alt-from-filename, orphan GC.
+- **Avatars**: upload + square-crop + serve, in-browser downscale, shown
+  across comments, members, overview, topbar, tables, lists, filters,
+  kanban, timeline, project list, link search.
+- **Cycles**: workspace-level auto-rolling cycles + assignment +
+  dashboard, auto-rollover of unfinished tasks, start / approaching-end
+  notifications.
+- **Scrumban**: project + workspace WIP limits (personal + column), aging
+  WIP, `ready` status, project insights (cycle / lead time + throughput),
+  cumulative-flow + bottleneck dashboard.
+- **Single active workspace** + sidebar switcher.
+- **Unified context menu**: right-click + bulk task actions.
+- **Admin-managed scheduler**: django-q2 schedules editable in `/admin/`.
+- **Announcements**: broadcast to the workspace inbox (force-delivered).
+- **Google login**: "Continue with Google" on login + signup.
+- Cancel-task status, move task between projects, editable Size cell,
+  size filter, project favourite-star, create-modal project prefill,
+  flash-message toasts, email invites in Members.
+
+### Fixed
+
+- 29 fixes across kanban drag-and-drop, filters, timeline, notification
+  previews, query counts, and UI polish. See `git log v0.2.1..v0.3.0`.
+
+### Performance
+
+- In-browser avatar downscale before upload; batched cycle dashboard
+  summaries; draft-decode avatar processing.
+
 ## [0.2.1] — 2026-05-21
 
 Patch release — sidebar version-link polish on top of v0.2.0.
