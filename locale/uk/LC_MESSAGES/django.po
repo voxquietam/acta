@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Acta 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-05-24 11:43+0000\n"
+"POT-Creation-Date: 2026-05-25 08:32+0000\n"
 "PO-Revision-Date: 2026-05-16 15:30+0000\n"
 "Last-Translator: Acta team\n"
 "Language-Team: Ukrainian\n"
@@ -60,13 +60,13 @@ msgstr "Оновлення проєктів"
 msgid "Tasks"
 msgstr "Задачі"
 
-#: acta/settings/base.py:500 apps/comments/models.py:62 apps/web/views.py:1274
+#: acta/settings/base.py:500 apps/comments/models.py:62 apps/web/views.py:1323
 #: templates/web/_inbox_list.html:44 templates/web/_my_activity_inner.html:14
 #: templates/web/projects/_update_comments.html:14
 msgid "Comments"
 msgstr "Коментарі"
 
-#: acta/settings/base.py:505 apps/labels/models.py:94 apps/web/views.py:1273
+#: acta/settings/base.py:505 apps/labels/models.py:94 apps/web/views.py:1322
 #: templates/web/_create_task_modal.html:159
 #: templates/web/_filters_sidebar.html:476
 #: templates/web/projects/_bulk_context_menu.html:227
@@ -411,7 +411,7 @@ msgstr "Сповіщення"
 msgid "Notifications"
 msgstr "Сповіщення"
 
-#: apps/projects/models.py:11 apps/web/views.py:5844
+#: apps/projects/models.py:11 apps/web/views.py:5896
 msgid "Slug prefix must be 2–6 uppercase Latin letters."
 msgstr "Префікс slug має містити 2–6 великих латинських літер."
 
@@ -423,7 +423,7 @@ msgstr "Префікс slug має містити 2–6 великих лати�
 msgid "Project"
 msgstr "Проєкт"
 
-#: apps/projects/models.py:132 apps/web/views.py:5862
+#: apps/projects/models.py:132 apps/web/views.py:5914
 msgid "Lead must be a member of the project's workspace."
 msgstr "Лід повинен бути учасником робочого простору проєкту."
 
@@ -825,7 +825,7 @@ msgstr "учасника виключено з простору"
 msgid "changed a member role"
 msgstr "змінено роль учасника"
 
-#: apps/web/views.py:1269 templates/web/_create_task_modal.html:114
+#: apps/web/views.py:1318 templates/web/_create_task_modal.html:114
 #: templates/web/_filters_sidebar.html:195
 #: templates/web/projects/_bulk_context_menu.html:121
 #: templates/web/projects/_table.html:61
@@ -834,7 +834,7 @@ msgstr "змінено роль учасника"
 msgid "Status"
 msgstr "Статус"
 
-#: apps/web/views.py:1270 templates/web/_create_task_modal.html:125
+#: apps/web/views.py:1319 templates/web/_create_task_modal.html:125
 #: templates/web/_filters_sidebar.html:249
 #: templates/web/projects/_bulk_context_menu.html:135
 #: templates/web/projects/_task_context_menu.html:212
@@ -842,136 +842,136 @@ msgstr "Статус"
 msgid "Priority"
 msgstr "Пріоритет"
 
-#: apps/web/views.py:1271 templates/web/_assignee_strip.html:13
+#: apps/web/views.py:1320 templates/web/_assignee_strip.html:13
 #: templates/web/_create_task_modal.html:143
 #: templates/web/projects/_table.html:74
 #: templates/web/projects/_task_meta.html:42
 msgid "Assignee"
 msgstr "Виконавець"
 
-#: apps/web/views.py:1272 templates/web/_filters_sidebar.html:561
+#: apps/web/views.py:1321 templates/web/_filters_sidebar.html:561
 #: templates/web/_inbox_list.html:40 templates/web/projects/_table.html:86
 #: templates/web/projects/_task_card.html:107
 msgid "Due"
 msgstr "Дедлайн"
 
-#: apps/web/views.py:1275 templates/web/projects/_links_panel.html:54
+#: apps/web/views.py:1324 templates/web/projects/_links_panel.html:54
 msgid "Links"
 msgstr "Зв'язки"
 
-#: apps/web/views.py:1276
+#: apps/web/views.py:1325
 msgid "Edits"
 msgstr "Правки"
 
-#: apps/web/views.py:5479 apps/web/views.py:5517 apps/web/views.py:5544
-#: apps/web/views.py:5667 apps/web/views.py:5699 apps/web/views.py:5724
+#: apps/web/views.py:5531 apps/web/views.py:5569 apps/web/views.py:5596
+#: apps/web/views.py:5719 apps/web/views.py:5751 apps/web/views.py:5776
 msgid "Admin or owner only"
 msgstr "Тільки для адміна або власника"
 
-#: apps/web/views.py:5482
+#: apps/web/views.py:5534
 msgid "Email is required"
 msgstr "Email обов'язковий"
 
-#: apps/web/views.py:5485 apps/web/views.py:5674 apps/web/views.py:5707
+#: apps/web/views.py:5537 apps/web/views.py:5726 apps/web/views.py:5759
 msgid "Invalid role"
 msgstr "Неправильна роль"
 
-#: apps/web/views.py:5494
+#: apps/web/views.py:5546
 #, python-format
 msgid "Invite sent to %(email)s."
 msgstr "Запрошення надіслано на %(email)s."
 
-#: apps/web/views.py:5497
+#: apps/web/views.py:5549
 msgid "Invite created but email failed — copy the link from the list."
 msgstr "Запрошення створено, але лист не надіслався — скопіюйте посилання зі списку."
 
-#: apps/web/views.py:5520
+#: apps/web/views.py:5572
 msgid "Invite not found"
 msgstr "Запрошення не знайдено"
 
-#: apps/web/views.py:5526
+#: apps/web/views.py:5578
 #, python-format
 msgid "Invite to %(email)s revoked."
 msgstr "Запрошення для %(email)s відкликано."
 
-#: apps/web/views.py:5547
+#: apps/web/views.py:5599
 msgid "Invite not found or already accepted"
 msgstr "Запрошення не знайдено або вже прийнято"
 
-#: apps/web/views.py:5550
+#: apps/web/views.py:5602
 #, python-format
 msgid "Invite re-sent to %(email)s."
 msgstr "Запрошення повторно надіслано на %(email)s."
 
-#: apps/web/views.py:5552
+#: apps/web/views.py:5604
 msgid "Resend failed — try again later."
 msgstr "Не вдалося надіслати повторно — спробуйте пізніше."
 
-#: apps/web/views.py:5671
+#: apps/web/views.py:5723
 msgid "Invalid user_id"
 msgstr "Неправильний user_id"
 
-#: apps/web/views.py:5679
+#: apps/web/views.py:5731
 msgid "Cannot add another owner"
 msgstr "Не можна додати ще одного власника"
 
-#: apps/web/views.py:5682
+#: apps/web/views.py:5734
 msgid "User not found"
 msgstr "Користувача не знайдено"
 
-#: apps/web/views.py:5684
+#: apps/web/views.py:5736
 msgid "User already a member"
 msgstr "Користувач вже є учасником"
 
-#: apps/web/views.py:5702 apps/web/views.py:5727
+#: apps/web/views.py:5754 apps/web/views.py:5779
 msgid "Not a member"
 msgstr "Не є учасником"
 
-#: apps/web/views.py:5704
+#: apps/web/views.py:5756
 msgid "Transfer ownership first"
 msgstr "Спочатку передай право власності"
 
-#: apps/web/views.py:5709
+#: apps/web/views.py:5761
 msgid "Ownership transfer not supported here"
 msgstr "Передача права власності тут не підтримується"
 
-#: apps/web/views.py:5729
+#: apps/web/views.py:5781
 msgid "Cannot remove owner"
 msgstr "Не можна видалити власника"
 
-#: apps/web/views.py:5828
+#: apps/web/views.py:5880
 msgid "Invalid workspace"
 msgstr "Неправильний робочий простір"
 
-#: apps/web/views.py:5834
+#: apps/web/views.py:5886
 msgid "Workspace not accessible"
 msgstr "Робочий простір недоступний"
 
-#: apps/web/views.py:5838 apps/web/views.py:5942
+#: apps/web/views.py:5890 apps/web/views.py:5994
 msgid "Name is required"
 msgstr "Ім'я обов'язкове"
 
-#: apps/web/views.py:5840 apps/web/views.py:5944
+#: apps/web/views.py:5892 apps/web/views.py:5996
 msgid "Name too long"
 msgstr "Назва задовга"
 
-#: apps/web/views.py:5846
+#: apps/web/views.py:5898
 msgid "Slug prefix already used in this workspace"
 msgstr "Префікс slug вже використовується в цьому робочому просторі"
 
-#: apps/web/views.py:5856
+#: apps/web/views.py:5908
 msgid "Invalid lead"
 msgstr "Неправильний лід"
 
-#: apps/web/views.py:5950
+#: apps/web/views.py:6002
 msgid "Invalid slug"
 msgstr "Неправильний slug"
 
-#: apps/web/views.py:5952
+#: apps/web/views.py:6004
 msgid "Slug already taken"
 msgstr "Slug вже зайнятий"
 
-#: apps/web/views.py:5961
+#: apps/web/views.py:6013
 msgid "Cannot generate unique slug"
 msgstr "Не вдалось згенерувати унікальний slug"
 
@@ -1088,19 +1088,19 @@ msgstr "Підтвердьте пароль"
 msgid "Already have an account?"
 msgstr "Вже маєте акаунт?"
 
-#: templates/account/signup_closed.html:11
-msgid "Registration closed"
-msgstr "Реєстрація закрита"
+#: templates/account/signup_closed.html:14
+msgid "Invitation needed"
+msgstr "Потрібне запрошення"
 
-#: templates/account/signup_closed.html:18
-msgid "Registration is closed"
-msgstr "Реєстрація закрита"
+#: templates/account/signup_closed.html:21
+msgid "We couldn't find an invitation for you"
+msgstr "Ми не знайшли запрошення для вас"
 
-#: templates/account/signup_closed.html:20
-msgid "Acta accounts are created by administrators. Reach out to an admin to be added to a workspace."
-msgstr "Акаунти Acta створюють адміністратори. Звернись до адміністратора, щоб тебе додали до робочого простору."
+#: templates/account/signup_closed.html:23
+msgid "Acta is invite-only. If you were invited, sign in with the exact email address the invite was sent to. Otherwise ask a workspace admin to send you an invite, then try again."
+msgstr "Acta працює лише за запрошеннями. Якщо вас запросили, увійдіть із тією самою адресою електронної пошти, на яку надіслали запрошення. Інакше попросіть адміністратора робочого простору надіслати вам запрошення та спробуйте знову."
 
-#: templates/account/signup_closed.html:24
+#: templates/account/signup_closed.html:27
 msgid "Back to login"
 msgstr "Повернутись до входу"
 
@@ -1320,7 +1320,7 @@ msgstr "Показати бічну панель"
 
 #: templates/base_app.html:269 templates/base_app.html:271
 #: templates/web/_create_task_modal.html:41
-#: templates/web/projects/_kanban.html:79
+#: templates/web/projects/_kanban.html:80
 msgid "New task"
 msgstr "Нова задача"
 
@@ -1357,15 +1357,15 @@ msgstr "Відкрити оригінал"
 msgid "Close"
 msgstr "Закрити"
 
-#: templates/base_app.html:507 templates/web/_inbox_list.html:103
+#: templates/base_app.html:509 templates/web/_inbox_list.html:103
 msgid "selected"
 msgstr "виділено"
 
-#: templates/base_app.html:523
+#: templates/base_app.html:525
 msgid "Actions"
 msgstr "Дії"
 
-#: templates/base_app.html:530 templates/web/_inbox_list.html:121
+#: templates/base_app.html:532 templates/web/_inbox_list.html:121
 msgid "Clear selection"
 msgstr "Зняти вибір"
 
@@ -1669,19 +1669,19 @@ msgstr "Від"
 msgid "To"
 msgstr "До"
 
-#: templates/web/_filters_sidebar.html:626
+#: templates/web/_filters_sidebar.html:629
 msgid "Include backlog (planned/ready)"
 msgstr "Показувати беклог (planned/ready)"
 
-#: templates/web/_filters_sidebar.html:635
+#: templates/web/_filters_sidebar.html:638
 msgid "Show backlog"
 msgstr "Показати беклог"
 
-#: templates/web/_filters_sidebar.html:642
+#: templates/web/_filters_sidebar.html:645
 msgid "Include archived tasks"
 msgstr "Показувати архівні задачі"
 
-#: templates/web/_filters_sidebar.html:651
+#: templates/web/_filters_sidebar.html:654
 msgid "Show archived"
 msgstr "Показати архівні"
 
@@ -2423,21 +2423,21 @@ msgstr "Застосувати"
 msgid "Remove link"
 msgstr "Видалити посилання"
 
-#: templates/web/projects/_kanban.html:52
+#: templates/web/projects/_kanban.html:53
 msgid "Collapse column"
 msgstr "Згорнути колонку"
 
-#: templates/web/projects/_kanban.html:113
-#: templates/web/projects/_kanban.html:117
-#: templates/web/projects/_kanban.html:143
+#: templates/web/projects/_kanban.html:114
+#: templates/web/projects/_kanban.html:118
+#: templates/web/projects/_kanban.html:144
 msgid "over WIP limit"
 msgstr "перевищено ліміт WIP"
 
-#: templates/web/projects/_kanban.html:143
+#: templates/web/projects/_kanban.html:144
 msgid "at WIP limit"
 msgstr "досягнуто ліміт WIP"
 
-#: templates/web/projects/_kanban.html:157
+#: templates/web/projects/_kanban.html:158
 #, python-format
 msgid "%(n)s member over WIP"
 msgid_plural "%(n)s members over WIP"
@@ -2446,11 +2446,11 @@ msgstr[1] "%(n)s учасники перевищили WIP"
 msgstr[2] "%(n)s учасників перевищили WIP"
 msgstr[3] "%(n)s учасники перевищили WIP"
 
-#: templates/web/projects/_kanban.html:171
+#: templates/web/projects/_kanban.html:172
 msgid "Expand column"
 msgstr "Розгорнути колонку"
 
-#: templates/web/projects/_kanban.html:201
+#: templates/web/projects/_kanban.html:202
 msgid "empty"
 msgstr "порожньо"
 
@@ -3178,6 +3178,15 @@ msgstr "Активного циклу ще немає."
 #: templates/web/workspaces/settings.html:185
 msgid "Only workspace admins can change the cadence."
 msgstr "Змінювати ритм можуть лише адміни воркспейсу."
+
+#~ msgid "Registration closed"
+#~ msgstr "Реєстрація закрита"
+
+#~ msgid "Registration is closed"
+#~ msgstr "Реєстрація закрита"
+
+#~ msgid "Acta accounts are created by administrators. Reach out to an admin to be added to a workspace."
+#~ msgstr "Акаунти Acta створюють адміністратори. Звернись до адміністратора, щоб тебе додали до робочого простору."
 
 #~ msgid "Planned and ready (backlog) tasks are hidden here by default. The Backlog tab always shows them."
 #~ msgstr "Заплановані та готові (беклог) задачі тут сховані за замовчуванням. Вкладка Backlog завжди показує їх."

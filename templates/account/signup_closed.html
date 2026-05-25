@@ -3,21 +3,24 @@
 {% load lucide %}
 
 {% comment %}
-Shown by allauth when ``is_open_for_signup`` returns False (see
-``apps.accounts.adapters.NoSignupAccountAdapter``). Friendly redirect
-to login for users who land on ``/accounts/signup/`` directly.
+Shown by allauth when ``is_open_for_signup`` returns False — for the password
+signup page hit directly AND for a Google login with no matching invite (the
+social flow renders this same template). See
+``apps.accounts.adapters.NoSignupSocialAccountAdapter``. The copy is invite-
+focused + actionable so an invited user who used the wrong Google email (or
+whose invite expired) knows what to do, instead of a bare "closed".
 {% endcomment %}
 
-{% block title %}{% trans "Registration closed" %} · Acta{% endblock %}
+{% block title %}{% trans "Invitation needed" %} · Acta{% endblock %}
 
 {% block auth_main %}
 <div class="flex flex-col items-center text-center">
   <span class="grid place-items-center w-12 h-12 rounded-full bg-muted text-placeholder-foreground mb-3">
-    {% lucide "lock" "w-5 h-5" %}
+    {% lucide "mail" "w-5 h-5" %}
   </span>
-  <h1 class="text-base font-medium text-foreground mb-1">{% trans "Registration is closed" %}</h1>
-  <p class="text-xs text-placeholder-foreground mb-4">
-    {% trans "Acta accounts are created by administrators. Reach out to an admin to be added to a workspace." %}
+  <h1 class="text-base font-medium text-foreground mb-1">{% trans "We couldn't find an invitation for you" %}</h1>
+  <p class="text-xs text-placeholder-foreground mb-4 max-w-xs">
+    {% trans "Acta is invite-only. If you were invited, sign in with the exact email address the invite was sent to. Otherwise ask a workspace admin to send you an invite, then try again." %}
   </p>
   <a href="{% url 'account_login' %}"
      class="acta-btn-primary">
