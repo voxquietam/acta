@@ -17,12 +17,20 @@ no extra HTTP requests fire on tab change. Tabs themselves live in
   </div>
   {% endif %}
 
-  <div x-show="$store.viewMode.current === 'kanban'" x-cloak class="flex-1 min-h-0 flex flex-col">
-    {% include "web/projects/_kanban.html" %}
+  {% comment %}
+  On lazy surfaces (All Tasks — ``lazy_view_panels``) kanban + table are
+  lazy panels just like list / timeline: render only the active view inline,
+  leave the others as empty ``data-panel-slot`` divs that ``acta.js``
+  fetches via ``?panel=kanban`` / ``?panel=table``. Keeps the page and every
+  structural-filter round-trip light. Project detail (flag absent) keeps both
+  bodies in the DOM for instant ``x-show`` switching.
+  {% endcomment %}
+  <div x-show="$store.viewMode.current === 'kanban'" x-cloak{% if lazy_view_panels %} data-panel-slot="kanban"{% endif %} class="flex-1 min-h-0 flex flex-col">
+    {% if not lazy_view_panels or view_mode == "kanban" %}{% include "web/projects/_kanban.html" %}{% endif %}
   </div>
 
-  <div x-show="$store.viewMode.current === 'table'" x-cloak class="flex-1 min-h-0 flex flex-col">
-    {% include "web/projects/_table.html" with tasks=table_tasks|default:tasks show_labels=True %}
+  <div x-show="$store.viewMode.current === 'table'" x-cloak{% if lazy_view_panels %} data-panel-slot="table"{% endif %} class="flex-1 min-h-0 flex flex-col">
+    {% if not lazy_view_panels or view_mode == "table" %}{% include "web/projects/_table.html" with tasks=table_tasks|default:tasks show_labels=True %}{% endif %}
   </div>
 
   {% comment %}

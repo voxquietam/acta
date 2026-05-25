@@ -36,6 +36,7 @@ hides the native scrollbar without losing the "you can scroll" cue.
   [[project-todo-kanban-column-width]].
   {% endcomment %}
   <div x-data
+       data-kanban-column="{{ col.key }}"
        :class="$store.kanban.isCollapsed('{{ col.key }}')
                  ? 'w-10 self-start h-72 shrink-0'
                  : 'flex-1 min-w-[280px] max-w-[400px]'"

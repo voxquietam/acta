@@ -599,13 +599,16 @@ rail are queued in [[project-todo-filter-sidebar-presets-views]]
       ``"1"`` (when checked) wins.
       {% endcomment %}
       <div class="px-3 py-3 space-y-2">
-        {% if show_backlog_toggle %}
         {% comment %}
-        Show backlog toggle (All Tasks only). Planned + ready (not-started
-        work) are hidden by default so All Tasks reads as active work; this
-        reveals them. Same hidden-0 + checkbox-1 trick as Show archived.
-        The Backlog tab shows them regardless.
+        Structural toggles. Like every chip they filter CLIENT-side: the form
+        submit is intercepted by acta.js → ``applyClientFilters``. Backlog
+        hides planned/ready (rows + the kanban planned/ready columns); archived
+        hides archived rows. Both rows + columns are always server-rendered, so
+        the toggle is instant. State is persisted to a cookie (written in
+        ``applyClientFilters``) so a reload restores it. Hidden-0 + checkbox-1
+        so "off" still submits an explicit value ("trailing 1 wins").
         {% endcomment %}
+        {% if show_backlog_toggle %}
         <input type="hidden" name="show_backlog" value="0">
         <label class="cursor-pointer flex items-center gap-2 text-muted-foreground text-[11px]"
                x-data
@@ -614,7 +617,7 @@ rail are queued in [[project-todo-filter-sidebar-presets-views]]
           <input type="checkbox" name="show_backlog" value="1"
                  {% if show_backlog %}checked{% endif %}
                  class="peer sr-only"
-                 onchange="this.form.dataset.serverRoundtrip='1'; this.form.requestSubmit()">
+                 onchange="this.form.requestSubmit()">
           <span class="relative w-8 h-[18px] rounded-full bg-border-strong transition peer-checked:bg-brand-500
                        after:content-[''] after:absolute after:top-[2px] after:left-[2px]
                        after:w-[14px] after:h-[14px] after:bg-white after:rounded-full

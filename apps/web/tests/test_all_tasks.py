@@ -422,7 +422,9 @@ class TestAllTasksQueryCount:
 
 @pytest.mark.django_db
 class TestAllTasksShowBacklog:
-    """All Tasks hides planned/ready by default; the toggle reveals them."""
+    """Planned/ready are always server-rendered; the "Show backlog" toggle
+    hides/shows them CLIENT-side (acta.js), so the server includes them with
+    status markers the client filter keys off."""
 
     def _ws(self):
         ws = WorkspaceFactory()
@@ -432,14 +434,17 @@ class TestAllTasksShowBacklog:
         TaskFactory(project=project, title="Active item", status=Task.STATUS_TODO)
         return ws, project
 
-    def test_backlog_hidden_by_default(self, client):
+    def test_backlog_rendered_with_status_markers(self, client):
         ws, project = self._ws()
         client.force_login(ws.owner)
         body = client.get(reverse("web:all_tasks")).content.decode()
         assert "Active item" in body
-        assert "Backlog idea" not in body
-        assert "Ready item" not in body
-        # The toggle is offered.
+        # Planned/ready ARE in the DOM — the default hide is client-side now.
+        assert "Backlog idea" in body
+        assert "Ready item" in body
+        assert 'data-status="planned"' in body
+        assert 'data-status="ready"' in body
+        # The toggle is offered (a form checkbox, off by default).
         assert 'name="show_backlog"' in body
 
     def test_show_backlog_reveals(self, client):

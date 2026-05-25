@@ -497,9 +497,10 @@ class TestBacklogPanelRefetch:
 
 @pytest.mark.django_db
 class TestProjectShowBacklog:
-    """Project detail hides planned/ready by default behind the toggle."""
+    """Project detail always renders planned/ready; the "Show backlog" toggle
+    hides/shows them CLIENT-side (acta.js)."""
 
-    def test_hidden_by_default(self, client, member_user):
+    def test_backlog_rendered_with_status_markers(self, client, member_user):
         user, ws, project = member_user
         TaskFactory(project=project, title="Raw idea", status=Task.STATUS_PLANNED)
         TaskFactory(project=project, title="Active item", status=Task.STATUS_TODO)
@@ -507,7 +508,9 @@ class TestProjectShowBacklog:
         url = reverse("web:project_detail", kwargs={"slug_prefix": project.slug_prefix})
         body = client.get(url).content.decode()
         assert "Active item" in body
-        assert "Raw idea" not in body
+        # Rendered into the DOM; the client hides it by default.
+        assert "Raw idea" in body
+        assert 'data-status="planned"' in body
         assert 'name="show_backlog"' in body
 
     def test_toggle_reveals(self, client, member_user):

@@ -31,6 +31,7 @@
       });
     },
 
+
     // Untoggle one filter value (e.g. ``status=to-do``) inside the
     // sidebar form and re-submit so HTMX refreshes the result list.
     // Dispatches a real ``change`` event so per-row Alpine handlers
@@ -363,10 +364,10 @@
     if (!form) return null;
     const fd = new FormData(form);
     const multi = (name) => fd.getAll(name).map((v) => String(v));
-    // ``show_archived`` carries both a hidden ``0`` and the checkbox
-    // ``1`` when checked. Match the server's "trailing 1 wins" parse.
-    const archivedRaw = fd.getAll("show_archived");
-    const showArchived = archivedRaw.includes("1");
+    // ``show_archived`` / ``show_backlog`` each carry a hidden ``0`` + the
+    // checkbox ``1`` when on — "trailing 1 wins", same as the server parse.
+    const showArchived = fd.getAll("show_archived").includes("1");
+    const showBacklog = fd.getAll("show_backlog").includes("1");
     return {
       status: new Set(multi("status")),
       xstatus: new Set(multi("xstatus")),
@@ -385,14 +386,18 @@
       dateAfter: (fd.get("date_after") || "").toString().trim(),
       dateBefore: (fd.get("date_before") || "").toString().trim(),
       showArchived,
+      showBacklog,
     };
   }
 
   function rowMatches(row, state) {
-    // ``data-archived`` — hide archived rows unless show_archived is on.
-    if (!state.showArchived && row.dataset.archived === "1") return false;
-    // Status
     const s = row.dataset.status || "";
+    // Archived — hidden unless show_archived is on.
+    if (!state.showArchived && row.dataset.archived === "1") return false;
+    // Backlog — planned / ready hidden unless show_backlog is on, except when
+    // the status filter explicitly selects them (mirrors server _filter_backlog).
+    if (!state.showBacklog && (s === "planned" || s === "ready") && !state.status.has(s)) return false;
+    // Status
     if (state.status.size && !state.status.has(s)) return false;
     if (state.xstatus.size && state.xstatus.has(s)) return false;
     // Priority — DOM carries integer string.
@@ -472,8 +477,7 @@
       state.label.size +
       state.xlabel.size +
       (state.q ? 1 : 0) +
-      (state.dateAfter || state.dateBefore ? 1 : 0) +
-      (state.showArchived ? 1 : 0)
+      (state.dateAfter || state.dateBefore ? 1 : 0)
     );
   }
 
@@ -582,16 +586,31 @@
       el.classList.toggle("hidden", filtersActive);
     });
     recomputeKanbanSubstatus();
-    // Update ``acta_show_archived`` cookie so a hard refresh remembers
-    // the toggle — server-side fallback path reads this on cold load.
+    // Backlog off → hide the planned / ready kanban COLUMNS entirely (not just
+    // their cards), so an empty column doesn't linger. The column wrapper
+    // carries ``data-kanban-column``.
+    document.querySelectorAll("[data-kanban-column]").forEach((col) => {
+      const k = col.dataset.kanbanColumn;
+      if (k === "planned" || k === "ready") col.classList.toggle("hidden", !state.showBacklog);
+    });
+    // Persist the structural toggles so a reload / cold load restores them
+    // (the server reads these cookies to render the checkboxes checked).
     const oneYear = 60 * 60 * 24 * 365;
     document.cookie = `acta_show_archived=${state.showArchived ? "1" : "0"}; path=/; max-age=${oneYear}; samesite=Lax`;
+    document.cookie = `acta_show_backlog=${state.showBacklog ? "1" : "0"}; path=/; max-age=${oneYear}; samesite=Lax`;
     // Mirror URL params so refresh / share carry the same filter
     // state — Django filter view re-renders identically on cold load.
     if (window.history && window.history.replaceState) {
       const params = new URLSearchParams(window.location.search);
       // Replace filter-related keys; preserve everything else (sort,
       // view, axis).
+      // NB: ``show_backlog`` is deliberately NOT mirrored to the URL. Backlog
+      // is purely client-side (always server-rendered, hidden via rowMatches),
+      // and the lazy ``?panel=`` fetches build their URL from the current
+      // location — a mirrored ``show_backlog=0`` would make the server
+      // ``_filter_backlog`` drop planned/ready from a freshly-loaded panel, so
+      // toggling backlog on afterwards couldn't reveal them. The cookie
+      // (written above) persists the toggle for cold loads instead.
       const keys = ["status", "xstatus", "priority", "xpriority", "assignee",
         "xassignee", "project", "xproject",
         "label", "xlabel", "q", "show_archived"];
@@ -600,9 +619,8 @@
       for (const [k, v] of fd.entries()) {
         if (!keys.includes(k)) continue;
         if (k === "show_archived") {
-          // hidden ``0`` + checkbox ``1`` — keep only the trailing
-          // value (same logic as resolve_show_archived).
-          if (v === "1") params.set("show_archived", "1");
+          // hidden ``0`` + checkbox ``1`` — keep only the trailing ``1``.
+          if (v === "1") params.set(k, "1");
           continue;
         }
         if (v) params.append(k, v.toString());
@@ -796,15 +814,6 @@
     // ``.stop`` because it's dispatched by HTMX itself on the form
     // node, not bubbled up from the chip.
     form.addEventListener("htmx:beforeRequest", (evt) => {
-      // Structural toggles (Show backlog) change which rows AND which
-      // kanban columns the server renders — client-side hide/show can't
-      // reveal rows that were never loaded, nor add/drop columns. Such a
-      // submit sets ``data-server-roundtrip`` so we let HTMX do the real
-      // fetch + swap instead of the in-place client filter below.
-      if (form.dataset.serverRoundtrip === "1") {
-        form.dataset.serverRoundtrip = "";
-        return;
-      }
       evt.preventDefault();
       applyClientFilters();
     });
@@ -2338,14 +2347,6 @@
         // previously-server-rendered view.
         const oneYear = 60 * 60 * 24 * 365;
         document.cookie = `acta_view_mode=${value}; path=/; max-age=${oneYear}; samesite=Lax`;
-        // Keep the filter form's hidden ``view`` field in sync. A client
-        // tab switch updates the cookie but not that field, which was
-        // rendered server-side at page load. The Show-backlog toggle does
-        // a real round-trip submitting the form, so a stale ``view`` would
-        // make the server reset ``acta_view_mode`` to the old tab and
-        // ``syncFromCookie`` (on afterSettle) would yank the user there.
-        const viewField = document.querySelector('#filter-form input[name="view"]');
-        if (viewField) viewField.value = value;
         // Lazy panels (list / timeline) fill on first paint, but a slow
         // or missed initial fetch can leave the slot empty — the user
         // then switches to that tab and sees nothing. Retrigger the load
