@@ -31,6 +31,22 @@
       });
     },
 
+    // Querystring for the "Export filtered tasks" button. Most filters are
+    // mirrored into the URL by ``applyClientFilters``, so the export already
+    // matches the view — except ``show_backlog`` (deliberately not mirrored,
+    // see applyClientFilters). Append its current toggle state so the export
+    // reflects whether the backlog is showing.
+    exportQuery() {
+      const params = new URLSearchParams(window.location.search);
+      const cb = document.querySelector('input[name="show_backlog"][value="1"]');
+      if (cb) {
+        params.delete("show_backlog");
+        params.set("show_backlog", cb.checked ? "1" : "0");
+      }
+      const qs = params.toString();
+      return qs ? "?" + qs : "";
+    },
+
 
     // Untoggle one filter value (e.g. ``status=to-do``) inside the
     // sidebar form and re-submit so HTMX refreshes the result list.

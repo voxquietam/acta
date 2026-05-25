@@ -15,7 +15,7 @@
 
 {% block topbar_right_prepend %}
 <button type="button"
-        @click="window.location.href = '{% url 'web:export_all_tasks_json' %}' + window.location.search"
+        @click="window.location.href = '{% url 'web:export_all_tasks_json' %}' + window.acta.exportQuery()"
         data-tooltip="{% trans 'Export filtered tasks as JSON' %}"
         data-tooltip-pos="below"
         aria-label="{% trans 'Export JSON' %}"

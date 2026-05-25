@@ -64,6 +64,19 @@ class TestExportAllTasks:
         assert body["count"] == 1
         assert body["tasks"][0]["title"] == "Alpha"
 
+    def test_respects_show_backlog(self, client, owner_ws_project):
+        # Backlog is filtered client-side, so the export button appends the
+        # toggle state (acta.js ``exportQuery``); the endpoint honours it.
+        user, ws, project = owner_ws_project
+        TaskFactory(project=project, title="Active", status=Task.STATUS_TODO)
+        TaskFactory(project=project, title="Idea", status=Task.STATUS_PLANNED)
+        client.force_login(user)
+
+        off = _attachment(client.get(reverse("web:export_all_tasks_json") + "?show_backlog=0"))
+        assert {t["title"] for t in off["tasks"]} == {"Active"}
+        on = _attachment(client.get(reverse("web:export_all_tasks_json") + "?show_backlog=1"))
+        assert {t["title"] for t in on["tasks"]} == {"Active", "Idea"}
+
     def test_excludes_foreign_workspace(self, client, owner_ws_project):
         user, ws, project = owner_ws_project
         TaskFactory(project=project, title="Mine")
