@@ -438,21 +438,23 @@ Pages extend this and override the `app_main` block.
   </div>
 
   {% comment %}
-  SSE subscription markers — one per workspace the user belongs to.
-  Project / task detail pages put their own ``data-workspace-sse``
-  near the content (so the channel is obviously tied to that page);
-  cross-workspace surfaces like My Work / All Tasks / Dashboard have
-  no single workspace, so we emit one hidden marker per workspace
-  here. ``acta.js`` dedupes by channel URL, so a project page that
-  already carries the same workspace marker only opens one
-  EventSource.
+  SSE subscription marker — only the *active* workspace. Every list
+  surface (My Work / All Tasks / Dashboard) is scoped to the active
+  workspace, so events from other workspaces never change what's on
+  screen; cross-workspace notifications ride the per-user stream
+  below. Opening one EventSource per membership instead would burn a
+  browser connection slot apiece (HTTP/1.1 caps ~6 per host), and the
+  never-closing SSE streams would starve ordinary XHRs — they queue
+  behind the streams and hang with no response. Project / task detail
+  pages emit their own ``data-workspace-sse`` near the content;
+  ``acta.js`` dedupes by channel URL so the same workspace opens once.
   {% endcomment %}
   {% if user.is_authenticated %}
-  {% for ws in nav_workspaces %}
+  {% if active_workspace %}
   <span class="hidden"
-        data-workspace-sse="/events/workspace/{{ ws.id }}"
+        data-workspace-sse="/events/workspace/{{ active_workspace.id }}"
         data-current-user-id="{{ user.id }}"></span>
-  {% endfor %}
+  {% endif %}
   {% comment %}
   Per-user notification stream — drives the live inbox badge + row
   arrival (acta.js ``initUserSse``). One private ``user-<id>`` channel.
