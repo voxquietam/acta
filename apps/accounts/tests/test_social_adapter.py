@@ -12,7 +12,12 @@ from django.test import RequestFactory
 
 import pytest
 
-from apps.accounts.adapters import INVITE_SESSION_KEY, NoSignupSocialAccountAdapter, claim_invite_for_user
+from apps.accounts.adapters import (
+    INVITE_SESSION_KEY,
+    NoSignupSocialAccountAdapter,
+    claim_invite_for_user,
+    resolve_social_invite,
+)
 from apps.accounts.tests.factories import UserFactory
 from apps.workspaces.models import WorkspaceInvite, WorkspaceMember
 from apps.workspaces.tests.factories import WorkspaceFactory
@@ -66,6 +71,48 @@ class TestSocialSignupGate:
         adapter = NoSignupSocialAccountAdapter()
         req = _request(session_token=invite.token)
         assert adapter.is_open_for_signup(req, _sociallogin("")) is False
+
+    def test_open_without_token_when_email_has_active_invite(self):
+        # Direct "Sign in with Google" (no invite link clicked) still opens
+        # signup when the verified email has a pending invite — the trap that
+        # made an invited colleague see "registration is closed".
+        ws = WorkspaceFactory()
+        WorkspaceInvite.generate(workspace=ws, email="invited@team.test", role=WorkspaceMember.MEMBER)
+        adapter = NoSignupSocialAccountAdapter()
+        assert adapter.is_open_for_signup(_request(), _sociallogin("Invited@team.test")) is True
+
+    def test_closed_without_token_when_no_invite_for_email(self):
+        ws = WorkspaceFactory()
+        WorkspaceInvite.generate(workspace=ws, email="someone@team.test", role=WorkspaceMember.MEMBER)
+        adapter = NoSignupSocialAccountAdapter()
+        assert adapter.is_open_for_signup(_request(), _sociallogin("stranger@team.test")) is False
+
+    def test_closed_without_token_when_invite_expired(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        ws = WorkspaceFactory()
+        invite = WorkspaceInvite.generate(workspace=ws, email="late@team.test", role=WorkspaceMember.MEMBER)
+        WorkspaceInvite.objects.filter(pk=invite.pk).update(expires_at=timezone.now() - timedelta(days=1))
+        adapter = NoSignupSocialAccountAdapter()
+        assert adapter.is_open_for_signup(_request(), _sociallogin("late@team.test")) is False
+
+    def test_closed_without_token_when_invite_consumed(self):
+        from django.utils import timezone
+
+        ws = WorkspaceFactory()
+        invite = WorkspaceInvite.generate(workspace=ws, email="used@team.test", role=WorkspaceMember.MEMBER)
+        WorkspaceInvite.objects.filter(pk=invite.pk).update(accepted_at=timezone.now())
+        adapter = NoSignupSocialAccountAdapter()
+        assert adapter.is_open_for_signup(_request(), _sociallogin("used@team.test")) is False
+
+    def test_resolve_social_invite_finds_pending_invite_by_email(self):
+        # ``save_user`` re-resolves and claims this invite after signup.
+        ws = WorkspaceFactory()
+        invite = WorkspaceInvite.generate(workspace=ws, email="byemail@team.test", role=WorkspaceMember.MEMBER)
+        resolved = resolve_social_invite(_request(), _sociallogin("byemail@team.test"))
+        assert resolved is not None and resolved.pk == invite.pk
 
 
 @pytest.mark.django_db

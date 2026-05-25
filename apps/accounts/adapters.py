@@ -6,11 +6,14 @@ The invite is the only path for a new account to land — either via
 ``?invite=<token>`` on the signup URL or via the same token stashed
 in the session by ``apps.accounts.views.invite_landing``.
 
-The social adapter follows the same rule, with one extra guard: a
-Google login can only *create* a new account when an active invite is
-in flight **and** the provider's verified email matches the invite
-address. An existing account is logged in (and linked) by verified
-email without an invite — that path is handled by allauth's
+The social adapter follows the same rule: a Google login can only
+*create* a new account when an active invite authorises it — either an
+invite token in flight whose address matches the Google account, OR (when
+the user clicked "Sign in with Google" directly instead of the invite
+link) an active invite addressed to the Google account's email. The
+Google auth proves the user owns that address, so the email match is as
+safe as the link. An existing account is logged in (and linked) by
+verified email without an invite — that path is handled by allauth's
 ``SOCIALACCOUNT_EMAIL_AUTHENTICATION`` and never reaches signup.
 """
 
@@ -73,6 +76,44 @@ def resolve_invite_from_request(request):
     return invite
 
 
+def _active_invite_for_email(email):
+    """Most recent active (unexpired, unconsumed) invite for ``email``, or None.
+
+    ``email`` must already be lower-cased (invite addresses are stored
+    lower-cased — see :meth:`WorkspaceInvite.generate`).
+    """
+    from apps.workspaces.models import WorkspaceInvite
+
+    if not email:
+        return None
+    return (
+        WorkspaceInvite.objects.select_related("workspace")
+        .filter(email=email, accepted_at__isnull=True, expires_at__gt=timezone.now())
+        .order_by("-created_at")
+        .first()
+    )
+
+
+def resolve_social_invite(request, sociallogin):
+    """The active invite authorising this social signup, or ``None``.
+
+    Two paths:
+
+    * **Invite link clicked** — a token is in flight (session / querystring);
+      it authorises signup only if its address matches the social account.
+    * **"Sign in with Google" clicked directly** (no token in flight) — match
+      an active invite by the provider's email. A successful Google auth
+      proves the user owns that address and the invite was issued to exactly
+      it, so this is as safe as the link path, minus the trap of having to
+      click the link first.
+    """
+    social_email = (sociallogin.user.email or "").strip().lower()
+    invite = resolve_invite_from_request(request)
+    if invite is not None:
+        return invite if (social_email and social_email == invite.email) else None
+    return _active_invite_for_email(social_email)
+
+
 class NoSignupAccountAdapter(DefaultAccountAdapter):
     """Allauth adapter — signup gated on a valid workspace invite.
 
@@ -133,20 +174,19 @@ class NoSignupSocialAccountAdapter(DefaultSocialAccountAdapter):
     def is_open_for_signup(self, request, sociallogin):
         """Allow social signup only with a matching active invite.
 
+        Honours both an in-flight invite token (link path) and a pending
+        invite addressed to the social account's email (direct "Sign in with
+        Google" path) — see :func:`resolve_social_invite`.
+
         Args:
             request: The current HttpRequest.
             sociallogin: The :class:`allauth.socialaccount.models.SocialLogin`
                 instance describing the in-flight social auth.
 
         Returns:
-            ``True`` when an active invite is present and its email
-            equals the social account's email; ``False`` otherwise.
+            ``True`` when an active invite authorises this signup.
         """
-        invite = resolve_invite_from_request(request)
-        if invite is None:
-            return False
-        social_email = (sociallogin.user.email or "").strip().lower()
-        return bool(social_email) and social_email == invite.email
+        return resolve_social_invite(request, sociallogin) is not None
 
     def save_user(self, request, sociallogin, form=None):
         """Persist the social user, then claim the invite + grant membership.
@@ -164,7 +204,7 @@ class NoSignupSocialAccountAdapter(DefaultSocialAccountAdapter):
             The newly created user.
         """
         user = super().save_user(request, sociallogin, form=form)
-        invite = resolve_invite_from_request(request)
+        invite = resolve_social_invite(request, sociallogin)
         if invite is not None:
             claim_invite_for_user(request, user, invite)
         return user
