@@ -17,7 +17,7 @@ from apps.tasks.models import Task
 from apps.web.nav import resolve_active_workspace
 
 
-def apply_task_filters(qs, params, *, request_user, default_show_done=True):
+def apply_task_filters(qs, params, *, request_user, default_show_done=True, default_show_backlog=True):
     """Apply querystring filters to a Task queryset.
 
     Each field is handled by a focused helper so this function stays
@@ -38,6 +38,7 @@ def apply_task_filters(qs, params, *, request_user, default_show_done=True):
     """
     qs = _filter_archived(qs, params)
     qs = _filter_status(qs, params, default_show_done=default_show_done)
+    qs = _filter_backlog(qs, params, default_show_backlog=default_show_backlog)
     qs = _filter_int_field(qs, params, field="priority", include="priority", exclude="xpriority")
     qs = _filter_int_field(qs, params, field="size", include="size", exclude="xsize")
     qs = _filter_int_field(qs, params, field="project_id", include="project", exclude="xproject")
@@ -87,6 +88,40 @@ def resolve_show_archived(request):
     if raw_list:
         return "1" if "1" in raw_list else "0"
     return "1" if request.COOKIES.get("acta_show_archived") == "1" else "0"
+
+
+def resolve_show_backlog(request):
+    """Resolve the effective ``show_backlog`` for this request.
+
+    Mirrors :func:`resolve_show_archived` (querystring → ``acta_show_backlog``
+    cookie → off). Used by All Tasks, where the not-started backlog
+    (planned / ready) is hidden by default and a sidebar toggle reveals it.
+    """
+    raw_list = request.GET.getlist("show_backlog")
+    if raw_list:
+        return "1" if "1" in raw_list else "0"
+    return "1" if request.COOKIES.get("acta_show_backlog") == "1" else "0"
+
+
+def _filter_backlog(qs, params, *, default_show_backlog):
+    """Hide planned / ready (the not-started backlog) unless asked to show.
+
+    Off by default only where the caller opts in (``default_show_backlog
+    =False``, i.e. All Tasks). When hidden, planned / ready drop out —
+    except any the user explicitly selected in the status filter, so an
+    explicit ``?status=planned`` still works. When ``show_backlog`` isn't
+    in ``params`` at all (project detail, My Work) the default applies and
+    nothing is hidden.
+    """
+    if "show_backlog" in params:
+        show = "1" in params.getlist("show_backlog")
+    else:
+        show = default_show_backlog
+    if show:
+        return qs
+    selected = set(params.getlist("status"))
+    hide = [s for s in (Task.STATUS_PLANNED, Task.STATUS_READY) if s not in selected]
+    return qs.exclude(status__in=hide) if hide else qs
 
 
 def _filter_status(qs, params, *, default_show_done):
@@ -390,6 +425,7 @@ def filter_sidebar_context(
     hide_assignee=False,
     hide_project=False,
     hide_status=False,
+    show_backlog_toggle=False,
     preserved_params=None,
     extra_preserved=None,
     effective_params=None,
@@ -515,6 +551,7 @@ def filter_sidebar_context(
     selected_labels = {int(i) for i in params.getlist("label") if i.isdigit()}
     selected_assignees = set(params.getlist("assignee"))
     show_archived = "1" in params.getlist("show_archived")
+    show_backlog = "1" in params.getlist("show_backlog")
 
     # Excluded sets: right-click on a chip toggles a value into one of
     # these. Renders with a red strikethrough state; backend
@@ -588,6 +625,8 @@ def filter_sidebar_context(
         "excluded_labels": excluded_labels,
         "excluded_assignees": excluded_assignees,
         "show_archived": show_archived,
+        "show_backlog": show_backlog,
+        "show_backlog_toggle": show_backlog_toggle,
         "q": q,
         "date_field": date_field,
         "date_after": date_after,

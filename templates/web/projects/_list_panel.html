@@ -40,7 +40,7 @@ updates ``activeAxis`` + ``history.pushState`` so URLs stay shareable.
     <div class="space-y-6">
       {% for section in sections %}
       {% if section.tasks %}
-      <section>
+      <section data-list-section>
         <div class="flex items-baseline gap-2 mb-2 px-1">
           <h2 class="text-xs uppercase tracking-wider font-medium
             {% if section.tone == 'rose' %}text-rose-400
@@ -52,7 +52,7 @@ updates ``activeAxis`` + ``history.pushState`` so URLs stay shareable.
             {% elif section.tone == 'orange' %}text-orange-400
             {% elif section.tone == 'sky' %}text-sky-400
             {% else %}text-placeholder-foreground{% endif %}">{{ section.label }}</h2>
-          <span class="text-xs text-placeholder-foreground">{{ section.tasks|length }}</span>
+          <span data-list-count class="text-xs text-placeholder-foreground">{{ section.tasks|length }}</span>
           {% comment %}
           Personal WIP warning (My Work only): when the current user holds
           more than their workspace WIP limit in this status. ``wip_self_over``

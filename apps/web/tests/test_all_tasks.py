@@ -418,3 +418,83 @@ class TestAllTasksQueryCount:
             resp = client.get(reverse("web:all_tasks"))
             assert resp.status_code == 200
         assert len(ctx.captured_queries) < 30, f"Got {len(ctx.captured_queries)} queries for 30 tasks — N+1 regression."
+
+
+@pytest.mark.django_db
+class TestAllTasksShowBacklog:
+    """All Tasks hides planned/ready by default; the toggle reveals them."""
+
+    def _ws(self):
+        ws = WorkspaceFactory()
+        project = ProjectFactory(workspace=ws)
+        TaskFactory(project=project, title="Backlog idea", status=Task.STATUS_PLANNED)
+        TaskFactory(project=project, title="Ready item", status=Task.STATUS_READY)
+        TaskFactory(project=project, title="Active item", status=Task.STATUS_TODO)
+        return ws, project
+
+    def test_backlog_hidden_by_default(self, client):
+        ws, project = self._ws()
+        client.force_login(ws.owner)
+        body = client.get(reverse("web:all_tasks")).content.decode()
+        assert "Active item" in body
+        assert "Backlog idea" not in body
+        assert "Ready item" not in body
+        # The toggle is offered.
+        assert 'name="show_backlog"' in body
+
+    def test_show_backlog_reveals(self, client):
+        ws, project = self._ws()
+        client.force_login(ws.owner)
+        body = client.get(reverse("web:all_tasks"), {"show_backlog": "1"}).content.decode()
+        assert "Backlog idea" in body
+        assert "Ready item" in body
+
+    def test_explicit_status_filter_overrides_default_hide(self, client):
+        ws, project = self._ws()
+        client.force_login(ws.owner)
+        # Picking planned in the status filter shows it even with backlog off.
+        body = client.get(reverse("web:all_tasks"), {"status": "planned"}).content.decode()
+        assert "Backlog idea" in body
+
+    def test_backlog_tab_shows_planned_ready_regardless_of_toggle(self, client):
+        ws, project = self._ws()
+        client.force_login(ws.owner)
+        # Toggle off (default), but the Backlog panel still lists them.
+        body = client.get(reverse("web:all_tasks") + "?panel=backlog").content.decode()
+        assert "Backlog idea" in body
+        assert "Ready item" in body
+
+
+@pytest.mark.django_db
+class TestShowBacklogCookie:
+    def test_cookie_roundtrip(self, client):
+        ws = WorkspaceFactory()
+        project = ProjectFactory(workspace=ws)
+        TaskFactory(project=project, title="Backlog idea", status=Task.STATUS_PLANNED)
+        client.force_login(ws.owner)
+        resp = client.get(reverse("web:all_tasks"), {"show_backlog": "1"})
+        assert resp.cookies.get("acta_show_backlog") is not None
+        assert resp.cookies["acta_show_backlog"].value == "1"
+        # Reload with only the cookie (no querystring).
+        body = client.get(reverse("web:all_tasks")).content.decode()
+        assert "Backlog idea" in body
+        # And the toggle renders checked.
+        assert "show_backlog" in body
+
+
+@pytest.mark.django_db
+class TestShowBacklogKanbanPartial:
+    def test_kanban_htmx_partial_includes_backlog(self, client):
+        ws = WorkspaceFactory()
+        project = ProjectFactory(workspace=ws)
+        TaskFactory(project=project, title="ZZBacklogKanban", status=Task.STATUS_PLANNED)
+        client.force_login(ws.owner)
+        # Exactly what the toggle fires: HTMX partial, view=kanban, show_backlog 0+1.
+        url = reverse("web:all_tasks") + "?view=kanban&show_backlog=0&show_backlog=1"
+        resp = client.get(url, HTTP_HX_REQUEST="true")
+        body = resp.content.decode()
+        assert resp.status_code == 200
+        assert "ZZBacklogKanban" in body, "planned task missing from kanban partial"
+        # The Planned column should be present (not hidden) when backlog shown.
+        cols = {c["key"] for c in resp.context["columns"]} if resp.context else set()
+        assert Task.STATUS_PLANNED in cols

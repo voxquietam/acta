@@ -14,6 +14,23 @@
     csrfToken: () => getCookie("csrftoken"),
     updateStickyStack: null, // assigned below once defined
 
+    // Quick-promote a backlog task one stage (planned → ready → to-do)
+    // from any list row. Posts to the same ``set_task_status`` endpoint
+    // the status cell uses, then fires ``acta:task-changed`` so the
+    // page's list refetches and the task moves / leaves its section.
+    promoteTask(slugPrefix, number, status) {
+      fetch(`/projects/${slugPrefix}/${number}/status/`, {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": getCookie("csrftoken"),
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: "status=" + encodeURIComponent(status),
+      }).then((r) => {
+        if (r.ok && window.htmx) window.htmx.trigger(document.body, "acta:task-changed");
+      });
+    },
+
     // Untoggle one filter value (e.g. ``status=to-do``) inside the
     // sidebar form and re-submit so HTMX refreshes the result list.
     // Dispatches a real ``change`` event so per-row Alpine handlers
@@ -532,12 +549,29 @@
     });
     // Kanban column counts reflect visible cards, not the server-side
     // total — match the same logic the drag-and-drop handler uses
-    // after a successful drop. List-view section counts are
-    // server-rendered and not yet recomputed here (TODO).
+    // after a successful drop.
     document.querySelectorAll(".kanban-column").forEach((c) => {
       const visible = c.querySelectorAll("[data-task-id]:not([hidden])").length;
       const counter = c.parentElement?.querySelector("[data-column-count]");
       if (counter) counter.textContent = String(visible);
+    });
+    // Backlog grooming sections: recompute the per-status count + hide a
+    // section whose rows are all filtered out (count is server-rendered).
+    document.querySelectorAll("[data-backlog-section]").forEach((sec) => {
+      const visible = Array.from(sec.querySelectorAll("[data-task-id]")).filter(
+        (row) => !(row.closest("li") || row).hasAttribute("hidden"),
+      ).length;
+      const counter = sec.querySelector("[data-backlog-count]");
+      if (counter) counter.textContent = String(visible);
+      sec.classList.toggle("hidden", visible === 0);
+    });
+    // List-view grouped sections (every axis is pre-rendered): recompute
+    // each section's header count from visible rows + hide emptied ones.
+    document.querySelectorAll("[data-list-section]").forEach((sec) => {
+      const visible = sec.querySelectorAll("li:not([hidden])").length;
+      const counter = sec.querySelector("[data-list-count]");
+      if (counter) counter.textContent = String(visible);
+      sec.classList.toggle("hidden", visible === 0);
     });
     // WIP warnings are computed server-side over the FULL board, so they
     // go stale (false alarms) under a client-side filter — e.g. "4 members
@@ -762,6 +796,15 @@
     // ``.stop`` because it's dispatched by HTMX itself on the form
     // node, not bubbled up from the chip.
     form.addEventListener("htmx:beforeRequest", (evt) => {
+      // Structural toggles (Show backlog) change which rows AND which
+      // kanban columns the server renders — client-side hide/show can't
+      // reveal rows that were never loaded, nor add/drop columns. Such a
+      // submit sets ``data-server-roundtrip`` so we let HTMX do the real
+      // fetch + swap instead of the in-place client filter below.
+      if (form.dataset.serverRoundtrip === "1") {
+        form.dataset.serverRoundtrip = "";
+        return;
+      }
       evt.preventDefault();
       applyClientFilters();
     });
@@ -2277,7 +2320,7 @@
     // view toggle in ``_view_panel.html`` calls ``set(...)`` so the
     // sidebar (Status section in particular) re-evaluates without
     // waiting for a full page reload.
-    const VIEW_MODES = new Set(["overview", "kanban", "table", "list", "timeline"]);
+    const VIEW_MODES = new Set(["overview", "kanban", "table", "list", "timeline", "backlog"]);
     function readViewModeCookie() {
       const m = document.cookie.match(/(?:^|;\s*)acta_view_mode=([^;]+)/);
       const value = m ? m[1] : "";
@@ -2295,6 +2338,14 @@
         // previously-server-rendered view.
         const oneYear = 60 * 60 * 24 * 365;
         document.cookie = `acta_view_mode=${value}; path=/; max-age=${oneYear}; samesite=Lax`;
+        // Keep the filter form's hidden ``view`` field in sync. A client
+        // tab switch updates the cookie but not that field, which was
+        // rendered server-side at page load. The Show-backlog toggle does
+        // a real round-trip submitting the form, so a stale ``view`` would
+        // make the server reset ``acta_view_mode`` to the old tab and
+        // ``syncFromCookie`` (on afterSettle) would yank the user there.
+        const viewField = document.querySelector('#filter-form input[name="view"]');
+        if (viewField) viewField.value = value;
         // Lazy panels (list / timeline) fill on first paint, but a slow
         // or missed initial fetch can leave the slot empty — the user
         // then switches to that tab and sees nothing. Retrigger the load

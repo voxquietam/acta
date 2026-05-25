@@ -21,7 +21,7 @@ column and the kanban cards still identify their project via the slug.
 {% include "web/_filter_count_badges.html" with variant="expanded" oob=True %}
 {% endif %}
 {% if tasks %}
-{% include "web/projects/_view_panel.html" %}
+{% include "web/projects/_view_panel.html" with allow_backlog=True %}
 {% else %}
 <div class="flex-1 min-h-0 grid place-items-center text-center">
   <div>

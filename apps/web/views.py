@@ -53,10 +53,12 @@ from apps.tasks.models import Task
 from apps.web.exports import serialize_project_overview, serialize_tasks
 from apps.web.filters import (
     SORTABLE_COLUMNS,
+    _filter_backlog,
     apply_task_filters,
     apply_task_ordering,
     filter_sidebar_context,
     resolve_show_archived,
+    resolve_show_backlog,
 )
 from apps.web.grouping import group_tasks
 from apps.web.nav import resolve_active_workspace, set_active_workspace
@@ -71,8 +73,17 @@ _OPEN_STATUSES = [
     Task.STATUS_IN_REVIEW,
 ]
 
+# My Work surfaces active work only — the not-started backlog
+# (planned / ready) is groomed on the Backlog tab, not here, so it
+# doesn't drown the "what should I do now" list.
+_MY_WORK_ACTIVE_STATUSES = [
+    Task.STATUS_TODO,
+    Task.STATUS_IN_PROGRESS,
+    Task.STATUS_IN_REVIEW,
+]
 
-_VIEW_MODES = {"overview", "kanban", "table", "list", "timeline"}
+
+_VIEW_MODES = {"overview", "kanban", "table", "list", "timeline", "backlog"}
 
 
 def _is_htmx_partial(request):
@@ -201,6 +212,52 @@ def _cycle_banner(request):
     return {"cycle": cycle, **cycle_summary(cycle)}
 
 
+_BACKLOG_STALE_DAYS = 90
+
+
+def _backlog_context(tasks, *, today):
+    """Build the Backlog grooming context: planned + ready tasks.
+
+    The backlog is the pre-cycle zone — ``ready`` (groomed, pullable) on
+    top, ``planned`` (raw) below. Reuses the page's already-filtered task
+    list (no extra query) and narrows it to those two statuses, ordered
+    priority-first then oldest-first. Each task is decorated with
+    ``backlog_age_days`` and ``is_stale`` (a planned task untouched for
+    90+ days). Staleness keys off ``status_since`` when the queryset
+    carries it (project detail), else ``created_at`` (All Tasks).
+
+    Args:
+        tasks: The page's filtered task list (any statuses; filtered here).
+        today: ``date`` anchor for age / staleness.
+
+    Returns:
+        A context dict with ``backlog_sections`` (Ready, then Planned) +
+        ``backlog_total`` and the label dicts ``_task_row.html`` needs.
+    """
+    cutoff = today - datetime.timedelta(days=_BACKLOG_STALE_DAYS)
+    backlog = sorted(
+        (t for t in tasks if t.status in (Task.STATUS_PLANNED, Task.STATUS_READY)),
+        key=lambda t: (-(t.priority or 0), t.created_at),
+    )
+    for task in backlog:
+        since = getattr(task, "status_since", None)
+        anchor = since.date() if since else task.created_at.date()
+        task.backlog_age_days = (today - anchor).days
+        task.is_stale = task.status == Task.STATUS_PLANNED and anchor <= cutoff
+    sections = group_tasks(backlog, "status")
+    # Ready first (pullable), Planned below (raw backlog) — Vox's order.
+    sections.sort(key=lambda s: 0 if s["key"] == Task.STATUS_READY else 1)
+    return {
+        "backlog_sections": sections,
+        "backlog_total": len(backlog),
+        # ``_task_row.html`` needs these; the lazy ``?panel=backlog`` path
+        # returns before the full context sets them.
+        "status_labels": Task.STATUS_LABELS,
+        "priority_labels": dict(Task.PRIORITY_CHOICES),
+        "today": today,
+    }
+
+
 def _with_cycle_axis(base_keys, workspace):
     """Append the ``cycle`` group-by axis when the workspace runs cadence.
 
@@ -229,7 +286,7 @@ def _list_axis_options(option_keys, active_key):
     return [{"key": key, "label": _LIST_AXIS_LABELS[key], "active": key == active_key} for key in option_keys]
 
 
-def _resolve_view_mode(request, *, default, allow_overview=False):
+def _resolve_view_mode(request, *, default, allow_overview=False, allow_backlog=False):
     """Resolve view_mode in the canonical order.
 
     Order: ``?view=`` querystring → ``acta_view_mode`` cookie → page
@@ -244,11 +301,18 @@ def _resolve_view_mode(request, *, default, allow_overview=False):
         allow_overview: When True ``"overview"`` is a valid value
             (project detail). All Tasks rejects it since there's no
             single project to show an overview of.
+        allow_backlog: When True ``"backlog"`` is a valid value
+            (project detail's grooming tab). All Tasks rejects it.
 
     Returns:
-        One of ``"overview"``, ``"kanban"``, ``"table"``.
+        One of ``"overview"`` / ``"kanban"`` / ``"table"`` / ``"list"`` /
+        ``"timeline"`` / ``"backlog"``.
     """
-    allowed = _VIEW_MODES if allow_overview else _VIEW_MODES - {"overview"}
+    allowed = {"kanban", "table", "list", "timeline"}
+    if allow_overview:
+        allowed.add("overview")
+    if allow_backlog:
+        allowed.add("backlog")
     view_mode = request.GET.get("view")
     if view_mode in allowed:
         return view_mode
@@ -360,7 +424,7 @@ def _my_work_tasks(user, params, workspace):
     base = (
         Task.objects.filter(assignee=user, project__workspace=workspace)
         .filter(
-            Q(status__in=_OPEN_STATUSES) | Q(status=Task.STATUS_DONE, updated_at__gte=done_cutoff),
+            Q(status__in=_MY_WORK_ACTIVE_STATUSES) | Q(status=Task.STATUS_DONE, updated_at__gte=done_cutoff),
         )
         .select_related("project__workspace", "assignee", "reporter", "parent__project")
         .prefetch_related("labels", "blocks", "blocked_by")
@@ -404,6 +468,8 @@ class AllTasksView(LoginRequiredMixin, ListView):
             return ["web/projects/_list_panel.html"]
         if self.request.GET.get("panel") == "timeline":
             return ["web/projects/_timeline.html"]
+        if self.request.GET.get("panel") == "backlog":
+            return ["web/projects/_backlog_panel.html"]
         if _is_htmx_partial(self.request):
             return ["web/_all_tasks_inner.html"]
         return ["web/all_tasks.html"]
@@ -419,18 +485,39 @@ class AllTasksView(LoginRequiredMixin, ListView):
         active = resolve_active_workspace(self.request)
         qs = qs.filter(project__workspace=active) if active else qs.none()
         params = _params_with_archive_cookie(self.request)
-        qs = apply_task_filters(qs, params, request_user=self.request.user)
+        # All Tasks hides the not-started backlog (planned / ready) by
+        # default; the sidebar "Show backlog" toggle flips it. The Backlog
+        # tab shows them regardless — see ``_backlog_tasks``.
+        params["show_backlog"] = resolve_show_backlog(self.request)
+        qs = apply_task_filters(qs, params, request_user=self.request.user, default_show_backlog=False)
         return apply_task_ordering(qs, params)
+
+    def _backlog_tasks(self):
+        """Planned + ready for the Backlog tab — independent of the
+        ``show_backlog`` toggle (which only hides them from the other views)."""
+        active = resolve_active_workspace(self.request)
+        if active is None:
+            return []
+        qs = _user_task_qs(self.request.user).filter(project__workspace=active)
+        params = _params_with_archive_cookie(self.request)
+        return list(apply_task_filters(qs, params, request_user=self.request.user))
 
     def render_to_response(self, context, **response_kwargs):
         """Persist ``view_mode`` + ``show_archived`` + ``list_axis`` cookies."""
         response = super().render_to_response(context, **response_kwargs)
-        response.set_cookie(
-            "acta_view_mode",
-            context.get("view_mode", "kanban"),
-            max_age=60 * 60 * 24 * 365,
-            samesite="Lax",
-        )
+        # A ``?panel=`` request is a lazy background load of one view's slot.
+        # It must NOT persist the active view: switching to a lazy tab fires
+        # the panel fetch while the URL still carries the *previous* ``?view=``
+        # (the tab's pushState runs after the fetch), so writing the cookie
+        # here would reset it and ``syncFromCookie`` would bounce the user
+        # back. The view is persisted by the client tab switch + full renders.
+        if not self.request.GET.get("panel"):
+            response.set_cookie(
+                "acta_view_mode",
+                context.get("view_mode", "kanban"),
+                max_age=60 * 60 * 24 * 365,
+                samesite="Lax",
+            )
         if context.get("list_axis"):
             response.set_cookie(
                 "acta_list_axis",
@@ -439,6 +526,12 @@ class AllTasksView(LoginRequiredMixin, ListView):
                 samesite="Lax",
             )
         _persist_archive_cookie(response, _params_with_archive_cookie(self.request))
+        response.set_cookie(
+            "acta_show_backlog",
+            resolve_show_backlog(self.request),
+            max_age=60 * 60 * 24 * 365,
+            samesite="Lax",
+        )
         return response
 
     def get_context_data(self, **kwargs):
@@ -447,7 +540,7 @@ class AllTasksView(LoginRequiredMixin, ListView):
         Assignee lives in the top strip, not in the sidebar.
         """
         ctx = super().get_context_data(**kwargs)
-        view_mode = _resolve_view_mode(self.request, default="table")
+        view_mode = _resolve_view_mode(self.request, default="table", allow_backlog=True)
         ctx["view_mode"] = view_mode
         ctx["view_panel_target"] = "#task-list-wrapper"
         ctx["show_project"] = True
@@ -481,6 +574,11 @@ class AllTasksView(LoginRequiredMixin, ListView):
         # body — return now with only the timeline context, skipping the
         # kanban sort + five list-axis groupings + filter sidebar build.
         if self.request.GET.get("panel") == "timeline":
+            return ctx
+
+        # ``?panel=backlog`` — lazy fetch of just the grooming body.
+        if self.request.GET.get("panel") == "backlog":
+            ctx.update(_backlog_context(self._backlog_tasks(), today=ctx["today"]))
             return ctx
 
         # Table-only HTMX swap (column sort header): we only render
@@ -521,24 +619,40 @@ class AllTasksView(LoginRequiredMixin, ListView):
                 wip_mode=wip_mode,
                 wip_limits=wip_limits,
                 over_by_status=wip_over,
+                hide_statuses=_hidden_backlog_statuses(
+                    self.request.GET, show_backlog=resolve_show_backlog(self.request) == "1"
+                ),
             )
-            list_axis_keys = _with_cycle_axis(
-                ("deadline", "status", "priority", "assignee", "project"),
-                resolve_active_workspace(self.request),
-            )
-            list_axis = _resolve_list_axis(self.request, default="project", options=list_axis_keys)
-            ctx["list_axis"] = list_axis
-            ctx["list_axis_options"] = _list_axis_options(list_axis_keys, list_axis)
-            ctx["list_sections_by_axis"] = {
-                key: group_tasks(table_tasks, key, request_user=self.request.user) for key in list_axis_keys
-            }
+            # List-axis groupings feed only ``_list_panel.html``, which is
+            # rendered inline solely when the list view is the active one
+            # (otherwise it's a lazy ``?panel=list`` slot with its own axis
+            # build above). Skip the five ``group_tasks`` passes on kanban /
+            # table renders — pure waste there, and costly once the backlog
+            # adds hundreds of rows to a Show-backlog round-trip.
+            if view_mode == "list":
+                list_axis_keys = _with_cycle_axis(
+                    ("deadline", "status", "priority", "assignee", "project"),
+                    resolve_active_workspace(self.request),
+                )
+                list_axis = _resolve_list_axis(self.request, default="project", options=list_axis_keys)
+                ctx["list_axis"] = list_axis
+                ctx["list_axis_options"] = _list_axis_options(list_axis_keys, list_axis)
+                ctx["list_sections_by_axis"] = {
+                    key: group_tasks(table_tasks, key, request_user=self.request.user) for key in list_axis_keys
+                }
+        # Cold load straight onto the Backlog tab — render its body inline.
+        if view_mode == "backlog":
+            ctx.update(_backlog_context(self._backlog_tasks(), today=ctx["today"]))
         ctx["cycle_banner"] = _cycle_banner(self.request)
+        sidebar_params = _params_with_archive_cookie(self.request)
+        sidebar_params["show_backlog"] = resolve_show_backlog(self.request)
         ctx.update(
             filter_sidebar_context(
                 self.request,
                 hide_assignee=True,
+                show_backlog_toggle=True,
                 extra_preserved={"view": view_mode},
-                effective_params=_params_with_archive_cookie(self.request),
+                effective_params=sidebar_params,
             )
         )
         return ctx
@@ -1436,6 +1550,8 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             return ["web/projects/_list_panel.html"]
         if self.request.GET.get("panel") == "timeline":
             return ["web/projects/_timeline.html"]
+        if self.request.GET.get("panel") == "backlog":
+            return ["web/projects/_backlog_panel.html"]
         if _is_htmx_partial(self.request):
             return ["web/projects/_view_panel_wrapper.html"]
         return ["web/projects/detail.html"]
@@ -1465,12 +1581,19 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
     def render_to_response(self, context, **response_kwargs):
         """Persist ``view_mode`` + ``show_archived`` + ``list_axis`` cookies."""
         response = super().render_to_response(context, **response_kwargs)
-        response.set_cookie(
-            "acta_view_mode",
-            context.get("view_mode", "kanban"),
-            max_age=60 * 60 * 24 * 365,
-            samesite="Lax",
-        )
+        # A ``?panel=`` request is a lazy background load of one view's slot.
+        # It must NOT persist the active view: switching to a lazy tab fires
+        # the panel fetch while the URL still carries the *previous* ``?view=``
+        # (the tab's pushState runs after the fetch), so writing the cookie
+        # here would reset it and ``syncFromCookie`` would bounce the user
+        # back. The view is persisted by the client tab switch + full renders.
+        if not self.request.GET.get("panel"):
+            response.set_cookie(
+                "acta_view_mode",
+                context.get("view_mode", "kanban"),
+                max_age=60 * 60 * 24 * 365,
+                samesite="Lax",
+            )
         if context.get("list_axis"):
             response.set_cookie(
                 "acta_list_axis",
@@ -1479,6 +1602,12 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
                 samesite="Lax",
             )
         _persist_archive_cookie(response, _params_with_archive_cookie(self.request))
+        response.set_cookie(
+            "acta_show_backlog",
+            resolve_show_backlog(self.request),
+            max_age=60 * 60 * 24 * 365,
+            samesite="Lax",
+        )
         return response
 
     def get_context_data(self, **kwargs):
@@ -1503,7 +1632,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         from apps.common.markdown import render_markdown
 
         ctx = super().get_context_data(**kwargs)
-        view_mode = _resolve_view_mode(self.request, default="kanban", allow_overview=True)
+        view_mode = _resolve_view_mode(self.request, default="kanban", allow_overview=True, allow_backlog=True)
         ctx["view_mode"] = view_mode
         # Common per-task display dicts — needed by both the full page
         # and the lazy ``?panel=list`` fragment (``_task_row.html`` uses
@@ -1603,6 +1732,14 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         )
         params = _params_with_archive_cookie(self.request)
         base = apply_task_filters(base, params, request_user=self.request.user)
+        # "Show backlog" toggle (off by default), like All Tasks: the
+        # views (table/list/kanban/timeline) hide planned/ready; the
+        # Backlog tab shows them. ``base`` stays full for the tab;
+        # ``view_base`` is the backlog-hidden queryset the views use.
+        sb_params = params.copy()
+        sb_params["show_backlog"] = resolve_show_backlog(self.request)
+        backlog_hidden = _hidden_backlog_statuses(sb_params, show_backlog=sb_params["show_backlog"] == "1")
+        view_base = _filter_backlog(base, sb_params, default_show_backlog=False)
         # Both bodies render in the DOM; table honors ``?order=``,
         # kanban keeps the fixed status grouping. We sort once per
         # body — the difference is small enough not to need separate
@@ -1610,7 +1747,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         # confuse one of the two views.
         table_tasks = list(
             apply_task_ordering(
-                base,
+                view_base,
                 self.request.GET,
                 default_ordering=("status", "-priority", "-updated_at"),
             )
@@ -1645,6 +1782,11 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         if panel == "timeline":
             ctx.update(_timeline_context(table_tasks, today))
             return ctx
+        # ``?panel=backlog`` — lazy fetch of just the grooming body. Uses
+        # the full ``base`` (the show-backlog toggle never hides the tab).
+        if panel == "backlog":
+            ctx.update(_backlog_context(list(base), today=today))
+            return ctx
         if not table_only:
             # When the user hasn't picked a custom ``?order=`` the table
             # falls back to the same ordering kanban uses (status,
@@ -1655,7 +1797,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             # ``test_project_detail_constant_queries``.
             table_order_key = (self.request.GET.get("order") or "").strip().lstrip("-")
             if table_order_key in SORTABLE_COLUMNS:
-                kanban_tasks = list(base.order_by("status", "-priority", "-updated_at"))
+                kanban_tasks = list(view_base.order_by("status", "-priority", "-updated_at"))
             else:
                 kanban_tasks = table_tasks
             ctx["tasks"] = table_tasks if view_mode == "table" else kanban_tasks
@@ -1667,6 +1809,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
                 wip_mode=wip_mode,
                 wip_limits=wip_limits,
                 over_by_status=wip_over,
+                hide_statuses=backlog_hidden,
             )
             list_axis_keys = _with_cycle_axis(("deadline", "status", "priority", "assignee"), project.workspace)
             list_axis = _resolve_list_axis(self.request, default="status", options=list_axis_keys)
@@ -1679,6 +1822,13 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             ctx["tasks"] = table_tasks
             ctx["show_labels"] = True
 
+        # Cold load straight onto the Backlog tab — render its body inline
+        # (the panel slot is gated on ``view_mode == "backlog"``). Other
+        # cold loads leave the slot empty for the lazy ``?panel=backlog``
+        # fetch, so this stays off the default-view query path.
+        if view_mode == "backlog":
+            ctx.update(_backlog_context(list(base), today=today))
+
         ctx["cycle_banner"] = _cycle_banner(self.request)
 
         # Per-project page: scope project + workspace filters away.
@@ -1689,9 +1839,10 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
                 hide_assignee=True,
                 hide_project=True,
                 hide_status=(view_mode == "kanban"),
+                show_backlog_toggle=True,
                 htmx_target="#project-view-panel",
                 extra_preserved={"view": view_mode},
-                effective_params=params,
+                effective_params=sb_params,
                 available_labels=list(
                     Label.objects.filter(workspace=self.object.workspace).order_by("name"),
                 ),
@@ -5151,7 +5302,20 @@ def _wip_context(workspace):
     return mode, limits, over_by_status
 
 
-def _build_kanban_columns(tasks, today=None, wip_mode=None, wip_limits=None, over_by_status=None):
+def _hidden_backlog_statuses(params, *, show_backlog):
+    """Backlog statuses to drop from the board when backlog is hidden.
+
+    Mirrors ``_filter_backlog``: when ``show_backlog`` is off, planned /
+    ready are hidden — except any the user explicitly selected via the
+    status filter. Returns an empty set when backlog is shown.
+    """
+    if show_backlog:
+        return set()
+    selected = set(params.getlist("status"))
+    return {s for s in (Task.STATUS_PLANNED, Task.STATUS_READY) if s not in selected}
+
+
+def _build_kanban_columns(tasks, today=None, wip_mode=None, wip_limits=None, over_by_status=None, hide_statuses=None):
     """Build the kanban column dicts from an already-materialised task
     list — single pass over ``tasks`` bucketing by status and
     accumulating per-column substatus stats (``overdue_count``,
@@ -5221,8 +5385,11 @@ def _build_kanban_columns(tasks, today=None, wip_mode=None, wip_limits=None, ove
 
     is_column = wip_mode == "column"
     is_personal = wip_mode == "personal"
+    hide_statuses = hide_statuses or set()
     columns = []
     for status in Task.KANBAN_STATUS_VALUES:
+        if status in hide_statuses:
+            continue
         count = len(buckets[status])
         limit = _limit_for(status) if is_column else 0
         over_members = over_by_status.get(status, {}) if is_personal else {}

@@ -10,7 +10,7 @@
 {% endblock %}
 
 {% block topbar_mid %}
-{% include "web/projects/_view_tabs.html" %}
+{% include "web/projects/_view_tabs.html" with allow_backlog=True %}
 {% endblock %}
 
 {% block topbar_right_prepend %}

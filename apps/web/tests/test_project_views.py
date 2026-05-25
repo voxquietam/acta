@@ -395,3 +395,144 @@ class TestProjectViewQueryCounts:
             client.get(
                 reverse("web:project_detail", kwargs={"slug_prefix": project.slug_prefix}),
             )
+
+
+@pytest.mark.django_db
+class TestBacklogTab:
+    """The Backlog grooming tab: planned + ready, promote, gating."""
+
+    def test_panel_shows_planned_and_ready_only(self, client, member_user):
+        user, ws, project = member_user
+        TaskFactory(project=project, title="Raw idea", status=Task.STATUS_PLANNED)
+        TaskFactory(project=project, title="Groomed", status=Task.STATUS_READY)
+        TaskFactory(project=project, title="Active", status=Task.STATUS_TODO)
+        TaskFactory(project=project, title="Shipped", status=Task.STATUS_DONE)
+        client.force_login(user)
+        url = reverse("web:project_detail", kwargs={"slug_prefix": project.slug_prefix}) + "?panel=backlog"
+        body = client.get(url).content.decode()
+        assert "Raw idea" in body
+        assert "Groomed" in body
+        assert "Active" not in body
+        assert "Shipped" not in body
+        # Promote affordances present (inline row promote via window.acta).
+        assert "promoteTask" in body
+        assert "'ready'" in body  # planned → ready
+        assert "'to-do'" in body  # ready → to-do
+
+    def test_tab_present_on_project_detail(self, client, member_user):
+        user, ws, project = member_user
+        client.force_login(user)
+        body = client.get(reverse("web:project_detail", kwargs={"slug_prefix": project.slug_prefix})).content.decode()
+        assert "?view=backlog" in body
+
+    def test_tab_present_on_all_tasks(self, client, member_user):
+        user, ws, project = member_user
+        client.force_login(user)
+        body = client.get(reverse("web:all_tasks")).content.decode()
+        assert "?view=backlog" in body
+
+    def test_all_tasks_panel_shows_planned_and_ready(self, client, member_user):
+        user, ws, project = member_user
+        TaskFactory(project=project, title="Raw idea", status=Task.STATUS_PLANNED)
+        TaskFactory(project=project, title="Groomed", status=Task.STATUS_READY)
+        TaskFactory(project=project, title="Active", status=Task.STATUS_TODO)
+        client.force_login(user)
+        body = client.get(reverse("web:all_tasks") + "?panel=backlog").content.decode()
+        assert "Raw idea" in body
+        assert "Groomed" in body
+        assert "Active" not in body
+
+    def test_ready_section_before_planned(self, client, member_user):
+        user, ws, project = member_user
+        TaskFactory(project=project, title="Raw idea", status=Task.STATUS_PLANNED)
+        TaskFactory(project=project, title="Groomed", status=Task.STATUS_READY)
+        client.force_login(user)
+        url = reverse("web:project_detail", kwargs={"slug_prefix": project.slug_prefix}) + "?panel=backlog"
+        body = client.get(url).content.decode()
+        # Ready section renders above the Planned section.
+        assert body.index("Groomed") < body.index("Raw idea")
+
+    def test_backlog_context_marks_stale_planned(self, member_user):
+        import datetime
+
+        from django.db.models import Subquery
+        from django.utils import timezone
+
+        from apps.web.views import _backlog_context
+
+        user, ws, project = member_user
+        old = TaskFactory(project=project, status=Task.STATUS_PLANNED)
+        fresh = TaskFactory(project=project, status=Task.STATUS_PLANNED)
+        # Backdate the old task's creation beyond the 90-day stale cutoff.
+        Task.objects.filter(id=old.id).update(created_at=timezone.now() - datetime.timedelta(days=120))
+        # Mirror the view's base queryset (carries status_since).
+        last_change = (
+            __import__("apps.activity.models", fromlist=["ActivityLog"])
+            .ActivityLog.objects.filter(target_type="task", target_id=0)
+            .values("created_at")[:1]
+        )
+        base = Task.objects.filter(project=project).annotate(status_since=Subquery(last_change))
+        ctx = _backlog_context(base, today=timezone.localdate())
+        by_id = {t.id: t for s in ctx["backlog_sections"] for t in s["tasks"]}
+        assert by_id[old.id].is_stale is True
+        assert by_id[fresh.id].is_stale is False
+
+
+@pytest.mark.django_db
+class TestBacklogPanelRefetch:
+    """The HTMX panel refetch (after promote / filter) must keep the
+    Backlog panel — regression guard for the allow_backlog wrapper flag."""
+
+    def test_htmx_wrapper_includes_backlog(self, client, member_user):
+        user, ws, project = member_user
+        TaskFactory(project=project, title="Still here", status=Task.STATUS_PLANNED)
+        client.force_login(user)
+        client.cookies["acta_view_mode"] = "backlog"
+        url = reverse("web:project_detail", kwargs={"slug_prefix": project.slug_prefix})
+        # Mimic the #project-view-panel refetch: un-boosted HTMX GET.
+        body = client.get(url, HTTP_HX_REQUEST="true").content.decode()
+        assert 'data-panel-slot="backlog"' in body
+        assert "Still here" in body
+
+
+@pytest.mark.django_db
+class TestProjectShowBacklog:
+    """Project detail hides planned/ready by default behind the toggle."""
+
+    def test_hidden_by_default(self, client, member_user):
+        user, ws, project = member_user
+        TaskFactory(project=project, title="Raw idea", status=Task.STATUS_PLANNED)
+        TaskFactory(project=project, title="Active item", status=Task.STATUS_TODO)
+        client.force_login(user)
+        url = reverse("web:project_detail", kwargs={"slug_prefix": project.slug_prefix})
+        body = client.get(url).content.decode()
+        assert "Active item" in body
+        assert "Raw idea" not in body
+        assert 'name="show_backlog"' in body
+
+    def test_toggle_reveals(self, client, member_user):
+        user, ws, project = member_user
+        TaskFactory(project=project, title="Raw idea", status=Task.STATUS_PLANNED)
+        client.force_login(user)
+        url = reverse("web:project_detail", kwargs={"slug_prefix": project.slug_prefix})
+        body = client.get(url, {"show_backlog": "1"}).content.decode()
+        assert "Raw idea" in body
+
+    def test_backlog_tab_unaffected(self, client, member_user):
+        user, ws, project = member_user
+        TaskFactory(project=project, title="Raw idea", status=Task.STATUS_PLANNED)
+        client.force_login(user)
+        url = reverse("web:project_detail", kwargs={"slug_prefix": project.slug_prefix}) + "?panel=backlog"
+        body = client.get(url).content.decode()
+        assert "Raw idea" in body  # tab shows backlog despite toggle off
+
+
+@pytest.mark.django_db
+def test_build_kanban_columns_hides_statuses():
+    from apps.web.views import _build_kanban_columns
+
+    cols = _build_kanban_columns([], hide_statuses={Task.STATUS_PLANNED, Task.STATUS_READY})
+    keys = {c["key"] for c in cols}
+    assert Task.STATUS_PLANNED not in keys
+    assert Task.STATUS_READY not in keys
+    assert Task.STATUS_TODO in keys

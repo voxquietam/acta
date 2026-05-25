@@ -74,7 +74,7 @@ rail are queued in [[project-todo-filter-sidebar-presets-views]]
         method="get"
         hx-get="{{ filter_form_url }}"
         hx-target="{{ filter_htmx_target }}"
-        hx-swap="innerHTML transition:true"
+        hx-swap="innerHTML"
         hx-push-url="true"
         class="acta-filters-form bg-card border border-border rounded-lg overflow-hidden
                flex flex-col w-full lg:max-h-full">
@@ -598,12 +598,35 @@ rail are queued in [[project-todo-filter-sidebar-presets-views]]
       ``resolve_show_archived`` reads via ``getlist`` so the trailing
       ``"1"`` (when checked) wins.
       {% endcomment %}
-      <div class="px-3 py-3">
+      <div class="px-3 py-3 space-y-2">
+        {% if show_backlog_toggle %}
+        {% comment %}
+        Show backlog toggle (All Tasks only). Planned + ready (not-started
+        work) are hidden by default so All Tasks reads as active work; this
+        reveals them. Same hidden-0 + checkbox-1 trick as Show archived.
+        The Backlog tab shows them regardless.
+        {% endcomment %}
+        <input type="hidden" name="show_backlog" value="0">
+        <label class="cursor-pointer flex items-center gap-2 text-muted-foreground text-[11px]"
+               x-data
+               @acta:filter-reset.window="$el.querySelector('input[name=show_backlog][value=\'1\']').checked = false"
+               title="{% trans 'Include backlog (planned/ready)' %}">
+          <input type="checkbox" name="show_backlog" value="1"
+                 {% if show_backlog %}checked{% endif %}
+                 class="peer sr-only"
+                 onchange="this.form.dataset.serverRoundtrip='1'; this.form.requestSubmit()">
+          <span class="relative w-8 h-[18px] rounded-full bg-border-strong transition peer-checked:bg-brand-500
+                       after:content-[''] after:absolute after:top-[2px] after:left-[2px]
+                       after:w-[14px] after:h-[14px] after:bg-white after:rounded-full
+                       after:transition-transform peer-checked:after:translate-x-[14px]"></span>
+          {% trans "Show backlog" %}
+        </label>
+        {% endif %}
         <input type="hidden" name="show_archived" value="0">
         <label class="cursor-pointer flex items-center gap-2 text-muted-foreground text-[11px]"
                x-data
                @acta:filter-reset.window="$el.querySelector('input[name=show_archived][value=\'1\']').checked = false"
-               title="{% trans 'Archived tasks are hidden by default. The toggle is remembered between visits.' %}">
+               title="{% trans 'Include archived tasks' %}">
           <input type="checkbox" name="show_archived" value="1"
                  {% if show_archived %}checked{% endif %}
                  class="peer sr-only"

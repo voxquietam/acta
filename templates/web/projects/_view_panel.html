@@ -48,4 +48,14 @@ no extra HTTP requests fire on tab change. Tabs themselves live in
     {% if view_mode == "timeline" %}{% include "web/projects/_timeline.html" %}{% endif %}
   </div>
 
+  {% comment %}
+  Backlog grooming tab (project detail only — gated on ``allow_backlog``).
+  Lazy-loaded like list / timeline via ``?panel=backlog``.
+  {% endcomment %}
+  {% if allow_backlog %}
+  <div x-show="$store.viewMode.current === 'backlog'" x-cloak data-panel-slot="backlog" class="flex-1 min-h-0 flex flex-col">
+    {% if view_mode == "backlog" %}{% include "web/projects/_backlog_panel.html" %}{% endif %}
+  </div>
+  {% endif %}
+
 </div>

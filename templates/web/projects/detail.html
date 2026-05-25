@@ -16,7 +16,7 @@
 {% endblock %}
 
 {% block topbar_mid %}
-{% include "web/projects/_view_tabs.html" with allow_overview=True %}
+{% include "web/projects/_view_tabs.html" with allow_overview=True allow_backlog=True %}
 {% endblock %}
 
 {% block topbar_right_prepend %}
@@ -64,7 +64,7 @@ overview tab is active.
          hx-trigger="acta:task-created from:body, acta:bulk-archived from:body, acta:task-moved from:body, acta:task-changed from:body, acta:bulk-changed from:body"
          hx-target="this"
          hx-swap="innerHTML">
-      {% include "web/projects/_view_panel.html" with allow_overview=True %}
+      {% include "web/projects/_view_panel.html" with allow_overview=True allow_backlog=True %}
     </div>
     <div x-show="$store.viewMode.current !== 'overview'" x-cloak>
       {% include "web/_filters_sidebar.html" %}
