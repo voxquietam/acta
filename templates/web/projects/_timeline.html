@@ -753,6 +753,12 @@ function attachDrag(wrap, row, dayW) {
       row.dataset.due = toISO(newDue);
       patchDate(row.dataset.dueUrl, { due_date: toISO(newDue) }, csrf);
     }
+    // Re-render the bar from the now-updated dataset so the hover tooltip,
+    // bar colour and overdue state reflect the new dates without a reload.
+    // The hover handlers close over the render-time start/due, so a plain
+    // resize leaves them stale.
+    renderBars(dayW);
+    updateMissingCount();
   });
 }
 
