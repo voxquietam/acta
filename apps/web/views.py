@@ -3208,7 +3208,10 @@ def task_link_search(request, slug_prefix, number):
                 "initial": t.assignee.display_name[:1].upper(),
                 "avatar_color": t.assignee.avatar_color,
                 "avatar_url": (
-                    reverse("accounts:serve_avatar", kwargs={"user_id": t.assignee_id}) if t.assignee.avatar else None
+                    reverse("accounts:serve_avatar", kwargs={"user_id": t.assignee_id})
+                    + f"?v={t.assignee.avatar_version}"
+                    if t.assignee.avatar
+                    else None
                 ),
             }
         results.append(

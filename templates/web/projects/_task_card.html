@@ -117,13 +117,13 @@ handler in ``_kanban.html`` restores it for middle / Ctrl+click.
     cards regardless of whether each is a photo or a colour circle.
     {% endcomment %}
     {% if task.assignee.avatar %}
-    <img src="{% url 'accounts:serve_avatar' user_id=task.assignee.id %}"
+    <img src="{% url 'accounts:serve_avatar' user_id=task.assignee.id %}?v={{ task.assignee.avatar_version }}"
          alt="{{ task.assignee.display_name }}"
          class="ml-auto w-[18px] h-[18px] rounded-full object-cover"
          style="box-shadow: 0 0 0 1.5px rgb(var(--card));"
          title="{{ task.assignee.display_name }}"
          data-task-assignee-avatar
-         data-avatar-url="{% url 'accounts:serve_avatar' user_id=task.assignee.id %}"
+         data-avatar-url="{% url 'accounts:serve_avatar' user_id=task.assignee.id %}?v={{ task.assignee.avatar_version }}"
          data-avatar-initial="{{ task.assignee.display_name|slice:':1'|upper }}"
          data-avatar-bg="{{ task.assignee.avatar_color }}"
          data-avatar-name="{{ task.assignee.display_name }}">

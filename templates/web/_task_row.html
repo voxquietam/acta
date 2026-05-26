@@ -125,7 +125,7 @@ status dot · slug + priority chevron · title (flex-1) · size · labels
     matching label and silently no-ops.
     {% endcomment %}
     {% if task.assignee.avatar %}
-    <img src="{% url 'accounts:serve_avatar' user_id=task.assignee.id %}"
+    <img src="{% url 'accounts:serve_avatar' user_id=task.assignee.id %}?v={{ task.assignee.avatar_version }}"
          alt="{{ task.assignee.display_name }}"
          class="w-[22px] h-[22px] rounded-full object-cover shrink-0 cursor-pointer transition hover:ring-2 hover:ring-offset-1 hover:ring-offset-card hover:ring-brand-400/40"
          title="{% trans 'Filter by assignee' %}: {{ task.assignee.display_name }}"

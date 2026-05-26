@@ -103,7 +103,7 @@ hides the native scrollbar without losing the "you can scroll" cue.
           {% for avatar in col.active_avatars %}
           {% with over=col.over_members_map|get_item:avatar.id %}
           {% if avatar.avatar %}
-          <img src="{% url 'accounts:serve_avatar' user_id=avatar.id %}" alt="{{ avatar.display_name }}"
+          <img src="{% url 'accounts:serve_avatar' user_id=avatar.id %}?v={{ avatar.avatar_version }}" alt="{{ avatar.display_name }}"
                class="w-3.5 h-3.5 rounded-full object-cover -ml-1 first:ml-0"
                style="box-shadow: 0 0 0 1.5px {% if over %}rgb(244 63 94){% else %}rgb(var(--card)){% endif %};"
                title="{{ avatar.display_name }}{% if over %} · {{ over }} ({% trans 'over WIP limit' %}){% endif %}">
