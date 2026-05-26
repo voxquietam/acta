@@ -158,4 +158,5 @@ deploy: ## (on prod VM) fetch + reset to BRANCH (default master) + rebuild
 	git reset --hard origin/$(BRANCH)
 	$(COMPOSE) up -d --build
 	$(COMPOSE) exec -T web python manage.py setup_scheduled_jobs
+	$(COMPOSE) exec -T web python manage.py telegram_set_webhook || true
 	$(COMPOSE) ps

@@ -44,7 +44,10 @@ and Secret are stored in a `SocialApp` row in Django admin. See "One-time"
 4. `createsuperuser`
 5. `setup_scheduled_jobs` (seeds the recurring-job schedules — see below)
 6. Create the **Telegram message templates** in `/admin/` (see "One-time" §5)
-7. `telegram_set_webhook --base-url https://actaspace.com` (prod uses a webhook, not polling)
+7. Set **`ACTA_PUBLIC_BASE_URL`** in the prod env (e.g. `https://actaspace.com`).
+   `make deploy` then registers the Telegram webhook automatically
+   (`telegram_set_webhook`, run on every deploy — see below); no manual step.
+   To register by hand: `telegram_set_webhook --base-url https://actaspace.com`.
 8. Set up **Google OAuth** — create the `SocialApp` in `/admin/` (see "One-time" §6)
 
 ### Recurring jobs
