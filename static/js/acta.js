@@ -411,8 +411,17 @@
     // Archived — hidden unless show_archived is on.
     if (!state.showArchived && row.dataset.archived === "1") return false;
     // Backlog — planned / ready hidden unless show_backlog is on, except when
-    // the status filter explicitly selects them (mirrors server _filter_backlog).
-    if (!state.showBacklog && (s === "planned" || s === "ready") && !state.status.has(s)) return false;
+    // the status filter explicitly selects them (mirrors server _filter_backlog)
+    // OR the row is on the Backlog tab, which always shows planned / ready
+    // regardless of the toggle (that's the tab's whole purpose).
+    if (
+      !state.showBacklog &&
+      (s === "planned" || s === "ready") &&
+      !state.status.has(s) &&
+      !row.closest('[data-panel-slot="backlog"]')
+    ) {
+      return false;
+    }
     // Status
     if (state.status.size && !state.status.has(s)) return false;
     if (state.xstatus.size && state.xstatus.has(s)) return false;

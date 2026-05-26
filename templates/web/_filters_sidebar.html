@@ -609,21 +609,27 @@ rail are queued in [[project-todo-filter-sidebar-presets-views]]
         so "off" still submits an explicit value ("trailing 1 wins").
         {% endcomment %}
         {% if show_backlog_toggle %}
-        <input type="hidden" name="show_backlog" value="0">
-        <label class="cursor-pointer flex items-center gap-2 text-muted-foreground text-[11px]"
-               x-data
-               @acta:filter-reset.window="$el.querySelector('input[name=show_backlog][value=\'1\']').checked = false"
-               title="{% trans 'Include backlog (planned/ready)' %}">
-          <input type="checkbox" name="show_backlog" value="1"
-                 {% if show_backlog %}checked{% endif %}
-                 class="peer sr-only"
-                 onchange="this.form.requestSubmit()">
-          <span class="relative w-8 h-[18px] rounded-full bg-border-strong transition peer-checked:bg-brand-500
-                       after:content-[''] after:absolute after:top-[2px] after:left-[2px]
-                       after:w-[14px] after:h-[14px] after:bg-white after:rounded-full
-                       after:transition-transform peer-checked:after:translate-x-[14px]"></span>
-          {% trans "Show backlog" %}
-        </label>
+        {% comment %}
+        Hidden on the Backlog tab — that tab always shows planned/ready (acta.js
+        ``rowMatches`` exempts rows inside the backlog panel), so the toggle is
+        irrelevant there and would just be a no-op switch.
+        {% endcomment %}
+        <div x-data x-show="!($store.viewMode && $store.viewMode.current === 'backlog')" x-cloak>
+          <input type="hidden" name="show_backlog" value="0">
+          <label class="cursor-pointer flex items-center gap-2 text-muted-foreground text-[11px]"
+                 @acta:filter-reset.window="$el.querySelector('input[name=show_backlog][value=\'1\']').checked = false"
+                 title="{% trans 'Include backlog (planned/ready)' %}">
+            <input type="checkbox" name="show_backlog" value="1"
+                   {% if show_backlog %}checked{% endif %}
+                   class="peer sr-only"
+                   onchange="this.form.requestSubmit()">
+            <span class="relative w-8 h-[18px] rounded-full bg-border-strong transition peer-checked:bg-brand-500
+                         after:content-[''] after:absolute after:top-[2px] after:left-[2px]
+                         after:w-[14px] after:h-[14px] after:bg-white after:rounded-full
+                         after:transition-transform peer-checked:after:translate-x-[14px]"></span>
+            {% trans "Show backlog" %}
+          </label>
+        </div>
         {% endif %}
         <input type="hidden" name="show_archived" value="0">
         <label class="cursor-pointer flex items-center gap-2 text-muted-foreground text-[11px]"
