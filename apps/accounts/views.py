@@ -407,6 +407,14 @@ def serve_avatar(request, user_id: int):
     user = get_object_or_404(get_user_model(), pk=user_id)
     if not user.avatar:
         raise Http404("no avatar")
-    response = FileResponse(user.avatar.open("rb"), content_type="image/jpeg")
+    try:
+        handle = user.avatar.open("rb")
+    except (FileNotFoundError, OSError):
+        # DB references an avatar whose file is gone from storage (e.g. the
+        # media volume was reset, or the row predates this deployment's
+        # uploads). Degrade to 404 so the UI shows its initials-circle
+        # fallback instead of a hard 500 on every avatar.
+        raise Http404("avatar file missing")
+    response = FileResponse(handle, content_type="image/jpeg")
     response["Cache-Control"] = "private, max-age=300"
     return response
