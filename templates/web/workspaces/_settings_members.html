@@ -56,8 +56,8 @@ themselves only when they are also admin / owner per the guard in
   </form>
   {% endif %}
 
-  {# ---------- Member list ---------- #}
-  <ul class="space-y-2">
+  {# Member list — scrolls past ~10 rows; clamp cap shrinks with viewport, min ~5 rows. #}
+  <ul class="space-y-2 overflow-y-auto overflow-x-hidden max-h-[clamp(16rem,40vh,34rem)] pr-1">
     {% for m in memberships %}
     <li class="flex items-center justify-between gap-3 py-1.5">
 

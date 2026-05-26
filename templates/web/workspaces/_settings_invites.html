@@ -9,9 +9,9 @@ swap). Admins get revoke / resend; plain members see it read-only.
 {% endcomment %}
 <div id="workspace-invites">
 
-  {# Pending invites list — visible to everyone in the workspace. #}
+  {# Pending invites — visible to all; scrolls past ~10 rows, clamp cap shrinks with viewport. #}
   {% if pending_invites %}
-  <ul class="space-y-2">
+  <ul class="space-y-2 overflow-y-auto overflow-x-hidden max-h-[clamp(16rem,40vh,34rem)] pr-1">
     {% for invite in pending_invites %}
     <li class="flex items-center justify-between gap-3 py-1.5">
       <div class="flex items-center gap-3 min-w-0">

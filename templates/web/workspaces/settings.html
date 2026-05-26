@@ -3,13 +3,15 @@
 {% load lucide %}
 
 {% comment %}
-Workspace settings — single page with one panel for v0.1.0
-(members). Future settings sections (auto-archive policy, label
-manager entry, danger zone) layer in as additional ``<section>``
-panels below.
+Workspace settings — two columns: left = people (Members, with the invite-by-
+email form + a scrollable member list; Pending invites below). Right = policy
+(WIP limits, Cycles). The member / invite lists scroll internally (clamp cap,
+~5–10 rows by viewport height) so the page itself stays put; the policy forms
+sit in the right column so they no longer leave a wide empty gutter. Collapses
+to one column below ``lg``.
 
-The members panel is its own partial so the role-change / add /
-remove flows can swap just that block without reloading the page.
+The members + invites panels are their own partials so the role-change / add /
+remove / revoke flows swap just that block.
 {% endcomment %}
 
 {% block title %}{% trans "Workspace settings" %} · {{ workspace.name }} · Acta{% endblock %}
@@ -22,167 +24,176 @@ remove flows can swap just that block without reloading the page.
 {% endblock %}
 
 {% block app_main %}
-<div class="max-w-3xl mx-auto w-full space-y-6">
+<div class="max-w-7xl mx-auto w-full">
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
 
-  <section class="bg-card border border-border rounded-lg p-5">
-    <header class="flex items-center justify-between mb-4">
-      <h2 class="text-sm font-medium text-foreground">{% trans "Members" %}</h2>
-      <span class="text-xs text-placeholder-foreground">
-        {% blocktrans count counter=memberships|length %}{{ counter }} member{% plural %}{{ counter }} members{% endblocktrans %}
-      </span>
-    </header>
+    {# ===== Left column — people ===== #}
+    <div class="space-y-10 min-w-0">
 
-    {% include "web/workspaces/_settings_members.html" %}
-  </section>
+      <section class="bg-card border border-border rounded-lg p-5">
+        <header class="flex items-center justify-between mb-4">
+          <h2 class="text-sm font-medium text-foreground">{% trans "Members" %}</h2>
+          <span class="text-xs text-placeholder-foreground">
+            {% blocktrans count counter=memberships|length %}{{ counter }} member{% plural %}{{ counter }} members{% endblocktrans %}
+          </span>
+        </header>
+        {% include "web/workspaces/_settings_members.html" %}
+      </section>
 
-  <section class="bg-card border border-border rounded-lg p-5">
-    <header class="flex items-center justify-between mb-4">
-      <h2 class="text-sm font-medium text-foreground">{% trans "Pending invites" %}</h2>
-      <span class="text-xs text-placeholder-foreground">
-        {% blocktrans count counter=pending_invites|length %}{{ counter }} pending{% plural %}{{ counter }} pending{% endblocktrans %}
-      </span>
-    </header>
+      <section class="bg-card border border-border rounded-lg p-5">
+        <header class="flex items-center justify-between mb-4">
+          <h2 class="text-sm font-medium text-foreground">{% trans "Pending invites" %}</h2>
+          <span class="text-xs text-placeholder-foreground">
+            {% blocktrans count counter=pending_invites|length %}{{ counter }} pending{% plural %}{{ counter }} pending{% endblocktrans %}
+          </span>
+        </header>
+        {% include "web/workspaces/_settings_invites.html" %}
+      </section>
 
-    {% include "web/workspaces/_settings_invites.html" %}
-  </section>
+    </div>
 
-  {% comment %}
-  WIP-limit policy (scrumban). Workspace-wide so it applies to every
-  project board. ``personal`` = per-member cap counted across the whole
-  workspace; ``column`` = a team cap on the kanban column. Admin-only.
-  {% endcomment %}
-  <section class="bg-card border border-border rounded-lg p-5">
-    <header class="mb-4">
-      <h2 class="text-sm font-medium text-foreground">{% trans "WIP limits" %}</h2>
-      <p class="text-xs text-placeholder-foreground mt-1">{% trans "Work-in-progress caps for the kanban board, applied across all projects." %}</p>
-    </header>
+    {# ===== Right column — policy ===== #}
+    <div class="space-y-10 min-w-0">
 
-    {% if viewer_is_admin %}
-    <form method="post" action="{% url 'web:set_workspace_wip' slug=workspace.slug %}"
-          x-data="{ mode: '{{ wip_mode }}' }" class="space-y-4">
-      {% csrf_token %}
-      <div>
-        <label class="block text-[10px] uppercase tracking-wider text-placeholder-foreground mb-1.5">{% trans "Mode" %}</label>
-        <div class="flex flex-wrap gap-2">
-          {% for value, label in wip_mode_choices %}
-          <label class="cursor-pointer">
-            <input type="radio" name="mode" value="{{ value }}" x-model="mode" class="peer sr-only">
-            <span class="inline-block px-3 py-1.5 rounded-md border text-xs transition peer-checked:border-brand-400 peer-checked:bg-brand-600 peer-checked:text-white border-border bg-background text-subtle-foreground hover:bg-muted">{{ label }}</span>
-          </label>
-          {% endfor %}
-        </div>
-        <p class="text-[11px] text-placeholder-foreground mt-2" x-show="mode === 'personal'" x-cloak>{% trans "Each member may hold at most this many tasks in the status, counted across every project." %}</p>
-        <p class="text-[11px] text-placeholder-foreground mt-2" x-show="mode === 'column'" x-cloak>{% trans "The kanban column holds at most this many cards for the whole team." %}</p>
-      </div>
+      {% comment %}
+      WIP-limit policy (scrumban). Workspace-wide so it applies to every project
+      board. ``personal`` = per-member cap counted across the whole workspace;
+      ``column`` = a team cap on the kanban column. Admin-only.
+      {% endcomment %}
+      <section class="bg-card border border-border rounded-lg p-5">
+        <header class="mb-4">
+          <h2 class="text-sm font-medium text-foreground">{% trans "WIP limits" %}</h2>
+          <p class="text-xs text-placeholder-foreground mt-1">{% trans "Work-in-progress caps for the kanban board, applied across all projects." %}</p>
+        </header>
 
-      <div x-show="mode !== 'off'" x-cloak class="space-y-2">
-        <label class="block text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Limit per status" %}</label>
-        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {% for key, label, current in wip_status_rows %}
-          <div class="flex items-center gap-2">
-            <span class="text-xs text-muted-foreground flex-1 truncate">{{ label }}</span>
-            <input type="number" name="limit_{{ key }}" min="0" value="{{ current }}" placeholder="—"
-                   class="w-14 bg-muted border border-border-strong rounded px-2 py-1 text-xs text-foreground focus:outline-none focus:border-brand-500">
+        {% if viewer_is_admin %}
+        <form method="post" action="{% url 'web:set_workspace_wip' slug=workspace.slug %}"
+              x-data="{ mode: '{{ wip_mode }}' }" class="space-y-4">
+          {% csrf_token %}
+          <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Mode" %}</label>
+            <div class="flex flex-wrap gap-2">
+              {% for value, label in wip_mode_choices %}
+              <label class="cursor-pointer">
+                <input type="radio" name="mode" value="{{ value }}" x-model="mode" class="peer sr-only">
+                <span class="inline-block px-3 py-1.5 rounded-md border text-xs transition peer-checked:border-brand-400 peer-checked:bg-brand-600 peer-checked:text-white border-border bg-background text-subtle-foreground hover:bg-muted">{{ label }}</span>
+              </label>
+              {% endfor %}
+            </div>
           </div>
-          {% endfor %}
-        </div>
-        <p class="text-[10px] text-placeholder-foreground">{% trans "Empty or 0 = no limit for that status." %}</p>
-      </div>
+          <p class="text-[11px] text-placeholder-foreground -mt-1" x-show="mode === 'personal'" x-cloak>{% trans "Each member may hold at most this many tasks in the status, counted across every project." %}</p>
+          <p class="text-[11px] text-placeholder-foreground -mt-1" x-show="mode === 'column'" x-cloak>{% trans "The kanban column holds at most this many cards for the whole team." %}</p>
 
-      <button type="submit" class="text-xs px-3 py-1.5 rounded-md bg-brand-600 hover:bg-brand-500 text-white">{% trans "Save" %}</button>
-    </form>
-    {% else %}
-    <p class="text-xs text-placeholder-foreground">{% trans "Only workspace admins can change WIP limits." %}</p>
-    {% endif %}
-  </section>
+          <div x-show="mode !== 'off'" x-cloak class="space-y-2">
+            <label class="block text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Limit per status" %}</label>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {% for key, label, current in wip_status_rows %}
+              <div class="flex items-center gap-2 bg-background border border-border rounded-md px-2 py-1.5">
+                <span class="text-xs text-muted-foreground flex-1 truncate">{{ label }}</span>
+                <input type="number" name="limit_{{ key }}" min="0" value="{{ current }}" placeholder="—"
+                       class="w-12 bg-muted border border-border-strong rounded px-1.5 py-1 text-xs text-foreground text-center focus:outline-none focus:border-brand-500">
+              </div>
+              {% endfor %}
+            </div>
+            <p class="text-[10px] text-placeholder-foreground">{% trans "Empty or 0 = no limit for that status." %}</p>
+          </div>
 
-  {% comment %}
-  Cadence (cycles) policy. Workspace-wide time-boxes the whole team
-  shares; rows roll automatically from the anchor date every
-  ``length_weeks``. Admin-only. The preview shows the live active /
-  upcoming cycle materialized on page load.
-  {% endcomment %}
-  <section class="bg-card border border-border rounded-lg p-5">
-    <header class="mb-4">
-      <h2 class="text-sm font-medium text-foreground">{% trans "Cycles" %}</h2>
-      <p class="text-xs text-placeholder-foreground mt-1">{% trans "Time-boxed iterations the whole workspace shares. Cycles roll automatically on the cadence below." %}</p>
-    </header>
+          <button type="submit" class="text-xs px-3 py-1.5 rounded-md bg-brand-600 hover:bg-brand-500 text-white transition">{% trans "Save" %}</button>
+        </form>
+        {% else %}
+        <p class="text-xs text-placeholder-foreground">{% trans "Only workspace admins can change WIP limits." %}</p>
+        {% endif %}
+      </section>
 
-    {% if viewer_is_admin %}
-    <form method="post" action="{% url 'web:set_workspace_cycles' slug=workspace.slug %}"
-          x-data="{ enabled: {{ cycle_enabled|yesno:'true,false' }} }" class="space-y-4">
-      {% csrf_token %}
+      {% comment %}
+      Cadence (cycles) policy. Workspace-wide time-boxes the whole team shares;
+      rows roll automatically from the anchor date every ``length_weeks``.
+      Admin-only. The preview shows the live active / upcoming cycle.
+      {% endcomment %}
+      <section class="bg-card border border-border rounded-lg p-5">
+        <header class="mb-4">
+          <h2 class="text-sm font-medium text-foreground">{% trans "Cycles" %}</h2>
+          <p class="text-xs text-placeholder-foreground mt-1">{% trans "Time-boxed iterations the whole workspace shares. Cycles roll automatically on the cadence below." %}</p>
+        </header>
 
-      <label class="flex items-center gap-2 cursor-pointer">
-        <input type="checkbox" name="enabled" x-model="enabled"
-               class="rounded border-border-strong bg-muted text-brand-600 focus:ring-brand-500">
-        <span class="text-sm text-foreground">{% trans "Enable cycles" %}</span>
-      </label>
+        {% if viewer_is_admin %}
+        <form method="post" action="{% url 'web:set_workspace_cycles' slug=workspace.slug %}"
+              x-data="{ enabled: {{ cycle_enabled|yesno:'true,false' }} }" class="space-y-4">
+          {% csrf_token %}
 
-      <div x-show="enabled" x-cloak class="space-y-4">
-        <div>
-          <label class="block text-[10px] uppercase tracking-wider text-placeholder-foreground mb-1.5">{% trans "Cycle length" %}</label>
-          <div class="flex flex-wrap gap-2">
-            {% for n in cycle_length_choices %}
-            <label class="cursor-pointer">
-              <input type="radio" name="length_weeks" value="{{ n }}" {% if n == cycle_length_weeks %}checked{% endif %} class="peer sr-only">
-              <span class="inline-block px-3 py-1.5 rounded-md border text-xs transition peer-checked:border-brand-400 peer-checked:bg-brand-600 peer-checked:text-white border-border bg-background text-subtle-foreground hover:bg-muted">
-                {% blocktrans count counter=n %}{{ counter }} wk{% plural %}{{ counter }} wk{% endblocktrans %}
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" name="enabled" x-model="enabled"
+                   class="rounded border-border-strong bg-muted text-brand-600 focus:ring-brand-500">
+            <span class="text-sm text-foreground">{% trans "Enable cycles" %}</span>
+          </label>
+
+          <div x-show="enabled" x-cloak class="space-y-4">
+            <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Cycle length" %}</label>
+              <div class="flex flex-wrap gap-2">
+                {% for n in cycle_length_choices %}
+                <label class="cursor-pointer">
+                  <input type="radio" name="length_weeks" value="{{ n }}" {% if n == cycle_length_weeks %}checked{% endif %} class="peer sr-only">
+                  <span class="inline-block px-3 py-1.5 rounded-md border text-xs transition peer-checked:border-brand-400 peer-checked:bg-brand-600 peer-checked:text-white border-border bg-background text-subtle-foreground hover:bg-muted">
+                    {% blocktrans count counter=n %}{{ counter }} wk{% plural %}{{ counter }} wk{% endblocktrans %}
+                  </span>
+                </label>
+                {% endfor %}
+              </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+              <label for="cycle-start-date" class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Start date" %}</label>
+              <input type="date" name="start_date" id="cycle-start-date" value="{{ cycle_start_date|default:'' }}"
+                     class="acta-input w-44">
+              <p class="basis-full text-[11px] text-placeholder-foreground">{% trans "Anchor for cycle 1; later cycles roll from here. Defaults to today." %}</p>
+            </div>
+
+            <label class="flex items-start gap-2 cursor-pointer">
+              <input type="checkbox" name="auto_rollover" {% if cycle_auto_rollover %}checked{% endif %}
+                     class="mt-0.5 rounded border-border-strong bg-muted text-brand-600 focus:ring-brand-500">
+              <span class="text-xs text-subtle-foreground">
+                {% trans "Auto roll over unfinished tasks" %}
+                <span class="block text-[11px] text-placeholder-foreground">{% trans "When a cycle ends, its unfinished tasks move into the next active cycle. Done and cancelled tasks stay." %}</span>
               </span>
             </label>
-            {% endfor %}
           </div>
+
+          <button type="submit" class="text-xs px-3 py-1.5 rounded-md bg-brand-600 hover:bg-brand-500 text-white transition">{% trans "Save" %}</button>
+        </form>
+
+        {% if cycle_enabled %}
+        <div class="mt-5 pt-4 border-t border-border space-y-2">
+          {% if cycle_current %}
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+              <span class="text-sm text-foreground truncate">{{ cycle_current.display_name }}</span>
+              <span class="text-xs text-placeholder-foreground truncate">{{ cycle_current.start_date|date:"M j" }} – {{ cycle_current.end_date|date:"M j" }}</span>
+            </div>
+            <span class="text-xs text-subtle-foreground shrink-0">
+              {% blocktrans count days=cycle_current.days_remaining %}{{ days }} day left{% plural %}{{ days }} days left{% endblocktrans %}
+            </span>
+          </div>
+          {% else %}
+          <p class="text-xs text-placeholder-foreground italic">{% trans "No active cycle yet." %}</p>
+          {% endif %}
+          {% if cycle_upcoming %}
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="w-1.5 h-1.5 rounded-full bg-zinc-600 shrink-0"></span>
+            <span class="text-xs text-placeholder-foreground truncate">{% trans "Next" %}: {{ cycle_upcoming.display_name }} · {{ cycle_upcoming.start_date|date:"M j" }} – {{ cycle_upcoming.end_date|date:"M j" }}</span>
+          </div>
+          {% endif %}
         </div>
+        {% endif %}
 
-        <div>
-          <label for="cycle-start-date" class="block text-[10px] uppercase tracking-wider text-placeholder-foreground mb-1.5">{% trans "Start date" %}</label>
-          <input type="date" name="start_date" id="cycle-start-date" value="{{ cycle_start_date|default:'' }}"
-                 class="acta-input w-44">
-          <p class="text-[11px] text-placeholder-foreground mt-1.5">{% trans "Anchor for cycle 1; later cycles roll from here. Defaults to today." %}</p>
-        </div>
+        {% else %}
+        <p class="text-xs text-placeholder-foreground">{% trans "Only workspace admins can change the cadence." %}</p>
+        {% endif %}
+      </section>
 
-        <label class="flex items-start gap-2 cursor-pointer">
-          <input type="checkbox" name="auto_rollover" {% if cycle_auto_rollover %}checked{% endif %}
-                 class="mt-0.5 rounded border-border-strong bg-muted text-brand-600 focus:ring-brand-500">
-          <span class="text-xs text-subtle-foreground">
-            {% trans "Auto roll over unfinished tasks" %}
-            <span class="block text-[11px] text-placeholder-foreground">{% trans "When a cycle ends, its unfinished tasks move into the next active cycle. Done and cancelled tasks stay." %}</span>
-          </span>
-        </label>
-      </div>
-
-      <button type="submit" class="text-xs px-3 py-1.5 rounded-md bg-brand-600 hover:bg-brand-500 text-white">{% trans "Save" %}</button>
-    </form>
-
-    {% if cycle_enabled %}
-    <div class="mt-5 pt-4 border-t border-border space-y-2">
-      {% if cycle_current %}
-      <div class="flex items-center justify-between gap-3">
-        <div class="flex items-center gap-2 min-w-0">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
-          <span class="text-sm text-foreground truncate">{{ cycle_current.display_name }}</span>
-          <span class="text-xs text-placeholder-foreground truncate">{{ cycle_current.start_date|date:"M j" }} – {{ cycle_current.end_date|date:"M j" }}</span>
-        </div>
-        <span class="text-xs text-subtle-foreground shrink-0">
-          {% blocktrans count days=cycle_current.days_remaining %}{{ days }} day left{% plural %}{{ days }} days left{% endblocktrans %}
-        </span>
-      </div>
-      {% else %}
-      <p class="text-xs text-placeholder-foreground italic">{% trans "No active cycle yet." %}</p>
-      {% endif %}
-      {% if cycle_upcoming %}
-      <div class="flex items-center gap-2 min-w-0">
-        <span class="w-1.5 h-1.5 rounded-full bg-zinc-600 shrink-0"></span>
-        <span class="text-xs text-placeholder-foreground truncate">{% trans "Next" %}: {{ cycle_upcoming.display_name }} · {{ cycle_upcoming.start_date|date:"M j" }} – {{ cycle_upcoming.end_date|date:"M j" }}</span>
-      </div>
-      {% endif %}
     </div>
-    {% endif %}
 
-    {% else %}
-    <p class="text-xs text-placeholder-foreground">{% trans "Only workspace admins can change the cadence." %}</p>
-    {% endif %}
-  </section>
-
+  </div>
 </div>
 {% endblock %}
