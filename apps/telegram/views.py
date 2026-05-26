@@ -68,14 +68,16 @@ def _kind_pref_kinds():
     ]
 
 
-def _settings_context(user):
+def settings_context(user):
     """Build the context the Telegram settings partial expects."""
     account = getattr(user, "telegram", None)
-    ctx = {
-        "telegram_account": account,
-        "telegram_link_url": link_deep_link(user),
-    }
-    if account is not None:
+    ctx = {"telegram_account": account}
+    if account is None:
+        # The deep link is only shown to not-yet-connected users, and building
+        # it mints/reuses a DB link-token — so skip it once linked to avoid a
+        # needless write on every settings render and status poll.
+        ctx["telegram_link_url"] = link_deep_link(user)
+    else:
         from apps.notifications.models import Notification
 
         muted = set(account.muted_kinds or [])
@@ -93,7 +95,7 @@ def telegram_status(request):
     chat, the partial swaps to the linked card (which carries no poll
     trigger, so polling stops).
     """
-    return render(request, "telegram/_settings.html", _settings_context(request.user))
+    return render(request, "telegram/_settings.html", settings_context(request.user))
 
 
 @require_POST
@@ -101,7 +103,7 @@ def telegram_status(request):
 def telegram_disconnect(request):
     """Unlink the user's Telegram chat; return the refreshed partial."""
     TelegramAccount.objects.filter(user=request.user).delete()
-    html = render_to_string("telegram/_settings.html", _settings_context(request.user), request=request)
+    html = render_to_string("telegram/_settings.html", settings_context(request.user), request=request)
     return HttpResponse(html)
 
 
@@ -113,7 +115,7 @@ def telegram_toggle(request):
     if account is not None:
         account.enabled = not account.enabled
         account.save(update_fields=["enabled"])
-    html = render_to_string("telegram/_settings.html", _settings_context(request.user), request=request)
+    html = render_to_string("telegram/_settings.html", settings_context(request.user), request=request)
     return HttpResponse(html)
 
 
@@ -134,5 +136,5 @@ def telegram_toggle_kind(request):
             muted.append(kind)
         account.muted_kinds = muted
         account.save(update_fields=["muted_kinds"])
-    html = render_to_string("telegram/_settings.html", _settings_context(request.user), request=request)
+    html = render_to_string("telegram/_settings.html", settings_context(request.user), request=request)
     return HttpResponse(html)

@@ -86,6 +86,26 @@ class TestUserSettingsPost:
         user.refresh_from_db()
         assert user.first_name == "Same"
 
+    def test_connected_telegram_shows_kind_chips(self, client):
+        """The per-kind notification chips render on first load when connected."""
+        from apps.telegram.models import TelegramAccount
+
+        user = UserFactory()
+        TelegramAccount.objects.create(user=user, chat_id=123456, username="u", enabled=True)
+        client.force_login(user)
+        body = client.get(reverse("accounts:settings")).content.decode()
+        assert "What to send here" in body
+
+    def test_muted_telegram_still_shows_kind_chips(self, client):
+        """Chips stay visible even when the master switch is muted (enabled=False)."""
+        from apps.telegram.models import TelegramAccount
+
+        user = UserFactory()
+        TelegramAccount.objects.create(user=user, chat_id=123457, username="u", enabled=False)
+        client.force_login(user)
+        body = client.get(reverse("accounts:settings")).content.decode()
+        assert "What to send here" in body
+
     def test_name_overlong_is_truncated_to_150(self, client):
         """``first_name`` slicing keeps the model's max_length safe."""
         user = UserFactory()

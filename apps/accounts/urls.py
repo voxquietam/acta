@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    change_password,
     create_api_token,
     delete_api_token,
     invite_accept,
@@ -17,6 +18,7 @@ app_name = "accounts"
 urlpatterns = [
     path("set-language/", set_language, name="set_language"),
     path("settings/", user_settings, name="settings"),
+    path("settings/password/", change_password, name="change_password"),
     path("settings/avatar/", upload_avatar, name="upload_avatar"),
     path("settings/avatar/remove/", remove_avatar, name="remove_avatar"),
     path("settings/api-tokens/", create_api_token, name="create_api_token"),

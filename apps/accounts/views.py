@@ -1,9 +1,12 @@
 """Account-related page views."""
 
+import json
+
 from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user_model, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import PasswordChangeForm, SetPasswordForm
 from django.core.exceptions import ValidationError
 from django.http import FileResponse, Http404, HttpResponse, HttpResponseBadRequest, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
@@ -202,7 +205,10 @@ def user_settings(request):
     # the plain token, shown ONCE on redirect back here, then cleared.
     created_secret = request.session.pop("created_api_token_secret", None)
     created_name = request.session.pop("created_api_token_name", None)
-    from apps.telegram.services import link_deep_link
+    # Reuse the Telegram app's context builder so the settings page renders the
+    # same partial state as the HTMX poll/toggle — including ``telegram_kind_prefs``
+    # so the per-kind chips show on first load (not only after a toggle).
+    from apps.telegram.views import settings_context
 
     return render(
         request,
@@ -212,8 +218,7 @@ def user_settings(request):
             "api_tokens": list(user.api_tokens.order_by("revoked_at", "-created_at")),
             "created_api_token_secret": created_secret,
             "created_api_token_name": created_name,
-            "telegram_account": getattr(user, "telegram", None),
-            "telegram_link_url": link_deep_link(user),
+            **settings_context(user),
         },
     )
 
@@ -296,6 +301,67 @@ def delete_api_token(request, token_id: int):
     name = token.name
     token.delete()
     messages.success(request, _("Token “%(name)s” deleted.") % {"name": name})
+    return HttpResponseRedirect(reverse("accounts:settings"))
+
+
+@login_required
+def change_password(request):
+    """Set or change the current user's password, rendered in a modal.
+
+    Picks the right Django auth form by whether the account already has a
+    usable password: :class:`PasswordChangeForm` (requires the current
+    password) for normal accounts, :class:`SetPasswordForm` (no current
+    password) for accounts created via Google OAuth that never had one —
+    letting them add an email+password fallback. On success the session auth
+    hash is refreshed so the user is not logged out; both forms run the
+    project's configured password validators.
+
+    Flows:
+      * ``GET`` → render the modal partial (loaded into ``#modal-root``).
+      * ``POST`` from HTMX (the modal) → on success a 204 carrying an
+        ``acta:password-changed`` trigger (the modal closes on it) plus an
+        ``acta:toast``; on failure the modal partial re-renders with inline
+        field errors.
+      * ``POST`` without HTMX (fallback) → redirect to Settings with flash
+        messages.
+
+    Args:
+        request: GET, or POST with ``new_password1`` / ``new_password2``
+            (plus ``old_password`` when the account already has a password).
+    """
+    user = request.user
+    had_password = user.has_usable_password()
+    form_cls = PasswordChangeForm if had_password else SetPasswordForm
+    is_htmx = request.headers.get("HX-Request") == "true"
+
+    if request.method != "POST":
+        return render(request, "accounts/_password_modal.html", {"form": form_cls(user), "had_password": had_password})
+
+    form = form_cls(user, request.POST)
+    if form.is_valid():
+        form.save()
+        # Changing the password rotates the session auth hash, which would
+        # otherwise log the user out on the next request.
+        update_session_auth_hash(request, user)
+        msg = _("Password changed.") if had_password else _("Password set.")
+        if is_htmx:
+            response = HttpResponse(status=204)
+            response["HX-Trigger"] = json.dumps(
+                {
+                    "acta:password-changed": True,
+                    "acta:toast": {"message": str(msg), "level": "success"},
+                },
+            )
+            return response
+        messages.success(request, msg)
+        return HttpResponseRedirect(reverse("accounts:settings"))
+
+    if is_htmx:
+        # Re-render the modal with the bound form so field errors show inline.
+        return render(request, "accounts/_password_modal.html", {"form": form, "had_password": had_password})
+    for field_errors in form.errors.values():
+        for err in field_errors:
+            messages.error(request, err)
     return HttpResponseRedirect(reverse("accounts:settings"))
 
 

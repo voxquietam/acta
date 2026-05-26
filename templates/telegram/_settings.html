@@ -39,10 +39,11 @@ swapped-in markup carries no poll trigger, so polling stops. Expects
   </div>
 
   {% comment %}
-  Per-kind delivery toggles — only meaningful while the master switch is on.
-  Each chip mutes/unmutes one notification kind for this chat.
+  Per-kind delivery toggles — always shown while connected (even when the
+  master switch is muted) so the user can pick which kinds to receive without
+  having to flip the master on first. Each chip mutes/unmutes one kind.
   {% endcomment %}
-  {% if telegram_account.enabled and telegram_kind_prefs %}
+  {% if telegram_kind_prefs %}
   <div class="mt-3 pt-3 border-t border-border">
     <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground mb-2">{% trans "What to send here" %}</div>
     <div class="flex flex-wrap gap-1.5">

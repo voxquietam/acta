@@ -9,234 +9,268 @@
 {% endblock %}
 
 {% block app_main %}
-<div class="max-w-2xl mx-auto w-full space-y-6">
+{% comment %}
+Two columns only from ``2xl`` up (``2xl:grid-cols-2``). Tailwind breakpoints key
+off the VIEWPORT, and the app sidebar eats ~360px, so a lower breakpoint left
+the two columns cramped at ~1080px of real content — ``2xl`` (1536px viewport)
+keeps it one column until there's genuinely room. Left =
+account (Profile — name/avatar/language, plus password-change-in-a-modal and
+log-out folded in as aligned action rows). Right = integrations (Telegram,
+then API tokens).
 
-  {# ----- Profile section ----- #}
-  <section class="bg-card border border-border rounded-lg p-4">
-    <header class="flex items-center gap-3 mb-4">
-      <h2 class="text-sm font-medium text-foreground">{% trans "Profile" %}</h2>
-    </header>
+``min-w-0`` on the columns + on flex children holding long content (token
+strings, the MCP ``<pre>``) so nothing overflows into the neighbouring column.
+Inputs are full-width of their card / equal grid cells, so field edges align.
+Card / header / label / button styling matches ``web/workspaces/settings.html``.
+{% endcomment %}
+<div class="max-w-7xl mx-auto w-full">
+  {% comment %} ``gap-10`` (column + row) == the ``space-y-10`` inside each column → uniform 40px everywhere. {% endcomment %}
+  <div class="grid grid-cols-1 2xl:grid-cols-2 gap-10 items-start">
 
-    {% include "accounts/_avatar_block.html" %}
+    {# ===== Left column — account ===== #}
+    <div class="space-y-10 min-w-0">
 
-    <form method="post" action="{% url 'accounts:settings' %}"
-          hx-boost="true"
-          hx-target="#app-content"
-          hx-select="#app-content"
-          hx-swap="outerHTML show:top"
-          hx-push-url="true"
-          class="space-y-3">
-      {% csrf_token %}
+      {# Profile #}
+      <section class="bg-card border border-border rounded-lg p-5">
+        <header class="mb-4">
+          <h2 class="text-sm font-medium text-foreground">{% trans "Profile" %}</h2>
+          <p class="text-xs text-placeholder-foreground mt-1">{% trans "Your name, avatar, language, and password." %}</p>
+        </header>
 
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "First name" %}</label>
-          <input type="text" name="first_name" maxlength="150"
-                 value="{{ request.user.first_name }}"
-                 class="mt-1 acta-input">
+        {% include "accounts/_avatar_block.html" %}
+
+        <form method="post" action="{% url 'accounts:settings' %}"
+              hx-boost="true" hx-target="#app-content" hx-select="#app-content"
+              hx-swap="outerHTML show:top" hx-push-url="true"
+              class="space-y-4">
+          {% csrf_token %}
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[10px] uppercase tracking-wider text-placeholder-foreground mb-1.5">{% trans "First name" %}</label>
+              <input type="text" name="first_name" maxlength="150" value="{{ request.user.first_name }}" class="acta-input">
+            </div>
+            <div>
+              <label class="block text-[10px] uppercase tracking-wider text-placeholder-foreground mb-1.5">{% trans "Last name" %}</label>
+              <input type="text" name="last_name" maxlength="150" value="{{ request.user.last_name }}" class="acta-input">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="min-w-0">
+              <label class="block text-[10px] uppercase tracking-wider text-placeholder-foreground mb-1.5">{% trans "Email" %}</label>
+              <input type="email" disabled value="{{ request.user.email }}" class="acta-input disabled:opacity-60">
+              <p class="mt-1.5 text-[11px] text-placeholder-foreground">{% trans "Email changes go through the admin for now." %}</p>
+            </div>
+            <div>
+              <label class="block text-[10px] uppercase tracking-wider text-placeholder-foreground mb-1.5">{% trans "Language" %}</label>
+              <select name="language" class="acta-input">
+                {% for code, label in languages %}
+                <option value="{{ code }}" {% if code == request.user.language %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
+          <button type="submit" class="text-xs px-3 py-1.5 rounded-md bg-brand-600 hover:bg-brand-500 text-white transition">
+            {% trans "Save changes" %}
+          </button>
+        </form>
+
+        {% comment %}
+        Password + Session as two aligned action rows (text left, button right):
+        the password form lives in a modal so it costs no space, and logging out
+        is folded in here under it rather than as its own section.
+        {% endcomment %}
+        <div class="mt-4 border-t border-border divide-y divide-border">
+          <div class="flex items-center justify-between gap-3 py-3">
+            <div class="min-w-0">
+              <div class="text-sm text-foreground">{% trans "Password" %}</div>
+              <div class="text-[11px] text-placeholder-foreground">
+                {% if request.user.has_usable_password %}
+                {% trans "Change the password you sign in with." %}
+                {% else %}
+                {% trans "No password yet — you sign in with Google." %}
+                {% endif %}
+              </div>
+            </div>
+            <button type="button"
+                    hx-get="{% url 'accounts:change_password' %}"
+                    hx-target="#modal-root"
+                    hx-swap="innerHTML"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border border-border text-foreground hover:bg-muted transition shrink-0">
+              {% lucide "lock" "w-3.5 h-3.5" %}
+              {% if request.user.has_usable_password %}{% trans "Change password" %}{% else %}{% trans "Set password" %}{% endif %}
+            </button>
+          </div>
+
+          <div class="flex items-center justify-between gap-3 py-3">
+            <div class="min-w-0">
+              <div class="text-sm text-foreground">{% trans "Session" %}</div>
+              <div class="text-[11px] text-placeholder-foreground">{% trans "Sign out of this browser." %}</div>
+            </div>
+            <form method="post" action="{% url 'account_logout' %}" class="shrink-0">
+              {% csrf_token %}
+              <button type="submit"
+                      class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md text-rose-400 hover:bg-muted transition">
+                {% lucide "log-out" "w-3.5 h-3.5" %}
+                {% trans "Log out" %}
+              </button>
+            </form>
+          </div>
         </div>
-        <div>
-          <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Last name" %}</label>
-          <input type="text" name="last_name" maxlength="150"
-                 value="{{ request.user.last_name }}"
-                 class="mt-1 acta-input">
-        </div>
-      </div>
+      </section>
 
-      <div>
-        <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Email" %}</label>
-        <input type="email" disabled
-               value="{{ request.user.email }}"
-               class="mt-1 acta-input">
-        <p class="mt-1 text-[10px] text-placeholder-foreground">{% trans "Email changes go through the admin for now." %}</p>
-      </div>
-
-      {# ----- Preferences section (same form so one Save submits both) ----- #}
-      <div class="pt-4 mt-2 border-t border-border">
-        <h3 class="text-sm font-medium text-foreground mb-3">{% trans "Preferences" %}</h3>
-        <div>
-          <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Language" %}</label>
-          <select name="language"
-                  class="mt-1 acta-input">
-            {% for code, label in languages %}
-            <option value="{{ code }}" {% if code == request.user.language %}selected{% endif %}>{{ label }}</option>
-            {% endfor %}
-          </select>
-        </div>
-      </div>
-
-      <div class="flex items-center justify-end pt-2">
-        <button type="submit"
-                class="acta-btn-primary min-w-[9rem]">
-          {% trans "Save changes" %}
-        </button>
-      </div>
-    </form>
-  </section>
-
-  {# ----- API tokens section ----- #}
-  {% comment %}
-  Programmatic access (curl, scripts, the MCP server) authenticates
-  via per-user ``ApiToken``s instead of the web session cookie. The
-  plain secret is shown ONCE here right after creation (read once
-  from session by the view, then cleared); after the user navigates
-  away it can't be retrieved — they revoke and create a new one.
-  {% endcomment %}
-  <section class="bg-card border border-border rounded-lg p-4">
-    <header class="flex items-center justify-between mb-3">
-      <div>
-        <h2 class="text-sm font-medium text-foreground">{% trans "API tokens" %}</h2>
-        <p class="text-[11px] text-placeholder-foreground mt-0.5">
-          {% trans "For non-browser clients (scripts, MCP server, etc.). The plain secret is shown only once on creation." %}
-        </p>
-      </div>
-    </header>
-
-    {% if created_api_token_secret %}
-    {% comment %}
-    One-shot panel rendered on the redirect after a successful
-    ``create_api_token`` POST. The brand-tinted border + warning
-    icon signals "copy this NOW", since once the user reloads or
-    navigates away the secret is gone.
-    {% endcomment %}
-    <div class="mb-4 p-3 border border-brand-500/40 bg-brand-500/5 rounded-md text-xs">
-      <div class="flex items-center gap-2 text-brand-300 font-medium mb-2">
-        {% lucide "key-round" "w-4 h-4" %}
-        {% blocktrans with name=created_api_token_name %}Token “{{ name }}” created — copy it now, it won't be shown again:{% endblocktrans %}
-      </div>
-      <div class="flex items-center gap-2">
-        <code class="flex-1 font-mono text-[11px] bg-background border border-border-strong rounded px-2 py-1.5 break-all text-foreground"
-              id="acta-new-token">{{ created_api_token_secret }}</code>
-        <button type="button"
-                x-data="{ copied: false }"
-                @click="navigator.clipboard.writeText(document.getElementById('acta-new-token').textContent.trim()).then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
-                class="acta-btn-icon shrink-0"
-                :data-tooltip="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy to clipboard' %}'"
-                :aria-label="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy to clipboard' %}'">
-          <span x-show="!copied">{% lucide "copy" "w-4 h-4" %}</span>
-          <span x-show="copied" x-cloak class="text-emerald-400">{% lucide "check" "w-4 h-4" %}</span>
-        </button>
-      </div>
     </div>
-    {% endif %}
 
-    <form method="post" action="{% url 'accounts:create_api_token' %}"
-          hx-boost="true"
-          hx-target="#app-content"
-          hx-select="#app-content"
-          hx-swap="outerHTML show:top"
-          hx-push-url="true"
-          class="flex items-end gap-2 mb-4">
-      {% csrf_token %}
-      <div class="flex-1">
-        <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "New token name" %}</label>
-        <input type="text" name="name" maxlength="80" required
-               placeholder="{% trans 'e.g. Claude Desktop' %}"
-               class="mt-1 acta-input">
-      </div>
-      <button type="submit" class="acta-btn-primary min-w-[9rem]">
-        {% lucide "plus" "w-4 h-4" %}
-        {% trans "Generate" %}
-      </button>
-    </form>
+    {# ===== Right column — integrations ===== #}
+    <div class="space-y-10 min-w-0">
 
-    {% if api_tokens %}
-    <ul class="divide-y divide-border">
-      {% for token in api_tokens %}
-      <li class="flex items-center gap-3 py-2.5 {% if token.revoked_at %}opacity-60{% endif %}">
-        <span class="text-placeholder-foreground">
-          {% if token.revoked_at %}{% lucide "key-round" "w-4 h-4" %}{% else %}{% lucide "key-round" "w-4 h-4 text-brand-400" %}{% endif %}
-        </span>
-        <div class="flex-1 min-w-0">
-          <div class="flex items-center gap-2 text-sm">
-            <span class="font-medium text-foreground truncate">{{ token.name }}</span>
-            <span class="font-mono text-[10px] text-placeholder-foreground">{{ token.prefix }}…</span>
-            {% if token.revoked_at %}
-            <span class="text-[9.5px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted text-placeholder-foreground">
-              {% trans "revoked" %}
-            </span>
-            {% endif %}
+      {# Telegram #}
+      <section class="bg-card border border-border rounded-lg p-5">
+        <header class="mb-4">
+          <h2 class="text-sm font-medium text-foreground">{% trans "Telegram notifications" %}</h2>
+          <p class="text-xs text-placeholder-foreground mt-1">{% trans "Where Acta pings you when you're mentioned, assigned, or commented on." %}</p>
+        </header>
+        {% include "telegram/_settings.html" %}
+      </section>
+
+      {# API tokens #}
+      {% comment %}
+      Programmatic access (curl, scripts, the MCP server) authenticates via
+      per-user ``ApiToken``s instead of the web session cookie. The plain secret
+      is shown ONCE right after creation (read once from session by the view,
+      then cleared); after navigating away it can't be retrieved.
+      {% endcomment %}
+      <section class="bg-card border border-border rounded-lg p-5">
+        <header class="mb-4">
+          <h2 class="text-sm font-medium text-foreground">{% trans "API tokens" %}</h2>
+          <p class="text-xs text-placeholder-foreground mt-1">
+            {% trans "For non-browser clients (scripts, MCP server, etc.). The plain secret is shown only once on creation." %}
+          </p>
+        </header>
+
+        {% if created_api_token_secret %}
+        <div class="mb-4 p-3 border border-brand-500/40 bg-brand-500/5 rounded-md text-xs">
+          <div class="flex items-center gap-2 text-brand-300 font-medium mb-2">
+            {% lucide "key-round" "w-4 h-4 shrink-0" %}
+            <span class="min-w-0">{% blocktrans with name=created_api_token_name %}Token “{{ name }}” created — copy it now, it won't be shown again:{% endblocktrans %}</span>
           </div>
-          <div class="text-[11px] text-placeholder-foreground mt-0.5">
-            {% blocktrans with d=token.created_at|date:"M j, Y" %}created {{ d }}{% endblocktrans %}
-            {% if token.last_used_at %}
-            · {% blocktrans with t=token.last_used_at|timesince %}last used {{ t }} ago{% endblocktrans %}
-            {% else %}
-            · <span class="italic">{% trans "never used" %}</span>
-            {% endif %}
-            {% if token.revoked_at %}
-            · {% blocktrans with t=token.revoked_at|timesince %}revoked {{ t }} ago{% endblocktrans %}
-            {% endif %}
+          <div class="flex items-center gap-2">
+            <code class="flex-1 min-w-0 font-mono text-[11px] bg-background border border-border-strong rounded px-2 py-1.5 break-all text-foreground"
+                  id="acta-new-token">{{ created_api_token_secret }}</code>
+            <button type="button"
+                    x-data="{ copied: false }"
+                    @click="navigator.clipboard.writeText(document.getElementById('acta-new-token').textContent.trim()).then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
+                    class="acta-btn-icon shrink-0"
+                    :data-tooltip="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy to clipboard' %}'"
+                    :aria-label="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy to clipboard' %}'">
+              <span x-show="!copied">{% lucide "copy" "w-4 h-4" %}</span>
+              <span x-show="copied" x-cloak class="text-emerald-400">{% lucide "check" "w-4 h-4" %}</span>
+            </button>
           </div>
         </div>
-        <div class="flex items-center gap-1 shrink-0">
-          {% if not token.revoked_at %}
-          <form method="post" action="{% url 'accounts:revoke_api_token' token_id=token.id %}"
-                hx-boost="true"
-                hx-target="#app-content"
-                hx-select="#app-content"
-                hx-swap="outerHTML show:top"
-                hx-push-url="true"
-                x-data="{ confirming: false }">
-            {% csrf_token %}
-            <button x-show="!confirming" type="button" @click="confirming = true"
-                    class="text-[11px] text-placeholder-foreground hover:text-rose-400 transition px-2 py-1">
-              {% trans "Revoke" %}
-            </button>
-            <span x-show="confirming" x-cloak class="inline-flex items-center gap-1 text-[11px]">
-              <span class="text-rose-400">{% trans "Revoke?" %}</span>
-              <button type="submit" class="text-emerald-400 hover:text-emerald-300 px-1">
-                {% lucide "check" "w-3.5 h-3.5" %}
-              </button>
-              <button type="button" @click="confirming = false" class="text-placeholder-foreground hover:text-foreground px-1">
-                {% lucide "x" "w-3.5 h-3.5" %}
-              </button>
-            </span>
-          </form>
-          {% endif %}
-          <form method="post" action="{% url 'accounts:delete_api_token' token_id=token.id %}"
-                hx-boost="true"
-                hx-target="#app-content"
-                hx-select="#app-content"
-                hx-swap="outerHTML show:top"
-                hx-push-url="true"
-                x-data="{ confirming: false }">
-            {% csrf_token %}
-            <button x-show="!confirming" type="button" @click="confirming = true"
-                    data-tooltip="{% trans 'Delete token' %}"
-                    class="text-placeholder-foreground hover:text-rose-400 transition px-2 py-1">
-              {% lucide "trash-2" "w-3.5 h-3.5" %}
-            </button>
-            <span x-show="confirming" x-cloak class="inline-flex items-center gap-1 text-[11px]">
-              <span class="text-rose-400">{% trans "Delete?" %}</span>
-              <button type="submit" class="text-emerald-400 hover:text-emerald-300 px-1">
-                {% lucide "check" "w-3.5 h-3.5" %}
-              </button>
-              <button type="button" @click="confirming = false" class="text-placeholder-foreground hover:text-foreground px-1">
-                {% lucide "x" "w-3.5 h-3.5" %}
-              </button>
-            </span>
-          </form>
-        </div>
-      </li>
-      {% endfor %}
-    </ul>
-    {% else %}
-    <p class="text-[11px] text-placeholder-foreground italic">{% trans "No API tokens yet." %}</p>
-    {% endif %}
+        {% endif %}
 
-    <details class="mt-6 group" x-data="{ copied: false }" {% if created_api_token_secret %}open{% endif %}>
-      <summary class="cursor-pointer text-xs text-placeholder-foreground hover:text-foreground transition select-none flex items-center gap-1.5">
-        {% lucide "chevron-right" "w-3.5 h-3.5 transition group-open:rotate-90" %}
-        {% trans "How to wire the token into Claude Desktop / Cursor" %}
-      </summary>
-      <div class="mt-3 space-y-3 text-xs text-subtle-foreground">
-        <p>
-          {% blocktrans %}Acta speaks <strong>HTTP MCP</strong>. One endpoint, one token, no SSH or wrapper scripts. Paste the snippet below into your MCP client's config — for Claude Desktop on macOS that's <code class="text-foreground">~/Library/Application Support/Claude/claude_desktop_config.json</code>. The token is filled in right after you create one (otherwise replace the placeholder); then fully quit and reopen the client.{% endblocktrans %}
-        </p>
-        <div class="relative">
-          <pre class="rounded-md bg-zinc-900 border border-border p-3 text-[11px] leading-snug text-zinc-200 overflow-x-auto font-mono"
-               x-ref="snippet">{
+        <form method="post" action="{% url 'accounts:create_api_token' %}"
+              hx-boost="true" hx-target="#app-content" hx-select="#app-content"
+              hx-swap="outerHTML show:top" hx-push-url="true"
+              class="flex items-end gap-2 mb-4">
+          {% csrf_token %}
+          <div class="flex-1 min-w-0">
+            <label class="block text-[10px] uppercase tracking-wider text-placeholder-foreground mb-1.5">{% trans "New token name" %}</label>
+            <input type="text" name="name" maxlength="80" required placeholder="{% trans 'e.g. Claude Desktop' %}" class="acta-input">
+          </div>
+          {% comment %} ``text-sm`` + transparent 1px border + ``py-1.5`` matches ``acta-input``'s height so the button lines up with the input. {% endcomment %}
+          <button type="submit" class="inline-flex items-center gap-1.5 text-sm px-4 py-1.5 rounded-md border border-transparent bg-brand-600 hover:bg-brand-500 text-white transition shrink-0">
+            {% lucide "plus" "w-4 h-4" %}
+            {% trans "Generate" %}
+          </button>
+        </form>
+
+        {% if api_tokens %}
+        <ul class="divide-y divide-border">
+          {% for token in api_tokens %}
+          <li class="flex items-center gap-3 py-2.5 {% if token.revoked_at %}opacity-60{% endif %}">
+            <span class="text-placeholder-foreground shrink-0">
+              {% if token.revoked_at %}{% lucide "key-round" "w-4 h-4" %}{% else %}{% lucide "key-round" "w-4 h-4 text-brand-400" %}{% endif %}
+            </span>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 text-sm">
+                <span class="font-medium text-foreground truncate">{{ token.name }}</span>
+                <span class="font-mono text-[10px] text-placeholder-foreground shrink-0">{{ token.prefix }}…</span>
+                {% if token.revoked_at %}
+                <span class="text-[9.5px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted text-placeholder-foreground shrink-0">
+                  {% trans "revoked" %}
+                </span>
+                {% endif %}
+              </div>
+              <div class="text-[11px] text-placeholder-foreground mt-0.5">
+                {% blocktrans with d=token.created_at|date:"M j, Y" %}created {{ d }}{% endblocktrans %}
+                {% if token.last_used_at %}
+                · {% blocktrans with t=token.last_used_at|timesince %}last used {{ t }} ago{% endblocktrans %}
+                {% else %}
+                · <span class="italic">{% trans "never used" %}</span>
+                {% endif %}
+                {% if token.revoked_at %}
+                · {% blocktrans with t=token.revoked_at|timesince %}revoked {{ t }} ago{% endblocktrans %}
+                {% endif %}
+              </div>
+            </div>
+            <div class="flex items-center gap-1 shrink-0">
+              {% if not token.revoked_at %}
+              <form method="post" action="{% url 'accounts:revoke_api_token' token_id=token.id %}"
+                    hx-boost="true" hx-target="#app-content" hx-select="#app-content"
+                    hx-swap="outerHTML show:top" hx-push-url="true"
+                    x-data="{ confirming: false }">
+                {% csrf_token %}
+                <button x-show="!confirming" type="button" @click="confirming = true"
+                        class="text-[11px] text-placeholder-foreground hover:text-rose-400 transition px-2 py-1">
+                  {% trans "Revoke" %}
+                </button>
+                <span x-show="confirming" x-cloak class="inline-flex items-center gap-1 text-[11px]">
+                  <span class="text-rose-400">{% trans "Revoke?" %}</span>
+                  <button type="submit" class="text-emerald-400 hover:text-emerald-300 px-1">{% lucide "check" "w-3.5 h-3.5" %}</button>
+                  <button type="button" @click="confirming = false" class="text-placeholder-foreground hover:text-foreground px-1">{% lucide "x" "w-3.5 h-3.5" %}</button>
+                </span>
+              </form>
+              {% endif %}
+              <form method="post" action="{% url 'accounts:delete_api_token' token_id=token.id %}"
+                    hx-boost="true" hx-target="#app-content" hx-select="#app-content"
+                    hx-swap="outerHTML show:top" hx-push-url="true"
+                    x-data="{ confirming: false }">
+                {% csrf_token %}
+                <button x-show="!confirming" type="button" @click="confirming = true"
+                        data-tooltip="{% trans 'Delete token' %}"
+                        class="text-placeholder-foreground hover:text-rose-400 transition px-2 py-1">
+                  {% lucide "trash-2" "w-3.5 h-3.5" %}
+                </button>
+                <span x-show="confirming" x-cloak class="inline-flex items-center gap-1 text-[11px]">
+                  <span class="text-rose-400">{% trans "Delete?" %}</span>
+                  <button type="submit" class="text-emerald-400 hover:text-emerald-300 px-1">{% lucide "check" "w-3.5 h-3.5" %}</button>
+                  <button type="button" @click="confirming = false" class="text-placeholder-foreground hover:text-foreground px-1">{% lucide "x" "w-3.5 h-3.5" %}</button>
+                </span>
+              </form>
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-[11px] text-placeholder-foreground italic">{% trans "No API tokens yet." %}</p>
+        {% endif %}
+
+        <details class="mt-6 group" x-data="{ copied: false }" {% if created_api_token_secret %}open{% endif %}>
+          <summary class="cursor-pointer text-xs text-placeholder-foreground hover:text-foreground transition select-none flex items-center gap-1.5">
+            {% lucide "chevron-right" "w-3.5 h-3.5 transition group-open:rotate-90" %}
+            {% trans "How to wire the token into Claude Desktop / Cursor" %}
+          </summary>
+          <div class="mt-3 space-y-3 text-xs text-subtle-foreground">
+            <p>
+              {% blocktrans %}Acta speaks <strong>HTTP MCP</strong>. One endpoint, one token, no SSH or wrapper scripts. Paste the snippet below into your MCP client's config — for Claude Desktop on macOS that's <code class="text-foreground">~/Library/Application Support/Claude/claude_desktop_config.json</code>. The token is filled in right after you create one (otherwise replace the placeholder); then fully quit and reopen the client.{% endblocktrans %}
+            </p>
+            <div class="relative min-w-0">
+              <pre class="rounded-md bg-zinc-900 border border-border p-3 text-[11px] leading-snug text-zinc-200 overflow-x-auto font-mono"
+                   x-ref="snippet">{
   "mcpServers": {
     "acta": {
       "transport": "http",
@@ -247,41 +281,24 @@
     }
   }
 }</pre>
-          <button type="button"
-                  @click="navigator.clipboard.writeText($refs.snippet.innerText).then(() => { copied = true; setTimeout(() => copied = false, 1500); })"
-                  class="absolute top-2 right-2 acta-btn-icon"
-                  :data-tooltip="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy snippet' %}'"
-                  :aria-label="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy snippet' %}'">
-            <span x-show="!copied">{% lucide "copy" "w-4 h-4" %}</span>
-            <span x-show="copied" x-cloak class="text-emerald-400">{% lucide "check" "w-4 h-4" %}</span>
-          </button>
-        </div>
-        <p>
-          {% blocktrans %}For Cursor / Cline use the same URL and header in their MCP settings panel. Rate limit is 60 requests per minute per token. Revoke any token above to cut access immediately.{% endblocktrans %}
-        </p>
-      </div>
-    </details>
-  </section>
+              <button type="button"
+                      @click="navigator.clipboard.writeText($refs.snippet.innerText).then(() => { copied = true; setTimeout(() => copied = false, 1500); })"
+                      class="absolute top-2 right-2 acta-btn-icon"
+                      :data-tooltip="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy snippet' %}'"
+                      :aria-label="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy snippet' %}'">
+                <span x-show="!copied">{% lucide "copy" "w-4 h-4" %}</span>
+                <span x-show="copied" x-cloak class="text-emerald-400">{% lucide "check" "w-4 h-4" %}</span>
+              </button>
+            </div>
+            <p>
+              {% blocktrans %}For Cursor / Cline use the same URL and header in their MCP settings panel. Rate limit is 60 requests per minute per token. Revoke any token above to cut access immediately.{% endblocktrans %}
+            </p>
+          </div>
+        </details>
+      </section>
 
-  {# ----- Telegram section ----- #}
-  <section class="bg-card border border-border rounded-lg p-4">
-    <h2 class="text-sm font-medium text-foreground mb-1">{% trans "Telegram notifications" %}</h2>
-    <p class="text-[11px] text-placeholder-foreground mb-3">{% trans "Where Acta pings you when you're mentioned, assigned, or commented on." %}</p>
-    {% include "telegram/_settings.html" %}
-  </section>
+    </div>
 
-  {# ----- Session section ----- #}
-  <section class="bg-card border border-border rounded-lg p-4">
-    <h2 class="text-sm font-medium text-foreground mb-3">{% trans "Session" %}</h2>
-    <form method="post" action="{% url 'account_logout' %}">
-      {% csrf_token %}
-      <button type="submit"
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md text-rose-400 hover:bg-muted">
-        {% lucide "log-out" "w-4 h-4" %}
-        {% trans "Log out" %}
-      </button>
-    </form>
-  </section>
-
+  </div>
 </div>
 {% endblock %}
