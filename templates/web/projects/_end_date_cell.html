@@ -1,0 +1,47 @@
+{% load i18n %}
+{% comment %}
+Planned-finish ("End") cell — drives the right edge of the timeline bar.
+Mirror of ``_due_date_cell.html`` (native date picker behind a button,
+auto-submit on change, hover "✕" to clear). Separate from the deadline:
+``end_date`` is when work is planned to finish, ``due_date`` the hard
+deadline. Auto-overwritten with the actual finish when the task is done.
+{% endcomment %}
+<div id="end-date-cell"
+     x-data
+     {% if oob %}hx-swap-oob="true"{% endif %}
+     class="inline-flex items-center gap-1.5 group">
+
+  <button type="button"
+          @click="$refs.input.showPicker()"
+          class="text-sm hover:text-foreground cursor-pointer
+            {% if task.end_date %}text-muted-foreground{% else %}text-placeholder-foreground italic{% endif %}">
+    {% if task.end_date %}{{ task.end_date|date:"M j, Y" }}{% else %}{% trans "Set end date" %}{% endif %}
+  </button>
+
+  <form hx-post="{% url 'web:set_task_end_date' slug_prefix=task.project.slug_prefix number=task.number %}"
+        hx-target="#end-date-cell"
+        hx-swap="outerHTML"
+        class="contents">
+    {% csrf_token %}
+    <input x-ref="input"
+           type="date"
+           name="end_date"
+           value="{{ task.end_date|date:'Y-m-d' }}"
+           @change="$el.form.requestSubmit()"
+           class="sr-only">
+  </form>
+
+  {% if task.end_date %}
+  <form hx-post="{% url 'web:set_task_end_date' slug_prefix=task.project.slug_prefix number=task.number %}"
+        hx-target="#end-date-cell"
+        hx-swap="outerHTML"
+        class="inline">
+    {% csrf_token %}
+    <input type="hidden" name="end_date" value="">
+    <button type="submit"
+            class="text-placeholder-foreground hover:text-rose-400 text-xs opacity-0 group-hover:opacity-100 transition"
+            data-tooltip="{% trans 'Clear end date' %}"
+            aria-label="{% trans 'Clear end date' %}">✕</button>
+  </form>
+  {% endif %}
+</div>

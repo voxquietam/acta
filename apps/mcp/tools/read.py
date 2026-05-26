@@ -106,6 +106,8 @@ def tasks_list(user: User, arguments: dict[str, Any]) -> Any:
             "status": t.status,
             "priority": t.priority,
             "size": t.size,
+            "start_date": t.start_date.isoformat() if t.start_date else None,
+            "end_date": t.end_date.isoformat() if t.end_date else None,
             "due_date": t.due_date.isoformat() if t.due_date else None,
             "assignee_username": t.assignee.username if t.assignee_id else None,
             "project_slug_prefix": t.project.slug_prefix,
@@ -349,6 +351,8 @@ def task_get(user: User, arguments: dict[str, Any]) -> Any:
         "status": task.status,
         "priority": task.priority,
         "size": task.size,
+        "start_date": task.start_date.isoformat() if task.start_date else None,
+        "end_date": task.end_date.isoformat() if task.end_date else None,
         "due_date": task.due_date.isoformat() if task.due_date else None,
         "created_at": task.created_at.isoformat(),
         "updated_at": task.updated_at.isoformat(),
@@ -370,6 +374,8 @@ def task_get(user: User, arguments: dict[str, Any]) -> Any:
                 "status": s.status,
                 "priority": s.priority,
                 "assignee_username": s.assignee.username if s.assignee_id else None,
+                "start_date": s.start_date.isoformat() if s.start_date else None,
+                "end_date": s.end_date.isoformat() if s.end_date else None,
                 "due_date": s.due_date.isoformat() if s.due_date else None,
             }
             for s in task.subtasks.order_by("number")

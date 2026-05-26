@@ -41,6 +41,8 @@ BULK_LIMIT = 500
 ALLOWED_UPDATE_FIELDS = {
     "status",
     "assignee",
+    "start_date",
+    "end_date",
     "due_date",
     "priority",
     "size",
@@ -53,6 +55,8 @@ ALLOWED_UPDATE_FIELDS = {
 
 SCALAR_UPDATE_KEYS = {
     "status",
+    "start_date",
+    "end_date",
     "due_date",
     "priority",
     "size",
@@ -203,9 +207,10 @@ def _bulk_apply_scalars(ids: list[int], updates: dict[str, Any]) -> None:
     of batch size. ``updated_at`` is set explicitly because ``auto_now``
     only fires on ``save()``.
 
-    Scalar fields handled: ``status``, ``due_date``, ``priority``, ``size``,
-    ``assignee`` (mapped to ``assignee_id``). Label add/remove are M2M and
-    handled separately in :func:`_bulk_apply_labels`.
+    Scalar fields handled: ``status``, ``start_date``, ``end_date``,
+    ``due_date``, ``priority``, ``size``, ``assignee`` (mapped to
+    ``assignee_id``). Label add/remove are M2M and handled separately in
+    :func:`_bulk_apply_labels`.
 
     Args:
         ids: List of task primary keys to update.
@@ -215,11 +220,21 @@ def _bulk_apply_scalars(ids: list[int], updates: dict[str, Any]) -> None:
     payload: dict[str, Any] = {}
     if "status" in updates:
         payload["status"] = updates["status"]
-        # ``Task.save`` maintains ``completed_at`` on status transitions,
-        # but the bulk path bypasses it, so mirror that here: stamp the
-        # done timestamp (overwriting any prior one is acceptable for a
-        # bulk move) and clear it when leaving done.
-        payload["completed_at"] = now if updates["status"] == Task.STATUS_DONE else None
+        # ``Task.save`` maintains ``completed_at`` + ``end_date`` on status
+        # transitions, but the bulk path bypasses it, so mirror that here:
+        # stamp the done timestamp + the actual finish date (overwriting any
+        # prior one is acceptable for a bulk move) and clear completed_at when
+        # leaving done. An explicit ``end_date`` in the same payload wins (it
+        # is applied just below, after this).
+        if updates["status"] == Task.STATUS_DONE:
+            payload["completed_at"] = now
+            payload["end_date"] = now.date()
+        else:
+            payload["completed_at"] = None
+    if "start_date" in updates:
+        payload["start_date"] = updates["start_date"]
+    if "end_date" in updates:
+        payload["end_date"] = updates["end_date"]
     if "due_date" in updates:
         payload["due_date"] = updates["due_date"]
     if "priority" in updates:

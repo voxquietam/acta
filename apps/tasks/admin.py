@@ -14,6 +14,7 @@ class TaskAdmin(ModelAdmin):
         "status",
         "priority",
         "assignee",
+        "end_date",
         "due_date",
         "updated_at",
     ]

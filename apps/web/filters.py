@@ -265,7 +265,16 @@ DATE_FILTER_COLUMNS = {
     "created": "created_at",
     "updated": "updated_at",
     "completed": "completed_at",
+    "start": "start_date",
+    "end": "end_date",
     "due": "due_date",
+}
+# Columns that are plain DateFields (compared as-is); the rest are
+# DateTimeFields compared by calendar day via a ``__date`` lookup.
+_DATE_ONLY_COLUMNS = {
+    "start_date",
+    "end_date",
+    "due_date",
 }
 DATE_FILTER_DEFAULT = "completed"
 
@@ -286,7 +295,7 @@ def _filter_date_range(qs, params):
     before = _parse_date(params.get("date_before"))
     if not (after or before):
         return qs
-    prefix = column if column == "due_date" else f"{column}__date"
+    prefix = column if column in _DATE_ONLY_COLUMNS else f"{column}__date"
     if after:
         qs = qs.filter(**{f"{prefix}__gte": after})
     if before:

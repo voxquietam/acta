@@ -73,6 +73,92 @@ class TestCompletedAtBulk:
 
 
 @pytest.mark.django_db
+class TestEndDateOnDone:
+    """``end_date`` (the actual finish) is stamped on the move into done."""
+
+    def test_set_when_entering_done(self):
+        task = TaskFactory(status=Task.STATUS_TODO)
+        assert task.end_date is None
+        task.status = Task.STATUS_DONE
+        task.save()
+        task.refresh_from_db()
+        assert task.end_date == timezone.localdate()
+
+    def test_overwrites_planned_end(self):
+        task = TaskFactory(status=Task.STATUS_TODO, end_date=datetime.date(2020, 1, 1))
+        task.status = Task.STATUS_DONE
+        task.save()
+        task.refresh_from_db()
+        # The actual finish replaces the plan.
+        assert task.end_date == timezone.localdate()
+
+    def test_kept_when_leaving_done(self):
+        task = TaskFactory(status=Task.STATUS_DONE)
+        stamped = task.end_date
+        assert stamped == timezone.localdate()
+        task.status = Task.STATUS_TODO
+        task.save()
+        task.refresh_from_db()
+        # Unlike completed_at, the finish date stays on the record.
+        assert task.end_date == stamped
+
+    def test_not_rebumped_on_later_save_while_done(self):
+        task = TaskFactory(status=Task.STATUS_DONE)
+        Task.objects.filter(id=task.id).update(end_date=datetime.date(2026, 1, 2))
+        task.refresh_from_db()
+        task.title = "edited"
+        task.save()
+        task.refresh_from_db()
+        # Still done, but the finish date is not re-stamped to today.
+        assert task.end_date == datetime.date(2026, 1, 2)
+
+    def test_set_when_created_as_done(self):
+        task = TaskFactory(status=Task.STATUS_DONE)
+        assert task.end_date == timezone.localdate()
+
+    def test_bulk_to_done_sets_end_date(self):
+        from apps.tasks.bulk import _bulk_apply_scalars
+
+        task = TaskFactory(status=Task.STATUS_TODO)
+        _bulk_apply_scalars([task.id], {"status": Task.STATUS_DONE})
+        task.refresh_from_db()
+        assert task.end_date == timezone.localdate()
+
+    def test_bulk_explicit_end_date_wins_over_done_stamp(self):
+        from apps.tasks.bulk import _bulk_apply_scalars
+
+        task = TaskFactory(status=Task.STATUS_TODO)
+        _bulk_apply_scalars([task.id], {"status": Task.STATUS_DONE, "end_date": "2026-09-09"})
+        task.refresh_from_db()
+        assert task.end_date == datetime.date(2026, 9, 9)
+
+
+@pytest.mark.django_db
+class TestStartEndDateFilter:
+    """The date-range filter accepts the new ``start`` / ``end`` fields."""
+
+    def _ids(self, user, querystring):
+        params = QueryDict(querystring)
+        return set(apply_task_filters(Task.objects.all(), params, request_user=user).values_list("id", flat=True))
+
+    def test_start_field(self):
+        user = UserFactory()
+        task = TaskFactory(status=Task.STATUS_TODO, start_date=datetime.date(2026, 6, 15))
+        no_start = TaskFactory(status=Task.STATUS_TODO)
+        ids = self._ids(user, "date_field=start&date_after=2026-06-01&date_before=2026-06-30")
+        assert task.id in ids
+        assert no_start.id not in ids
+
+    def test_end_field(self):
+        user = UserFactory()
+        task = TaskFactory(status=Task.STATUS_TODO, end_date=datetime.date(2026, 7, 10))
+        no_end = TaskFactory(status=Task.STATUS_TODO)
+        ids = self._ids(user, "date_field=end&date_after=2026-07-01&date_before=2026-07-31")
+        assert task.id in ids
+        assert no_end.id not in ids
+
+
+@pytest.mark.django_db
 class TestDateRangeFilter:
     def _ids(self, user, querystring):
         params = QueryDict(querystring)

@@ -547,6 +547,8 @@ rail are queued in [[project-todo-filter-sidebar-presets-views]]
             <option value="completed" {% if date_field == "completed" %}selected{% endif %}>{% trans "Completed" %}</option>
             <option value="created" {% if date_field == "created" %}selected{% endif %}>{% trans "Created" %}</option>
             <option value="updated" {% if date_field == "updated" %}selected{% endif %}>{% trans "Updated" %}</option>
+            <option value="start" {% if date_field == "start" %}selected{% endif %}>{% trans "Start" %}</option>
+            <option value="end" {% if date_field == "end" %}selected{% endif %}>{% trans "End" %}</option>
             <option value="due" {% if date_field == "due" %}selected{% endif %}>{% trans "Due" %}</option>
           </select>
           <div class="flex gap-1 flex-wrap">

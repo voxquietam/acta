@@ -135,11 +135,13 @@ def _timeline_context(table_tasks, today):
         key=lambda t: (
             t.start_date is None,
             t.start_date or datetime.date.max,
+            t.end_date is None,
+            t.end_date or datetime.date.max,
             t.due_date is None,
             t.due_date or datetime.date.max,
         ),
     )
-    all_dates = [d for t in timeline_tasks for d in (t.start_date, t.due_date) if d]
+    all_dates = [d for t in timeline_tasks for d in (t.start_date, t.end_date, t.due_date) if d]
     raw_min = min(all_dates) if all_dates else today
     raw_max = max(all_dates) if all_dates else today
     chart_start = raw_min - datetime.timedelta(days=7)
@@ -2750,7 +2752,7 @@ def set_task_status(request, slug_prefix, number):
         apply_cycle_policy(task)
         task.save()
         emit_task_diff_events(old_state=old, task=task, actor=request.user)
-    return _inline_edit_response(
+    response = _inline_edit_response(
         request,
         task,
         "web/projects/_status_cell.html",
@@ -2759,6 +2761,19 @@ def set_task_status(request, slug_prefix, number):
             "status_labels": Task.STATUS_LABELS,
         },
     )
+    # A status move can auto-stamp the date fields (start_date on in-progress,
+    # end_date on done — see ``Task._sync_done_dates``). The acting tab's own
+    # SSE refresh is suppressed by the self-event filter, so OOB-swap any
+    # changed date cell here; the cells only exist on the rail / modal, so the
+    # swap is a no-op on the board.
+    extra = ""
+    if old["start_date"] != task.start_date:
+        extra += render_to_string("web/projects/_start_date_cell.html", {"task": task, "oob": True}, request=request)
+    if old["end_date"] != task.end_date:
+        extra += render_to_string("web/projects/_end_date_cell.html", {"task": task, "oob": True}, request=request)
+    if extra:
+        response.content = response.content + extra.encode()
+    return response
 
 
 @require_POST
@@ -3640,22 +3655,31 @@ def set_task_due_date(request, slug_prefix, number):
         except ValueError:
             return HttpResponseBadRequest("invalid due_date")
     _apply_task_field_change(task, "due_date", new_due_date, request.user)
-    return _inline_edit_response(
+    response = _inline_edit_response(
         request,
         task,
         "web/projects/_due_date_cell.html",
         {"task": task},
     )
+    # Refetch the active view panel so date-driven surfaces (the timeline
+    # Gantt, date-sorted / date-filtered lists) reflect the new deadline
+    # without a reload — e.g. editing the deadline in the task modal redraws
+    # the Gantt bar underneath it. The timeline's drag-resize hits this same
+    # endpoint via raw ``fetch`` (not HTMX), so it ignores the header and
+    # won't trigger a refetch loop (it redraws its bar locally instead).
+    response["HX-Trigger"] = "acta:task-changed"
+    return response
 
 
 @require_POST
 @login_required
 def set_task_start_date(request, slug_prefix, number):
-    """Inline start-date change; used by the timeline drag-resize handler.
+    """Inline start-date change; rail cell editor + timeline drag.
 
     Accepts ``start_date`` as an ISO-8601 date string or empty string
-    (clears the field). Returns 200 with no body on success — the
-    timeline bar already moved optimistically on the client.
+    (clears the field). Returns the ``_start_date_cell.html`` fragment so
+    the rail picker swaps in place; the timeline drag posts the same form
+    via raw ``fetch`` and simply ignores the response body.
 
     Args:
         request: Django request with a ``start_date`` POST field.
@@ -3663,7 +3687,7 @@ def set_task_start_date(request, slug_prefix, number):
         number: Task number within the project.
 
     Returns:
-        ``HttpResponse(status=200)`` on success.
+        Rendered ``_start_date_cell.html`` plus the panel-refetch trigger.
     """
     task = _get_user_task_or_404(request.user, slug_prefix, number)
     raw = (request.POST.get("start_date") or "").strip()
@@ -3675,7 +3699,55 @@ def set_task_start_date(request, slug_prefix, number):
         except ValueError:
             return HttpResponseBadRequest("invalid start_date")
     _apply_task_field_change(task, "start_date", new_start_date, request.user)
-    return HttpResponse(status=200)
+    response = _inline_edit_response(
+        request,
+        task,
+        "web/projects/_start_date_cell.html",
+        {"task": task},
+    )
+    # See ``set_task_due_date``: refetch date-driven panels on an HTMX edit.
+    # The timeline drag posts here via raw ``fetch`` and ignores this header.
+    response["HX-Trigger"] = "acta:task-changed"
+    return response
+
+
+@require_POST
+@login_required
+def set_task_end_date(request, slug_prefix, number):
+    """Inline planned-finish ("End") change; rail cell editor + timeline drag.
+
+    Accepts ``end_date`` as an ISO-8601 date string or empty string
+    (clears the field). ``end_date`` drives the right edge of the timeline
+    bar and is separate from the hard ``due_date`` deadline. Returns the
+    ``_end_date_cell.html`` fragment; the timeline drag posts via raw
+    ``fetch`` and ignores the body.
+
+    Args:
+        request: Django request with an ``end_date`` POST field.
+        slug_prefix: Project slug prefix from the URL.
+        number: Task number within the project.
+
+    Returns:
+        Rendered ``_end_date_cell.html`` plus the panel-refetch trigger.
+    """
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    raw = (request.POST.get("end_date") or "").strip()
+    if raw == "":
+        new_end_date = None
+    else:
+        try:
+            new_end_date = datetime.date.fromisoformat(raw)
+        except ValueError:
+            return HttpResponseBadRequest("invalid end_date")
+    _apply_task_field_change(task, "end_date", new_end_date, request.user)
+    response = _inline_edit_response(
+        request,
+        task,
+        "web/projects/_end_date_cell.html",
+        {"task": task},
+    )
+    response["HX-Trigger"] = "acta:task-changed"
+    return response
 
 
 @require_POST
@@ -5219,7 +5291,8 @@ def _create_task_post(request):
         # Mirror ``set_task_status``: a task that's born in-progress gets its
         # start_date stamped now, so the timeline knows when it began (a task
         # created straight into in-progress never passes through the status
-        # transition that would otherwise set it).
+        # transition that would otherwise set it). A done-on-create task gets
+        # its end_date stamped by ``Task.save`` → ``_sync_done_dates``.
         if status == Task.STATUS_IN_PROGRESS:
             task.start_date = timezone.localdate()
         task.save()

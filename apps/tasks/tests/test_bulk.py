@@ -68,8 +68,10 @@ class TestBulkUpdateScalars:
         )
         bids = ActivityLog.objects.filter(bulk_id=bulk_id).values_list("bulk_id", flat=True)
         assert set(bids) == {bulk_id}
-        # 2 tasks × 2 changed fields = 4 events.
-        assert len(bids) == 4
+        # 2 tasks × 3 changed fields = 6 events. The status move to done also
+        # stamps ``end_date`` (the actual finish) in the bulk path, emitting
+        # ``task.end_changed`` alongside the status + priority changes.
+        assert len(bids) == 6
 
 
 @pytest.mark.django_db

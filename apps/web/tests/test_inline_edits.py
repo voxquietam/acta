@@ -241,6 +241,14 @@ class TestSetTaskDueDate:
         # OOB activity swap is included.
         assert "hx-swap-oob" in body
 
+    def test_fires_task_changed_so_panels_refetch(self, client, setup):
+        user, project, task = setup
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"due_date": "2026-12-31"})
+        # The view panel (timeline Gantt, date-sorted lists) refetches on this
+        # trigger so a deadline edit redraws without a reload.
+        assert resp["HX-Trigger"] == "acta:task-changed"
+
     def test_cross_workspace_user_gets_404(self, client, setup):
         user, _, _ = setup
         foreign_ws = WorkspaceFactory()
@@ -258,6 +266,52 @@ class TestSetTaskDueDate:
             {"due_date": "2026-12-31"},
         )
         assert resp.status_code == 404
+
+
+@pytest.mark.django_db
+class TestSetTaskStartDate:
+    """``POST /projects/<slug>/<number>/start-date/`` sets the start date.
+
+    Exercised by the timeline drag-resize handler (raw ``fetch``); the view
+    returns an empty 200 plus the panel-refetch trigger.
+    """
+
+    def _url(self, project, task):
+        return reverse(
+            "web:set_task_start_date",
+            kwargs={"slug_prefix": project.slug_prefix, "number": task.number},
+        )
+
+    def test_set_start_date(self, client, setup):
+        user, project, task = setup
+        assert task.start_date is None
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"start_date": "2026-03-01"})
+        assert resp.status_code == 200
+        task.refresh_from_db()
+        assert task.start_date == datetime.date(2026, 3, 1)
+
+    def test_clear_start_date(self, client, setup):
+        user, project, task = setup
+        task.start_date = datetime.date(2026, 1, 1)
+        task.save()
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"start_date": ""})
+        assert resp.status_code == 200
+        task.refresh_from_db()
+        assert task.start_date is None
+
+    def test_invalid_format_returns_400(self, client, setup):
+        user, project, task = setup
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"start_date": "01/03/2026"})
+        assert resp.status_code == 400
+
+    def test_fires_task_changed_so_panels_refetch(self, client, setup):
+        user, project, task = setup
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"start_date": "2026-03-01"})
+        assert resp["HX-Trigger"] == "acta:task-changed"
 
 
 @pytest.mark.django_db

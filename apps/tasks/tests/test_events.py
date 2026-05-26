@@ -219,11 +219,14 @@ class TestEmitTaskDiffEvents:
                 task=task,
                 actor=task.reporter,
             )
-        assert count == 2
+        # Three events: the status + priority edits, plus ``task.end_changed``
+        # — moving to done auto-stamps ``end_date`` (the actual finish) in
+        # ``Task.save`` → ``_sync_done_dates``.
+        assert count == 3
         types = set(
             ActivityLog.objects.filter(target_id=task.id).values_list("event_type", flat=True),
         )
-        assert types == {"task.status_changed", "task.priority_changed"}
+        assert types == {"task.status_changed", "task.priority_changed", "task.end_changed"}
 
     def test_bulk_id_propagated_to_each_event(self):
         task = TaskFactory()

@@ -28,6 +28,7 @@ WATCHED_EVENT_FIELDS = (
     "status",
     "assignee",
     "due_date",
+    "end_date",
     "priority",
     "parent",
     "labels",
@@ -59,7 +60,9 @@ def snapshot_task(task: Task) -> dict[str, Any]:
         "status": task.status,
         "priority": task.priority,
         "size": task.size,
+        "start_date": task.start_date,
         "due_date": task.due_date,
+        "end_date": task.end_date,
         "assignee_id": task.assignee_id,
         "parent_id": task.parent_id,
         "project_id": task.project_id,
@@ -162,6 +165,18 @@ def build_diff_events(
                 payload={
                     "from": _iso_or_none(old_state["due_date"]),
                     "to": _iso_or_none(task.due_date),
+                },
+                **common,
+            ),
+        )
+
+    if old_state.get("end_date") != task.end_date:
+        events.append(
+            ActivityLog(
+                event_type="task.end_changed",
+                payload={
+                    "from": _iso_or_none(old_state.get("end_date")),
+                    "to": _iso_or_none(task.end_date),
                 },
                 **common,
             ),

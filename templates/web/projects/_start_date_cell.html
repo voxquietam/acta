@@ -1,0 +1,46 @@
+{% load i18n %}
+{% comment %}
+Start-date cell — drives the left edge of the timeline bar. Mirror of
+``_due_date_cell.html``. ``start_date`` auto-sets to today on the first
+transition to in-progress, but stays editable here. The timeline drag
+posts to the same endpoint via raw ``fetch`` and ignores this fragment.
+{% endcomment %}
+<div id="start-date-cell"
+     x-data
+     {% if oob %}hx-swap-oob="true"{% endif %}
+     class="inline-flex items-center gap-1.5 group">
+
+  <button type="button"
+          @click="$refs.input.showPicker()"
+          class="text-sm hover:text-foreground cursor-pointer
+            {% if task.start_date %}text-muted-foreground{% else %}text-placeholder-foreground italic{% endif %}">
+    {% if task.start_date %}{{ task.start_date|date:"M j, Y" }}{% else %}{% trans "Set start date" %}{% endif %}
+  </button>
+
+  <form hx-post="{% url 'web:set_task_start_date' slug_prefix=task.project.slug_prefix number=task.number %}"
+        hx-target="#start-date-cell"
+        hx-swap="outerHTML"
+        class="contents">
+    {% csrf_token %}
+    <input x-ref="input"
+           type="date"
+           name="start_date"
+           value="{{ task.start_date|date:'Y-m-d' }}"
+           @change="$el.form.requestSubmit()"
+           class="sr-only">
+  </form>
+
+  {% if task.start_date %}
+  <form hx-post="{% url 'web:set_task_start_date' slug_prefix=task.project.slug_prefix number=task.number %}"
+        hx-target="#start-date-cell"
+        hx-swap="outerHTML"
+        class="inline">
+    {% csrf_token %}
+    <input type="hidden" name="start_date" value="">
+    <button type="submit"
+            class="text-placeholder-foreground hover:text-rose-400 text-xs opacity-0 group-hover:opacity-100 transition"
+            data-tooltip="{% trans 'Clear start date' %}"
+            aria-label="{% trans 'Clear start date' %}">✕</button>
+  </form>
+  {% endif %}
+</div>

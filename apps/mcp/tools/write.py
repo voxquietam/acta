@@ -166,6 +166,10 @@ def task_create(user: User, arguments: dict[str, Any]) -> Any:
             data[field] = args[field]
     if args.get("priority") is not None:
         data["priority"] = args["priority"]
+    if args.get("start_date"):
+        data["start_date"] = args["start_date"]
+    if args.get("end_date"):
+        data["end_date"] = args["end_date"]
     if args.get("due_date"):
         data["due_date"] = args["due_date"]
 
@@ -231,6 +235,10 @@ def task_update(user: User, arguments: dict[str, Any]) -> Any:
             data[field] = args[field]
     if "priority" in args:
         data["priority"] = args["priority"]
+    if "start_date" in args:
+        data["start_date"] = args["start_date"]
+    if "end_date" in args:
+        data["end_date"] = args["end_date"]
     if "due_date" in args:
         data["due_date"] = args["due_date"]
 
@@ -641,7 +649,9 @@ TOOLS: list[Tool] = [
                 },
                 "priority": {"type": "integer", "minimum": 0, "maximum": 4},
                 "size": {"type": "integer", "enum": [1, 2, 3, 5, 8, 13]},
-                "due_date": {"type": "string", "description": "ISO date, e.g. '2026-05-30'."},
+                "start_date": {"type": "string", "description": "ISO date — timeline bar start, e.g. '2026-05-30'."},
+                "end_date": {"type": "string", "description": "ISO date — planned finish (timeline bar end)."},
+                "due_date": {"type": "string", "description": "ISO date — hard deadline, e.g. '2026-05-30'."},
                 "assignee_username": {"type": "string"},
                 "parent_slug": {"type": "string", "description": "Parent task slug (e.g. ACTA-128)."},
                 "label_names": {"type": "array", "items": {"type": "string"}},
@@ -679,6 +689,8 @@ TOOLS: list[Tool] = [
                 },
                 "priority": {"type": "integer", "minimum": 0, "maximum": 4},
                 "size": {"type": ["integer", "null"], "enum": [1, 2, 3, 5, 8, 13, None]},
+                "start_date": {"type": ["string", "null"]},
+                "end_date": {"type": ["string", "null"]},
                 "due_date": {"type": ["string", "null"]},
                 "assignee_username": {"type": ["string", "null"]},
                 "label_names": {"type": "array", "items": {"type": "string"}},
@@ -867,6 +879,8 @@ TOOLS: list[Tool] = [
                             },
                             "priority": {"type": "integer", "minimum": 0, "maximum": 4},
                             "size": {"type": "integer", "enum": [1, 2, 3, 5, 8, 13]},
+                            "start_date": {"type": "string"},
+                            "end_date": {"type": "string"},
                             "due_date": {"type": "string"},
                             "assignee_username": {"type": "string"},
                             "parent_slug": {"type": "string"},
@@ -908,6 +922,8 @@ TOOLS: list[Tool] = [
                             },
                             "priority": {"type": "integer", "minimum": 0, "maximum": 4},
                             "size": {"type": ["integer", "null"], "enum": [1, 2, 3, 5, 8, 13, None]},
+                            "start_date": {"type": ["string", "null"]},
+                            "end_date": {"type": ["string", "null"]},
                             "due_date": {"type": ["string", "null"]},
                             "assignee_username": {"type": ["string", "null"]},
                             "label_names": {"type": "array", "items": {"type": "string"}},

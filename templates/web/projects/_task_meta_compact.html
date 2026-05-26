@@ -20,7 +20,20 @@ the full-page layout for cases when those details matter.
   <span class="text-border-strong" aria-hidden="true">·</span>
   {% include "web/projects/_assignee_cell.html" %}
   <span class="text-border-strong" aria-hidden="true">·</span>
-  {% include "web/projects/_due_date_cell.html" %}
+  {% comment %}
+  Three look-alike dates inline need disambiguating (the rail uses row
+  labels; here we lead each with a small icon + tooltip): play = start,
+  flag = planned end, alarm = deadline.
+  {% endcomment %}
+  <span class="inline-flex items-center gap-1" data-tooltip="{% trans 'Start date' %}">
+    {% lucide "play" "w-3 h-3 text-placeholder-foreground shrink-0" %}{% include "web/projects/_start_date_cell.html" %}
+  </span>
+  <span class="inline-flex items-center gap-1" data-tooltip="{% trans 'End date' %}">
+    {% lucide "flag" "w-3 h-3 text-placeholder-foreground shrink-0" %}{% include "web/projects/_end_date_cell.html" %}
+  </span>
+  <span class="inline-flex items-center gap-1" data-tooltip="{% trans 'Due date' %}">
+    {% lucide "alarm-clock" "w-3 h-3 text-placeholder-foreground shrink-0" %}{% include "web/projects/_due_date_cell.html" %}
+  </span>
   <span class="text-border-strong" aria-hidden="true">·</span>
   {% include "web/projects/_size_cell.html" %}
   {% if workspace_cycles or task.cycle_id %}

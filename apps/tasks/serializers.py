@@ -26,6 +26,8 @@ class TaskSerializer(serializers.ModelSerializer):
             "status",
             "priority",
             "size",
+            "start_date",
+            "end_date",
             "due_date",
             "assignee",
             "reporter",

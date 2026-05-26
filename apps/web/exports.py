@@ -114,6 +114,8 @@ def serialize_task(task, *, comments=None):
         "status": task.status,
         "priority": task.priority,
         "size": task.size,
+        "start_date": _dt(task.start_date),
+        "end_date": _dt(task.end_date),
         "due_date": _dt(task.due_date),
         "assignee": _user_ref(task.assignee),
         "reporter": _user_ref(task.reporter),

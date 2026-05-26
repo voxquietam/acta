@@ -44,6 +44,8 @@ class TaskViewSet(viewsets.ModelViewSet):
     ordering_fields = [
         "updated_at",
         "created_at",
+        "start_date",
+        "end_date",
         "due_date",
         "priority",
     ]

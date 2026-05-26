@@ -727,6 +727,474 @@
     initKanbanDnD();
   }
 
+  // ── Timeline (Gantt) ───────────────────────────────────────────────
+  // Ported out of an inline <script> in ``_timeline.html``. The timeline is
+  // a lazy panel (``?panel=timeline``); HTMX + idiomorph DON'T re-execute
+  // inline scripts on swap/morph, so the Gantt was dead after a tab-switch
+  // or a wrapper refetch — drag + bar redraw never re-bound (only a full
+  // boosted nav re-ran the script). Living here it re-inits on every
+  // ``htmx:afterSettle`` against the fresh DOM, exactly like
+  // ``initKanbanDnD``. The per-element ``tlInit`` flag on ``#tl-gantt`` keeps
+  // it idempotent: a fresh swap clears it (re-init), an unrelated swap that
+  // leaves the same gantt in place skips. i18n strings can't use template
+  // tags here — they ride in on ``#tl-gantt`` ``data-i18n-*`` attributes.
+  function initTimeline() {
+    const gantt = document.getElementById("tl-gantt");
+    if (!gantt) return;
+    if (gantt.dataset.tlInit === "1") return; // already bound on this element
+    gantt.dataset.tlInit = "1";
+
+    // Diagnostic marker — detect whether init re-ran after an HTMX swap.
+    window.__tlRanAt = Date.now();
+
+    // i18n labels handed over from the template (static JS can't run
+    // ``{% trans %}``); fall back to English if an attribute is missing.
+    const L = {
+      withoutDeadline: gantt.dataset.i18nWithoutDeadline || "without deadline",
+      start: gantt.dataset.i18nStart || "Start",
+      end: gantt.dataset.i18nEnd || "End",
+      due: gantt.dataset.i18nDue || "Due",
+      overdue: gantt.dataset.i18nOverdue || "overdue",
+      startAfterEnd: gantt.dataset.i18nStartAfterEnd || "start after end",
+      endAfterDue: gantt.dataset.i18nEndAfterDue || "ends after deadline",
+    };
+
+    const MONTHS = ["January", "February", "March", "April", "May", "June",
+      "July", "August", "September", "October", "November", "December"];
+    const DAY_W = { day: 44, week: 20, month: 9 };
+    const LS_KEY = "acta_timeline_zoom";
+    const BAR_CLASS = {
+      "planned": "tl-c-planned",
+      "ready": "tl-c-ready",
+      "to-do": "tl-c-todo",
+      "in-progress": "tl-c-inprogress",
+      "in-review": "tl-c-inreview",
+      "done": "tl-c-done",
+    };
+    const STATUS_COLOR = {
+      "planned": "rgb(82 82 91)",
+      "ready": "rgb(6 182 212)",
+      "to-do": "rgb(37 99 235)",
+      "in-progress": "rgb(124 58 237)",
+      "in-review": "rgb(217 119 6)",
+      "done": "rgb(5 150 105)",
+    };
+
+    // Live CSS-var references so JS-built header cells track theme switches.
+    const CSS_BORDER = "rgb(var(--border))";
+    const CSS_SFGD = "rgb(var(--subtle-foreground))";
+    const CSS_PFGD = "rgb(var(--placeholder-foreground))";
+    const CSS_BRAND_A = "rgb(108 126 251)"; // brand-400
+
+    const tlEsc = (s) =>
+      s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+    const parseDate = (s) => (s ? new Date(s + "T00:00:00") : null);
+    const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
+    const diffDays = (a, b) => Math.round((b - a) / 86400000);
+    const toISO = (d) => d.toISOString().slice(0, 10);
+    const fmtDate = (d) => (d ? `${MONTHS[d.getMonth()].slice(0, 3)} ${d.getDate()}` : "—");
+
+    function weekNum(date) {
+      const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+      const dn = d.getUTCDay() || 7;
+      d.setUTCDate(d.getUTCDate() + 4 - dn);
+      const y0 = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+      return Math.ceil((((d - y0) / 86400000) + 1) / 7);
+    }
+
+    const chartStart = parseDate(gantt.dataset.chartStart);
+    const chartEnd = parseDate(gantt.dataset.chartEnd);
+    const today = parseDate(gantt.dataset.today);
+    const totalDays = diffDays(chartStart, chartEnd);
+
+    let zoom = localStorage.getItem(LS_KEY) || "week";
+
+    function setZoom(z) {
+      zoom = z;
+      localStorage.setItem(LS_KEY, z);
+      document.querySelectorAll(".tl-zoom-btn").forEach((btn) => {
+        const on = btn.dataset.zoom === z;
+        btn.classList.toggle("bg-brand-500/15", on);
+        btn.classList.toggle("text-brand-300", on);
+        btn.classList.toggle("text-subtle-foreground", !on);
+      });
+      render();
+    }
+
+    document.querySelectorAll(".tl-zoom-btn").forEach((btn) =>
+      btn.addEventListener("click", () => setZoom(btn.dataset.zoom)),
+    );
+
+    function renderHeader(dayW) {
+      const monthsEl = document.getElementById("tl-months");
+      const unitsEl = document.getElementById("tl-units");
+      monthsEl.innerHTML = "";
+      unitsEl.innerHTML = "";
+
+      const renderDays = zoom === "week" ? Math.ceil(totalDays / 7) * 7 : totalDays;
+
+      let curMonth = -1, mEl = null;
+      for (let i = 0; i < renderDays; i++) {
+        const d = addDays(chartStart, i);
+        if (d.getMonth() !== curMonth) {
+          curMonth = d.getMonth();
+          mEl = document.createElement("div");
+          mEl.style.cssText = "flex-shrink:0;display:flex;align-items:center;padding:0 8px;" +
+            "font-size:10px;font-family:ui-monospace,monospace;font-weight:700;" +
+            `text-transform:uppercase;letter-spacing:.06em;color:${CSS_SFGD};` +
+            `border-right:1px solid ${CSS_BORDER};overflow:hidden;width:0px;`;
+          mEl.textContent = `${MONTHS[curMonth]} ${d.getFullYear()}`;
+          monthsEl.appendChild(mEl);
+        }
+        mEl.style.width = (parseFloat(mEl.style.width) + dayW) + "px";
+      }
+
+      if (zoom === "week") {
+        for (let i = 0; i < renderDays; i += 7) {
+          const d = addDays(chartStart, i);
+          const now = diffDays(chartStart, today) >= i && diffDays(chartStart, today) < i + 7;
+          const el = document.createElement("div");
+          el.style.cssText = "flex-shrink:0;display:flex;align-items:center;justify-content:center;" +
+            `font-size:10px;font-family:ui-monospace,monospace;font-weight:${now ? "700" : "500"};` +
+            `color:${now ? CSS_BRAND_A : CSS_SFGD};` +
+            `border-right:1px solid ${CSS_BORDER};width:${7 * dayW}px;`;
+          el.textContent = `W${weekNum(d)}`;
+          unitsEl.appendChild(el);
+        }
+      } else if (zoom === "month") {
+        let prevM = -1, el = null;
+        for (let i = 0; i < totalDays; i++) {
+          const d = addDays(chartStart, i);
+          if (d.getMonth() !== prevM) {
+            prevM = d.getMonth();
+            const now = d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
+            el = document.createElement("div");
+            el.style.cssText = "flex-shrink:0;display:flex;align-items:center;justify-content:center;" +
+              `font-size:10px;font-family:ui-monospace,monospace;font-weight:${now ? "700" : "500"};` +
+              `color:${now ? CSS_BRAND_A : CSS_SFGD};` +
+              `border-right:1px solid ${CSS_BORDER};width:0px;`;
+            el.textContent = MONTHS[d.getMonth()].slice(0, 3);
+            unitsEl.appendChild(el);
+          }
+          el.style.width = (parseFloat(el.style.width) + dayW) + "px";
+        }
+      } else {
+        for (let i = 0; i < totalDays; i++) {
+          const d = addDays(chartStart, i);
+          const now = diffDays(chartStart, today) === i;
+          const we = d.getDay() === 0 || d.getDay() === 6;
+          const el = document.createElement("div");
+          el.style.cssText = "flex-shrink:0;display:flex;align-items:center;justify-content:center;" +
+            `font-size:10px;font-family:ui-monospace,monospace;font-weight:${now ? "700" : "500"};` +
+            `color:${now ? CSS_BRAND_A : we ? CSS_PFGD : CSS_SFGD};` +
+            `background:${we ? "rgb(var(--muted) / .3)" : "transparent"};` +
+            `border-right:1px solid ${CSS_BORDER};width:${dayW}px;`;
+          el.textContent = d.getDate();
+          unitsEl.appendChild(el);
+        }
+      }
+
+      const fullW = (renderDays * dayW) + "px";
+      gantt.style.minWidth = fullW;
+      document.getElementById("tl-body").style.minWidth = fullW;
+    }
+
+    function barClass(status, overdue) {
+      return overdue ? "tl-c-overdue" : (BAR_CLASS[status] || "tl-c-planned");
+    }
+
+    function renderBars(dayW) {
+      document.querySelectorAll(".tl-row").forEach((row) => {
+        row.querySelectorAll(".tl-gwrap,.tl-nodate,.tl-deadline").forEach((el) => el.remove());
+
+        const start = parseDate(row.dataset.start);
+        const end = parseDate(row.dataset.end);
+        const due = parseDate(row.dataset.due);
+        const status = row.dataset.status;
+        // "overdue" tracks the DEADLINE (due_date), not the bar: not done and
+        // the hard deadline has passed.
+        const overdue = due && due < today && status !== "done";
+        const title = row.dataset.title || "";
+
+        // ── the work bar (start → end), DISPLAY-ONLY ──────────────────
+        // start/end are automatic (set on in-progress / done); the bar just
+        // shows the actual span. Nothing about the bar is draggable — the only
+        // draggable thing on the timeline is the deadline (below). Corrections
+        // to start/end go through the rail / modal date cells.
+        if (start && end) {
+          // start after end → a data error: render across the real span,
+          // semi-transparent + rose-dashed (``tl-invalid``). Fixed in the modal.
+          const inverted = start > end;
+          const lo = inverted ? end : start;
+          const hi = inverted ? start : end;
+          const left = diffDays(chartStart, lo) * dayW;
+          const width = Math.max((diffDays(lo, hi) + 1) * dayW, dayW * 2);
+          const cls = inverted
+            ? barClass(status, false) + " tl-invalid"
+            : barClass(status, overdue) + (overdue ? " tl-overdue" : "");
+
+          const wrap = document.createElement("div");
+          wrap.className = "tl-gwrap";
+          wrap.style.left = left + "px";
+          wrap.style.width = width + "px";
+          wrap.innerHTML = `<div class="tl-gbar ${cls}"><span class="tl-label">${tlEsc(title)}</span></div>`;
+          wrap.addEventListener("mouseenter", (e) => showTip(e, row));
+          wrap.addEventListener("mousemove", moveTip);
+          wrap.addEventListener("mouseleave", hideTip);
+          wrap.addEventListener("click", (e) => openModal(e, row));
+          row.appendChild(wrap);
+        } else if (start || end) {
+          // Open-ended: only one of start / end is set (e.g. in-progress with
+          // a start but not yet done). Solid edge on the known date, fading
+          // toward the unknown side. Display-only.
+          const color = STATUS_COLOR[status] || STATUS_COLOR["planned"];
+          const fadeW = Math.max(dayW * 6, 96);
+          const wrap = document.createElement("div");
+          wrap.className = "tl-gwrap";
+
+          if (start) {
+            const left = diffDays(chartStart, start) * dayW;
+            wrap.style.cssText = `left:${left}px;width:${fadeW}px;`;
+            wrap.innerHTML =
+              `<div class="tl-fadebar" style="background:linear-gradient(to right, ${color} 0%, ${color} 45%, transparent 100%);">` +
+                `<span class="tl-label">${tlEsc(title)}</span>` +
+              "</div>";
+          } else {
+            const endX = diffDays(chartStart, end) * dayW;
+            const right = endX + dayW;
+            const left = Math.max(0, right - fadeW);
+            wrap.style.cssText = `left:${left}px;width:${right - left}px;`;
+            wrap.innerHTML =
+              `<div class="tl-fadebar" style="justify-content:flex-end;background:linear-gradient(to left, ${color} 0%, ${color} 45%, transparent 100%);">` +
+                `<span class="tl-label">${tlEsc(title)}</span>` +
+              "</div>";
+          }
+          wrap.addEventListener("mouseenter", (e) => showTip(e, row));
+          wrap.addEventListener("mousemove", moveTip);
+          wrap.addEventListener("mouseleave", hideTip);
+          wrap.addEventListener("click", (e) => openModal(e, row));
+          row.appendChild(wrap);
+        }
+
+        // ── the deadline ◆ — the ONLY draggable element ──────────────
+        // Solid when a deadline is set; a faint "ghost" at today when not
+        // (drag it to set the deadline; a plain click opens the task). Rose
+        // when breached (overdue, or the plan ends after it).
+        const breached = due && (overdue || (end && end > due && status !== "done"));
+        const anchorDay = due ? diffDays(chartStart, due) : diffDays(chartStart, today);
+        const x = Math.max(0, anchorDay) * dayW + dayW / 2;
+        const mark = document.createElement("div");
+        mark.className =
+          "tl-deadline" + (breached ? " tl-deadline-late" : "") + (due ? "" : " tl-deadline-ghost");
+        mark.style.left = (x - 6) + "px";
+        mark.innerHTML = '<span class="tl-diamond"></span>';
+        mark.addEventListener("mouseenter", (e) => showTip(e, row));
+        mark.addEventListener("mousemove", moveTip);
+        mark.addEventListener("mouseleave", hideTip);
+        attachDeadlineDrag(mark, row, dayW);
+        row.appendChild(mark);
+      });
+
+      updateMissingCount();
+    }
+
+    function updateMissingCount() {
+      // Flag tasks with no deadline — the one date you plan ahead here.
+      let missing = 0;
+      document.querySelectorAll("#tl-body .tl-row:not([hidden])").forEach((row) => {
+        if (!row.dataset.due) missing++;
+      });
+      const badge = document.getElementById("tl-missing");
+      badge.textContent = missing > 0 ? `${missing} ${L.withoutDeadline}` : "";
+    }
+
+    const tip = document.getElementById("tl-tip");
+    const tipTitle = document.getElementById("tl-tip-title");
+    const tipStart = document.getElementById("tl-tip-start");
+    const tipEnd = document.getElementById("tl-tip-end");
+    const tipDue = document.getElementById("tl-tip-due");
+    const ICO_CLOCK = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+    const ICO_FLAG = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>';
+    const ICO_CAL = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>';
+    const WARN = (txt) => ` <span style="color:rgb(248 113 113);font-weight:700;"> — ${txt}</span>`;
+
+    function showTip(e, row) {
+      if (_tlDragging) return;
+      const start = parseDate(row.dataset.start);
+      const end = parseDate(row.dataset.end);
+      const due = parseDate(row.dataset.due);
+      const status = row.dataset.status;
+      tipTitle.textContent = `${row.dataset.slug} — ${row.dataset.title || ""}`;
+      tipStart.innerHTML = `${ICO_CLOCK} ${L.start}: ${fmtDate(start)}`;
+
+      let endHtml = `${ICO_FLAG} ${L.end}: ${fmtDate(end)}`;
+      if (start && end && start > end) endHtml += WARN(L.startAfterEnd);
+      tipEnd.innerHTML = endHtml;
+
+      let dueHtml = `${ICO_CAL} ${L.due}: ${fmtDate(due)}`;
+      if (due && status !== "done") {
+        if (due < today) dueHtml += WARN(`${diffDays(due, today)}d ${L.overdue}`);
+        else if (end && end > due) dueHtml += WARN(L.endAfterDue);
+      }
+      tipDue.innerHTML = dueHtml;
+
+      tip.classList.add("tl-tip-on");
+      moveTip(e);
+    }
+
+    function openModal(e, row) {
+      if (_tlDragging) return;
+      const url = row.dataset.url;
+      if (!url || typeof htmx === "undefined") return;
+      htmx.ajax("GET", url + "?modal=1", { target: "#modal-root", swap: "innerHTML" });
+    }
+
+    function moveTip(e) {
+      const x = e.clientX + 14;
+      const y = e.clientY - tip.offsetHeight / 2;
+      tip.style.left = Math.min(x, window.innerWidth - tip.offsetWidth - 8) + "px";
+      tip.style.top = Math.max(8, Math.min(y, window.innerHeight - tip.offsetHeight - 8)) + "px";
+    }
+
+    function hideTip() {
+      tip.classList.remove("tl-tip-on");
+    }
+
+    // Shared flag — suppresses the click→modal that fires after a deadline
+    // drag gesture, and the hover tooltip mid-drag.
+    let _tlDragging = false;
+
+    // Drag the deadline diamond ◆ horizontally to set ``due_date`` inline.
+    // A move (not a resize): the marker tracks the cursor day-by-day; on
+    // release it POSTs ``set_task_due_date``. Past dates allowed. Tapping it
+    // (no move) opens the task modal.
+    function attachDeadlineDrag(mark, row, dayW) {
+      const csrf = row.dataset.csrf;
+      let dragging = false, startX = 0, origL = 0, moved = false;
+
+      mark.addEventListener("pointerdown", (e) => {
+        dragging = true;
+        moved = false;
+        _tlDragging = false;
+        startX = e.clientX;
+        origL = parseInt(mark.style.left, 10);
+        mark.setPointerCapture(e.pointerId);
+        mark.classList.add("tl-deadline-active");
+        hideTip();
+        e.preventDefault();
+        e.stopPropagation();
+      });
+
+      mark.addEventListener("pointermove", (e) => {
+        if (!dragging) return;
+        const dx = e.clientX - startX;
+        if (Math.abs(dx) > 3) { moved = true; _tlDragging = true; }
+        const snapDx = Math.round(dx / dayW) * dayW;
+        mark.style.left = Math.max(0, origL + snapDx) + "px";
+        const snap = document.getElementById("tl-snap");
+        snap.style.display = "block";
+        snap.style.left = (parseInt(mark.style.left, 10) + 6) + "px";
+      });
+
+      mark.addEventListener("pointerup", (e) => {
+        if (!dragging) return;
+        dragging = false;
+        mark.classList.remove("tl-deadline-active");
+        document.getElementById("tl-snap").style.display = "none";
+        setTimeout(() => { _tlDragging = false; }, 0);
+        if (!moved) {
+          openModal(e, row);
+          return;
+        }
+        // Marker centre sits at ``left + 6`` → recover the day under it.
+        const centerX = parseInt(mark.style.left, 10) + 6;
+        const newDue = addDays(chartStart, Math.round((centerX - dayW / 2) / dayW));
+        row.dataset.due = toISO(newDue);
+        patchDate(row.dataset.dueUrl, { due_date: toISO(newDue) }, csrf);
+        renderBars(dayW);
+      });
+    }
+
+    function patchDate(url, data, csrf) {
+      fetch(url, {
+        method: "POST",
+        headers: { "X-CSRFToken": csrf, "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams(data),
+      }).catch((err) => console.error("[timeline] patch failed:", err));
+    }
+
+    function renderTodayLine(dayW) {
+      const line = document.getElementById("tl-today-line");
+      const snap = document.getElementById("tl-snap");
+      const rows = document.querySelectorAll("#tl-body .tl-row:not([hidden])").length;
+      line.style.left = (diffDays(chartStart, today) * dayW) + "px";
+      line.style.height = (rows * 40) + "px";
+      line.style.display = "block";
+      snap.style.height = (rows * 40 + 56) + "px";
+    }
+
+    // Re-run by acta.js applyClientFilters after a client-side filter pass.
+    window.__tlAfterFilter = () => {
+      renderTodayLine(DAY_W[zoom]);
+      updateMissingCount();
+    };
+
+    const rightCol = document.getElementById("tl-right");
+    const leftBody = document.getElementById("tl-left-body");
+    let syncLock = 0; // 0 none · 1 right is source · 2 left is source
+
+    rightCol.addEventListener("scroll", () => {
+      if (syncLock === 2) { syncLock = 0; return; }
+      syncLock = 1;
+      leftBody.scrollTop = rightCol.scrollTop;
+    }, { passive: true });
+    leftBody.addEventListener("scroll", () => {
+      if (syncLock === 1) { syncLock = 0; return; }
+      syncLock = 2;
+      rightCol.scrollTop = leftBody.scrollTop;
+    }, { passive: true });
+
+    document.getElementById("tl-today-btn").addEventListener("click", () => {
+      const w = DAY_W[zoom];
+      rightCol.scrollTo({ left: Math.max(0, diffDays(chartStart, today) * w - rightCol.clientWidth * 0.35), behavior: "smooth" });
+    });
+
+    function render() {
+      const dayW = DAY_W[zoom];
+      renderHeader(dayW);
+      renderBars(dayW);
+      renderTodayLine(dayW);
+      requestAnimationFrame(() => {
+        rightCol.scrollLeft = Math.max(0, diffDays(chartStart, today) * dayW - rightCol.clientWidth * 0.4);
+      });
+    }
+
+    setZoom(zoom);
+
+    // Re-run today-line when Alpine un-hides the panel (bars/line computed
+    // while ``display:none`` resolve against a 0-width box). The ``[x-show]``
+    // wrapper is the persistent panel slot — it survives lazy re-fetches —
+    // so disconnect any observer a prior init left on it before attaching a
+    // fresh one bound to the current render closure (else observers stack
+    // and the callback points at detached elements).
+    const panel = rightCol.closest("[x-show]");
+    if (panel) {
+      if (panel._tlObs) panel._tlObs.disconnect();
+      panel._tlObs = new MutationObserver(() => {
+        if (panel.style.display !== "none") renderTodayLine(DAY_W[zoom]);
+      });
+      panel._tlObs.observe(panel, { attributes: true, attributeFilter: ["style"] });
+    }
+  }
+
+  document.body.addEventListener("htmx:afterSettle", initTimeline);
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initTimeline);
+  } else {
+    initTimeline();
+  }
+
   // Walk every kanban column, look at the *visible* cards inside,
   // and refresh the substatus row (overdue count / "++ N this week" /
   // avatar stack) so the header doesn't carry stale numbers after a
@@ -1637,6 +2105,7 @@
       "task.assigned",
       "task.priority_changed",
       "task.due_changed",
+      "task.end_changed",
       "task.labels_changed",
       "task.deleted",
     ];

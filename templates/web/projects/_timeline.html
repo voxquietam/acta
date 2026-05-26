@@ -121,6 +121,67 @@
   text-shadow: 0 1px 2px rgba(0,0,0,.5);
 }
 
+/* Inconsistent range: start later than the planned end. A data error, not a
+   real schedule — keep the status colour but dim it and ring it with a rose
+   dash so it reads as "needs fixing", distinct from the (solid) overdue bar.
+   Display-only like every bar; the fix goes through the rail / modal cells. */
+.tl-gbar.tl-invalid {
+  opacity: .5;
+  outline: 1px dashed rgb(244 63 94);
+  outline-offset: -1px;
+}
+
+/* Deadline marker ◆ — the hard ``due_date``, independent of the start→end
+   bar and draggable to reschedule it. Sits above the bar (z-index) so it
+   stays grabbable even where they overlap. Rose when breached (overdue, or
+   the plan ends after it); neutral otherwise. */
+.tl-deadline {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 12px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+}
+.tl-deadline::before {
+  content: '';
+  position: absolute;
+  left: 6px; top: 4px; bottom: 4px;
+  border-left: 1px dashed rgb(var(--border-strong));
+}
+.tl-deadline-late::before { border-left-color: rgba(244, 63, 94, .55); }
+.tl-deadline .tl-diamond {
+  width: 9px; height: 9px;
+  transform: rotate(45deg);
+  border-radius: 2px;
+  background: rgb(var(--subtle-foreground));
+  box-shadow: 0 0 0 2px rgb(var(--card)); /* halo so it reads over a bar */
+}
+.tl-deadline-late .tl-diamond { background: rgb(244 63 94); }
+.tl-deadline:hover .tl-diamond,
+.tl-deadline-active .tl-diamond {
+  box-shadow: 0 0 0 2px rgb(var(--card)), 0 0 0 4px rgba(66, 90, 245, .35);
+}
+.tl-deadline-active { cursor: grabbing; }
+
+/* Ghost deadline — a task with no due_date yet. Faint hollow diamond at
+   today; drag it to set the deadline (a plain click opens the task). Brightens
+   to brand on row hover so it reads as a "set deadline here" affordance. */
+.tl-deadline-ghost .tl-diamond {
+  background: transparent;
+  border: 1px dashed rgb(var(--border-strong));
+  box-shadow: none;
+  opacity: .6;
+}
+.tl-deadline-ghost::before { border-left-style: none; }
+.tl-row:hover .tl-deadline-ghost .tl-diamond,
+.tl-deadline-ghost:hover .tl-diamond {
+  border-color: rgb(66 90 245);
+  opacity: 1;
+}
+
 /* Overdue diagonal hatch overlay */
 .tl-gbar.tl-overdue::after {
   content: '';
@@ -181,6 +242,17 @@
   text-transform: uppercase;
   letter-spacing: .04em;
   color: inherit;
+}
+/* No-date chip carries one right handle: drag it to set a due date inline.
+   Reuses .tl-handle geometry but tints the glyph with the chip's currentColor
+   (the chip turns brand-blue on hover) instead of the white used on solid
+   bars, which would vanish on the light hover fill. */
+.tl-nodate .tl-handle.r { cursor: col-resize; }
+.tl-row:hover .tl-nodate .tl-handle,
+.tl-nodate:hover .tl-handle { opacity: 1; }
+.tl-nodate .tl-handle::after {
+  background: currentColor;
+  box-shadow: 3px 0 0 0 currentColor;
 }
 
 /* Snap guide line while dragging — above the sticky header */
@@ -292,6 +364,19 @@
          data-chart-start="{{ chart_start_iso }}"
          data-chart-end="{{ chart_end_iso }}"
          data-today="{{ today_iso }}"
+         {% comment %}
+         i18n strings handed to the timeline JS (static acta.js can't use
+         ``{% templatetag openblock %} trans {% templatetag closeblock %}``).
+         Django autoescapes any quote in a translation to ``&quot;`` here, and
+         ``dataset`` reads it back decoded — safe for attribute context.
+         {% endcomment %}
+         data-i18n-without-deadline="{% trans 'without deadline' %}"
+         data-i18n-start="{% trans 'Start' context 'timeline' %}"
+         data-i18n-end="{% trans 'End' context 'timeline' %}"
+         data-i18n-due="{% trans 'Due' context 'timeline' %}"
+         data-i18n-overdue="{% trans 'overdue' %}"
+         data-i18n-start-after-end="{% trans 'start after end' %}"
+         data-i18n-end-after-due="{% trans 'ends after deadline' %}"
          class="relative min-w-full">
 
       {% comment %}
@@ -339,9 +424,11 @@
              data-slug="{{ task.slug }}"
              data-title="{{ task.title }}"
              data-start="{{ task.start_date|date:'Y-m-d'|default:'' }}"
+             data-end="{{ task.end_date|date:'Y-m-d'|default:'' }}"
              data-due="{{ task.due_date|date:'Y-m-d'|default:'' }}"
              data-url="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
              data-start-url="{% url 'web:set_task_start_date' slug_prefix=task.project.slug_prefix number=task.number %}"
+             data-end-url="{% url 'web:set_task_end_date' slug_prefix=task.project.slug_prefix number=task.number %}"
              data-due-url="{% url 'web:set_task_due_date' slug_prefix=task.project.slug_prefix number=task.number %}"
              data-csrf="{{ csrf_token }}">
         </div>
@@ -364,483 +451,5 @@ filled by JS.
   <div id="tl-tip-title" class="text-xs font-semibold text-foreground mb-1.5 leading-snug"></div>
   <div id="tl-tip-start" class="flex items-center gap-1 text-[11px] text-subtle-foreground"></div>
   <div id="tl-tip-end"   class="flex items-center gap-1 text-[11px] text-subtle-foreground mt-0.5"></div>
+  <div id="tl-tip-due"   class="flex items-center gap-1 text-[11px] text-subtle-foreground mt-0.5"></div>
 </div>
-
-<script>
-(function () {
-'use strict';
-
-// Diagnostic marker: lets us detect whether this script re-runs after
-// an HTMX filter swap (timeline render depends on it).
-window.__tlRanAt = Date.now();
-
-// ── constants ──────────────────────────────────────────────────────
-const MONTHS  = ['January','February','March','April','May','June',
-                 'July','August','September','October','November','December'];
-const DAY_W   = { day: 44, week: 20, month: 9 };
-const LS_KEY  = 'acta_timeline_zoom';
-// Maps task status value → bar CSS class (must match <style> above)
-const BAR_CLASS = {
-  'planned':     'tl-c-planned',
-  'ready':       'tl-c-ready',
-  'to-do':       'tl-c-todo',
-  'in-progress': 'tl-c-inprogress',
-  'in-review':   'tl-c-inreview',
-  'done':        'tl-c-done',
-};
-// Solid base colour per status — used to build the open-ended fade
-// gradient (status colour → transparent) for one-sided-date bars.
-const STATUS_COLOR = {
-  'planned':     'rgb(82 82 91)',
-  'ready':       'rgb(6 182 212)',
-  'to-do':       'rgb(37 99 235)',
-  'in-progress': 'rgb(124 58 237)',
-  'in-review':   'rgb(217 119 6)',
-  'done':        'rgb(5 150 105)',
-};
-
-// ── theme tokens as LIVE CSS-var references ─────────────────────────
-// Inline ``rgb(var(--x))`` is re-resolved by the browser, so the
-// JS-built header cells track light/dark/midnight on every theme
-// switch. (Baking values via getComputedStyle froze them to whatever
-// theme was active at first render — dark theme then showed light
-// borders + invisible header text.)
-const CSS_BORDER  = 'rgb(var(--border))';
-const CSS_SFGD    = 'rgb(var(--subtle-foreground))';
-const CSS_PFGD    = 'rgb(var(--placeholder-foreground))';
-const CSS_BRAND   = 'rgb(66 90 245)';
-const CSS_BRAND_A = 'rgb(108 126 251)'; // brand-400
-
-// ── helpers ────────────────────────────────────────────────────────
-const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-
-// ── date helpers ───────────────────────────────────────────────────
-const parseDate = s => s ? new Date(s + 'T00:00:00') : null;
-const addDays   = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
-const diffDays  = (a, b) => Math.round((b - a) / 86400000);
-const toISO     = d => d.toISOString().slice(0, 10);
-const fmtDate   = d => d ? `${MONTHS[d.getMonth()].slice(0,3)} ${d.getDate()}` : '—';
-
-function weekNum(date) {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const dn = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - dn);
-  const y0 = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  return Math.ceil((((d - y0) / 86400000) + 1) / 7);
-}
-
-// ── read chart config ──────────────────────────────────────────────
-const gantt      = document.getElementById('tl-gantt');
-const chartStart = parseDate(gantt.dataset.chartStart);
-const chartEnd   = parseDate(gantt.dataset.chartEnd);
-const today      = parseDate(gantt.dataset.today);
-const totalDays  = diffDays(chartStart, chartEnd);
-
-// ── zoom ───────────────────────────────────────────────────────────
-let zoom = localStorage.getItem(LS_KEY) || 'week';
-
-function setZoom(z) {
-  zoom = z;
-  localStorage.setItem(LS_KEY, z);
-  document.querySelectorAll('.tl-zoom-btn').forEach(btn => {
-    const on = btn.dataset.zoom === z;
-    btn.classList.toggle('bg-brand-500/15', on);
-    btn.classList.toggle('text-brand-300', on);
-    btn.classList.toggle('text-subtle-foreground', !on);
-  });
-  render();
-}
-
-document.querySelectorAll('.tl-zoom-btn').forEach(btn =>
-  btn.addEventListener('click', () => setZoom(btn.dataset.zoom))
-);
-
-// ── render header ──────────────────────────────────────────────────
-function renderHeader(dayW) {
-  const monthsEl = document.getElementById('tl-months');
-  const unitsEl  = document.getElementById('tl-units');
-  monthsEl.innerHTML = '';
-  unitsEl.innerHTML  = '';
-
-  // In week zoom every column is a full 7-day block, so render up to the
-  // next week boundary — the trailing days past chartEnd stay empty but
-  // keep all week columns uniform and the month row + body in lockstep.
-  const renderDays = (zoom === 'week') ? Math.ceil(totalDays / 7) * 7 : totalDays;
-
-  // Month row
-  let curMonth = -1, mEl = null;
-  for (let i = 0; i < renderDays; i++) {
-    const d = addDays(chartStart, i);
-    if (d.getMonth() !== curMonth) {
-      curMonth = d.getMonth();
-      mEl = document.createElement('div');
-      mEl.style.cssText = 'flex-shrink:0;display:flex;align-items:center;padding:0 8px;' +
-        'font-size:10px;font-family:ui-monospace,monospace;font-weight:700;' +
-        `text-transform:uppercase;letter-spacing:.06em;color:${CSS_SFGD};` +
-        `border-right:1px solid ${CSS_BORDER};overflow:hidden;width:0px;`;
-      mEl.textContent = `${MONTHS[curMonth]} ${d.getFullYear()}`;
-      monthsEl.appendChild(mEl);
-    }
-    mEl.style.width = (parseFloat(mEl.style.width) + dayW) + 'px';
-  }
-
-  // Unit row
-  if (zoom === 'week') {
-    for (let i = 0; i < renderDays; i += 7) {
-      const d   = addDays(chartStart, i);
-      const now = diffDays(chartStart, today) >= i && diffDays(chartStart, today) < i + 7;
-      const el  = document.createElement('div');
-      el.style.cssText = `flex-shrink:0;display:flex;align-items:center;justify-content:center;` +
-        `font-size:10px;font-family:ui-monospace,monospace;font-weight:${now?'700':'500'};` +
-        `color:${now?CSS_BRAND_A:CSS_SFGD};` +
-        `border-right:1px solid ${CSS_BORDER};width:${7*dayW}px;`;
-      el.textContent = `W${weekNum(d)}`;
-      unitsEl.appendChild(el);
-    }
-  } else if (zoom === 'month') {
-    let prevM = -1, el = null;
-    for (let i = 0; i < totalDays; i++) {
-      const d = addDays(chartStart, i);
-      if (d.getMonth() !== prevM) {
-        prevM = d.getMonth();
-        const now = d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
-        el = document.createElement('div');
-        el.style.cssText = `flex-shrink:0;display:flex;align-items:center;justify-content:center;` +
-          `font-size:10px;font-family:ui-monospace,monospace;font-weight:${now?'700':'500'};` +
-          `color:${now?CSS_BRAND_A:CSS_SFGD};` +
-          `border-right:1px solid ${CSS_BORDER};width:0px;`;
-        el.textContent = MONTHS[d.getMonth()].slice(0, 3);
-        unitsEl.appendChild(el);
-      }
-      el.style.width = (parseFloat(el.style.width) + dayW) + 'px';
-    }
-  } else {
-    for (let i = 0; i < totalDays; i++) {
-      const d   = addDays(chartStart, i);
-      const now = diffDays(chartStart, today) === i;
-      const we  = d.getDay() === 0 || d.getDay() === 6;
-      const el  = document.createElement('div');
-      el.style.cssText = `flex-shrink:0;display:flex;align-items:center;justify-content:center;` +
-        `font-size:10px;font-family:ui-monospace,monospace;font-weight:${now?'700':'500'};` +
-        `color:${now?CSS_BRAND_A:we?CSS_PFGD:CSS_SFGD};` +
-        `background:${we?'rgb(var(--muted) / .3)':'transparent'};` +
-        `border-right:1px solid ${CSS_BORDER};width:${dayW}px;`;
-      el.textContent = d.getDate();
-      unitsEl.appendChild(el);
-    }
-  }
-
-  // Pin BOTH the gantt and the body to the full chart width. Without an
-  // explicit min-width on the body its rows resolve ``width:auto`` against
-  // the viewport, not the (wider) gantt, so the last week renders with no
-  // row backgrounds. min-width (not width) lets ``min-w-full`` still floor
-  // it to the viewport when the chart is narrower than the screen.
-  const fullW = (renderDays * dayW) + 'px';
-  gantt.style.minWidth = fullW;
-  document.getElementById('tl-body').style.minWidth = fullW;
-}
-
-// ── render bars ────────────────────────────────────────────────────
-function barClass(status, overdue) {
-  return overdue ? 'tl-c-overdue' : (BAR_CLASS[status] || 'tl-c-planned');
-}
-
-function renderBars(dayW) {
-  document.querySelectorAll('.tl-row').forEach(row => {
-    row.querySelectorAll('.tl-gwrap,.tl-nodate').forEach(el => el.remove());
-
-    const start  = parseDate(row.dataset.start);
-    const due    = parseDate(row.dataset.due);
-    const status = row.dataset.status;
-    const overdue = due && due < today && status !== 'done';
-    const title  = row.dataset.title || '';
-
-    if (start && due) {
-      const left  = diffDays(chartStart, start) * dayW;
-      const width = Math.max((diffDays(start, due) + 1) * dayW, dayW * 2);
-      const cls   = barClass(status, overdue);
-
-      const wrap = document.createElement('div');
-      wrap.className = 'tl-gwrap';
-      wrap.style.left  = left + 'px';
-      wrap.style.width = width + 'px';
-      wrap.innerHTML =
-        `<div class="tl-gbar ${cls}${overdue?' tl-overdue':''}">` +
-          `<div class="tl-handle l" data-handle="left"></div>` +
-          `<span class="tl-label">${esc(title)}</span>` +
-          `<div class="tl-handle r" data-handle="right"></div>` +
-        `</div>`;
-
-      wrap.addEventListener('mouseenter', e => showTip(e, row.dataset.slug, title, start, due, overdue));
-      wrap.addEventListener('mousemove',  moveTip);
-      wrap.addEventListener('mouseleave', hideTip);
-      wrap.addEventListener('click',      e => openModal(e, row));
-      attachDrag(wrap, row, dayW);
-      row.appendChild(wrap);
-
-    } else if (!start && !due) {
-      const todayX = diffDays(chartStart, today) * dayW;
-      const noBar  = document.createElement('div');
-      noBar.className = 'tl-nodate';
-      noBar.style.left  = Math.max(0, todayX - dayW * 4) + 'px';
-      noBar.style.width = Math.max(dayW * 10, 120) + 'px';
-      noBar.innerHTML =
-        `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">` +
-          `<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>` +
-        `</svg>` +
-        `<span>{% trans "Set dates" %}</span>`;
-      noBar.addEventListener('mouseenter', e => showTip(e, row.dataset.slug, title, null, null, false));
-      noBar.addEventListener('mousemove',  moveTip);
-      noBar.addEventListener('mouseleave', hideTip);
-      noBar.addEventListener('click',      e => openModal(e, row));
-      row.appendChild(noBar);
-
-    } else {
-      // Open-ended: only one date set. Solid edge sits on the known
-      // date; the bar fades to transparent toward the unknown side, so
-      // it never looks like a fully-scheduled task.
-      const color   = STATUS_COLOR[status] || STATUS_COLOR['planned'];
-      const fadeW   = Math.max(dayW * 6, 96);
-      const wrap = document.createElement('div');
-      wrap.className = 'tl-gwrap';
-
-      if (start) {
-        // start known, end open → solid left, fade right
-        const left = diffDays(chartStart, start) * dayW;
-        wrap.style.cssText = `left:${left}px;width:${fadeW}px;`;
-        wrap.innerHTML =
-          `<div class="tl-fadebar" style="background:linear-gradient(to right, ${color} 0%, ${color} 45%, transparent 100%);">` +
-            `<span class="tl-label">${esc(title)}</span>` +
-          `</div>`;
-      } else {
-        // due known, start open → fade in from left, solid right
-        const dueX  = diffDays(chartStart, due) * dayW;
-        const right = dueX + dayW;            // include the due day itself
-        const left  = Math.max(0, right - fadeW);
-        wrap.style.cssText = `left:${left}px;width:${(right - left)}px;`;
-        wrap.innerHTML =
-          `<div class="tl-fadebar" style="justify-content:flex-end;background:linear-gradient(to left, ${color} 0%, ${color} 45%, transparent 100%);">` +
-            `<span class="tl-label">${esc(title)}</span>` +
-          `</div>`;
-      }
-      wrap.addEventListener('mouseenter', e => showTip(e, row.dataset.slug, title, start, due, false));
-      wrap.addEventListener('mousemove',  moveTip);
-      wrap.addEventListener('mouseleave', hideTip);
-      wrap.addEventListener('click',      e => openModal(e, row));
-      row.appendChild(wrap);
-    }
-  });
-
-  updateMissingCount();
-}
-
-// Count visible rows missing at least one date and refresh the toolbar
-// badge. Runs after the initial render and after every client-side
-// filter pass so the count tracks what's actually on screen.
-function updateMissingCount() {
-  let missing = 0;
-  document.querySelectorAll('#tl-body .tl-row:not([hidden])').forEach(row => {
-    if (!row.dataset.start || !row.dataset.due) missing++;
-  });
-  const badge = document.getElementById('tl-missing');
-  badge.textContent = missing > 0 ? `${missing} {% trans "without dates" %}` : '';
-}
-
-// ── tooltip (fixed, follows mouse) ────────────────────────────────
-const tip       = document.getElementById('tl-tip');
-const tipTitle  = document.getElementById('tl-tip-title');
-const tipStart  = document.getElementById('tl-tip-start');
-const tipEnd    = document.getElementById('tl-tip-end');
-const ICO_CLOCK = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`;
-const ICO_CAL   = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`;
-
-function showTip(e, slug, title, start, due, overdue) {
-  if (_tlDragging) return;  // never surface tooltip mid-drag
-  tipTitle.textContent = `${slug} — ${title}`;
-  tipStart.innerHTML = `${ICO_CLOCK} {% trans "Start" context "timeline" %}: ${fmtDate(start)}`;
-  let endHtml = `${ICO_CAL} {% trans "Due" context "timeline" %}: ${fmtDate(due)}`;
-  if (overdue && due) {
-    const d = diffDays(due, today);
-    endHtml += ` <span style="color:rgb(248 113 113);font-weight:700;"> — ${d}d overdue</span>`;
-  }
-  tipEnd.innerHTML = endHtml;
-  tip.classList.add('tl-tip-on');
-  moveTip(e);
-}
-
-// ── open task modal on bar click ───────────────────────────────────
-function openModal(e, row) {
-  if (_tlDragging) return;
-  const url = row.dataset.url;
-  if (!url || typeof htmx === 'undefined') return;
-  // The task modal is a pure overlay — it must NOT touch the address bar
-  // (matches ``open_task_modal_attrs`` / ADR 0024; a shareable URL comes from
-  // the modal's expand button or opening in a new tab, not the modal itself).
-  htmx.ajax('GET', url + '?modal=1', { target: '#modal-root', swap: 'innerHTML' });
-}
-
-function moveTip(e) {
-  const x = e.clientX + 14;
-  const y = e.clientY - tip.offsetHeight / 2;
-  tip.style.left = Math.min(x, window.innerWidth  - tip.offsetWidth  - 8) + 'px';
-  tip.style.top  = Math.max(8, Math.min(y, window.innerHeight - tip.offsetHeight - 8)) + 'px';
-}
-
-function hideTip() {
-  tip.classList.remove('tl-tip-on');
-}
-
-// Shared drag flag — prevents click→modal firing after a drag gesture
-let _tlDragging = false;
-
-// ── drag to resize / move ──────────────────────────────────────────
-function attachDrag(wrap, row, dayW) {
-  const csrf = row.dataset.csrf;
-  let dragging = false, handle = null, startX = 0, origL = 0, origW = 0, moved = false;
-
-  wrap.addEventListener('pointerdown', e => {
-    handle = e.target.dataset.handle || 'body';
-    dragging = true;
-    moved    = false;
-    _tlDragging = false;
-    startX = e.clientX;
-    origL  = parseInt(wrap.style.left, 10);
-    origW  = parseInt(wrap.style.width, 10);
-    wrap.setPointerCapture(e.pointerId);
-    wrap.querySelector('.tl-gbar').style.boxShadow = '0 0 0 2px rgba(66,90,245,.5)';
-    hideTip();  // tooltip must not linger while dragging
-    e.preventDefault();
-  });
-
-  wrap.addEventListener('pointermove', e => {
-    if (!dragging) return;
-    const dx = e.clientX - startX;
-    if (Math.abs(dx) > 3) { moved = true; _tlDragging = true; }
-    const snapDx = Math.round(dx / dayW) * dayW;
-    if (handle === 'left') {
-      const nL = origL + snapDx, nW = origW - snapDx;
-      if (nW >= dayW * 2) { wrap.style.left = nL + 'px'; wrap.style.width = nW + 'px'; }
-    } else if (handle === 'right') {
-      const nW = origW + snapDx;
-      if (nW >= dayW * 2) wrap.style.width = nW + 'px';
-    } else {
-      wrap.style.left = (origL + snapDx) + 'px';
-    }
-    const snap = document.getElementById('tl-snap');
-    const snapL = parseInt(wrap.style.left, 10);
-    snap.style.display = 'block';
-    snap.style.left = (handle === 'right' ? snapL + parseInt(wrap.style.width, 10) : snapL) + 'px';
-  });
-
-  wrap.addEventListener('pointerup', () => {
-    if (!dragging) return;
-    dragging = false;
-    wrap.querySelector('.tl-gbar').style.boxShadow = '';
-    document.getElementById('tl-snap').style.display = 'none';
-    // Clear drag flag after a tick (click fires after pointerup)
-    setTimeout(() => { _tlDragging = false; }, 0);
-
-    if (!moved) return;  // tap → modal, not a drag save
-
-    const newL = parseInt(wrap.style.left, 10);
-    const newW = parseInt(wrap.style.width, 10);
-    const newStart = addDays(chartStart, Math.round(newL / dayW));
-    const newDue   = addDays(chartStart, Math.round((newL + newW) / dayW) - 1);
-
-    if (handle !== 'right') {
-      row.dataset.start = toISO(newStart);
-      patchDate(row.dataset.startUrl, { start_date: toISO(newStart) }, csrf);
-    }
-    if (handle !== 'left') {
-      row.dataset.due = toISO(newDue);
-      patchDate(row.dataset.dueUrl, { due_date: toISO(newDue) }, csrf);
-    }
-    // Re-render the bar from the now-updated dataset so the hover tooltip,
-    // bar colour and overdue state reflect the new dates without a reload.
-    // The hover handlers close over the render-time start/due, so a plain
-    // resize leaves them stale.
-    renderBars(dayW);
-    updateMissingCount();
-  });
-}
-
-function patchDate(url, data, csrf) {
-  fetch(url, {
-    method: 'POST',
-    headers: { 'X-CSRFToken': csrf, 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams(data),
-  }).catch(err => console.error('[timeline] patch failed:', err));
-}
-
-// ── today line ─────────────────────────────────────────────────────
-function renderTodayLine(dayW) {
-  const line  = document.getElementById('tl-today-line');
-  const snap  = document.getElementById('tl-snap');
-  // Count only visible rows so the line shrinks with client-side filters.
-  const rows  = document.querySelectorAll('#tl-body .tl-row:not([hidden])').length;
-  line.style.left    = (diffDays(chartStart, today) * dayW) + 'px';
-  // Line is inside #tl-body (no header offset); snap spans gantt + header.
-  line.style.height  = (rows * 40) + 'px';
-  line.style.display = 'block';
-  snap.style.height  = (rows * 40 + 56) + 'px';
-}
-
-// Re-run by acta.js applyClientFilters after a client-side filter pass:
-// today-line height + the "without dates" badge both track the now-
-// visible row set.
-window.__tlAfterFilter = () => {
-  renderTodayLine(DAY_W[zoom]);
-  updateMissingCount();
-};
-
-// ── scroll sync ────────────────────────────────────────────────────
-// Mirror vertical scroll between the two panes. A naive bidirectional
-// ``scrollTop = other.scrollTop`` feeds back on itself: trackpad scroll
-// gives fractional scrollTop, the two panes round it differently, and
-// each "fix" re-triggers the other's scroll handler — felt as a jitter /
-// jump. ``syncLock`` swallows exactly the one echo event the write
-// causes, so only genuine user scrolls propagate.
-const rightCol = document.getElementById('tl-right');
-const leftBody = document.getElementById('tl-left-body');
-let syncLock = 0; // 0 none · 1 right is source · 2 left is source
-
-rightCol.addEventListener('scroll', () => {
-  if (syncLock === 2) { syncLock = 0; return; }  // echo of a left→right write
-  syncLock = 1;
-  leftBody.scrollTop = rightCol.scrollTop;
-}, { passive: true });
-leftBody.addEventListener('scroll', () => {
-  if (syncLock === 1) { syncLock = 0; return; }  // echo of a right→left write
-  syncLock = 2;
-  rightCol.scrollTop = leftBody.scrollTop;
-}, { passive: true });
-
-// ── today button ───────────────────────────────────────────────────
-document.getElementById('tl-today-btn').addEventListener('click', () => {
-  const w = DAY_W[zoom];
-  rightCol.scrollTo({ left: Math.max(0, diffDays(chartStart, today) * w - rightCol.clientWidth * 0.35), behavior: 'smooth' });
-});
-
-// ── full render ────────────────────────────────────────────────────
-function render() {
-  const dayW = DAY_W[zoom];
-  renderHeader(dayW);
-  renderBars(dayW);
-  renderTodayLine(dayW);
-  requestAnimationFrame(() => {
-    rightCol.scrollLeft = Math.max(0, diffDays(chartStart, today) * dayW - rightCol.clientWidth * 0.4);
-  });
-}
-
-// ── init ───────────────────────────────────────────────────────────
-setZoom(zoom);
-
-// Re-run today-line when Alpine un-hides the panel
-const panel = rightCol.closest('[x-show]');
-if (panel) {
-  new MutationObserver(() => {
-    if (panel.style.display !== 'none') renderTodayLine(DAY_W[zoom]);
-  }).observe(panel, { attributes: true, attributeFilter: ['style'] });
-}
-})();
-</script>

@@ -141,10 +141,15 @@ class Task(models.Model):
         blank=True,
         help_text="Work start date. Auto-set to today on first transition to in-progress when null",
     )
+    end_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Planned finish date; drives the right edge of the timeline bar (start_date to end_date)",
+    )
     due_date = models.DateField(
         null=True,
         blank=True,
-        help_text="Optional deadline (date only, no time-of-day)",
+        help_text="Hard deadline (a marker, not the bar end). Late when end_date or today is past it",
     )
 
     assignee = models.ForeignKey(
@@ -395,32 +400,44 @@ class Task(models.Model):
         if self.status not in self.STATUS_VALUES:
             raise ValidationError({"status": f"Unknown status: {self.status!r}."})
 
-    def _sync_completed_at(self, kwargs):
-        """Maintain ``completed_at`` from the current status before saving.
+    def _sync_done_dates(self, kwargs):
+        """Maintain the done-driven date fields from the status before saving.
 
-        Stamps the current time the first time the task is saved in the
-        done status and clears it when the status leaves done. When the
-        caller restricts the write to ``update_fields``, ``completed_at``
-        is appended so the change is actually persisted — the bulk path
-        (``QuerySet.update``) bypasses ``save`` entirely and sets the
-        field itself.
+        On the transition *into* done (detected via ``completed_at`` still
+        being unset) this stamps two things: ``completed_at`` with the
+        current time, and ``end_date`` with today — the actual finish date,
+        which overwrites any planned ``end_date`` so the timeline bar ends
+        where work really stopped. Subsequent saves while done are no-ops
+        (``completed_at`` already set), so ``end_date`` is not re-bumped.
+        Leaving done clears ``completed_at`` but keeps ``end_date`` (the
+        finish stays on the record, mirroring how ``start_date`` survives a
+        status revert). When the caller restricts the write to
+        ``update_fields``, the touched fields are appended so the change is
+        persisted — the bulk path (``QuerySet.update``) bypasses ``save``
+        entirely and stamps these fields itself.
 
         Args:
             kwargs: The keyword arguments about to be passed to
                 ``Model.save`` (mutated in place to extend
                 ``update_fields`` when needed).
         """
+        touched = []
         if self.status == self.STATUS_DONE:
             if self.completed_at is not None:
                 return
             self.completed_at = timezone.now()
+            self.end_date = timezone.localdate()
+            touched = ["completed_at", "end_date"]
         else:
             if self.completed_at is None:
                 return
             self.completed_at = None
+            touched = ["completed_at"]
         update_fields = kwargs.get("update_fields")
-        if update_fields is not None and "completed_at" not in update_fields:
-            kwargs["update_fields"] = list(update_fields) + ["completed_at"]
+        if update_fields is not None:
+            missing = [f for f in touched if f not in update_fields]
+            if missing:
+                kwargs["update_fields"] = list(update_fields) + missing
 
     def save(self, *args, **kwargs):
         """Persist the task, allocating a project-scoped number on first save.
@@ -430,14 +447,15 @@ class Task(models.Model):
         :meth:`Project.allocate_task_number`. The allocation runs inside a
         defensive ``transaction.atomic()`` so a missing outer transaction
         does not cause races; if the caller already holds one, the inner
-        block is a savepoint and a no-op. ``completed_at`` is reconciled
-        from the status on every save (see :meth:`_sync_completed_at`).
+        block is a savepoint and a no-op. ``completed_at`` and ``end_date``
+        are reconciled from the status on every save (see
+        :meth:`_sync_done_dates`).
 
         Args:
             *args: Positional arguments forwarded to ``Model.save``.
             **kwargs: Keyword arguments forwarded to ``Model.save``.
         """
-        self._sync_completed_at(kwargs)
+        self._sync_done_dates(kwargs)
         if self._state.adding and not self.number:
             with transaction.atomic():
                 self.number = self.project.allocate_task_number()
