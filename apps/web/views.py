@@ -5216,6 +5216,12 @@ def _create_task_post(request):
             assignee=assignee,
             reporter=request.user,
         )
+        # Mirror ``set_task_status``: a task that's born in-progress gets its
+        # start_date stamped now, so the timeline knows when it began (a task
+        # created straight into in-progress never passes through the status
+        # transition that would otherwise set it).
+        if status == Task.STATUS_IN_PROGRESS:
+            task.start_date = timezone.localdate()
         task.save()
         if label_ids:
             task.labels.set(label_ids)

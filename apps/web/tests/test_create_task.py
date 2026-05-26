@@ -7,6 +7,7 @@ membership enforcement, activity event, HTMX redirect).
 import datetime
 
 from django.urls import reverse
+from django.utils import timezone
 
 import pytest
 
@@ -255,6 +256,29 @@ class TestCreateTaskPost:
         assert task.due_date == datetime.date(2026, 6, 1)
         assert task.assignee_id == user.id
         assert set(task.labels.values_list("id", flat=True)) == {label.id}
+
+    def test_in_progress_create_stamps_start_date(self, client, setup):
+        # A task born in-progress never passes through the status transition
+        # that sets start_date, so the create path must stamp it (the timeline
+        # needs a start to draw the bar).
+        ws, project, user = setup
+        client.force_login(user)
+        client.post(
+            reverse("web:create_task"),
+            data={"project": project.slug_prefix, "title": "Started now", "status": Task.STATUS_IN_PROGRESS},
+        )
+        task = Task.objects.get(title="Started now")
+        assert task.start_date == timezone.localdate()
+
+    def test_planned_create_leaves_start_date_unset(self, client, setup):
+        ws, project, user = setup
+        client.force_login(user)
+        client.post(
+            reverse("web:create_task"),
+            data={"project": project.slug_prefix, "title": "Backlog item", "status": Task.STATUS_PLANNED},
+        )
+        task = Task.objects.get(title="Backlog item")
+        assert task.start_date is None
 
     def test_rejects_empty_title(self, client, setup):
         ws, project, user = setup
