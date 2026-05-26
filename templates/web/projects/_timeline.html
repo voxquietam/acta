@@ -673,8 +673,10 @@ function openModal(e, row) {
   if (_tlDragging) return;
   const url = row.dataset.url;
   if (!url || typeof htmx === 'undefined') return;
+  // The task modal is a pure overlay — it must NOT touch the address bar
+  // (matches ``open_task_modal_attrs`` / ADR 0024; a shareable URL comes from
+  // the modal's expand button or opening in a new tab, not the modal itself).
   htmx.ajax('GET', url + '?modal=1', { target: '#modal-root', swap: 'innerHTML' });
-  history.pushState({}, '', url);
 }
 
 function moveTip(e) {
