@@ -3,6 +3,7 @@ from rest_framework.permissions import IsAuthenticated
 
 from apps.activity.models import ActivityLog
 from apps.activity.services import log_event
+from apps.notifications.services import notify_task_created
 from apps.workspaces.permissions import IsWorkspaceMember
 
 from .events import emit_task_diff_events, snapshot_task
@@ -100,6 +101,7 @@ class TaskViewSet(viewsets.ModelViewSet):
                 "parent_id": task.parent_id,
             },
         )
+        notify_task_created(task=task, actor=self.request.user)
 
     def perform_update(self, serializer):
         """Save the edit and emit granular diff events.

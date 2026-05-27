@@ -30,6 +30,22 @@ Automating this with `git-cliff` is deferred until `v1.0.0`.
   Cyrillic); slugs / code stay on JetBrains Mono.
 - **Dashboard** moved to the top of the sidebar nav (above Inbox).
 
+### Fixed
+
+- **Notify the assignee when a task is created already assigned to them**
+  — task creation only emitted `task.created`, which isn't a watched diff
+  kind, so an assignee set in the create modal got no inbox/Telegram
+  notification (only re-assignment did). Wired into every create path
+  (web, DRF, MCP).
+
+### Infrastructure
+
+- **Telegram message templates auto-seed on deploy** — a new
+  `seed_telegram_templates` management command (run from the entrypoint)
+  fills the default body for any notification kind missing a row, so a
+  fresh DB no longer starts with an empty admin template list. Idempotent;
+  `--overwrite` resets edited rows. See docs/operations.md §5.
+
 ## [0.4.0] — 2026-05-27
 
 Backlog grooming, create-task-from-text, JSON export, a three-date task

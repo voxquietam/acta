@@ -291,3 +291,34 @@ class TestAnnouncementFanout:
         assert Notification.objects.filter(recipient=member, is_read=False).count() == 1
         # …but it must not count toward the unread badge.
         assert _unread_count(member.id) == 0
+
+
+@pytest.mark.django_db
+class TestNotifyTaskCreated:
+    """Creating a task already assigned notifies the assignee (ADR 0021 gap)."""
+
+    def test_assignee_notified_on_create(self, trio):
+        from apps.notifications.services import notify_task_created
+
+        project, assignee, reporter, actor = trio
+        task = TaskFactory(project=project, assignee=assignee, reporter=actor)
+        notify_task_created(task=task, actor=actor)
+        n = Notification.objects.get(recipient=assignee, kind=Notification.Kind.ASSIGNED)
+        assert n.task_id == task.id
+        assert n.actor_id == actor.id
+
+    def test_self_assign_on_create_is_suppressed(self, trio):
+        from apps.notifications.services import notify_task_created
+
+        project, assignee, reporter, actor = trio
+        task = TaskFactory(project=project, assignee=actor, reporter=actor)
+        notify_task_created(task=task, actor=actor)
+        assert not Notification.objects.filter(kind=Notification.Kind.ASSIGNED).exists()
+
+    def test_unassigned_create_notifies_no_one(self, trio):
+        from apps.notifications.services import notify_task_created
+
+        project, assignee, reporter, actor = trio
+        task = TaskFactory(project=project, assignee=None, reporter=actor)
+        notify_task_created(task=task, actor=actor)
+        assert not Notification.objects.filter(kind=Notification.Kind.ASSIGNED).exists()

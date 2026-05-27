@@ -44,7 +44,12 @@ from apps.cycles.services import (
 )
 from apps.labels.models import Label
 from apps.notifications.models import Notification
-from apps.notifications.services import notify_announcement, notify_comment_created, notify_project_update_created
+from apps.notifications.services import (
+    notify_announcement,
+    notify_comment_created,
+    notify_project_update_created,
+    notify_task_created,
+)
 from apps.projects.models import Project, ProjectUpdate
 from apps.reactions.services import TARGET_TYPES, attach_reactions, summarize_reactions, toggle_reaction
 from apps.tasks.events import broadcast_link_change, broadcast_task_events, emit_task_diff_events, snapshot_task
@@ -5336,6 +5341,7 @@ def _create_task_post(request):
             target_id=task.id,
             payload={"title": task.title, "status": task.status},
         )
+        notify_task_created(task=task, actor=request.user)
         # "Create task from comment / selection" passes ``link_related``;
         # link the fresh task to the origin as a related (symmetric) task,
         # recording the link on the origin's timeline. Skipped when the

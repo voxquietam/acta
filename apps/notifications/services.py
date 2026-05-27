@@ -246,6 +246,33 @@ def notify_for_task_diff(*, events: Iterable, task, actor) -> None:
             )
 
 
+def notify_task_created(*, task, actor) -> None:
+    """Notify the assignee when a task is created already assigned to them.
+
+    Task creation only emits a ``task.created`` activity event, which is
+    not a watched diff kind — so a task spun up with an assignee in the
+    create modal never reached :func:`notify_for_task_diff`. This closes
+    that gap: the new assignee gets the same ``ASSIGNED`` notification a
+    re-assignment would produce. The creator assigning the task to
+    themselves is self-suppressed by :func:`notify` as usual.
+
+    Args:
+        task: The freshly created :class:`Task` (``assignee_id`` /
+            ``project`` read without extra queries).
+        actor: The :class:`User` who created the task.
+    """
+    if not task.assignee_id:
+        return
+    notify(
+        recipient_id=task.assignee_id,
+        actor=actor,
+        kind=Notification.Kind.ASSIGNED,
+        workspace_id=task.project.workspace_id,
+        task=task,
+        preview=_truncate_preview(task.description),
+    )
+
+
 def parse_mentioned_user_ids(text: str | None) -> set[int]:
     """Return the user ids referenced by ``mention:`` tokens in Markdown.
 

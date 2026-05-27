@@ -202,6 +202,9 @@ def task_create(user: User, arguments: dict[str, Any]) -> Any:
             "parent_id": task.parent_id,
         },
     )
+    from apps.notifications.services import notify_task_created
+
+    notify_task_created(task=task, actor=user)
     return serialize_task_summary(task)
 
 
