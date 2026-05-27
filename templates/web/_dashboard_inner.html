@@ -52,7 +52,8 @@ the new range's data; Chart.js / Lucide are loaded once by the outer page.
   <div class="alerts">
     <span class="alerts-h">{% lucide "triangle-alert" "w-3 h-3" %}{% trans "Attention" %}</span>
     {% for a in alerts %}
-    <a class="alert {% if not a.n %}zero{% endif %}" style="--accent: {{ a.accent }};" href="/tasks/?{{ a.q }}">
+    <a class="alert {% if not a.n %}zero{% endif %}" style="--accent: {{ a.accent }};" href="/tasks/?{{ a.q }}"
+       hx-boost="true" hx-target="#app-content" hx-select="#app-content" hx-swap="outerHTML show:top" hx-push-url="true">
       <div class="top">
         <span class="n">{{ a.n }}</span>
         <span class="lbl">{{ a.label }}</span>
@@ -76,7 +77,7 @@ the new range's data; Chart.js / Lucide are loaded once by the outer page.
           <span class="sub">{{ pipeline_open }} {% trans "open · click a segment to filter" %}</span>
         </div>
         <div class="bar">
-          {% for s in pipeline %}{% if s.n %}<a href="/tasks/?status={{ s.status }}" class="bg-{{ s.status }}" style="width: {{ s.width }}%;" title="{{ s.label }} · {{ s.n }}">{{ s.n }}</a>{% endif %}{% endfor %}
+          {% for s in pipeline %}{% if s.n %}<a href="/tasks/?status={{ s.status }}" class="bg-{{ s.status }}" style="width: {{ s.width }}%;" title="{{ s.label }} · {{ s.n }}" hx-boost="true" hx-target="#app-content" hx-select="#app-content" hx-swap="outerHTML show:top" hx-push-url="true">{{ s.n }}</a>{% endif %}{% endfor %}
         </div>
         <div class="legend">
           {% for s in pipeline %}
@@ -155,7 +156,8 @@ the new range's data; Chart.js / Lucide are loaded once by the outer page.
         <div class="hd"><span class="ttl">{% trans "by Project" %}</span><span class="sub">{% trans "in-flight" %}</span></div>
         <div class="rows">
           {% with dm=dist_project.0.n %}{% for r in dist_project %}
-          <a class="r" href="/tasks/?project={{ r.id }}" style="text-decoration:none;">
+          <a class="r" href="/tasks/?project={{ r.id }}" style="text-decoration:none;"
+             hx-boost="true" hx-target="#app-content" hx-select="#app-content" hx-swap="outerHTML show:top" hx-push-url="true">
             <span class="nm"><span class="dot" style="background:{{ r.color }}"></span>{{ r.nm }}</span>
             <span class="bar-track"><span class="bar-fill" style="width: {% widthratio r.n dm 100 %}%; background: {{ r.color }};"></span></span>
             <span class="n">{{ r.n }}</span>
@@ -285,7 +287,8 @@ the new range's data; Chart.js / Lucide are loaded once by the outer page.
     <div class="card hyg">
       <div class="rows">
         {% for h in hygiene %}
-        <a class="row {% if not h.n %}zero{% endif %}" href="/tasks/?{{ h.q }}">
+        <a class="row {% if not h.n %}zero{% endif %}" href="/tasks/?{{ h.q }}"
+           hx-boost="true" hx-target="#app-content" hx-select="#app-content" hx-swap="outerHTML show:top" hx-push-url="true">
           <span class="row-h">{% lucide h.icon "ic w-3 h-3" %}{{ h.label }}</span>
           <span class="n {% if not h.n %}zero{% endif %}">{{ h.n }}</span>
           <span class="arr">{% if h.n %}{% trans "filter" %} {% lucide "arrow-right" "w-3 h-3" %}{% else %}{% trans "all set" %} {% lucide "check" "w-3 h-3" %}{% endif %}</span>
@@ -374,7 +377,7 @@ the new range's data; Chart.js / Lucide are loaded once by the outer page.
           if (!v) return `<td class="cell"><span class="blob empty">·</span></td>`;
           const intensity = 0.2 + 0.75 * Math.min(v / max, 1);
           const bg = (STATUS_COLOR[s] || "rgb(113,113,122)").replace("rgb(", "rgba(").replace(")", `, ${intensity})`);
-          return `<td class="cell"><a class="blob" href="/tasks/?assignee=${m.id}&status=${s}" style="background:${bg};">${v}</a></td>`;
+          return `<td class="cell"><a class="blob" href="/tasks/?assignee=${m.id}&status=${s}" hx-boost="true" hx-target="#app-content" hx-select="#app-content" hx-swap="outerHTML show:top" hx-push-url="true" style="background:${bg};">${v}</a></td>`;
         }).join("");
         const open = (m.wip["planned"]||0)+(m.wip["to-do"]||0)+(m.wip["in-progress"]||0)+(m.wip["in-review"]||0);
         const tr = document.createElement("tr");
@@ -504,6 +507,11 @@ the new range's data; Chart.js / Lucide are loaded once by the outer page.
       });
     }
     bootChart();
+
+    /* Wire HTMX on the JS-injected matrix cell links (boosted nav into
+       the task list — keeps the sidebar mounted like every other
+       in-content link). Static links were processed on swap already. */
+    if (window.htmx) window.htmx.process(root);
   })();
   </script>
 </div>
