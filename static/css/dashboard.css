@@ -154,7 +154,7 @@
 .dash .dist .r:hover .nm { color: rgb(var(--foreground)); cursor: pointer; }
 
 /* ============================================================ MATRIX */
-.dash .matrix { padding: 14px 16px; }
+.dash .matrix { padding: 14px 16px; overflow-x: auto; }
 .dash .matrix .hd { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
 .dash .matrix .hd .ttl { font-size: 13px; font-weight: 600; color: rgb(var(--foreground)); }
 .dash .matrix .hd .sub { font-size: 11px; color: rgb(var(--placeholder-foreground)); font-family: var(--font-mono); margin-left: auto; }
@@ -195,7 +195,7 @@
 .dash .overload .empty { font-size: 11px; color: rgb(var(--placeholder-foreground)); font-style: italic; padding: 6px 0 0; }
 
 /* ============================================================ LEADERBOARD */
-.dash .lb { padding: 14px 16px; }
+.dash .lb { padding: 14px 16px; overflow-x: auto; }
 .dash .lb .hd { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
 .dash .lb .hd .ttl { font-size: 13px; font-weight: 600; color: rgb(var(--foreground)); }
 .dash .lb .hd .sub { font-size: 11px; color: rgb(var(--placeholder-foreground)); font-family: var(--font-mono); margin-left: auto; }
