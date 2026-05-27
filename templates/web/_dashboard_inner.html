@@ -1,0 +1,509 @@
+{% load static i18n lucide %}
+{% comment %}
+Workspace dashboard body. Rendered inside dashboard.html on a full load,
+and returned on its own when a range chip is clicked (``?range=…&partial=1``)
+so switching 7d/14d/30d/90d swaps only this block instead of the whole page.
+The data islands + script live inside the swapped node so they re-run with
+the new range's data; Chart.js / Lucide are loaded once by the outer page.
+{% endcomment %}
+<div id="dash-inner" class="dash">
+
+  {# ===== Page header ===== #}
+  <div class="page-h">
+    <div class="title-block">
+      <h1>{% trans "Workspace dashboard" %}</h1>
+      <span class="sub">
+        <b>{{ active_workspace.name }}</b> ·
+        {{ dash_project_count }} {% trans "projects" %} ·
+        {{ dash_member_count }} {% trans "members" %} ·
+        {{ dash_open_total }} {% trans "open" %} ·
+        <span class="done-fg">{{ dash_done_total }} {% trans "done" %}</span>
+      </span>
+    </div>
+    <div class="range">
+      {% for r in dash_ranges %}
+      <a href="?range={{ r }}" hx-get="?range={{ r }}&partial=1" hx-target="#dash-inner" hx-swap="outerHTML"
+         class="{% if dash_range == r %}active{% endif %}">{{ r }}</a>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# ===== KPI row ===== #}
+  <div class="kpis">
+    {% for k in kpis %}
+    <div class="kpi {{ k.accent }}">
+      <span class="kpi-lbl">{% lucide k.icon "ic w-3 h-3" %}{{ k.label }}</span>
+      <div class="kpi-row">
+        <span class="big">{{ k.value }}</span>
+        <span class="delta {{ k.delta_cls }}">{{ k.delta }}</span>
+      </div>
+      <div class="spark"><svg data-series="{{ k.spark }}" data-opts='{{ k.spark_opts|default:"{}" }}'></svg></div>
+      {% if k.hint %}
+      <div class="why">
+        {% lucide "info" "ic w-3 h-3" %}
+        <span class="{{ k.hint_cls }}">{{ k.hint }}</span>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  {# ===== Attention alerts ===== #}
+  <div class="alerts">
+    <span class="alerts-h">{% lucide "triangle-alert" "w-3 h-3" %}{% trans "Attention" %}</span>
+    {% for a in alerts %}
+    <a class="alert {% if not a.n %}zero{% endif %}" style="--accent: {{ a.accent }};" href="/tasks/?{{ a.q }}">
+      <div class="top">
+        <span class="n">{{ a.n }}</span>
+        <span class="lbl">{{ a.label }}</span>
+        {% lucide "arrow-right" "arrow w-3 h-3" %}
+      </div>
+      <div class="hint">{{ a.hint }}</div>
+    </a>
+    {% endfor %}
+  </div>
+
+  {# ===== Pipeline + CFD ===== #}
+  <div class="sec">
+    <div class="sec-h">
+      <span class="name">{% trans "Cross-project flow" %}</span>
+      <span class="desc">{% trans "where every open task sits, and how the pipe fills vs drains" %}</span>
+    </div>
+    <div class="g-pipeline">
+      <div class="card pipe">
+        <div class="hd">
+          <span class="ttl">{% trans "Status pipeline" %}</span>
+          <span class="sub">{{ pipeline_open }} {% trans "open · click a segment to filter" %}</span>
+        </div>
+        <div class="bar">
+          {% for s in pipeline %}{% if s.n %}<a href="/tasks/?status={{ s.status }}" class="bg-{{ s.status }}" style="width: {{ s.width }}%;" title="{{ s.label }} · {{ s.n }}">{{ s.n }}</a>{% endif %}{% endfor %}
+        </div>
+        <div class="legend">
+          {% for s in pipeline %}
+          <span class="item"><span class="dot bg-{{ s.status }}"></span>{{ s.label }} <b>{{ s.n }}</b> <span class="pct">{{ s.pct }}%</span></span>
+          {% endfor %}
+        </div>
+        <div class="why" style="margin-top: 10px;">
+          {% lucide "info" "ic w-3 h-3" %}
+          <span>{{ dash_open_total }} {% trans "open" %} · {{ dash_done_total }} {% trans "done" %}. {% trans "Pull from the fattest active stage at standup before starting new work." %}</span>
+        </div>
+      </div>
+
+      <div class="card cfd">
+        <div class="hd">
+          <span class="ttl">{% trans "Cumulative flow · 8wk" %}</span>
+          <div class="toggle">
+            <button class="active" data-cfd-mode="count">{% trans "count" %}</button>
+            <button data-cfd-mode="points">{% trans "points" %}</button>
+          </div>
+        </div>
+        <div class="chart-wrap"><canvas id="cfd-chart"></canvas></div>
+        <div class="legend">
+          <span><span class="swatch" style="background: rgb(148, 163, 255);"></span>{% trans "created" %}</span>
+          <span><span class="swatch" style="background: rgb(110, 231, 183);"></span>{% trans "done" %}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ===== Project velocity ===== #}
+  <div class="sec">
+    <div class="sec-h">
+      <span class="name">{% trans "Project velocity" %}</span>
+      <span class="desc">{% trans "last 4 weeks of done, with a naive 4-week forecast" %}</span>
+    </div>
+    <div x-data="{ all: false }">
+      <div class="g-velo" :class="all && 'show-all'">
+        {% for v in velocity %}
+        <div class="velo{% if forloop.counter > 8 %} extra{% endif %}">
+          <div class="row1">
+            <span class="proj-ic" style="background: {{ v.icon }};">{% lucide "folder" "w-3 h-3" %}</span>
+            <span class="nm">{{ v.name }}</span>
+            <span class="slug">{{ v.slug }}</span>
+          </div>
+          <div class="stats">
+            <span class="big">{{ v.done4w }}</span>
+            <span>{% trans "done · 4w" %}</span>
+            <span class="delta {{ v.delta_cls }}">{{ v.delta_str }}</span>
+          </div>
+          <div class="spark">
+            <svg data-series="{{ v.spark }}" data-opts='{"width":200,"height":22,"stroke":"{{ v.icon }}","fill":"{{ v.icon }}33"}'></svg>
+          </div>
+          <div class="forecast">{% trans "forecast next 4w" %} <span class="pill">{{ v.forecast }}</span></div>
+        </div>
+        {% empty %}
+        <div class="velo"><span class="nm" style="color: rgb(var(--placeholder-foreground));">{% trans "No projects yet." %}</span></div>
+        {% endfor %}
+      </div>
+      {% if velocity|length > 8 %}
+      <button class="velo-more" type="button" @click="all = !all">
+        <span x-show="!all">{% trans "Show all" %} ({{ velocity|length }})</span>
+        <span x-show="all" x-cloak>{% trans "Show less" %}</span>
+      </button>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ===== Distribution ===== #}
+  <div class="sec">
+    <div class="sec-h">
+      <span class="name">{% trans "Distribution" %}</span>
+      <span class="desc">{% trans "click a row to filter the task list" %}</span>
+    </div>
+    <div class="g-3">
+      <div class="card dist">
+        <div class="hd"><span class="ttl">{% trans "by Project" %}</span><span class="sub">{% trans "in-flight" %}</span></div>
+        <div class="rows">
+          {% with dm=dist_project.0.n %}{% for r in dist_project %}
+          <a class="r" href="/tasks/?project={{ r.id }}" style="text-decoration:none;">
+            <span class="nm"><span class="dot" style="background:{{ r.color }}"></span>{{ r.nm }}</span>
+            <span class="bar-track"><span class="bar-fill" style="width: {% widthratio r.n dm 100 %}%; background: {{ r.color }};"></span></span>
+            <span class="n">{{ r.n }}</span>
+          </a>
+          {% endfor %}{% endwith %}
+        </div>
+      </div>
+
+      <div class="card dist">
+        <div class="hd"><span class="ttl">{% trans "by Priority" %}</span><span class="sub">{% trans "all open" %}</span></div>
+        <div class="rows">
+          {% with dm=dist_prio.0.n %}{% for r in dist_prio %}
+          <div class="r">
+            <span class="nm"><span class="dot" style="background:{{ r.color }}"></span>{{ r.nm }}</span>
+            <span class="bar-track"><span class="bar-fill" style="width: {% widthratio r.n dm 100 %}%; background: {{ r.color }};"></span></span>
+            <span class="n">{{ r.n }}</span>
+          </div>
+          {% endfor %}{% endwith %}
+        </div>
+      </div>
+
+      <div class="card dist">
+        <div class="hd"><span class="ttl">{% trans "by Label" %}</span><span class="sub">{% trans "top 6" %}</span></div>
+        <div class="rows">
+          {% with dm=dist_label.0.n %}{% for r in dist_label %}
+          <div class="r">
+            <span class="nm"><span class="dot" style="background:{{ r.color }}"></span>{{ r.nm }}</span>
+            <span class="bar-track"><span class="bar-fill" style="width: {% widthratio r.n dm 100 %}%; background: {{ r.color }};"></span></span>
+            <span class="n">{{ r.n }}</span>
+          </div>
+          {% empty %}
+          <div class="r"><span class="nm" style="color: rgb(var(--placeholder-foreground));">{% trans "no labels in flight" %}</span></div>
+          {% endfor %}{% endwith %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ===== People: matrix + overload/idle + leaderboard ===== #}
+  <div class="sec">
+    <div class="sec-h">
+      <span class="name">{% trans "People" %}</span>
+      <span class="desc">{% trans "workload matrix & leaderboard · click a cell to open the filtered task list" %}</span>
+    </div>
+
+    <div class="g-people">
+      <div class="card matrix">
+        <div class="hd">
+          <span class="ttl">{% trans "Workload matrix" %}</span>
+          <span class="sub">{% trans "cell = # tasks in that status · darker = more" %}</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th class="member">{% trans "Member" %}</th>
+              <th>{% trans "planned" %}</th>
+              <th>{% trans "to-do" %}</th>
+              <th>{% trans "in-progress" %}</th>
+              <th>{% trans "in-review" %}</th>
+              <th>{% trans "done" %}</th>
+              <th class="total">{% trans "open" %}</th>
+              <th class="over">WIP</th>
+            </tr>
+          </thead>
+          <tbody id="matrix-body"></tbody>
+        </table>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div class="card overload">
+          <div class="hd"><span class="ttl">{% trans "Top overloaded" %}</span><span class="sub">{% trans "by open count" %}</span></div>
+          {% for o in overloaded %}
+          <div class="row">
+            <div class="l"><span class="av av-22" style="background:{{ o.color }};">{{ o.nm|first }}</span><span class="nm">{{ o.nm }}</span></div>
+            <span class="n {% if forloop.first and o.n > dash_wip_inprogress %}bad{% endif %}">{{ o.n }}</span>
+          </div>
+          {% empty %}
+          <div class="empty">{% trans "No open work assigned." %}</div>
+          {% endfor %}
+        </div>
+
+        {% if idle %}
+        <div class="card overload" style="background: linear-gradient(180deg, rgb(244 63 94 / 0.05) 0%, rgb(var(--card)) 100%);">
+          <div class="hd"><span class="ttl" style="color: rgb(252, 165, 165);">{% trans "Idle > 7d" %}</span><span class="sub">{% trans "no activity" %}</span></div>
+          {% for i in idle %}
+          <div class="row">
+            <div class="l"><span class="av av-22" style="background:{{ i.color }};">{{ i.nm|first }}</span><span class="nm">{{ i.nm }}</span></div>
+            <span class="n">{{ i.days }}d</span>
+          </div>
+          {% endfor %}
+          <div class="empty">{% blocktrans count c=idle|length %}One member quiet — check in or reassign their open tasks.{% plural %}{{ c }} members quiet — check in or reassign their open tasks.{% endblocktrans %}</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card lb" style="margin-top: 12px;">
+      <div class="hd"><span class="ttl">{% trans "Leaderboard" %}</span><span class="sub">{% trans "click a header to sort · 30d window" %}</span></div>
+      <table>
+        <thead>
+          <tr>
+            <th class="member" data-key="nm">{% trans "Member" %}</th>
+            <th data-key="todo">{% trans "to-do" %}</th>
+            <th data-key="inprog">{% trans "in-prog" %}</th>
+            <th data-key="inreview">{% trans "in-review" %}</th>
+            <th class="sorted" data-key="done30">{% trans "done 30d" %}</th>
+            <th data-key="doneRate">{% trans "done rate" %}</th>
+            <th data-key="overdue">{% trans "overdue" %}</th>
+            <th data-key="urgent">{% trans "urgent+high" %}</th>
+            <th data-key="created7">{% trans "created 7d" %}</th>
+            <th data-key="created30">{% trans "created 30d" %}</th>
+            <th data-key="medAge">{% trans "med done-age" %}</th>
+            <th data-key="maxAge">{% trans "max active-age" %}</th>
+          </tr>
+        </thead>
+        <tbody id="lb-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  {# ===== Hygiene ===== #}
+  <div class="sec">
+    <div class="sec-h">
+      <span class="name">{% trans "Hygiene" %}</span>
+      <span class="desc">{% trans "in-flight tasks missing required metadata · each card opens the filtered list" %}</span>
+    </div>
+    <div class="card hyg">
+      <div class="rows">
+        {% for h in hygiene %}
+        <a class="row {% if not h.n %}zero{% endif %}" href="/tasks/?{{ h.q }}">
+          <span class="row-h">{% lucide h.icon "ic w-3 h-3" %}{{ h.label }}</span>
+          <span class="n {% if not h.n %}zero{% endif %}">{{ h.n }}</span>
+          <span class="arr">{% if h.n %}{% trans "filter" %} {% lucide "arrow-right" "w-3 h-3" %}{% else %}{% trans "all set" %} {% lucide "check" "w-3 h-3" %}{% endif %}</span>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  {# ===== Activity heatmap ===== #}
+  <div class="sec">
+    <div class="sec-h">
+      <span class="name">{% trans "Activity rhythm" %}</span>
+      <span class="desc">{% trans "7d × 24h · every workspace event by hour · UTC" %}</span>
+    </div>
+    <div class="card heat">
+      <div class="grid" id="heat-grid"></div>
+      <div class="legend-row">
+        <span>{% trans "fewer" %}</span>
+        <span class="scale" id="heat-legend"></span>
+        <span>{% trans "more" %}</span>
+        <span style="margin-left: auto; font-style: italic;" id="heat-peak"></span>
+      </div>
+    </div>
+  </div>
+
+  {# ===== data islands ===== #}
+  {{ members|json_script:"dash-members" }}
+  {{ status_order|json_script:"dash-status-order" }}
+  {{ status_color_map|json_script:"dash-status-color" }}
+  {{ heatmap|json_script:"dash-heatmap" }}
+  {{ cfd|json_script:"dash-cfd" }}
+
+  <script>
+  (function () {
+    const root = document.getElementById("dash-inner");
+    if (!root) return;
+    const $ = (id) => document.getElementById(id);
+    const jsonOf = (id) => { const el = $(id); return el ? JSON.parse(el.textContent) : null; };
+
+    const MEMBERS = jsonOf("dash-members") || [];
+    const STATUS_ORDER = jsonOf("dash-status-order") || [];
+    const STATUS_COLOR = jsonOf("dash-status-color") || {};
+    const HEATMAP = jsonOf("dash-heatmap") || [];
+    const CFD = jsonOf("dash-cfd") || { weeks: [], count: {}, points: {} };
+    const WIP_INPROG = {{ dash_wip_inprogress }};
+
+    /* ---- sparkline ---- */
+    function renderSpark(svg, values, opts) {
+      opts = opts || {};
+      const stroke = opts.stroke || "rgb(148, 163, 255)";
+      const fill = opts.fill || "rgba(66, 90, 245, 0.18)";
+      const width = opts.width || 240, height = opts.height || 28, pad = 2;
+      if (!values.length) return;
+      const min = Math.min(...values, 0), max = Math.max(...values, 1);
+      const span = (max - min) || 1;
+      const stepX = (width - pad * 2) / (values.length - 1 || 1);
+      const pts = values.map((v, i) => [pad + i * stepX, height - pad - ((v - min) / span) * (height - pad * 2)]);
+      const line = pts.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`).join("");
+      const area = `${line} L${pts[pts.length - 1][0].toFixed(1)},${height} L${pts[0][0].toFixed(1)},${height} Z`;
+      svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+      svg.setAttribute("preserveAspectRatio", "none");
+      svg.innerHTML =
+        `<path d="${area}" fill="${fill}" stroke="none"/>` +
+        `<path d="${line}" fill="none" stroke="${stroke}" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>` +
+        `<circle cx="${pts[pts.length - 1][0].toFixed(1)}" cy="${pts[pts.length - 1][1].toFixed(1)}" r="2" fill="${stroke}"/>`;
+    }
+    root.querySelectorAll("[data-series]").forEach((svg) => {
+      let series; try { series = JSON.parse(svg.getAttribute("data-series")); } catch (e) { return; }
+      let opts = {}; try { opts = JSON.parse(svg.getAttribute("data-opts") || "{}"); } catch (e) {}
+      if (series) renderSpark(svg, series, opts);
+    });
+
+    /* ---- workload matrix ---- */
+    (function () {
+      const body = $("matrix-body");
+      if (!body) return;
+      let max = 1;
+      MEMBERS.forEach((m) => STATUS_ORDER.forEach((s) => { if ((m.wip[s] || 0) > max) max = m.wip[s]; }));
+      const totals = {}; STATUS_ORDER.forEach((s) => (totals[s] = 0));
+      MEMBERS.forEach((m) => {
+        const inProg = m.wip["in-progress"] || 0;
+        const wipCls = inProg > WIP_INPROG ? "bad" : inProg === WIP_INPROG ? "warn" : "ok";
+        const cells = STATUS_ORDER.map((s) => {
+          const v = m.wip[s] || 0; totals[s] += v;
+          if (!v) return `<td class="cell"><span class="blob empty">·</span></td>`;
+          const intensity = 0.2 + 0.75 * Math.min(v / max, 1);
+          const bg = (STATUS_COLOR[s] || "rgb(113,113,122)").replace("rgb(", "rgba(").replace(")", `, ${intensity})`);
+          return `<td class="cell"><a class="blob" href="/tasks/?assignee=${m.id}&status=${s}" style="background:${bg};">${v}</a></td>`;
+        }).join("");
+        const open = (m.wip["planned"]||0)+(m.wip["to-do"]||0)+(m.wip["in-progress"]||0)+(m.wip["in-review"]||0);
+        const tr = document.createElement("tr");
+        tr.innerHTML =
+          `<td class="member-cell"><span class="row"><span class="av av-22" style="background:${m.color};">${(m.nm[0]||"?").toUpperCase()}</span><span class="nm">${m.nm}</span></span></td>` +
+          cells +
+          `<td class="total">${open}</td>` +
+          `<td class="over"><span class="pill ${wipCls}">${inProg}/${WIP_INPROG}</span></td>`;
+        body.appendChild(tr);
+      });
+      const totOpen = (totals["planned"]||0)+(totals["to-do"]||0)+(totals["in-progress"]||0)+(totals["in-review"]||0);
+      const tot = document.createElement("tr");
+      tot.className = "totals";
+      tot.innerHTML =
+        `<td class="member-cell"><span class="nm">workspace</span></td>` +
+        STATUS_ORDER.map((s) => `<td>${totals[s]}</td>`).join("") +
+        `<td class="total">${totOpen}</td><td class="over"></td>`;
+      body.appendChild(tot);
+    })();
+
+    /* ---- leaderboard (sortable) ---- */
+    (function () {
+      const body = $("lb-body");
+      if (!body) return;
+      const num = (v) => (typeof v === "string" ? parseFloat(v) || 0 : v || 0);
+      function rowHtml(m) {
+        const rate = Math.round((m.doneRate || 0) * 100);
+        const rateCls = m.doneRate >= 0.7 ? "good" : m.doneRate >= 0.5 ? "warn" : "bad";
+        return `<tr>
+          <td class="member"><span class="row"><span class="av av-22" style="background:${m.color};">${(m.nm[0]||"?").toUpperCase()}</span><span class="nm">${m.nm}</span></span></td>
+          <td>${m.wip["to-do"]||0}</td>
+          <td>${m.wip["in-progress"]||0}</td>
+          <td>${m.wip["in-review"]||0}</td>
+          <td><b>${m.done30}</b></td>
+          <td class="rate-bar"><span class="track"><span class="fill" style="width:${rate}%;"></span></span><span class="${rateCls}">${rate}%</span></td>
+          <td class="${m.overdue > 0 ? "bad" : "dim"}">${m.overdue}</td>
+          <td class="${m.urgent >= 2 ? "warn" : "dim"}">${m.urgent}</td>
+          <td class="dim">${m.created7}</td>
+          <td>${m.created30}</td>
+          <td class="dim">${m.medAge}</td>
+          <td class="${parseFloat(m.maxAge) > 7 ? "warn" : "dim"}">${m.maxAge}</td>
+        </tr>`;
+      }
+      const colMap = { todo: (m) => m.wip["to-do"], inprog: (m) => m.wip["in-progress"], inreview: (m) => m.wip["in-review"] };
+      function render(key, dir) {
+        const get = colMap[key] || ((m) => m[key]);
+        const sorted = [...MEMBERS].sort((a, b) => {
+          const va = get(a), vb = get(b);
+          if (key === "nm") return dir * String(va).localeCompare(String(vb));
+          return dir * (num(vb) - num(va));
+        });
+        body.innerHTML = sorted.map(rowHtml).join("");
+      }
+      render("done30", 1);
+      root.querySelectorAll(".lb th").forEach((th) => {
+        let dir = 1;
+        th.addEventListener("click", () => {
+          root.querySelectorAll(".lb th").forEach((t) => t.classList.remove("sorted"));
+          th.classList.add("sorted");
+          dir = -dir;
+          render(th.dataset.key, dir);
+        });
+      });
+    })();
+
+    /* ---- activity heatmap ---- */
+    (function () {
+      const grid = $("heat-grid");
+      if (!grid) return;
+      grid.appendChild(Object.assign(document.createElement("div"), { className: "lbl-y" }));
+      for (let h = 0; h < 24; h++) {
+        const c = document.createElement("div"); c.className = "lbl-x";
+        c.textContent = h % 3 === 0 ? String(h).padStart(2, "0") : "";
+        grid.appendChild(c);
+      }
+      let max = 0, peak = null;
+      HEATMAP.forEach((r) => r.counts.forEach((c, h) => { if (c > max) { max = c; peak = { day: r.day, hour: h, c }; } }));
+      HEATMAP.forEach((r) => {
+        const lbl = document.createElement("div"); lbl.className = "lbl-y"; lbl.textContent = r.day; grid.appendChild(lbl);
+        r.counts.forEach((c, h) => {
+          const cell = document.createElement("div"); cell.className = "cell";
+          const intensity = c === 0 ? 0.04 : 0.18 + 0.72 * (c / (max || 1));
+          cell.style.background = `rgba(66, 90, 245, ${intensity.toFixed(2)})`;
+          cell.title = `${r.day} ${String(h).padStart(2, "0")}:00 UTC · ${c} events`;
+          grid.appendChild(cell);
+        });
+      });
+      const legend = $("heat-legend");
+      [0.04, 0.22, 0.4, 0.6, 0.9].forEach((a) => { const s = document.createElement("span"); s.style.background = `rgba(66, 90, 245, ${a})`; legend.appendChild(s); });
+      if (peak && peak.c) $("heat-peak").innerHTML = `peak: <b style="color: rgb(var(--muted-foreground)); font-weight:500;">${peak.day} ${String(peak.hour).padStart(2,"0")}:00 UTC</b> · ${peak.c} events`;
+    })();
+
+    /* ---- CFD chart ---- */
+    let cfdChart = null;
+    function mountCFD(mode) {
+      const ctx = $("cfd-chart");
+      if (!ctx || typeof Chart === "undefined") return;
+      const data = CFD[mode] || { created: [], done: [] };
+      const cfg = {
+        type: "line",
+        data: {
+          labels: CFD.weeks,
+          datasets: [
+            { label: "Created", data: data.created, borderColor: "rgb(148,163,255)", backgroundColor: "rgba(66,90,245,0.13)", fill: true, tension: 0.25, pointRadius: 0, pointHoverRadius: 4, borderWidth: 1.8 },
+            { label: "Done", data: data.done, borderColor: "rgb(110,231,183)", backgroundColor: "rgba(16,185,129,0.13)", fill: true, tension: 0.25, pointRadius: 0, pointHoverRadius: 4, borderWidth: 1.8 },
+          ],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false, animation: { duration: 240 },
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { color: "rgba(113,113,122,0.18)", drawTicks: false }, ticks: { color: "rgb(113,113,122)", font: { size: 10 } }, border: { display: false } },
+            y: { beginAtZero: true, grid: { color: "rgba(113,113,122,0.18)", drawTicks: false }, ticks: { color: "rgb(113,113,122)", font: { size: 10 }, padding: 6 }, border: { display: false } },
+          },
+        },
+      };
+      if (cfdChart) { cfdChart.data = cfg.data; cfdChart.update(); } else { cfdChart = new Chart(ctx, cfg); }
+    }
+    function bootChart() {
+      if (typeof Chart === "undefined") { setTimeout(bootChart, 40); return; }
+      mountCFD("count");
+      root.querySelectorAll(".cfd .toggle button").forEach((b) => {
+        b.addEventListener("click", () => {
+          root.querySelectorAll(".cfd .toggle button").forEach((x) => x.classList.toggle("active", x === b));
+          mountCFD(b.dataset.cfdMode);
+        });
+      });
+    }
+    bootChart();
+  })();
+  </script>
+</div>

@@ -50,6 +50,7 @@ from apps.reactions.services import TARGET_TYPES, attach_reactions, summarize_re
 from apps.tasks.events import broadcast_link_change, broadcast_task_events, emit_task_diff_events, snapshot_task
 from apps.tasks.metrics import compute_bottlenecks, compute_cfd, compute_flow_metrics
 from apps.tasks.models import Task
+from apps.web.dashboard import DEFAULT_RANGE, build_dashboard_context
 from apps.web.exports import serialize_project_overview, serialize_tasks
 from apps.web.filters import (
     SORTABLE_COLUMNS,
@@ -1470,9 +1471,37 @@ class DashboardView(LoginRequiredMixin, TemplateView):
     """
 
     def get_template_names(self):
-        """Return either the dashboard or the no-workspaces template."""
+        """Return the dashboard, its inner partial, or the no-workspaces page.
+
+        A range-chip click sends ``?partial=1`` (an explicit HTMX swap of
+        ``#dash-inner``); we return just the body fragment so switching the
+        window repaints the dashboard, not the whole page. A boosted nav to
+        ``/`` has no ``partial`` flag and still gets the full page.
+        """
         has_membership = WorkspaceMember.objects.filter(user=self.request.user).exists()
-        return ["web/dashboard.html"] if has_membership else ["web/no_workspaces.html"]
+        if not has_membership:
+            return ["web/no_workspaces.html"]
+        if self.request.GET.get("partial") and self.request.headers.get("HX-Request"):
+            return ["web/_dashboard_inner.html"]
+        return ["web/dashboard.html"]
+
+    def get_context_data(self, **kwargs):
+        """Attach the workspace dashboard aggregates for the active workspace.
+
+        Skipped when the user has no workspace (the no-workspaces template
+        is rendered instead and ignores this context).
+        """
+        ctx = super().get_context_data(**kwargs)
+        workspace = resolve_active_workspace(self.request)
+        if workspace is not None:
+            ctx.update(
+                build_dashboard_context(
+                    workspace,
+                    self.request.user,
+                    range_key=self.request.GET.get("range", DEFAULT_RANGE),
+                ),
+            )
+        return ctx
 
 
 class ProjectListView(LoginRequiredMixin, ListView):

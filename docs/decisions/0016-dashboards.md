@@ -96,3 +96,34 @@ Landing page after login. Workspace-level rollup:
 - Whether to compute cycle time / lead time even without cycles. Approximation: `task.completed_at - task.created_at`. Useful, but the `completed_at` field doesn't exist yet — would add to Task model. Defer to post-MVP unless the team specifically asks.
 - Whether to surface a "blocked" indicator (tasks not updated in N days). Cheap to compute; adds noise. Defer.
 - Whether the workspace dashboard activity feed and the standalone `/activity/` page are redundant. Lean toward keeping both: dashboard shows ~20 items as a glance; `/activity/` is the full searchable feed.
+
+## Amendment — 2026-05-27: workspace dashboard rebuilt from the design system
+
+The stub `/` landing page was replaced with the full **Workspace
+Dashboard** designed in `acta-design-system` (Workspace Dashboard.html).
+It keeps this ADR's principles — live ORM queries, Chart.js, fixed
+range windows, page-cheap rendering — and extends the metric set:
+
+- KPI tiles (created / done / in-flight / active people) with daily
+  sparklines, period deltas, and rule-based "why" hints.
+- Attention alerts (overdue, due-soon, urgent-stale, stuck-in-review),
+  cross-project status pipeline, 8-week CFD (count/points toggle).
+- Per-project velocity with a naive 4-week forecast.
+- Distribution panels (project / priority / label).
+- **People**: workload matrix (member × status heatmap) + sortable
+  leaderboard + top-overloaded / idle panels.
+- Hygiene cards (missing assignee / priority / labels / due / description).
+- 7×24 activity heatmap from the activity log.
+
+Implementation: `apps/web/dashboard.py` (one N+1-safe context builder,
+~39 queries, no growth with task/member count) + `templates/web/
+_dashboard_inner.html` (range switch via HTMX partial swap) +
+`static/css/dashboard.css`. Lucide icons render server-side via the
+`{% lucide %}` tag (no CDN). `completed_at` (the deferred field above)
+now exists and backs the done/throughput metrics.
+
+Honest approximations (no new migrations): staleness alerts use
+`updated_at` as a last-touched proxy (there is no `status_changed_at`);
+the in-flight sparkline is reconstructed backwards from the current open
+count. View-level caching (ADR suggested it past 50 users) is still
+deferred — the builder is cheap enough at current scale.

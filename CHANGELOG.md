@@ -7,6 +7,29 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Entries are hand-written from the Conventional Commit history for now.
 Automating this with `git-cliff` is deferred until `v1.0.0`.
 
+## [Unreleased]
+
+### Added
+
+- **Workspace dashboard** at `/` (was a stub): live KPI tiles (created /
+  done / in-flight / active people with sparklines + "why" hints),
+  attention alerts, cross-project status pipeline, an 8-week cumulative
+  flow chart, per-project velocity with forecast, distribution panels,
+  a workload matrix + sortable leaderboard, hygiene cards, and a
+  7×24 activity heatmap. Range switch (7/14/30/90d) swaps the body via
+  HTMX. Realizes ADR 0016 from the design-system mock. Charts via
+  Chart.js; data from a single N+1-safe context builder
+  (`apps/web/dashboard.py`).
+- **Task-list filter shortcuts** (also power the dashboard links):
+  `due=overdue` / `due=soon` / `due=none`, `label=none`, `desc=none`.
+  See ADR 0019.
+
+### Changed
+
+- **UI font** swapped from the OS stack to **Exo 2** (variable, full
+  Cyrillic); slugs / code stay on JetBrains Mono.
+- **Dashboard** moved to the top of the sidebar nav (above Inbox).
+
 ## [0.4.0] — 2026-05-27
 
 Backlog grooming, create-task-from-text, JSON export, a three-date task
