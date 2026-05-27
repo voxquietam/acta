@@ -29,6 +29,11 @@ Automating this with `git-cliff` is deferred until `v1.0.0`.
 - **UI font** swapped from the OS stack to **Exo 2** (variable, full
   Cyrillic); slugs / code stay on JetBrains Mono.
 - **Dashboard** moved to the top of the sidebar nav (above Inbox).
+- **Only the assignee may change a task's start / end dates** (an
+  unassigned task stays open to anyone; the hard `due_date` is
+  unrestricted). Enforced on every surface — rail date cells, DRF, MCP,
+  and bulk — and the rail cells render read-only for non-assignees. The
+  timeline only ever drags the deadline, so it's unaffected.
 
 ### Fixed
 
@@ -37,6 +42,12 @@ Automating this with `git-cliff` is deferred until `v1.0.0`.
   kind, so an assignee set in the create modal got no inbox/Telegram
   notification (only re-assignment did). Wired into every create path
   (web, DRF, MCP).
+- **Record `start_date` changes in the activity log** — only `end_date`
+  / `due_date` emitted an event; a start-date edit left no trace. Added a
+  `task.start_changed` event (feed render + label + uk translation).
+- **Modal tooltips flip below their trigger** — an upward tooltip on a
+  control just under the modal header was clipped by the panel's top
+  edge; modal tooltips now render downward.
 
 ### Infrastructure
 

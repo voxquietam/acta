@@ -315,3 +315,25 @@ class TestBulkDelete:
             _run_bulk_delete(user=user, ids=[my_tasks[0].id, foreign_tasks[0].id])
         assert Task.objects.filter(id=my_tasks[0].id).exists()
         assert Task.objects.filter(id=foreign_tasks[0].id).exists()
+
+
+@pytest.mark.django_db
+class TestBulkDatePermission:
+    """Bulk start/end date moves are the assignee's call (all-or-nothing)."""
+
+    def test_rejects_start_date_on_foreign_assignee_task(self):
+        ws, project, user, tasks = _seed_workspace_with_tasks(2)
+        other = WorkspaceMemberFactory(workspace=ws, role=WorkspaceMember.MEMBER).user
+        tasks[0].assignee = other
+        tasks[0].save()
+        with pytest.raises(serializers.ValidationError):
+            _run_bulk_update(user=user, ids=[t.id for t in tasks], updates={"start_date": "2026-06-01"})
+        tasks[0].refresh_from_db()
+        assert tasks[0].start_date is None  # nothing applied (atomic)
+
+    def test_allows_when_all_assigned_to_actor_or_unassigned(self):
+        ws, project, user, tasks = _seed_workspace_with_tasks(2)
+        tasks[0].assignee = user
+        tasks[0].save()  # tasks[1] stays unassigned
+        bulk_id, count = _run_bulk_update(user=user, ids=[t.id for t in tasks], updates={"end_date": "2026-06-02"})
+        assert count == 2

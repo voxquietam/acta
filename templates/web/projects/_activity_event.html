@@ -31,6 +31,11 @@ with ``truncate`` so the row never wraps.
     <span class="text-placeholder-foreground truncate">
       {% if event.payload.from %}{{ event.payload.from }} {% endif %}→ {% if event.payload.to %}{{ event.payload.to }}{% else %}{% trans "cleared" %}{% endif %}
     </span>
+  {% elif event.event_type == "task.start_changed" %}
+    <span class="text-placeholder-foreground shrink-0">{% trans "changed start date" %}</span>
+    <span class="text-placeholder-foreground truncate">
+      {% if event.payload.from %}{{ event.payload.from }} {% endif %}→ {% if event.payload.to %}{{ event.payload.to }}{% else %}{% trans "cleared" %}{% endif %}
+    </span>
   {% elif event.event_type == "task.end_changed" %}
     <span class="text-placeholder-foreground shrink-0">{% trans "changed end date" %}</span>
     <span class="text-placeholder-foreground truncate">

@@ -504,6 +504,19 @@ def _run_bulk_update(*, user, ids: list[int], updates: dict[str, Any]) -> tuple[
     if accessible_ids != requested:
         raise PermissionError("inaccessible task(s) in batch")
 
+    # Start / end dates are the assignee's to schedule (an unassigned task
+    # is open to anyone). All-or-nothing: reject the whole batch if it
+    # would move those dates on a task assigned to someone else.
+    if "start_date" in updates or "end_date" in updates:
+        bad = [t.id for t in pre_requested if t.assignee_id is not None and t.assignee_id != user.id]
+        if bad:
+            raise serializers.ValidationError(
+                {
+                    "start_date": _("Only the assignee can change the start/end date — tasks: %(ids)s")
+                    % {"ids": sorted(bad)},
+                },
+            )
+
     target_project: Project | None = None
     if "project" in updates:
         target_project = _resolve_target_project(updates["project"], user)

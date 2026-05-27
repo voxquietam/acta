@@ -163,4 +163,19 @@ class TaskSerializer(serializers.ModelSerializer):
                         % {"user": assignee.display_name or assignee.username},
                     },
                 )
+        # Scheduling a task's timeline (start / end) is the assignee's call:
+        # only the current assignee may move those dates on an existing
+        # task. An unassigned task stays open to anyone. The hard
+        # ``due_date`` deadline is intentionally unrestricted. Mirrors the
+        # web inline-edit guard (apps.web.views._can_edit_task_dates).
+        if self.instance is not None:
+            request = self.context.get("request")
+            user = getattr(request, "user", None)
+            assignee_id = self.instance.assignee_id
+            if user is not None and assignee_id is not None and assignee_id != user.id:
+                for date_field in ("start_date", "end_date"):
+                    if date_field in attrs and attrs[date_field] != getattr(self.instance, date_field):
+                        raise serializers.ValidationError(
+                            {date_field: _("Only the assignee can change the start/end date.")},
+                        )
         return attrs

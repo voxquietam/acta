@@ -27,6 +27,7 @@ from .models import Task
 WATCHED_EVENT_FIELDS = (
     "status",
     "assignee",
+    "start_date",
     "due_date",
     "end_date",
     "priority",
@@ -165,6 +166,18 @@ def build_diff_events(
                 payload={
                     "from": _iso_or_none(old_state["due_date"]),
                     "to": _iso_or_none(task.due_date),
+                },
+                **common,
+            ),
+        )
+
+    if old_state.get("start_date") != task.start_date:
+        events.append(
+            ActivityLog(
+                event_type="task.start_changed",
+                payload={
+                    "from": _iso_or_none(old_state.get("start_date")),
+                    "to": _iso_or_none(task.start_date),
                 },
                 **common,
             ),

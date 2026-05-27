@@ -251,3 +251,36 @@ class TestTaskActivityEvents:
             event_type="task.deleted",
             target_id=task.id,
         ).exists()
+
+
+@pytest.mark.django_db
+class TestStartEndDateAssigneeOnly:
+    """Only the assignee may change start/end via the API (DRF + MCP share this)."""
+
+    def test_non_assignee_cannot_patch_start_date(self, client, workspace, project):
+        teammate = UserFactory()
+        WorkspaceMemberFactory(workspace=workspace, user=teammate, role=WorkspaceMember.MEMBER)
+        task = TaskFactory(project=project, assignee=teammate)
+        resp = client.patch(f"/api/v1/tasks/{task.id}/", {"start_date": "2026-06-01"})
+        assert resp.status_code == 400, resp.content
+        assert "start_date" in resp.data
+        task.refresh_from_db()
+        assert task.start_date is None
+
+    def test_non_assignee_cannot_patch_end_date(self, client, workspace, project):
+        teammate = UserFactory()
+        WorkspaceMemberFactory(workspace=workspace, user=teammate, role=WorkspaceMember.MEMBER)
+        task = TaskFactory(project=project, assignee=teammate)
+        resp = client.patch(f"/api/v1/tasks/{task.id}/", {"end_date": "2026-06-01"})
+        assert resp.status_code == 400
+        assert "end_date" in resp.data
+
+    def test_assignee_can_patch_start_date(self, client, member, project):
+        task = TaskFactory(project=project, assignee=member)
+        resp = client.patch(f"/api/v1/tasks/{task.id}/", {"start_date": "2026-06-01"})
+        assert resp.status_code == 200, resp.content
+
+    def test_anyone_can_patch_dates_on_unassigned_task(self, client, project):
+        task = TaskFactory(project=project, assignee=None)
+        resp = client.patch(f"/api/v1/tasks/{task.id}/", {"end_date": "2026-06-01"})
+        assert resp.status_code == 200, resp.content

@@ -51,6 +51,24 @@ class TestBuildDiffEventsWatchedFields:
         e = next(e for e in events if e.event_type == "task.due_changed")
         assert e.payload == {"from": None, "to": "2026-06-01"}
 
+    def test_start_change_emits_start_changed_iso(self):
+        task = TaskFactory()
+        old = snapshot_task(task)
+        task.start_date = dt.date(2026, 6, 1)
+        task.save()
+        events = build_diff_events(old_state=old, task=task, actor=task.reporter)
+        e = next(e for e in events if e.event_type == "task.start_changed")
+        assert e.payload == {"from": None, "to": "2026-06-01"}
+
+    def test_end_change_emits_end_changed_iso(self):
+        task = TaskFactory()
+        old = snapshot_task(task)
+        task.end_date = dt.date(2026, 6, 2)
+        task.save()
+        events = build_diff_events(old_state=old, task=task, actor=task.reporter)
+        e = next(e for e in events if e.event_type == "task.end_changed")
+        assert e.payload == {"from": None, "to": "2026-06-02"}
+
     def test_priority_change_emits_priority_changed(self):
         task = TaskFactory(priority=Task.NO_PRIORITY)
         old = snapshot_task(task)

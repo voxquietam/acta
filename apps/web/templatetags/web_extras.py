@@ -230,6 +230,7 @@ _EVENT_LABELS = {
     "task.created": _("created the task"),
     "task.status_changed": _("changed status"),
     "task.assigned": _("changed assignee"),
+    "task.start_changed": _("changed start date"),
     "task.due_changed": _("changed due date"),
     "task.end_changed": _("changed end date"),
     "task.priority_changed": _("changed priority"),

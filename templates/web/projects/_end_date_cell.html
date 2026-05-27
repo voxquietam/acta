@@ -5,12 +5,21 @@ Mirror of ``_due_date_cell.html`` (native date picker behind a button,
 auto-submit on change, hover "✕" to clear). Separate from the deadline:
 ``end_date`` is when work is planned to finish, ``due_date`` the hard
 deadline. Auto-overwritten with the actual finish when the task is done.
+
+Only the assignee schedules a task's timeline (start/end); an unassigned
+task is open to anyone. Non-assignees get a read-only date — the server
+guard (``set_task_end_date``) blocks the write regardless.
 {% endcomment %}
 <div id="end-date-cell"
      x-data
      {% if oob %}hx-swap-oob="true"{% endif %}
      class="inline-flex items-center gap-1.5 group">
 
+  {% if task.assignee_id and task.assignee_id != user.id %}
+  <span class="text-sm {% if task.end_date %}text-muted-foreground{% else %}text-placeholder-foreground italic{% endif %}">
+    {% if task.end_date %}{{ task.end_date|date:"M j, Y" }}{% else %}{% trans "No end date" %}{% endif %}
+  </span>
+  {% else %}
   <button type="button"
           @click="$refs.input.showPicker()"
           class="text-sm hover:text-foreground cursor-pointer
@@ -43,5 +52,6 @@ deadline. Auto-overwritten with the actual finish when the task is done.
             data-tooltip="{% trans 'Clear end date' %}"
             aria-label="{% trans 'Clear end date' %}">✕</button>
   </form>
+  {% endif %}
   {% endif %}
 </div>

@@ -4,12 +4,22 @@ Start-date cell — drives the left edge of the timeline bar. Mirror of
 ``_due_date_cell.html``. ``start_date`` auto-sets to today on the first
 transition to in-progress, but stays editable here. The timeline drag
 posts to the same endpoint via raw ``fetch`` and ignores this fragment.
+
+Only the assignee schedules a task's timeline (start/end); an unassigned
+task is open to anyone. Non-assignees get a read-only date — the server
+guard (``set_task_start_date``) blocks the write regardless. See
+``apps.web.views._can_edit_task_dates``.
 {% endcomment %}
 <div id="start-date-cell"
      x-data
      {% if oob %}hx-swap-oob="true"{% endif %}
      class="inline-flex items-center gap-1.5 group">
 
+  {% if task.assignee_id and task.assignee_id != user.id %}
+  <span class="text-sm {% if task.start_date %}text-muted-foreground{% else %}text-placeholder-foreground italic{% endif %}">
+    {% if task.start_date %}{{ task.start_date|date:"M j, Y" }}{% else %}{% trans "No start date" %}{% endif %}
+  </span>
+  {% else %}
   <button type="button"
           @click="$refs.input.showPicker()"
           class="text-sm hover:text-foreground cursor-pointer
@@ -42,5 +52,6 @@ posts to the same endpoint via raw ``fetch`` and ignores this fragment.
             data-tooltip="{% trans 'Clear start date' %}"
             aria-label="{% trans 'Clear start date' %}">✕</button>
   </form>
+  {% endif %}
   {% endif %}
 </div>
