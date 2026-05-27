@@ -3661,6 +3661,26 @@ def set_task_assignee(request, slug_prefix, number):
     )
 
 
+def _can_edit_task_dates(user, task):
+    """Whether ``user`` may change the task's start / end dates.
+
+    Scheduling a task's timeline (start / end) is the assignee's call:
+    only the current assignee may move those dates. An **unassigned** task
+    is open to any workspace member (someone has to be able to plan it
+    before it's picked up). The hard ``due_date`` deadline is intentionally
+    not restricted — anyone can set a deadline. See the timeline / rail
+    date cells.
+
+    Args:
+        user: The acting request user.
+        task: The :class:`Task` being edited.
+
+    Returns:
+        ``True`` when the edit is allowed.
+    """
+    return task.assignee_id is None or task.assignee_id == user.id
+
+
 @require_POST
 @login_required
 def set_task_due_date(request, slug_prefix, number):
@@ -3724,6 +3744,8 @@ def set_task_start_date(request, slug_prefix, number):
         Rendered ``_start_date_cell.html`` plus the panel-refetch trigger.
     """
     task = _get_user_task_or_404(request.user, slug_prefix, number)
+    if not _can_edit_task_dates(request.user, task):
+        return HttpResponseForbidden("Only the assignee can change the start/end date.")
     raw = (request.POST.get("start_date") or "").strip()
     if raw == "":
         new_start_date = None
@@ -3765,6 +3787,8 @@ def set_task_end_date(request, slug_prefix, number):
         Rendered ``_end_date_cell.html`` plus the panel-refetch trigger.
     """
     task = _get_user_task_or_404(request.user, slug_prefix, number)
+    if not _can_edit_task_dates(request.user, task):
+        return HttpResponseForbidden("Only the assignee can change the start/end date.")
     raw = (request.POST.get("end_date") or "").strip()
     if raw == "":
         new_end_date = None
@@ -3949,6 +3973,23 @@ def _get_user_project_or_404(user, slug_prefix):
     )
 
 
+def _settings_panel_response(request, template, context, *, toast=None):
+    """Render a settings-card partial, with an optional HX-Trigger toast.
+
+    Lets the WIP / cadence save endpoints swap just their card in place
+    (no full-page reload) and ride a success toast on the response, the
+    same way the invite panel does.
+    """
+    response = HttpResponse(render_to_string(template, context, request=request))
+    if toast is not None:
+        import json
+
+        # ``default=str`` coerces any lazy ``gettext_lazy`` proxy in the
+        # toast payload — those aren't JSON-serializable on their own.
+        response["HX-Trigger"] = json.dumps({"acta:toast": toast}, default=str)
+    return response
+
+
 @require_POST
 @login_required
 def set_workspace_wip(request, slug):
@@ -3978,6 +4019,13 @@ def set_workspace_wip(request, slug):
             limits[status] = n
     workspace.wip_limits = {"mode": mode, "limits": limits}
     workspace.save(update_fields=["wip_limits"])
+    if request.headers.get("HX-Request"):
+        return _settings_panel_response(
+            request,
+            "web/workspaces/_settings_wip.html",
+            _render_workspace_wip(workspace, viewer_is_admin=True),
+            toast={"message": str(_("WIP limits saved.")), "level": "success"},
+        )
     return redirect("web:workspace_settings", slug=workspace.slug)
 
 
@@ -4020,6 +4068,13 @@ def set_workspace_cycles(request, slug):
     workspace.save(update_fields=["cycle_settings"])
     if workspace.cycle_config()["enabled"]:
         ensure_cycles(workspace)
+    if request.headers.get("HX-Request"):
+        return _settings_panel_response(
+            request,
+            "web/workspaces/_settings_cycles.html",
+            _render_workspace_cycles(workspace, viewer_is_admin=True),
+            toast={"message": str(_("Cycles saved.")), "level": "success"},
+        )
     return redirect("web:workspace_settings", slug=workspace.slug)
 
 
@@ -5755,6 +5810,58 @@ def _render_workspace_members(workspace, *, viewer):
     }
 
 
+def _render_workspace_wip(workspace, *, viewer_is_admin):
+    """Build the WIP-policy panel context — mode + per-status limit rows.
+
+    Shared by the full settings page and the HTMX save endpoint so the
+    card re-renders identically whether it's first paint or an in-place
+    swap. ``wip_status_rows`` is a ``(key, label, current)`` tuple per
+    kanban status; ``current`` is the saved limit or ``""`` when unset.
+    ``viewer_is_admin`` is passed in (not re-derived) so the page doesn't
+    repeat the membership lookup the members panel already did.
+    """
+    wip_mode, wip_limits = workspace.wip_config()
+    return {
+        "workspace": workspace,
+        "viewer_is_admin": viewer_is_admin,
+        "wip_mode": wip_mode,
+        "wip_mode_choices": Workspace.WIP_MODE_CHOICES,
+        "wip_status_rows": [(s, Task.STATUS_LABELS[s], wip_limits.get(s, "")) for s in Task.KANBAN_STATUS_VALUES],
+    }
+
+
+def _render_workspace_cycles(workspace, *, viewer_is_admin):
+    """Build the cadence panel context — config + live current/upcoming preview.
+
+    Shared by the full settings page and the HTMX save endpoint. When the
+    cadence is enabled the rolling windows are materialized (``ensure_cycles``
+    is idempotent) so the preview reflects the just-saved schedule.
+    ``viewer_is_admin`` is passed in to avoid a redundant membership query.
+    """
+    cycle_cfg = workspace.cycle_config()
+    ctx = {
+        "workspace": workspace,
+        "viewer_is_admin": viewer_is_admin,
+        "cycle_enabled": cycle_cfg["enabled"],
+        "cycle_length_weeks": cycle_cfg["length_weeks"],
+        "cycle_start_date": cycle_cfg["start_date"],
+        "cycle_auto_rollover": cycle_cfg["auto_rollover"],
+        "cycle_length_choices": [
+            1,
+            2,
+            3,
+            4,
+        ],
+    }
+    if cycle_cfg["enabled"]:
+        today = timezone.localdate()
+        ensure_cycles(workspace, today)
+        ctx["cycle_today"] = today
+        ctx["cycle_current"] = current_cycle(workspace, today)
+        ctx["cycle_upcoming"] = workspace.cycles.filter(status=Cycle.PLANNING).order_by("start_date").first()
+    return ctx
+
+
 class WorkspaceSettingsView(LoginRequiredMixin, TemplateView):
     """Workspace settings — member list with admin-only mutation controls.
 
@@ -5780,33 +5887,13 @@ class WorkspaceSettingsView(LoginRequiredMixin, TemplateView):
         # wins on merge, but the value is the same. Keep the explicit
         # update so the template gets every key it expects.
         ctx.update(invites_ctx)
-        # WIP policy panel: current mode + per-status limits + the kanban
-        # statuses to render number inputs for.
-        wip_mode, wip_limits = workspace.wip_config()
-        ctx["wip_mode"] = wip_mode
-        ctx["wip_mode_choices"] = Workspace.WIP_MODE_CHOICES
-        ctx["wip_status_rows"] = [(s, Task.STATUS_LABELS[s], wip_limits.get(s, "")) for s in Task.KANBAN_STATUS_VALUES]
-        # Cadence (cycles) panel: current config for the form + a live
-        # preview of the active / upcoming cycle. ``ensure_cycles`` is
-        # idempotent, so loading the page also materializes the rolling
-        # windows when cadence is on.
-        cycle_cfg = workspace.cycle_config()
-        ctx["cycle_enabled"] = cycle_cfg["enabled"]
-        ctx["cycle_length_weeks"] = cycle_cfg["length_weeks"]
-        ctx["cycle_start_date"] = cycle_cfg["start_date"]
-        ctx["cycle_auto_rollover"] = cycle_cfg["auto_rollover"]
-        ctx["cycle_length_choices"] = [
-            1,
-            2,
-            3,
-            4,
-        ]
-        if cycle_cfg["enabled"]:
-            today = timezone.localdate()
-            ensure_cycles(workspace, today)
-            ctx["cycle_today"] = today
-            ctx["cycle_current"] = current_cycle(workspace, today)
-            ctx["cycle_upcoming"] = workspace.cycles.filter(status=Cycle.PLANNING).order_by("start_date").first()
+        # WIP-limit + cadence panels — same context builders the HTMX save
+        # endpoints use so the cards swap in place identically. Reuse the
+        # ``viewer_is_admin`` the members panel already computed rather than
+        # re-running the membership lookup twice more.
+        viewer_is_admin = ctx["viewer_is_admin"]
+        ctx.update(_render_workspace_wip(workspace, viewer_is_admin=viewer_is_admin))
+        ctx.update(_render_workspace_cycles(workspace, viewer_is_admin=viewer_is_admin))
         return ctx
 
 

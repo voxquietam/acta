@@ -37,6 +37,20 @@ class TestSetWorkspaceCycles:
         assert cfg["length_weeks"] == 2
         assert workspace.cycles.exists()
 
+    def test_save_via_htmx_swaps_card_in_place(self, client, workspace):
+        """An HTMX save returns the cadence card partial + a toast, no redirect."""
+        client.force_login(workspace.owner)
+        resp = client.post(
+            self.url(workspace),
+            {"enabled": "on", "length_weeks": "2", "start_date": "2026-05-04"},
+            HTTP_HX_REQUEST="true",
+        )
+        assert resp.status_code == 200
+        assert b'id="workspace-cycles"' in resp.content
+        assert "acta:toast" in resp.headers.get("HX-Trigger", "")
+        workspace.refresh_from_db()
+        assert workspace.cycle_config()["enabled"] is True
+
     def test_enable_without_start_date_defaults_to_today(self, client, workspace):
         client.force_login(workspace.owner)
         resp = client.post(self.url(workspace), {"enabled": "on", "length_weeks": "1"})

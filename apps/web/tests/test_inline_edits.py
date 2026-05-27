@@ -1236,6 +1236,22 @@ class TestWorkspaceWip:
         assert ws.wip_limits == {"mode": "personal", "limits": {"in-progress": 2}}
         assert ws.wip_config() == ("personal", {"in-progress": 2})
 
+    def test_save_policy_via_htmx_swaps_in_place(self, client, setup):
+        """An HTMX save returns the WIP card partial + a toast, not a redirect."""
+        user, project, _task = setup
+        ws = project.workspace
+        client.force_login(user)
+        resp = client.post(
+            self._url(ws),
+            {"mode": "personal", "limit_in-progress": "2"},
+            HTTP_HX_REQUEST="true",
+        )
+        assert resp.status_code == 200
+        assert b'id="workspace-wip"' in resp.content
+        assert "acta:toast" in resp.headers.get("HX-Trigger", "")
+        ws.refresh_from_db()
+        assert ws.wip_config() == ("personal", {"in-progress": 2})
+
     def test_non_admin_forbidden(self, client, setup):
         _user, project, _task = setup
         ws = project.workspace
@@ -1414,3 +1430,63 @@ class TestArchivedFilter:
         resp = client.get(reverse("web:all_tasks") + "?show_archived=0&show_archived=1")
         assert "dusty-task" in resp.content.decode()
         assert resp.cookies["acta_show_archived"].value == "1"
+
+
+@pytest.mark.django_db
+class TestDateEditPermission:
+    """Only the assignee (or anyone on an unassigned task) may set start/end."""
+
+    def _ws(self):
+        ws = WorkspaceFactory()
+        project = ProjectFactory(workspace=ws)
+        assignee = ws.owner
+        other = WorkspaceMemberFactory(workspace=ws).user
+        return ws, project, assignee, other
+
+    def _start_url(self, task):
+        return reverse(
+            "web:set_task_start_date",
+            kwargs={"slug_prefix": task.project.slug_prefix, "number": task.number},
+        )
+
+    def _end_url(self, task):
+        return reverse(
+            "web:set_task_end_date",
+            kwargs={"slug_prefix": task.project.slug_prefix, "number": task.number},
+        )
+
+    def test_non_assignee_cannot_set_start_date(self, client):
+        ws, project, assignee, other = self._ws()
+        task = TaskFactory(project=project, assignee=assignee)
+        client.force_login(other)
+        resp = client.post(self._start_url(task), {"start_date": "2026-06-01"})
+        assert resp.status_code == 403
+        task.refresh_from_db()
+        assert task.start_date is None
+
+    def test_non_assignee_cannot_set_end_date(self, client):
+        ws, project, assignee, other = self._ws()
+        task = TaskFactory(project=project, assignee=assignee)
+        client.force_login(other)
+        resp = client.post(self._end_url(task), {"end_date": "2026-06-01"})
+        assert resp.status_code == 403
+        task.refresh_from_db()
+        assert task.end_date is None
+
+    def test_assignee_can_set_start_date(self, client):
+        ws, project, assignee, other = self._ws()
+        task = TaskFactory(project=project, assignee=assignee)
+        client.force_login(assignee)
+        resp = client.post(self._start_url(task), {"start_date": "2026-06-01"})
+        assert resp.status_code == 200
+        task.refresh_from_db()
+        assert task.start_date == datetime.date(2026, 6, 1)
+
+    def test_anyone_can_set_dates_on_unassigned_task(self, client):
+        ws, project, assignee, other = self._ws()
+        task = TaskFactory(project=project, assignee=None)
+        client.force_login(other)
+        resp = client.post(self._end_url(task), {"end_date": "2026-06-02"})
+        assert resp.status_code == 200
+        task.refresh_from_db()
+        assert task.end_date == datetime.date(2026, 6, 2)

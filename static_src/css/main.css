@@ -666,6 +666,14 @@ html.dark .acta-checkbox {
   left: 0;
   transform: none;
 }
+/* Inside a modal the dense controls sit right under the header, so an
+   upward tooltip is covered by the header / clipped at the panel's top
+   edge. Flip every modal tooltip to render below its trigger by default
+   (per-element ``data-tooltip-pos`` still wins for the rare exception). */
+.acta-modal-panel [data-tooltip]::after {
+  bottom: auto;
+  top: calc(100% + 0.5rem);
+}
 
 /* ---- Inbox live arrival (SSE) ----------------------------------- */
 /* A notification that lands over the per-user SSE stream slides in from

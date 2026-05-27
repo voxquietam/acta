@@ -34,6 +34,10 @@ Automating this with `git-cliff` is deferred until `v1.0.0`.
   unrestricted). Enforced on every surface — rail date cells, DRF, MCP,
   and bulk — and the rail cells render read-only for non-assignees. The
   timeline only ever drags the deadline, so it's unaffected.
+- **Workspace settings page rebuilt** on the design-system mock: card
+  layout, section tab strip, members + invites merged with custom role
+  dropdowns, and in-place HTMX saves (no reload) for WIP limits and
+  cycles. Ukrainian translations completed.
 
 ### Fixed
 

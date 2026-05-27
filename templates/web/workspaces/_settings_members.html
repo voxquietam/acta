@@ -1,120 +1,125 @@
 {% load i18n %}
 {% load lucide %}
 {% comment %}
-Members panel content — list + admin-only mutation controls.
+Members panel content — active member rows only, in the ``people-list``
+``p-row`` style from the workspace-settings design.
 
-Wrapped in ``#workspace-members`` so every mutation endpoint returns
-this same partial and replaces the wrapper outer-HTML. That keeps the
-add form, role selects, and remove buttons all in one swap target —
-no per-row coordination.
+Wrapped in ``#workspace-members`` so every mutation endpoint (role
+change, remove) returns this same partial and replaces the wrapper
+outer-HTML. The invite-by-email FORM lives in ``settings.html`` (static,
+outside this swap target) so creating an invite re-renders only the
+pending list (``#workspace-invites``) without disturbing the form.
 
-Owner row is never editable: role select is suppressed, remove button
-is suppressed, and the owner cannot be moved off the owner slot from
-here (ADR 0010 demands a transfer-ownership flow which doesn't exist
-in v0.1.0). Member-on-self is allowed — a member can leave by removing
-themselves only when they are also admin / owner per the guard in
-``remove_workspace_member``.
+Owner row is never editable: role select is suppressed and the remove
+button renders disabled. Admin-on-non-owner rows get the role ``<select>``
+styled as a pill plus an inline-confirm remove flow (Alpine local state;
+avoids the unstyleable native ``window.confirm``).
 {% endcomment %}
 <div id="workspace-members">
+  {% for m in memberships %}
+  <div class="grid grid-cols-[28px_1fr_auto_auto] items-center gap-2.5 py-2 border-t border-border first:border-t-0">
 
-  {% comment %}
-  Bring people in by EMAIL INVITE — not by picking from every user on
-  the instance (that exposed the whole roster across workspaces and
-  bypassed the closed-signup invite flow). The form posts to
-  ``create_workspace_invite`` and refreshes the pending-invites panel
-  (``#workspace-invites``); the new invite shows there. Admin only.
-  {% endcomment %}
-  {% if viewer_is_admin %}
-  <form hx-post="{% url 'web:create_workspace_invite' slug=workspace.slug %}"
-        hx-target="#workspace-invites"
-        hx-swap="outerHTML"
-        hx-on::after-request="if (event.detail.successful) this.reset()"
-        class="flex items-end gap-2 pb-4 mb-4 border-b border-border">
-    {% csrf_token %}
-    <div class="flex-1 min-w-0">
-      <label for="member-invite-email" class="text-[10px] uppercase tracking-wider text-placeholder-foreground">
-        {% trans "Invite by email" %}
-      </label>
-      <input type="email" name="email" id="member-invite-email" required autocomplete="off"
-             placeholder="name@example.com"
-             class="mt-1 acta-input">
-    </div>
-    <div>
-      <label for="member-invite-role" class="text-[10px] uppercase tracking-wider text-placeholder-foreground">
-        {% trans "Role" %}
-      </label>
-      <select name="role" id="member-invite-role" class="mt-1 acta-input">
-        {% for value, label in invite_role_choices %}
-        <option value="{{ value }}" {% if value == 'member' %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <button type="submit" class="acta-btn-primary">
-      {% lucide "mail" "w-4 h-4" %}
-      {% trans "Send invite" %}
-    </button>
-  </form>
-  {% endif %}
+    {% include "web/_user_avatar.html" with user=m.user class="w-7 h-7 shrink-0" text_class="text-[11px]" %}
 
-  {# Member list — scrolls past ~10 rows; clamp cap shrinks with viewport, min ~5 rows. #}
-  <ul class="space-y-2 overflow-y-auto overflow-x-hidden max-h-[clamp(16rem,40vh,34rem)] pr-1">
-    {% for m in memberships %}
-    <li class="flex items-center justify-between gap-3 py-1.5">
-
-      <div class="flex items-center gap-3 min-w-0">
-        {% include "web/_user_avatar.html" with user=m.user class="w-9 h-9 shrink-0" text_class="text-xs" %}
-        <div class="min-w-0">
-          <div class="text-sm text-foreground truncate">
-            {{ m.user.display_name }}
-            {% if m.user_id == request.user.id %}
-            <span class="text-xs text-placeholder-foreground">({% trans "you" %})</span>
-            {% endif %}
-          </div>
-          <div class="text-xs text-placeholder-foreground truncate">
-            @{{ m.user.username }} · {{ m.user.email }}
-          </div>
-        </div>
-      </div>
-
-      <div class="flex items-center gap-2 shrink-0">
-
-        {# Role display: owner is fixed; admin/member is editable for viewers with admin rights. #}
-        {% if viewer_is_admin and m.role != "owner" %}
-        <form hx-post="{% url 'web:set_workspace_member_role' slug=workspace.slug user_id=m.user_id %}"
-              hx-target="#workspace-members"
-              hx-swap="outerHTML"
-              class="inline">
-          {% csrf_token %}
-          <select name="role"
-                  @change="$el.closest('form').requestSubmit()"
-                  class="acta-input px-2 py-1 text-xs">
-            {% for value, label in role_choices %}
-              {% if value != "owner" %}
-              <option value="{{ value }}" {% if value == m.role %}selected{% endif %}>{{ label }}</option>
-              {% endif %}
-            {% endfor %}
-          </select>
-        </form>
-        {% else %}
-        <span class="px-2 py-0.5 rounded-md text-xs text-muted-foreground bg-muted">
-          {{ m.get_role_display }}
-        </span>
+    <div class="min-w-0">
+      <div class="text-[13px] text-foreground font-medium inline-flex items-center gap-1.5 truncate">
+        <span class="truncate">{{ m.user.display_name }}</span>
+        {% if m.user_id == request.user.id %}
+        <span class="text-[10px] text-placeholder-foreground bg-muted font-mono px-1.5 rounded shrink-0">{% trans "you" %}</span>
         {% endif %}
+      </div>
+      <div class="text-[11px] text-placeholder-foreground font-mono truncate">@{{ m.user.username }} · {{ m.user.email }}</div>
+    </div>
 
-        {% comment %}
-        Remove button — admin only, never on owner row. Inline
-        confirm: first click flips the X to a Yes/No pair (Alpine
-        local state). Avoids the native browser ``window.confirm``
-        popup which can't be styled.
-        {% endcomment %}
-        {% if viewer_is_admin and m.role != "owner" %}
-        <div x-data="{ confirming: false }" class="inline-flex items-center gap-1">
+    {% comment %}
+    Role picker — owner is fixed; admin/member editable for admins. A
+    custom Alpine dropdown teleported to <body> (the member list scrolls
+    in an overflow-y-auto container, which would clip a normal absolute
+    panel). Each option is a tiny HTMX form posting to set_role and
+    swapping the members list — same pattern as _status_cell.html. The
+    native <select> popup can't be themed, hence the rebuild.
+    {% endcomment %}
+    {% if viewer_is_admin and m.role != "owner" %}
+    <div x-data="{
+           open: false,
+           rect: { top: 0, left: 0, bottom: 0, right: 0 },
+           measure() {
+             const r = this.$refs.trigger.getBoundingClientRect();
+             this.rect = { top: r.top, left: r.left, bottom: r.bottom, right: r.right };
+           },
+           toggle() { if (!this.open) this.measure(); this.open = !this.open; }
+         }"
+         x-init="
+           const onScroll = (e) => {
+             if (!$el.isConnected) { document.removeEventListener('scroll', onScroll, true); return; }
+             if (open && !($refs.panel && $refs.panel.contains(e.target))) open = false;
+           };
+           document.addEventListener('scroll', onScroll, true);
+         "
+         @resize.window="if (open) open = false"
+         class="inline-block">
+      <button type="button"
+              x-ref="trigger"
+              @click="toggle()"
+              class="inline-flex items-center justify-between gap-1.5 min-w-[6rem] text-[11px] rounded-md border px-2.5 py-1 cursor-pointer transition
+                     {% if m.role == 'admin' %}text-amber-300 bg-amber-500/10 border-amber-500/30 hover:bg-amber-500/15{% else %}text-muted-foreground bg-transparent border-border hover:bg-muted hover:border-border-strong{% endif %}">
+        <span>{{ m.get_role_display|lower }}</span>
+        {% lucide "chevron-down" "w-2.5 h-2.5 text-placeholder-foreground shrink-0" %}
+      </button>
+      <template x-teleport="body">
+      <div x-ref="panel"
+           x-show="open"
+           @click.outside="open = false"
+           x-init="$nextTick(() => window.htmx && window.htmx.process($el))"
+           x-cloak
+           :style="`position:fixed; top:${rect.bottom + 4}px; left:${Math.min(rect.left, window.innerWidth - 160)}px; width:9rem;`"
+           class="bg-card border border-border rounded-lg shadow-lg overflow-hidden z-50 py-1">
+        {% for value, label in role_choices %}
+          {% if value != "owner" %}
+          <form method="post"
+                hx-post="{% url 'web:set_workspace_member_role' slug=workspace.slug user_id=m.user_id %}"
+                hx-target="#workspace-members"
+                hx-swap="outerHTML"
+                @htmx:after-request="open = false">
+            {% csrf_token %}
+            <input type="hidden" name="role" value="{{ value }}">
+            <button type="submit"
+                    class="w-full text-left px-3 py-1.5 text-xs hover:bg-muted flex items-center gap-2
+                           {% if value == m.role %}text-foreground font-medium{% else %}text-muted-foreground{% endif %}">
+              <span class="flex-1">{{ label }}</span>
+              {% if value == m.role %}{% lucide "check" "w-3 h-3 text-brand-300" %}{% endif %}
+            </button>
+          </form>
+          {% endif %}
+        {% endfor %}
+      </div>
+      </template>
+    </div>
+    {% else %}
+    <span class="inline-flex items-center justify-center gap-1.5 min-w-[6rem] text-[11px] rounded-md border px-2.5 py-1
+                 {% if m.role == 'owner' %}text-brand-300 bg-brand-500/[0.13] border-brand-500/30{% elif m.role == 'admin' %}text-amber-300 bg-amber-500/10 border-amber-500/30{% else %}text-muted-foreground bg-muted border-border{% endif %}">
+      {% if m.role == "owner" %}{% lucide "shield" "w-2.5 h-2.5" %}{% endif %}
+      {{ m.get_role_display|lower }}
+    </span>
+    {% endif %}
+
+    {# Actions — admin only. Owner row gets a disabled X for layout parity. #}
+    <div class="inline-flex gap-0.5 justify-end">
+      {% if viewer_is_admin %}
+        {% if m.role == "owner" %}
+        <button type="button" disabled
+                class="w-6 h-6 rounded-md grid place-items-center text-placeholder-foreground/40 cursor-not-allowed"
+                data-tooltip="{% trans 'The owner cannot be removed' %}">
+          {% lucide "x" "w-3.5 h-3.5" %}
+        </button>
+        {% else %}
+        <div x-data="{ confirming: false }" class="inline-flex items-center gap-0.5">
           <button type="button"
                   x-show="!confirming"
                   @click="confirming = true"
-                  class="text-placeholder-foreground hover:text-rose-400 p-1 rounded-md hover:bg-muted"
+                  class="w-6 h-6 rounded-md grid place-items-center text-placeholder-foreground hover:bg-muted hover:text-rose-300 transition"
                   data-tooltip="{% trans 'Remove from workspace' %}">
-            {% lucide "x" "w-4 h-4" %}
+            {% lucide "x" "w-3.5 h-3.5" %}
           </button>
           <form x-show="confirming"
                 x-cloak
@@ -125,23 +130,22 @@ themselves only when they are also admin / owner per the guard in
             {% csrf_token %}
             <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Remove?" %}</span>
             <button type="submit"
-                    class="p-1 rounded-md text-rose-400 hover:bg-rose-950/40"
+                    class="w-6 h-6 rounded-md grid place-items-center text-rose-400 hover:bg-rose-950/40 transition"
                     data-tooltip="{% trans 'Confirm removal' %}">
-              {% lucide "check" "w-4 h-4" %}
+              {% lucide "check" "w-3.5 h-3.5" %}
             </button>
             <button type="button"
                     @click="confirming = false"
-                    class="p-1 rounded-md text-placeholder-foreground hover:bg-muted"
+                    class="w-6 h-6 rounded-md grid place-items-center text-placeholder-foreground hover:bg-muted transition"
                     data-tooltip="{% trans 'Cancel' %}">
-              {% lucide "x" "w-4 h-4" %}
+              {% lucide "x" "w-3.5 h-3.5" %}
             </button>
           </form>
         </div>
         {% endif %}
+      {% endif %}
+    </div>
 
-      </div>
-    </li>
-    {% endfor %}
-  </ul>
-
+  </div>
+  {% endfor %}
 </div>
