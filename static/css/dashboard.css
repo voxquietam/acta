@@ -88,6 +88,14 @@
 .dash .g-pipeline { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; }
 .dash .g-velo { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
 
+/* Grid children default to min-width:auto, which refuses to shrink below
+   their content's intrinsic size — the CFD <canvas> (and wide tables)
+   then push the column wider than its track and the card overflows.
+   min-width:0 lets the track win. */
+.dash .g-pipeline > *, .dash .g-people > *, .dash .g-3 > *, .dash .g-2 > * { min-width: 0; }
+.dash .cfd .chart-wrap { min-width: 0; }
+.dash .cfd .chart-wrap canvas { max-width: 100%; }
+
 /* ============================================================ PIPELINE */
 .dash .pipe { padding: 14px 16px; }
 .dash .pipe .hd { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
