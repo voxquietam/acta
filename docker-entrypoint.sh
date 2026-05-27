@@ -41,6 +41,13 @@ python manage.py compilemessages --ignore=.venv 2>&1 | grep -vE "already compile
 echo "Collecting static files..."
 python manage.py collectstatic --noinput --clear
 
+# Seed default Telegram message templates for any kind missing a row.
+# Idempotent (creates missing only, preserves admin edits); a fresh DB
+# otherwise starts with an empty admin template list. See
+# docs/operations.md §5.
+echo "Seeding Telegram message templates..."
+python manage.py seed_telegram_templates || true
+
 # --- Hand off to the container CMD --------------------------------------
 echo "Starting application: $*"
 exec "$@"

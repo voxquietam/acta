@@ -108,8 +108,18 @@ workspaces from the admin or via the workspace owner flow.
 
 The per-kind Telegram DM wording lives in **`TelegramMessageTemplate`**
 rows (Django admin → *Telegram message templates*), **not** in code — they
-are data, so a fresh environment starts with the built-in English defaults
-until you create them. Recreate the agreed templates after deploy:
+are data. The default body for each kind is now **seeded automatically**:
+`docker-entrypoint.sh` runs `python manage.py seed_telegram_templates` on
+every start, which creates any missing row (idempotent — admin edits are
+preserved). Run it by hand after a DB wipe, or pass `--overwrite` to reset
+every row to its default:
+
+```bash
+docker compose exec web python manage.py seed_telegram_templates            # create missing
+docker compose exec web python manage.py seed_telegram_templates --overwrite # reset all to default
+```
+
+For reference, the seeded defaults (also editable in the admin):
 
 | Kind | Body |
 |------|------|
