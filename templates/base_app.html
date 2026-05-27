@@ -79,6 +79,13 @@ Pages extend this and override the `app_main` block.
 
     <div class="px-3 pt-4 pb-3 space-y-0.5 text-sm border-b border-border/60">
       {% with current=request.resolver_match.url_name %}
+      <a href="{% url 'web:dashboard' %}"
+         :class="!$store.sidebar.open && 'justify-center'"
+         class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground">
+        {% lucide "layout-dashboard" "w-4 h-4 shrink-0" %}
+        <span x-show="$store.sidebar.open" x-cloak>{% trans "Dashboard" %}</span>
+        <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "Dashboard" %}</span>
+      </a>
       <a href="{% url 'web:inbox' %}"
          :class="!$store.sidebar.open && 'justify-center'"
          class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground">
@@ -196,17 +203,10 @@ Pages extend this and override the `app_main` block.
     </div>
     {% endif %}
 
-    <div class="px-3 py-3 border-t border-border text-xs text-placeholder-foreground space-y-2">
-      <a href="{% url 'web:dashboard' %}"
-         :class="!$store.sidebar.open && 'justify-center'"
-         class="acta-rail-link group relative flex items-center gap-2 hover:text-foreground">
-        {% lucide "layout-dashboard" "w-3.5 h-3.5 shrink-0" %}
-        <span x-show="$store.sidebar.open" x-cloak>{% trans "Dashboard" %}</span>
-        <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "Dashboard" %}</span>
-      </a>
-      {# Workspace switch / create / settings live in the switcher above. #}
-      {# Django admin is reachable from the profile dropdown ``shield`` icon. #}
-    </div>
+    {# Dashboard moved to the top of the nav (above Inbox) — it's the      #}
+    {# first thing a user should land on after login. Workspace switch /   #}
+    {# create / settings live in the switcher above; Django admin is in    #}
+    {# the profile dropdown ``shield`` icon.                               #}
   </aside>
 
   {% comment %}
