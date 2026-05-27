@@ -1,6 +1,6 @@
 [project]
 name = "acta"
-version = "0.3.0"
+version = "0.4.0"
 description = "Acta — a task tracker with bulk operations and an honest activity log."
 requires-python = ">=3.13"
 

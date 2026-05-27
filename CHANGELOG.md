@@ -7,6 +7,70 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Entries are hand-written from the Conventional Commit history for now.
 Automating this with `git-cliff` is deferred until `v1.0.0`.
 
+## [0.4.0] — 2026-05-27
+
+Backlog grooming, create-task-from-text, JSON export, a three-date task
+model, account-settings polish, and a security hardening of password
+rules — on top of a redesigned workspace-settings page.
+
+### ⚠ Breaking / migrations
+
+Run migrations after deploying. Existing accounts with weak passwords
+keep working; only new passwords are validated.
+
+- `Task.end_date` added — the timeline bar-end is now separate from the
+  deadline (`due_date`).
+- `Task.completed_at` added (+ backfill) to support date-range filtering
+  on a selectable field.
+- `AUTH_PASSWORD_VALIDATORS` enabled (standard Django set, min length 8).
+  Weak passwords such as `123` are now rejected at signup and on
+  password set/change.
+
+### Added
+
+- **Backlog grooming** — a dedicated Backlog tab with inline promote and
+  a show-backlog toggle.
+- **Create task from text** — spin a new task off a comment (auto-linked
+  as related) or off any selected text in a comment or description; lands
+  in a prefilled create modal.
+- **Export filtered views as JSON** — All Tasks, My Work, project task
+  lists, and the project overview export the currently filtered view
+  (reactions + replies included in the overview shape).
+- **Password set/change** in a modal, alongside a redesigned account
+  settings page.
+
+### Changed
+
+- **Workspace settings** reworked into a two-column layout with
+  scrollable member and invite lists.
+- Backlog / archived toggles now resolve entirely client-side for instant
+  feedback; non-active view panels load lazily.
+- The Telegram webhook auto-registers on deploy from
+  `ACTA_PUBLIC_BASE_URL`.
+
+### Fixed
+
+- Google signup now works when matched to a pending invite by email, and
+  the blocked-signup page explains a missing invite.
+- `serve_avatar` returns 404 (not 500) on a missing file.
+- Timeline: stamp `start_date` for tasks created in-progress; refresh the
+  bar + hover tooltip after a drag-resize; don't push the URL when
+  opening a task modal from the timeline.
+- Backlog tab stays populated regardless of the show-backlog toggle, and
+  the toggle is respected in the tasks JSON export.
+- Open a single SSE stream for the active workspace only.
+
+### Performance
+
+- Cache-bust avatar URLs with `?v=<version>` everywhere.
+- Dropped the modal backdrop-blur that caused cursor lag on weak GPUs.
+
+### Tests
+
+- Integration coverage for every DRF viewset through `APIClient` (tasks,
+  projects, project updates, comments, labels, label groups, workspaces,
+  workspace members, activity log).
+
 ## [0.3.0] — 2026-05-24
 
 Large feature release on top of v0.2.x: Telegram notifications, file
