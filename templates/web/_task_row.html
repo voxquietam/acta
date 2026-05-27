@@ -86,7 +86,7 @@ status dot · slug + priority chevron · title (flex-1) · size · labels
     {% endif %}
 
     {% if task.labels.all %}
-    <div class="group/labels flex items-center max-w-[240px] min-w-0 pl-1.5">
+    <div class="group/labels flex items-center max-w-[240px] min-w-0 pl-1.5 overflow-hidden">
       {% for label in task.labels.all|slice:":3" %}
       <span class="acta-label-pill -ml-2 first:ml-0 cursor-pointer
                    group-hover/labels:ml-1 group-hover/labels:first:ml-0 transition-[margin] duration-200
@@ -94,7 +94,7 @@ status dot · slug + priority chevron · title (flex-1) · size · labels
             style="--label-color: {{ label.color }};"
             @click.prevent.stop="window.acta.toggleFilter('label', '{{ label.id }}')">
         <span class="acta-label-pill-dot" style="background-color: {{ label.color }};"></span>
-        <span>{{ label.name }}</span>
+        <span class="truncate max-w-[88px]">{{ label.name }}</span>
       </span>
       {% endfor %}
       {% if task.labels.all|length > 3 %}
