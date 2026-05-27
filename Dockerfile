@@ -60,4 +60,10 @@ EXPOSE 8000
 # ``runserver`` for local development — the entrypoint still runs first so
 # dev containers also get a fresh migrate / compilemessages / collectstatic.
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
-CMD ["uvicorn", "acta.asgi:application", "--host", "0.0.0.0", "--port", "8000"]
+# Worker count is env-driven (``UVICORN_WORKERS``, default 1). Shell form so
+# the var expands at runtime — the entrypoint ``exec "$@"``s this, so the
+# inner ``sh`` reads it from the container env. NB: each worker is a full
+# Django process (~250–400 MB); SSE is DB-backed (DjangoModelStorage), so
+# multiple workers fan out fine over the shared DB, but watch RAM and
+# Postgres ``max_connections`` when scaling this up.
+CMD ["sh", "-c", "uvicorn acta.asgi:application --host 0.0.0.0 --port 8000 --workers ${UVICORN_WORKERS:-1}"]

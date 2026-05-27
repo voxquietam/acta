@@ -61,6 +61,9 @@ services:
       ACTA_PUBLIC_BASE_URL: ${ACTA_PUBLIC_BASE_URL:-}
       DJANGO_MEDIA_ROOT: ${DJANGO_MEDIA_ROOT:-/app/media}
       DJANGO_SENDFILE_BACKEND: ${DJANGO_SENDFILE_BACKEND:-simple}
+      # Uvicorn worker processes (web only; qcluster ignores it). Each worker
+      # is a full Django process — bump with care. Default 1.
+      UVICORN_WORKERS: ${UVICORN_WORKERS:-1}
     # Uploaded media (attachments, inline images, avatars) lives in a named
     # volume so it survives ``docker compose up --build`` / image rebuilds —
     # the container filesystem is otherwise ephemeral. Mounted at
