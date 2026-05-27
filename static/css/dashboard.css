@@ -15,6 +15,13 @@
   --brand-600: #2e44d6;
 }
 
+/* Dashboard root: never let the page scroll sideways. Any few-px
+   overflow (Chart.js canvas sizing, sub-pixel rounding) is clipped at
+   the dashboard boundary. ``clip`` (not ``hidden``) avoids turning the
+   root into a vertical scroll container; wide tables still scroll inside
+   their own cards. */
+.dash { overflow-x: clip; max-width: 100%; }
+
 /* ---- structural atoms borrowed from app-shell.css ---- */
 .dash .av { display: inline-grid; place-items: center; border-radius: 999px; color: #fff; font-weight: 500; flex-shrink: 0; font-family: var(--font-sans); }
 .dash .av-22 { width: 22px; height: 22px; font-size: 10px; }
