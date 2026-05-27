@@ -307,6 +307,26 @@ content as a flex sibling. They share top/bottom edges by default.
 Sidebar height ``max-h`` is the row's height. Cleaner DOM, no
 positioning math.
 
+### Deadline + presence shortcut filters
+
+Beyond the include/exclude axes, a few querystring shortcuts narrow by
+computed conditions. They have no sidebar chip yet — they're driven by
+the workspace-dashboard links (ADR 0016) and are usable directly in the
+URL:
+
+- ``due=overdue`` — ``due_date <= today`` and still open (done /
+  cancelled excluded; a finished task is never "overdue").
+- ``due=soon`` — due within the next 3 days, still open.
+- ``due=none`` — no due date set (any status).
+- ``label=none`` — no labels at all (takes precedence over numeric
+  ``label`` ids in the same param).
+- ``desc=none`` — empty description.
+
+All are repeatable/OR-combined where it makes sense and live in
+``apps/web/filters.py`` (``_filter_due`` / ``_filter_meta`` / the
+``label=none`` branch of ``_filter_labels``). Promoting any of these to
+a sidebar chip is a UI add, not a new primitive.
+
 ## Consequences
 
 - **Same form contract everywhere.** Adding a new filter dimension

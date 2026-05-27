@@ -48,6 +48,8 @@ def apply_task_filters(qs, params, *, request_user, default_show_done=True, defa
     qs = _filter_assignee(qs, params, request_user)
     qs = _filter_labels(qs, params)
     qs = _filter_cycle(qs, params)
+    qs = _filter_due(qs, params)
+    qs = _filter_meta(qs, params)
     qs = _filter_date_range(qs, params)
     qs = _filter_search(qs, params)
     return qs
@@ -196,8 +198,16 @@ def _filter_assignee(qs, params, request_user):
 
 
 def _filter_labels(qs, params):
-    """Apply ``label`` / ``xlabel`` — exclude uses a subquery."""
-    ins = _safe_int_list(params.getlist("label"))
+    """Apply ``label`` / ``xlabel`` — exclude uses a subquery.
+
+    The ``label=none`` token narrows to tasks carrying no label at all
+    (used by the dashboard hygiene card); it takes precedence over any
+    numeric ids in the same param.
+    """
+    raw = params.getlist("label")
+    if "none" in raw:
+        return qs.filter(labels__isnull=True)
+    ins = _safe_int_list(raw)
     if ins:
         qs = qs.filter(labels__id__in=ins).distinct()
     outs = _safe_int_list(params.getlist("xlabel"))
@@ -243,6 +253,48 @@ def _filter_cycle(qs, params):
         q |= Q(cycle_id__in=ids)
     if q:
         qs = qs.filter(q)
+    return qs
+
+
+def _filter_due(qs, params):
+    """Apply the ``due`` deadline shortcut: ``overdue`` / ``soon`` / ``none``.
+
+    Repeatable and OR-combined. ``overdue`` / ``soon`` implicitly drop
+    done + cancelled tasks (a finished task is never "due"); ``none``
+    keeps any status. Powers the dashboard attention + hygiene links and
+    is a useful sidebar-free shortcut on its own.
+
+    * ``overdue`` — ``due_date <= today`` and still open.
+    * ``soon`` — ``due_date`` within the next 3 days and still open.
+    * ``none`` — no due date set.
+    """
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    values = params.getlist("due")
+    if not values:
+        return qs
+    today = timezone.localdate()
+    open_q = ~Q(status__in=[Task.STATUS_DONE, Task.STATUS_CANCELLED])
+    q = Q()
+    for v in values:
+        if v == "overdue":
+            q |= Q(due_date__lte=today) & open_q
+        elif v == "soon":
+            q |= Q(due_date__gt=today, due_date__lte=today + timedelta(days=3)) & open_q
+        elif v == "none":
+            q |= Q(due_date__isnull=True)
+    return qs.filter(q) if q else qs
+
+
+def _filter_meta(qs, params):
+    """Presence shortcuts for the dashboard hygiene cards.
+
+    * ``desc=none`` — tasks with an empty description.
+    """
+    if params.get("desc") == "none":
+        qs = qs.filter(description="")
     return qs
 
 
