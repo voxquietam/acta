@@ -4032,6 +4032,68 @@ def delete_project(request, slug_prefix):
     return redirect("web:project_list")
 
 
+@require_POST
+@login_required
+def transfer_workspace_ownership(request, slug):
+    """Hand workspace ownership to another member — owner only (ADR 0010).
+
+    Reads ``new_owner_id`` (a current member). In one transaction the target
+    membership becomes ``OWNER``, the previous owner is demoted to ``ADMIN``
+    (keeps full access), and the ``Workspace.owner`` FK is repointed — the
+    two representations of ownership stay in sync. Exactly one owner remains.
+    """
+    workspace = _get_user_workspace_or_404(request.user, slug)
+    if not _user_is_workspace_owner(request.user, workspace):
+        return HttpResponseForbidden("owner only")
+    try:
+        new_owner_id = int(request.POST.get("new_owner_id") or "")
+    except ValueError:
+        return HttpResponseBadRequest("invalid member")
+    if new_owner_id == request.user.id:
+        return HttpResponseBadRequest("already the owner")
+    new_membership = (
+        WorkspaceMember.objects.filter(workspace=workspace, user_id=new_owner_id).select_related("user").first()
+    )
+    if new_membership is None:
+        return HttpResponseBadRequest("not a workspace member")
+    with transaction.atomic():
+        old_membership = WorkspaceMember.objects.filter(workspace=workspace, user=request.user).first()
+        new_membership.role = WorkspaceMember.OWNER
+        new_membership.save(update_fields=["role"])
+        if old_membership is not None:
+            old_membership.role = WorkspaceMember.ADMIN
+            old_membership.save(update_fields=["role"])
+        workspace.owner = new_membership.user
+        workspace.save(update_fields=["owner"])
+    messages.success(
+        request,
+        _("Ownership transferred to %(name)s — you are now an admin.") % {"name": new_membership.user.display_name},
+    )
+    return redirect("web:workspace_settings", slug=workspace.slug)
+
+
+@require_POST
+@login_required
+def delete_workspace(request, slug):
+    """Permanently delete a workspace and everything in it — owner only.
+
+    Irreversible. Requires ``confirm_slug`` to equal the workspace ``slug``
+    (typed-confirmation guard). Cascades to every project, task, comment,
+    membership, invite and cycle via their FKs; members' ``active_workspace``
+    is ``SET_NULL``, so no user is harmed. Redirects to the dashboard, where
+    the active workspace re-resolves to a remaining one (or the empty state).
+    """
+    workspace = _get_user_workspace_or_404(request.user, slug)
+    if not _user_is_workspace_owner(request.user, workspace):
+        return HttpResponseForbidden("owner only")
+    if (request.POST.get("confirm_slug") or "").strip() != workspace.slug:
+        return HttpResponseBadRequest("slug confirmation does not match")
+    name = workspace.name
+    workspace.delete()
+    messages.success(request, _("Workspace “%(name)s” deleted.") % {"name": name})
+    return redirect("web:dashboard")
+
+
 def _settings_panel_response(request, template, context, *, toast=None):
     """Render a settings-card partial, with an optional HX-Trigger toast.
 
@@ -5734,6 +5796,16 @@ def _user_is_workspace_admin(user, workspace):
     return m is not None and m.role in (WorkspaceMember.OWNER, WorkspaceMember.ADMIN)
 
 
+def _user_is_workspace_owner(user, workspace):
+    """True only when the user is the workspace owner.
+
+    Owner-only actions (transfer ownership, delete workspace) gate on this,
+    not :func:`_user_is_workspace_admin` — admins manage members/projects
+    but can't hand off ownership or destroy the workspace (ADR 0010).
+    """
+    return workspace.owner_id == user.id
+
+
 def _render_workspace_invites(workspace, *, viewer):
     """Build context for the invites panel — pending only, freshest first.
 
@@ -6007,6 +6079,11 @@ class WorkspaceSettingsView(LoginRequiredMixin, TemplateView):
         viewer_is_admin = ctx["viewer_is_admin"]
         ctx.update(_render_workspace_wip(workspace, viewer_is_admin=viewer_is_admin))
         ctx.update(_render_workspace_cycles(workspace, viewer_is_admin=viewer_is_admin))
+        # Danger tab — owner-only actions (transfer ownership, delete). The
+        # project count powers the delete warning; transfer candidates are
+        # filtered from ``memberships`` in the template (no extra query).
+        ctx["viewer_is_workspace_owner"] = workspace.owner_id == self.request.user.id
+        ctx["workspace_project_count"] = workspace.projects.count()
         return ctx
 
 

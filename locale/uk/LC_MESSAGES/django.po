@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Acta 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-05-27 20:09+0000\n"
+"POT-Creation-Date: 2026-05-27 20:43+0000\n"
 "PO-Revision-Date: 2026-05-16 15:30+0000\n"
 "Last-Translator: Acta team\n"
 "Language-Team: Ukrainian\n"
@@ -36,8 +36,8 @@ msgid "Workspaces"
 msgstr "Робочі простори"
 
 #: acta/settings/base.py:487 templates/web/projects/_overview_panel.html:383
-#: templates/web/workspaces/settings.html:118
-#: templates/web/workspaces/settings.html:140
+#: templates/web/workspaces/settings.html:93
+#: templates/web/workspaces/settings.html:115
 msgid "Members"
 msgstr "Учасники"
 
@@ -74,7 +74,6 @@ msgstr "Коментарі"
 #: templates/web/projects/_table.html:70
 #: templates/web/projects/_task_context_menu.html:336
 #: templates/web/projects/_task_meta.html:126
-#: templates/web/workspaces/settings.html:75
 msgid "Labels"
 msgstr "Мітки"
 
@@ -434,7 +433,7 @@ msgstr "Сповіщення"
 msgid "Notifications"
 msgstr "Сповіщення"
 
-#: apps/projects/models.py:11 apps/web/views.py:6215
+#: apps/projects/models.py:11 apps/web/views.py:6290
 msgid "Slug prefix must be 2–6 uppercase Latin letters."
 msgstr "Префікс slug має містити 2–6 великих латинських літер."
 
@@ -447,7 +446,7 @@ msgstr "Префікс slug має містити 2–6 великих лати�
 msgid "Project"
 msgstr "Проєкт"
 
-#: apps/projects/models.py:132 apps/web/views.py:6233
+#: apps/projects/models.py:132 apps/web/views.py:6308
 msgid "Lead must be a member of the project's workspace."
 msgstr "Лід повинен бути учасником робочого простору проєкту."
 
@@ -912,146 +911,153 @@ msgstr "Зв'язки"
 msgid "Edits"
 msgstr "Правки"
 
-#: apps/web/views.py:4010
+#: apps/web/views.py:4008
 #, python-format
-#| msgid "Token “%(name)s” revoked."
 msgid "Project “%(name)s” archived."
 msgstr "Проєкт «%(name)s» заархівовано."
 
-#: apps/web/views.py:4012
+#: apps/web/views.py:4010
 #, python-format
-#| msgid "Token “%(name)s” revoked."
 msgid "Project “%(name)s” restored."
 msgstr "Проєкт «%(name)s» відновлено."
 
-#: apps/web/views.py:4033
+#: apps/web/views.py:4031
 #, python-format
-#| msgid "Token “%(name)s” deleted."
 msgid "Project “%(name)s” deleted."
 msgstr "Проєкт «%(name)s» видалено."
 
-#: apps/web/views.py:4090
+#: apps/web/views.py:4070
+#, python-format
+msgid "Ownership transferred to %(name)s — you are now an admin."
+msgstr "Право власності передано %(name)s — тепер ви адміністратор."
+
+#: apps/web/views.py:4093
+#, python-format
+msgid "Workspace “%(name)s” deleted."
+msgstr "Простір «%(name)s» видалено."
+
+#: apps/web/views.py:4150
 msgid "General settings saved."
 msgstr "Загальні налаштування збережено."
 
-#: apps/web/views.py:4129
+#: apps/web/views.py:4189
 msgid "WIP limits saved."
 msgstr "WIP-ліміти збережено."
 
-#: apps/web/views.py:4178
+#: apps/web/views.py:4238
 msgid "Cycles saved."
 msgstr "Цикли збережено."
 
-#: apps/web/views.py:5805 apps/web/views.py:5843 apps/web/views.py:5870
-#: apps/web/views.py:6038 apps/web/views.py:6070 apps/web/views.py:6095
+#: apps/web/views.py:5875 apps/web/views.py:5913 apps/web/views.py:5940
+#: apps/web/views.py:6113 apps/web/views.py:6145 apps/web/views.py:6170
 msgid "Admin or owner only"
 msgstr "Тільки для адміна або власника"
 
-#: apps/web/views.py:5808
+#: apps/web/views.py:5878
 msgid "Email is required"
 msgstr "Email обов'язковий"
 
-#: apps/web/views.py:5811 apps/web/views.py:6045 apps/web/views.py:6078
+#: apps/web/views.py:5881 apps/web/views.py:6120 apps/web/views.py:6153
 msgid "Invalid role"
 msgstr "Неправильна роль"
 
-#: apps/web/views.py:5820
+#: apps/web/views.py:5890
 #, python-format
 msgid "Invite sent to %(email)s."
 msgstr "Запрошення надіслано на %(email)s."
 
-#: apps/web/views.py:5823
+#: apps/web/views.py:5893
 msgid "Invite created but email failed — copy the link from the list."
 msgstr ""
 "Запрошення створено, але лист не надіслався — скопіюйте посилання зі списку."
 
-#: apps/web/views.py:5846
+#: apps/web/views.py:5916
 msgid "Invite not found"
 msgstr "Запрошення не знайдено"
 
-#: apps/web/views.py:5852
+#: apps/web/views.py:5922
 #, python-format
 msgid "Invite to %(email)s revoked."
 msgstr "Запрошення для %(email)s відкликано."
 
-#: apps/web/views.py:5873
+#: apps/web/views.py:5943
 msgid "Invite not found or already accepted"
 msgstr "Запрошення не знайдено або вже прийнято"
 
-#: apps/web/views.py:5876
+#: apps/web/views.py:5946
 #, python-format
 msgid "Invite re-sent to %(email)s."
 msgstr "Запрошення повторно надіслано на %(email)s."
 
-#: apps/web/views.py:5878
+#: apps/web/views.py:5948
 msgid "Resend failed — try again later."
 msgstr "Не вдалося надіслати повторно — спробуйте пізніше."
 
-#: apps/web/views.py:6042
+#: apps/web/views.py:6117
 msgid "Invalid user_id"
 msgstr "Неправильний user_id"
 
-#: apps/web/views.py:6050
+#: apps/web/views.py:6125
 msgid "Cannot add another owner"
 msgstr "Не можна додати ще одного власника"
 
-#: apps/web/views.py:6053
+#: apps/web/views.py:6128
 msgid "User not found"
 msgstr "Користувача не знайдено"
 
-#: apps/web/views.py:6055
+#: apps/web/views.py:6130
 msgid "User already a member"
 msgstr "Користувач вже є учасником"
 
-#: apps/web/views.py:6073 apps/web/views.py:6098
+#: apps/web/views.py:6148 apps/web/views.py:6173
 msgid "Not a member"
 msgstr "Не є учасником"
 
-#: apps/web/views.py:6075
+#: apps/web/views.py:6150
 msgid "Transfer ownership first"
 msgstr "Спочатку передай право власності"
 
-#: apps/web/views.py:6080
+#: apps/web/views.py:6155
 msgid "Ownership transfer not supported here"
 msgstr "Передача права власності тут не підтримується"
 
-#: apps/web/views.py:6100
+#: apps/web/views.py:6175
 msgid "Cannot remove owner"
 msgstr "Не можна видалити власника"
 
-#: apps/web/views.py:6199
+#: apps/web/views.py:6274
 msgid "Invalid workspace"
 msgstr "Неправильний робочий простір"
 
-#: apps/web/views.py:6205
+#: apps/web/views.py:6280
 msgid "Workspace not accessible"
 msgstr "Робочий простір недоступний"
 
-#: apps/web/views.py:6209 apps/web/views.py:6313
+#: apps/web/views.py:6284 apps/web/views.py:6388
 msgid "Name is required"
 msgstr "Ім'я обов'язкове"
 
-#: apps/web/views.py:6211 apps/web/views.py:6315
+#: apps/web/views.py:6286 apps/web/views.py:6390
 msgid "Name too long"
 msgstr "Назва задовга"
 
-#: apps/web/views.py:6217
+#: apps/web/views.py:6292
 msgid "Slug prefix already used in this workspace"
 msgstr "Префікс slug вже використовується в цьому робочому просторі"
 
-#: apps/web/views.py:6227
+#: apps/web/views.py:6302
 msgid "Invalid lead"
 msgstr "Неправильний лід"
 
-#: apps/web/views.py:6321
+#: apps/web/views.py:6396
 msgid "Invalid slug"
 msgstr "Неправильний slug"
 
-#: apps/web/views.py:6323
+#: apps/web/views.py:6398
 msgid "Slug already taken"
 msgstr "Slug вже зайнятий"
 
-#: apps/web/views.py:6332
+#: apps/web/views.py:6407
 msgid "Cannot generate unique slug"
 msgstr "Не вдалось згенерувати унікальний slug"
 
@@ -1067,7 +1073,7 @@ msgstr "На людину"
 msgid "Per column (team)"
 msgstr "На колонку (команда)"
 
-#: apps/workspaces/models.py:163 templates/web/workspaces/settings.html:110
+#: apps/workspaces/models.py:163 templates/web/workspaces/settings.html:85
 msgid "Owner"
 msgstr "Власник"
 
@@ -1760,7 +1766,7 @@ msgid "Workspace name"
 msgstr "Назва робочого простору"
 
 #: templates/web/_create_workspace_modal.html:78
-#: templates/web/workspaces/settings.html:106
+#: templates/web/workspaces/settings.html:81
 msgid "Slug"
 msgstr "Slug"
 
@@ -2115,7 +2121,7 @@ msgstr "Дата"
 
 #: templates/web/_filters_sidebar.html:559
 #: templates/web/projects/_task_meta.html:66
-#: templates/web/workspaces/settings.html:114
+#: templates/web/workspaces/settings.html:89
 msgid "Created"
 msgstr "Створено"
 
@@ -3068,28 +3074,23 @@ msgid "no health"
 msgstr "немає статусу"
 
 #: templates/web/projects/_overview_panel.html:69
-#| msgid "Project updates"
 msgid "Project actions"
 msgstr "Дії з проєктом"
 
 #: templates/web/projects/_overview_panel.html:79
-#| msgid "Unstar project"
 msgid "Unarchive project"
 msgstr "Розархівувати проєкт"
 
 #: templates/web/projects/_overview_panel.html:87
-#| msgid "New project"
 msgid "Archive project"
 msgstr "Архівувати проєкт"
 
 #: templates/web/projects/_overview_panel.html:93
-#| msgid "Move to project…"
 msgid "Delete project…"
 msgstr "Видалити проєкт…"
 
 #: templates/web/projects/_overview_panel.html:106
 #: templates/web/projects/_overview_panel.html:123
-#| msgid "Create project"
 msgid "Delete project"
 msgstr "Видалити проєкт"
 
@@ -3103,6 +3104,7 @@ msgstr ""
 "ньому. Скасувати неможливо."
 
 #: templates/web/projects/_overview_panel.html:115
+#: templates/web/workspaces/_settings_danger.html:72
 #, python-format
 msgid "Type <b class=\"font-mono text-foreground\">%(slug)s</b> to confirm"
 msgstr ""
@@ -3117,7 +3119,7 @@ msgstr ""
 "Проєкт заархівовано — прихований із сайдбара та активного списку проєктів."
 
 #: templates/web/projects/_overview_panel.html:152
-#: templates/web/workspaces/settings.html:244
+#: templates/web/workspaces/settings.html:219
 #, python-format
 msgid "%(counter)s member"
 msgid_plural "%(counter)s members"
@@ -3475,8 +3477,6 @@ msgid "Overview"
 msgstr "Огляд"
 
 #: templates/web/projects/_view_tabs.html:69
-#: templates/web/workspaces/settings.html:73
-#: templates/web/workspaces/settings.html:77
 msgid "Coming soon"
 msgstr "Скоро з'явиться"
 
@@ -3570,7 +3570,6 @@ msgid "Reopen rate"
 msgstr "Частка повернень"
 
 #: templates/web/projects/list.html:33
-#| msgid "archived"
 msgid "Hide archived"
 msgstr "Сховати архівні"
 
@@ -3677,8 +3676,67 @@ msgstr "Зберегти цикли"
 msgid "Only workspace admins can change the cadence."
 msgstr "Змінювати ритм можуть лише адміни воркспейсу."
 
+#: templates/web/workspaces/_settings_danger.html:22
+#: templates/web/workspaces/_settings_danger.html:45
+msgid "Transfer ownership"
+msgstr "Передати право власності"
+
+#: templates/web/workspaces/_settings_danger.html:24
+msgid ""
+"Hand this workspace to another member. They become the owner; you stay as an"
+" admin."
+msgstr ""
+"Передайте цей простір іншому учаснику. Він стане власником, а ви залишитесь "
+"адміністратором."
+
+#: templates/web/workspaces/_settings_danger.html:33
+msgid "New owner"
+msgstr "Новий власник"
+
+#: templates/web/workspaces/_settings_danger.html:35
+msgid "Select a member…"
+msgstr "Оберіть учасника…"
+
+#: templates/web/workspaces/_settings_danger.html:49
+msgid "No other members to transfer ownership to — invite someone first."
+msgstr "Немає інших учасників для передачі — спочатку когось запросіть."
+
+#: templates/web/workspaces/_settings_danger.html:63
+msgid "Delete workspace"
+msgstr "Видалити простір"
+
+#: templates/web/workspaces/_settings_danger.html:65
+#, python-format
+msgid ""
+"Permanently deletes this workspace and its %(counter)s project, with every "
+"task, comment, and attachment. This cannot be undone."
+msgid_plural ""
+"Permanently deletes this workspace and its %(counter)s projects, with every "
+"task, comment, and attachment. This cannot be undone."
+msgstr[0] ""
+"Назавжди видаляє цей простір і його %(counter)s проєкт, з усіма задачами, "
+"коментарями та вкладеннями. Скасувати неможливо."
+msgstr[1] ""
+"Назавжди видаляє цей простір і його %(counter)s проєкти, з усіма задачами, "
+"коментарями та вкладеннями. Скасувати неможливо."
+msgstr[2] ""
+"Назавжди видаляє цей простір і його %(counter)s проєктів, з усіма задачами, "
+"коментарями та вкладеннями. Скасувати неможливо."
+msgstr[3] ""
+"Назавжди видаляє цей простір і його %(counter)s проєкту, з усіма задачами, "
+"коментарями та вкладеннями. Скасувати неможливо."
+
+#: templates/web/workspaces/_settings_danger.html:78
+msgid "Delete this workspace"
+msgstr "Видалити цей простір"
+
+#: templates/web/workspaces/_settings_danger.html:87
+msgid ""
+"Only the workspace owner can transfer ownership or delete the workspace."
+msgstr ""
+"Лише власник простору може передати право власності або видалити простір."
+
 #: templates/web/workspaces/_settings_general.html:19
-#: templates/web/workspaces/settings.html:66
 msgid "General"
 msgstr "Загальні"
 
@@ -3828,23 +3886,15 @@ msgstr "slug"
 msgid "%(r)s permissions"
 msgstr "права: %(r)s"
 
-#: templates/web/workspaces/settings.html:71
-msgid "People & Policy"
-msgstr "Люди та політики"
-
-#: templates/web/workspaces/settings.html:79
-msgid "Danger"
-msgstr "Небезпека"
-
-#: templates/web/workspaces/settings.html:99
+#: templates/web/workspaces/settings.html:74
 msgid "Details"
 msgstr "Деталі"
 
-#: templates/web/workspaces/settings.html:100
+#: templates/web/workspaces/settings.html:75
 msgid "Read-only — set when the workspace was created."
 msgstr "Лише для читання — задано при створенні простору."
 
-#: templates/web/workspaces/settings.html:142
+#: templates/web/workspaces/settings.html:117
 msgid ""
 "People who can view, create, or administer this workspace. Roles cascade to "
 "all projects."
@@ -3852,34 +3902,34 @@ msgstr ""
 "Люди, які можуть переглядати, створювати або адмініструвати цей простір. "
 "Ролі поширюються на всі проєкти."
 
-#: templates/web/workspaces/settings.html:146
+#: templates/web/workspaces/settings.html:121
 msgid "synced"
 msgstr "синхронізовано"
 
-#: templates/web/workspaces/settings.html:171
+#: templates/web/workspaces/settings.html:146
 msgid "invite by email"
 msgstr "запросити за email"
 
-#: templates/web/workspaces/settings.html:172
+#: templates/web/workspaces/settings.html:147
 msgid "Invite by email"
 msgstr "Запросити за email"
 
-#: templates/web/workspaces/settings.html:204
+#: templates/web/workspaces/settings.html:179
 msgid "Invite role"
 msgstr "Роль запрошеного"
 
-#: templates/web/workspaces/settings.html:230
+#: templates/web/workspaces/settings.html:205
 msgid "Invite"
 msgstr "Запросити"
 
-#: templates/web/workspaces/settings.html:240
+#: templates/web/workspaces/settings.html:215
 msgid ""
 "Closed-signup — admins assign roles; viewers read but can't change anything."
 msgstr ""
 "Закрита реєстрація — адміни призначають ролі; глядачі читають, але нічого не"
 " змінюють."
 
-#: templates/web/workspaces/settings.html:246
+#: templates/web/workspaces/settings.html:221
 #, python-format
 msgid "%(counter)s pending"
 msgid_plural "%(counter)s pending"
@@ -3887,6 +3937,14 @@ msgstr[0] "%(counter)s в очікуванні"
 msgstr[1] "%(counter)s в очікуванні"
 msgstr[2] "%(counter)s в очікуванні"
 msgstr[3] "%(counter)s в очікуванні"
+
+#: templates/web/workspaces/settings.html:243
+#| msgid "Danger"
+msgid "Danger zone"
+msgstr "Небезпечна зона"
+
+#~ msgid "People & Policy"
+#~ msgstr "Люди та політики"
 
 #~ msgid "Integrations"
 #~ msgstr "Інтеграції"
@@ -3923,7 +3981,7 @@ msgstr[3] "%(counter)s в очікуванні"
 #~ msgstr[0] "%(counter)s проєкт"
 #~ msgstr[1] "%(counter)s проєкти"
 #~ msgstr[2] "%(counter)s проєктів"
-#~ msgstr[3] "%(counter)s проєкта"
+#~ msgstr[3] "%(counter)s проєкту"
 
 #~ msgid ""
 #~ "Real-time activity feed, throughput charts, and workload widgets come next."

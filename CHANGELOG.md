@@ -39,15 +39,15 @@ Automating this with `git-cliff` is deferred until `v1.0.0`.
   unrestricted). Enforced on every surface — rail date cells, DRF, MCP,
   and bulk — and the rail cells render read-only for non-assignees. The
   timeline only ever drags the deadline, so it's unaffected.
-- **Workspace settings page rebuilt** on the design-system mock: card
-  layout, section tab strip, members + invites merged with custom role
-  dropdowns, and in-place HTMX saves (no reload) for WIP limits and
-  cycles. Ukrainian translations completed.
-- **Workspace settings → General tab**: rename the workspace, set the
-  auto-archive horizon, and toggle member announcements (with read-only
-  slug / owner / created / members details). Tabs switch client-side. The
-  unbuilt Integrations tab was dropped — its settings are instance-level
-  (OAuth) or per-user (API tokens), not per-workspace.
+- **Workspace settings page rebuilt** on the design-system mock: a single
+  sectioned page — General (rename, auto-archive horizon, member-announcement
+  toggle + read-only slug/owner/created/members), People & policy (members +
+  invites merged with custom role dropdowns, WIP limits, cycles), and a
+  **Danger zone** at the bottom. WIP-limit and cycle saves swap in place via
+  HTMX (no reload). Ukrainian translations completed.
+- **Transfer ownership / delete workspace** (owner only, ADR 0010) in the
+  Danger zone. Transfer hands the workspace to another member and demotes the
+  old owner to admin; delete is a hard cascade behind a typed-slug confirm.
 
 ### Fixed
 
