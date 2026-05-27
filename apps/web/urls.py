@@ -65,6 +65,7 @@ from .views import (
     set_task_status,
     set_task_title,
     set_workspace_cycles,
+    set_workspace_general,
     set_workspace_member_role,
     set_workspace_wip,
     switch_workspace,
@@ -146,6 +147,11 @@ urlpatterns = [
         "workspaces/<slug:slug>/members/<int:user_id>/remove/",
         remove_workspace_member,
         name="remove_workspace_member",
+    ),
+    path(
+        "workspaces/<slug:slug>/general/",
+        set_workspace_general,
+        name="set_workspace_general",
     ),
     path(
         "workspaces/<slug:slug>/wip/",

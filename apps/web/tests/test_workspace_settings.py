@@ -302,3 +302,61 @@ class TestPartialResponse:
         resp = client.post(_remove_url(workspace, regular_member.id))
         assert resp.status_code == 200
         assert b'id="workspace-members"' in resp.content
+
+
+def _general_url(workspace):
+    return reverse("web:set_workspace_general", kwargs={"slug": workspace.slug})
+
+
+@pytest.mark.django_db
+class TestSetWorkspaceGeneral:
+    """The General settings panel: name + auto-archive + announcements."""
+
+    def test_admin_saves_name_and_policy(self, client, workspace, owner):
+        client.force_login(owner)
+        resp = client.post(
+            _general_url(workspace),
+            {"name": "Renamed WS", "auto_archive_done_after_days": "14", "allow_member_announcements": "on"},
+        )
+        assert resp.status_code == 302
+        workspace.refresh_from_db()
+        assert workspace.name == "Renamed WS"
+        assert workspace.auto_archive_done_after_days == 14
+        assert workspace.allow_member_announcements is True
+
+    def test_blank_archive_disables_and_unchecked_toggle_off(self, client, workspace, owner):
+        client.force_login(owner)
+        resp = client.post(_general_url(workspace), {"name": "X", "auto_archive_done_after_days": ""})
+        assert resp.status_code == 302
+        workspace.refresh_from_db()
+        assert workspace.auto_archive_done_after_days is None
+        assert workspace.allow_member_announcements is False
+
+    def test_zero_archive_means_never(self, client, workspace, owner):
+        client.force_login(owner)
+        client.post(_general_url(workspace), {"name": "X", "auto_archive_done_after_days": "0"})
+        workspace.refresh_from_db()
+        assert workspace.auto_archive_done_after_days is None
+
+    def test_empty_name_rejected(self, client, workspace, owner):
+        client.force_login(owner)
+        resp = client.post(_general_url(workspace), {"name": "   "})
+        assert resp.status_code == 400
+
+    def test_non_admin_forbidden(self, client, workspace, regular_member):
+        client.force_login(regular_member)
+        resp = client.post(_general_url(workspace), {"name": "Nope"})
+        assert resp.status_code == 403
+        workspace.refresh_from_db()
+        assert workspace.name != "Nope"
+
+    def test_htmx_swaps_card_in_place(self, client, workspace, owner):
+        client.force_login(owner)
+        resp = client.post(
+            _general_url(workspace),
+            {"name": "HX WS", "auto_archive_done_after_days": "30"},
+            HTTP_HX_REQUEST="true",
+        )
+        assert resp.status_code == 200
+        assert b'id="workspace-general"' in resp.content
+        assert "acta:toast" in resp.headers.get("HX-Trigger", "")

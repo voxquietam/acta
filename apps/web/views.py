@@ -3992,6 +3992,47 @@ def _settings_panel_response(request, template, context, *, toast=None):
 
 @require_POST
 @login_required
+def set_workspace_general(request, slug):
+    """Save the General settings panel — name + basic workspace policy.
+
+    Admin-gated. Updates the display ``name``, the auto-archive horizon
+    (``auto_archive_done_after_days``; blank or 0 disables it), and the
+    member-announcement toggle. ``slug`` / ``owner`` are not editable here
+    (slug is a URL key; owner changes go through a transfer flow).
+    """
+    workspace = _get_user_workspace_or_404(request.user, slug)
+    if not _user_is_workspace_admin(request.user, workspace):
+        return HttpResponseForbidden("admin only")
+    name = (request.POST.get("name") or "").strip()
+    if not name:
+        return HttpResponseBadRequest("name is required")
+    raw_archive = (request.POST.get("auto_archive_done_after_days") or "").strip()
+    if raw_archive:
+        try:
+            archive_days = int(raw_archive)
+        except ValueError:
+            return HttpResponseBadRequest("invalid auto-archive value")
+        if archive_days < 0:
+            return HttpResponseBadRequest("invalid auto-archive value")
+        archive_days = archive_days or None
+    else:
+        archive_days = None
+    workspace.name = name[:120]
+    workspace.auto_archive_done_after_days = archive_days
+    workspace.allow_member_announcements = bool(request.POST.get("allow_member_announcements"))
+    workspace.save(update_fields=["name", "auto_archive_done_after_days", "allow_member_announcements"])
+    if request.headers.get("HX-Request"):
+        return _settings_panel_response(
+            request,
+            "web/workspaces/_settings_general.html",
+            _render_workspace_general(workspace, viewer_is_admin=True),
+            toast={"message": str(_("General settings saved.")), "level": "success"},
+        )
+    return redirect("web:workspace_settings", slug=workspace.slug)
+
+
+@require_POST
+@login_required
 def set_workspace_wip(request, slug):
     """Save the workspace-wide WIP policy from the settings panel.
 
@@ -5807,6 +5848,19 @@ def _render_workspace_members(workspace, *, viewer):
         "viewer_is_admin": (
             viewer_membership is not None and viewer_membership.role in (WorkspaceMember.OWNER, WorkspaceMember.ADMIN)
         ),
+    }
+
+
+def _render_workspace_general(workspace, *, viewer_is_admin):
+    """Build the General-panel context — workspace identity + basic policy.
+
+    Fields read straight off the workspace; ``viewer_is_admin`` is passed
+    in (not re-derived) so the full page doesn't repeat the membership
+    lookup the members panel already did.
+    """
+    return {
+        "workspace": workspace,
+        "viewer_is_admin": viewer_is_admin,
     }
 
 

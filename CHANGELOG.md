@@ -38,6 +38,11 @@ Automating this with `git-cliff` is deferred until `v1.0.0`.
   layout, section tab strip, members + invites merged with custom role
   dropdowns, and in-place HTMX saves (no reload) for WIP limits and
   cycles. Ukrainian translations completed.
+- **Workspace settings → General tab**: rename the workspace, set the
+  auto-archive horizon, and toggle member announcements (with read-only
+  slug / owner / created / members details). Tabs switch client-side. The
+  unbuilt Integrations tab was dropped — its settings are instance-level
+  (OAuth) or per-user (API tokens), not per-workspace.
 
 ### Fixed
 
