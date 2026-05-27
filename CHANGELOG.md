@@ -11,6 +11,11 @@ Automating this with `git-cliff` is deferred until `v1.0.0`.
 
 ### Added
 
+- **Archive / delete a project** from the project Overview header (owner /
+  admin only). Archive is a soft hide — the project drops out of the
+  sidebar and the active project list (revealed via "Show archived" on the
+  Projects page, with an Unarchive control on its overview). Delete is a
+  hard cascade behind a typed-slug confirmation modal; irreversible.
 - **Workspace dashboard** at `/` (was a stub): live KPI tiles (created /
   done / in-flight / active people with sparklines + "why" hints),
   attention alerts, cross-project status pipeline, an 8-week cumulative

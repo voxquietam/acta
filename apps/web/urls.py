@@ -27,6 +27,7 @@ from .views import (
     cycles_overview,
     delete_attachment,
     delete_comment,
+    delete_project,
     delete_project_update,
     delete_task,
     edit_comment,
@@ -50,6 +51,7 @@ from .views import (
     revoke_workspace_invite,
     serve_attachment,
     set_notification_read,
+    set_project_archived,
     set_project_description,
     set_project_icon,
     set_project_lead,
@@ -165,6 +167,16 @@ urlpatterns = [
     ),
     path("projects/", ProjectListView.as_view(), name="project_list"),
     path("projects/new/", create_project, name="create_project"),
+    path(
+        "projects/<str:slug_prefix>/archive/",
+        set_project_archived,
+        name="set_project_archived",
+    ),
+    path(
+        "projects/<str:slug_prefix>/delete/",
+        delete_project,
+        name="delete_project",
+    ),
     path("projects/<str:slug_prefix>/", ProjectDetailView.as_view(), name="project_detail"),
     path(
         "projects/<str:slug_prefix>/export-tasks.json",

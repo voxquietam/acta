@@ -53,7 +53,88 @@ Members with role badges.
             {% else %}bg-zinc-500{% endif %}"></span>
           {% if latest_health %}{{ health_labels|get_item:latest_health }}{% else %}{% trans "no health" %}{% endif %}
         </span>
+
+        {% comment %}
+        Project actions — owner/admin only. Archive (soft hide) /
+        Unarchive, and Delete (hard cascade) behind a typed-slug confirm
+        modal. The modal is teleported to <body> so the scroll container
+        can't clip it.
+        {% endcomment %}
+        {% if viewer_is_workspace_admin %}
+        <div class="relative shrink-0" x-data="{ menu: false, del: false, typed: '' }">
+          <button type="button" @click="menu = !menu" @click.outside="menu = false"
+                  class="w-7 h-7 grid place-items-center rounded-md text-placeholder-foreground hover:bg-muted hover:text-foreground transition"
+                  data-tooltip="{% trans 'Project actions' %}" aria-label="{% trans 'Project actions' %}">
+            {% lucide "ellipsis-vertical" "w-4 h-4" %}
+          </button>
+          <div x-show="menu" x-cloak x-transition.opacity.duration.100ms
+               class="absolute right-0 mt-1 w-48 bg-card border border-border rounded-lg shadow-lg overflow-hidden z-30 py-1">
+            {% if project.archived %}
+            <form method="post" action="{% url 'web:set_project_archived' slug_prefix=project.slug_prefix %}">
+              {% csrf_token %}
+              <input type="hidden" name="archived" value="0">
+              <button type="submit" class="w-full text-left px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground flex items-center gap-2">
+                {% lucide "archive-restore" "w-3.5 h-3.5" %}{% trans "Unarchive project" %}
+              </button>
+            </form>
+            {% else %}
+            <form method="post" action="{% url 'web:set_project_archived' slug_prefix=project.slug_prefix %}">
+              {% csrf_token %}
+              <input type="hidden" name="archived" value="1">
+              <button type="submit" class="w-full text-left px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground flex items-center gap-2">
+                {% lucide "archive" "w-3.5 h-3.5" %}{% trans "Archive project" %}
+              </button>
+            </form>
+            {% endif %}
+            <button type="button" @click="menu = false; del = true; typed = ''"
+                    class="w-full text-left px-3 py-1.5 text-xs text-rose-400 hover:bg-rose-950/40 flex items-center gap-2 border-t border-border">
+              {% lucide "trash-2" "w-3.5 h-3.5" %}{% trans "Delete project…" %}
+            </button>
+          </div>
+
+          <template x-teleport="body">
+          <div x-show="del" x-cloak class="fixed inset-0 z-[60] flex items-start justify-center pt-16 px-4">
+            <div class="fixed inset-0 bg-black/60 backdrop-blur-sm" @click="del = false"></div>
+            <div class="relative bg-card border border-border rounded-lg shadow-lg w-full max-w-md"
+                 @keydown.escape.window="del = false">
+              <header class="flex items-center gap-2 px-4 py-3 border-b border-border">
+                <span class="w-7 h-7 rounded-md grid place-items-center shrink-0 bg-rose-500/15 text-rose-300">
+                  {% lucide "triangle-alert" "w-4 h-4" %}
+                </span>
+                <h2 class="text-sm font-semibold text-foreground flex-1">{% trans "Delete project" %}</h2>
+                <button type="button" @click="del = false" class="acta-btn-icon">{% lucide "x" "w-4 h-4" %}</button>
+              </header>
+              <form method="post" action="{% url 'web:delete_project' slug_prefix=project.slug_prefix %}" class="p-4 space-y-3">
+                {% csrf_token %}
+                <p class="text-[13px] text-subtle-foreground leading-relaxed">
+                  {% blocktrans with name=project.name %}This permanently deletes <b>{{ name }}</b> and every task, comment, and attachment under it. This cannot be undone.{% endblocktrans %}
+                </p>
+                <label class="block text-[11px] text-placeholder-foreground">
+                  {% blocktrans with slug=project.slug_prefix %}Type <b class="font-mono text-foreground">{{ slug }}</b> to confirm{% endblocktrans %}
+                </label>
+                <input type="text" name="confirm_slug" x-model="typed" autocomplete="off" spellcheck="false"
+                       class="acta-input font-mono" placeholder="{{ project.slug_prefix }}">
+                <div class="flex justify-end gap-2 pt-1">
+                  <button type="button" @click="del = false" class="acta-btn-ghost">{% trans "Cancel" %}</button>
+                  <button type="submit" :disabled="typed !== '{{ project.slug_prefix }}'"
+                          class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-rose-600 hover:bg-rose-500 text-white transition disabled:opacity-40 disabled:cursor-not-allowed">
+                    {% lucide "trash-2" "w-3.5 h-3.5" %}{% trans "Delete project" %}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+          </template>
+        </div>
+        {% endif %}
       </div>
+
+      {% if project.archived %}
+      <div class="mt-3 flex items-center gap-2 px-3 py-2 bg-muted/50 border border-border rounded-lg text-[11.5px] text-subtle-foreground">
+        {% lucide "archive" "w-3.5 h-3.5 text-placeholder-foreground shrink-0" %}
+        <span>{% trans "This project is archived — hidden from the sidebar and the active project list." %}</span>
+      </div>
+      {% endif %}
 
       <div class="flex flex-wrap items-center gap-x-5 gap-y-2 mt-3 text-[11.5px] text-subtle-foreground">
         {% if project.lead %}

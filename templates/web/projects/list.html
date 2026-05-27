@@ -24,6 +24,25 @@
 {% block app_main %}
 <div class="space-y-4">
 
+  {% if archived_count or show_archived %}
+  <div class="flex justify-end">
+    {% if show_archived %}
+    <a href="{% url 'web:project_list' %}"
+       hx-boost="true" hx-target="#app-content" hx-select="#app-content" hx-swap="outerHTML show:top" hx-push-url="true"
+       class="inline-flex items-center gap-1.5 text-xs text-subtle-foreground hover:text-foreground transition">
+      {% lucide "eye-off" "w-3.5 h-3.5" %}{% trans "Hide archived" %}
+    </a>
+    {% else %}
+    <a href="?archived=1"
+       hx-boost="true" hx-target="#app-content" hx-select="#app-content" hx-swap="outerHTML show:top" hx-push-url="true"
+       class="inline-flex items-center gap-1.5 text-xs text-subtle-foreground hover:text-foreground transition">
+      {% lucide "archive" "w-3.5 h-3.5" %}{% trans "Show archived" %}
+      <span class="text-placeholder-foreground">({{ archived_count }})</span>
+    </a>
+    {% endif %}
+  </div>
+  {% endif %}
+
   <div class="grid gap-3 auto-rows-fr grid-cols-[repeat(auto-fill,minmax(280px,1fr))]">
     {% for project in projects %}
     {% comment %}

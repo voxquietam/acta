@@ -10,6 +10,7 @@ import json
 import re
 from urllib.parse import quote, urlencode
 
+from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -1534,9 +1535,13 @@ class ProjectListView(LoginRequiredMixin, ListView):
         if active is None:
             return Project.objects.none()
         latest = ProjectUpdate.objects.filter(project=OuterRef("pk")).order_by("-created_at").values("health")[:1]
+        # Archived projects are hidden by default; ``?archived=1`` reveals
+        # them (the "Show archived" toggle on the page).
+        base = Project.objects.filter(workspace=active)
+        if self.request.GET.get("archived") != "1":
+            base = base.filter(archived=False)
         return (
-            Project.objects.filter(workspace=active)
-            .select_related("workspace", "lead")
+            base.select_related("workspace", "lead")
             .prefetch_related("members")
             .annotate(
                 open_task_count=Count(
@@ -1599,6 +1604,11 @@ class ProjectListView(LoginRequiredMixin, ListView):
         )
         ctx["stale_cutoff"] = timezone.now() - datetime.timedelta(days=3)
         ctx["health_labels"] = dict(ProjectUpdate.HEALTH_CHOICES)
+        # "Show archived" toggle state + how many archived projects exist
+        # (so the toggle only shows when there's something to reveal).
+        active = resolve_active_workspace(self.request)
+        ctx["show_archived"] = self.request.GET.get("archived") == "1"
+        ctx["archived_count"] = Project.objects.filter(workspace=active, archived=True).count() if active else 0
         return ctx
 
 
@@ -1726,6 +1736,8 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         ctx["members"] = list(
             project.members.order_by("first_name", "last_name", "username"),
         )
+        # Gate the Overview archive/delete menu to workspace owners/admins.
+        ctx["viewer_is_workspace_admin"] = _user_is_workspace_admin(self.request.user, project.workspace)
         ctx["workspace_members"] = _project_workspace_members(project, exclude_user=None)
         ctx["picker_icons"] = PROJECT_ICONS
         ctx["picker_icon_colors"] = PROJECT_ICON_COLORS
@@ -3971,6 +3983,53 @@ def _get_user_project_or_404(user, slug_prefix):
             workspace__memberships__user=user,
         ).select_related("workspace", "lead"),
     )
+
+
+@require_POST
+@login_required
+def set_project_archived(request, slug_prefix):
+    """Archive or unarchive a project — soft hide, all data retained.
+
+    Owner/admin only. Reads ``archived`` (``"1"``/``"0"``). Archived
+    projects drop out of the sidebar favourites and the active project
+    list (the list shows them only under "Show archived"); an archived
+    project keeps an Unarchive control on its overview. Redirects to the
+    project list on archive and back to the overview on restore, with a
+    flash toast.
+    """
+    project = _get_user_project_or_404(request.user, slug_prefix)
+    if not _user_is_workspace_admin(request.user, project.workspace):
+        return HttpResponseForbidden("admin only")
+    archived = request.POST.get("archived") == "1"
+    if project.archived != archived:
+        project.archived = archived
+        project.save(update_fields=["archived"])
+    if archived:
+        messages.success(request, _("Project “%(name)s” archived.") % {"name": project.name})
+        return redirect("web:project_list")
+    messages.success(request, _("Project “%(name)s” restored.") % {"name": project.name})
+    return redirect("web:project_detail", slug_prefix=project.slug_prefix)
+
+
+@require_POST
+@login_required
+def delete_project(request, slug_prefix):
+    """Permanently delete a project and everything under it (DB cascade).
+
+    Owner/admin only; irreversible. Requires ``confirm_slug`` to equal the
+    project's ``slug_prefix`` — a typed-confirmation guard against an
+    accidental delete. Cascades to tasks, comments, attachments, activity
+    and the rest via their FKs. Redirects to the project list.
+    """
+    project = _get_user_project_or_404(request.user, slug_prefix)
+    if not _user_is_workspace_admin(request.user, project.workspace):
+        return HttpResponseForbidden("admin only")
+    if (request.POST.get("confirm_slug") or "").strip() != project.slug_prefix:
+        return HttpResponseBadRequest("slug confirmation does not match")
+    name = project.name
+    project.delete()
+    messages.success(request, _("Project “%(name)s” deleted.") % {"name": name})
+    return redirect("web:project_list")
 
 
 def _settings_panel_response(request, template, context, *, toast=None):
