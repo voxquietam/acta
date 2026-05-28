@@ -43,7 +43,8 @@ from apps.cycles.services import (
     cycle_summary,
     ensure_cycles,
 )
-from apps.labels.models import Label
+from apps.labels.models import Label, LabelGroup
+from apps.labels.palette import LABEL_COLORS, is_curated_label_color
 from apps.notifications.models import Notification
 from apps.notifications.services import (
     notify_announcement,
@@ -6782,3 +6783,292 @@ def export_project_overview_json(request, slug_prefix):
     payload["exported_at"] = timezone.now().isoformat()
     filename = f"acta-{project.slug_prefix}-overview-{timezone.now():%Y%m%d}.json"
     return _json_download(payload, filename)
+
+
+# -----------------------------------------------------------------------------
+# Labels & label-groups management (workspace settings)
+# -----------------------------------------------------------------------------
+#
+# CRUD endpoints behind the Labels card on the workspace settings page. All
+# accept POST + return either the freshly rendered ``_settings_labels.html``
+# partial (success path — HTMX swaps the whole card) or a 400 with a toast
+# trigger explaining the failure. Permission: any workspace member. Activity
+# log is intentionally NOT touched — labels are taxonomy, not task content.
+
+
+def _workspace_for_member(request, slug):
+    """Return the workspace if the user is a member, else 404.
+
+    Membership scope is the only gate for label CRUD (per the 2026-05-28
+    UX decision — every member can groom the taxonomy). Owner / admin gating
+    lives on workspace-level destructive actions (transfer, delete), not on
+    labels.
+    """
+    return get_object_or_404(
+        Workspace.objects.filter(memberships__user=request.user),
+        slug=slug,
+    )
+
+
+def _labels_section_context(workspace):
+    """Build the context the ``_settings_labels.html`` partial needs.
+
+    Loads groups in (name) order with their labels nested by ``(position,
+    name)``, plus an "ungrouped" bucket for labels with no group. Each label
+    carries its usage count via a single ``Count`` aggregate, so the section
+    renders in two queries regardless of label count.
+
+    Args:
+        workspace: The active :class:`Workspace`.
+
+    Returns:
+        A dict with ``workspace``, ``groups`` (list of ``{group, labels}``),
+        ``ungrouped`` (labels list), and ``label_colors`` for the picker.
+    """
+    label_qs = (
+        Label.objects.filter(workspace=workspace)
+        .annotate(usage_count=Count("tasks", distinct=True))
+        .order_by("position", "name")
+    )
+    by_group: dict[int | None, list[Label]] = {}
+    for label in label_qs:
+        by_group.setdefault(label.group_id, []).append(label)
+    groups = []
+    for group in LabelGroup.objects.filter(workspace=workspace).order_by("name"):
+        groups.append({"group": group, "labels": by_group.get(group.id, [])})
+    return {
+        "workspace": workspace,
+        "label_groups": groups,
+        "ungrouped_labels": by_group.get(None, []),
+        "label_colors": LABEL_COLORS,
+    }
+
+
+def _render_labels_section(workspace, request):
+    """Render ``_settings_labels.html`` as a string for a HTMX swap response."""
+    ctx = _labels_section_context(workspace)
+    return render_to_string("web/workspaces/_settings_labels.html", ctx, request=request)
+
+
+def _labels_section_response(workspace, request, *, toast=None):
+    """Return the labels card HTML wrapped with optional toast trigger."""
+    body = _render_labels_section(workspace, request)
+    response = HttpResponse(body, content_type="text/html; charset=utf-8")
+    triggers: dict = {"acta:labels-changed": True}
+    if toast:
+        triggers["acta:toast"] = toast
+    response["HX-Trigger"] = json.dumps(triggers, default=str)
+    return response
+
+
+def _labels_error_response(message):
+    """Return a 400 response that just fires a toast — no DOM swap."""
+    response = HttpResponse(status=400)
+    response["HX-Trigger"] = json.dumps({"acta:toast": {"message": str(message), "level": "error"}})
+    response["HX-Reswap"] = "none"
+    return response
+
+
+def _resolve_group(workspace, raw_group_id):
+    """Resolve a group-id form field, ``""`` / missing → ``None`` (ungrouped).
+
+    Returns ``(group_or_none, error_message_or_none)``. A non-blank id that
+    doesn't resolve to a same-workspace group is treated as a validation
+    error so a tampered form can't silently re-parent a label across
+    workspaces.
+    """
+    raw = (raw_group_id or "").strip()
+    if not raw:
+        return None, None
+    try:
+        group_id = int(raw)
+    except (TypeError, ValueError):
+        return None, _("Unknown label group.")
+    group = LabelGroup.objects.filter(workspace=workspace, pk=group_id).first()
+    if group is None:
+        return None, _("Unknown label group.")
+    return group, None
+
+
+def _next_label_position(workspace, group):
+    """Return the next ``position`` for a label being appended to ``group``."""
+    current_max = Label.objects.filter(workspace=workspace, group=group).aggregate(m=Max("position"))["m"]
+    return (current_max or 0) + 1
+
+
+@require_POST
+@login_required
+def create_label_group(request, slug):
+    """Create a new :class:`LabelGroup` and re-render the labels section."""
+    workspace = _workspace_for_member(request, slug)
+    name = (request.POST.get("name") or "").strip()
+    if not name:
+        return _labels_error_response(_("Group name is required."))
+    description = (request.POST.get("description") or "").strip()
+    is_exclusive = request.POST.get("is_exclusive") == "1"
+    if LabelGroup.objects.filter(workspace=workspace, name__iexact=name).exists():
+        return _labels_error_response(_("A group with that name already exists."))
+    LabelGroup.objects.create(
+        workspace=workspace,
+        name=name,
+        description=description,
+        is_exclusive=is_exclusive,
+    )
+    return _labels_section_response(
+        workspace,
+        request,
+        toast={"message": str(_("Group created.")), "level": "success"},
+    )
+
+
+@require_POST
+@login_required
+def update_label_group(request, slug, group_id):
+    """Rename / re-describe / toggle exclusivity for an existing group."""
+    workspace = _workspace_for_member(request, slug)
+    group = get_object_or_404(LabelGroup, workspace=workspace, pk=group_id)
+    name = (request.POST.get("name") or "").strip()
+    if not name:
+        return _labels_error_response(_("Group name is required."))
+    description = (request.POST.get("description") or "").strip()
+    is_exclusive = request.POST.get("is_exclusive") == "1"
+    clash = LabelGroup.objects.filter(workspace=workspace, name__iexact=name).exclude(pk=group.pk).exists()
+    if clash:
+        return _labels_error_response(_("A group with that name already exists."))
+    group.name = name
+    group.description = description
+    group.is_exclusive = is_exclusive
+    group.save(update_fields=["name", "description", "is_exclusive"])
+    return _labels_section_response(workspace, request)
+
+
+@require_POST
+@login_required
+def delete_label_group(request, slug, group_id):
+    """Delete a group — its labels stay in the workspace as ungrouped (SET_NULL)."""
+    workspace = _workspace_for_member(request, slug)
+    group = get_object_or_404(LabelGroup, workspace=workspace, pk=group_id)
+    group.delete()
+    return _labels_section_response(
+        workspace,
+        request,
+        toast={"message": str(_("Group deleted. Its labels moved to Ungrouped.")), "level": "success"},
+    )
+
+
+@require_POST
+@login_required
+def create_label(request, slug):
+    """Create a label, optionally inside a group, and re-render the section."""
+    workspace = _workspace_for_member(request, slug)
+    name = (request.POST.get("name") or "").strip()
+    if not name:
+        return _labels_error_response(_("Label name is required."))
+    color = (request.POST.get("color") or "").strip()
+    if not is_curated_label_color(color):
+        return _labels_error_response(_("Pick a colour from the palette."))
+    group, err = _resolve_group(workspace, request.POST.get("group"))
+    if err:
+        return _labels_error_response(err)
+    if Label.objects.filter(workspace=workspace, name__iexact=name).exists():
+        return _labels_error_response(_("A label with that name already exists in this workspace."))
+    Label.objects.create(
+        workspace=workspace,
+        name=name,
+        color=color,
+        group=group,
+        position=_next_label_position(workspace, group),
+    )
+    return _labels_section_response(
+        workspace,
+        request,
+        toast={"message": str(_("Label created.")), "level": "success"},
+    )
+
+
+@require_POST
+@login_required
+def update_label(request, slug, label_id):
+    """Rename / recolour / move-to-group an existing label."""
+    workspace = _workspace_for_member(request, slug)
+    label = get_object_or_404(Label, workspace=workspace, pk=label_id)
+    name = (request.POST.get("name") or "").strip()
+    if not name:
+        return _labels_error_response(_("Label name is required."))
+    color = (request.POST.get("color") or "").strip()
+    if not is_curated_label_color(color):
+        return _labels_error_response(_("Pick a colour from the palette."))
+    group, err = _resolve_group(workspace, request.POST.get("group"))
+    if err:
+        return _labels_error_response(err)
+    clash = Label.objects.filter(workspace=workspace, name__iexact=name).exclude(pk=label.pk).exists()
+    if clash:
+        return _labels_error_response(_("A label with that name already exists in this workspace."))
+    fields_to_update = ["name", "color"]
+    label.name = name
+    label.color = color
+    if group != label.group:
+        # Group changed — drop to the bottom of the new group so the
+        # re-render reads in a sensible order. Drag-drop within the new
+        # group can still reposition it after.
+        label.group = group
+        label.position = _next_label_position(workspace, group)
+        fields_to_update.extend(["group", "position"])
+    label.save(update_fields=fields_to_update)
+    return _labels_section_response(workspace, request)
+
+
+@require_POST
+@login_required
+def delete_label(request, slug, label_id):
+    """Hard-delete a label; M2M ``task_labels`` rows cascade automatically."""
+    workspace = _workspace_for_member(request, slug)
+    label = get_object_or_404(Label, workspace=workspace, pk=label_id)
+    label.delete()
+    return _labels_section_response(
+        workspace,
+        request,
+        toast={"message": str(_("Label deleted.")), "level": "success"},
+    )
+
+
+@require_POST
+@login_required
+def reorder_labels(request, slug):
+    """Persist a drag-drop reorder. Body carries one ``group_id`` slice at a time.
+
+    Expected POST:
+
+    * ``group`` — target group id, or ``""`` for the ungrouped bucket.
+    * ``label_ids`` — repeated form fields with the labels' new top-to-bottom
+      order. The client only sends the slice it touched (Sortable.js fires
+      a single event per drop), so the persisted order is dense within that
+      group; other groups stay untouched.
+
+    Returns 204 — the client already moved the DOM nodes; no swap needed.
+    """
+    workspace = _workspace_for_member(request, slug)
+    group, err = _resolve_group(workspace, request.POST.get("group"))
+    if err:
+        return HttpResponseBadRequest(err)
+    raw_ids = request.POST.getlist("label_ids")
+    try:
+        ordered_ids = [int(x) for x in raw_ids]
+    except (TypeError, ValueError):
+        return HttpResponseBadRequest("Invalid label id payload.")
+    labels = list(
+        Label.objects.filter(workspace=workspace, pk__in=ordered_ids).only("id", "group_id", "position"),
+    )
+    by_id = {label.id: label for label in labels}
+    to_update = []
+    for index, label_id in enumerate(ordered_ids, start=1):
+        label = by_id.get(label_id)
+        if label is None:
+            return HttpResponseBadRequest("Label id outside workspace.")
+        if label.position != index or label.group_id != (group.id if group else None):
+            label.position = index
+            label.group = group
+            to_update.append(label)
+    if to_update:
+        Label.objects.bulk_update(to_update, ["position", "group"])
+    return HttpResponse(status=204)

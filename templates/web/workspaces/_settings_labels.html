@@ -1,0 +1,30 @@
+{% load i18n %}
+{% comment %}
+Labels & label-groups management card for the workspace settings page.
+
+Placeholder shell — the full UI (group CRUD, inline label edit, drag-drop
+between groups, colour picker, usage counts, delete-with-confirm modal)
+lands in the follow-up commit. For now this just ensures the endpoint
+returns a renderable fragment so backend tests can assert on the round-trip.
+
+Context:
+    workspace          — current :class:`Workspace`
+    label_groups       — list of ``{"group": LabelGroup, "labels": [Label]}``
+    ungrouped_labels   — list of :class:`Label` with ``group=None``
+    label_colors       — tuple of hex strings (the picker palette)
+{% endcomment %}
+<section data-labels-section data-workspace-slug="{{ workspace.slug }}" class="min-w-0">
+  <div class="bg-card border border-border rounded-lg p-4 text-sm text-muted-foreground">
+    <strong class="text-foreground">{% trans "Labels" %}</strong>
+    <div class="mt-2 text-xs text-placeholder-foreground">
+      {% blocktrans count counter=label_groups|length %}{{ counter }} group{% plural %}{{ counter }} groups{% endblocktrans %},
+      {% with total_labels=ungrouped_labels|length %}
+      {% for g in label_groups %}{% with c=g.labels|length %}{% if forloop.first %}{{ c }}{% else %}+{{ c }}{% endif %}{% endwith %}{% endfor %}
+      {% if ungrouped_labels %}+ {% blocktrans count counter=ungrouped_labels|length %}{{ counter }} ungrouped{% plural %}{{ counter }} ungrouped{% endblocktrans %}{% endif %}
+      {% endwith %}
+    </div>
+    <div class="mt-1 italic text-placeholder-foreground">
+      {% trans "Full management UI lands next commit." %}
+    </div>
+  </div>
+</section>
