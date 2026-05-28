@@ -258,7 +258,9 @@ class TestCreateTaskPost:
         assert list_insert["row_html"].lstrip().startswith("<")
         keys = list_insert["section_keys"]
         # status axis is stable — always resolves to the new task's status.
-        assert keys["status"] == "to-do"
+        # ``_create_task_post`` defaults missing status to ``planned`` (the
+        # form's status field stays empty when the user doesn't pick one).
+        assert keys["status"] == "planned"
 
     def test_timeline_view_skips_swap_no_list_insert(self, client, setup):
         """``?view=timeline`` / ``?view=backlog`` → toast-only, no list payload."""
