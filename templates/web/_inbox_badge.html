@@ -5,5 +5,11 @@ base_app.html and re-sent out-of-band (oob=True) from every inbox
 mutation so the count stays live without a page reload. When the count
 is zero we still emit the element (hidden) so a later OOB swap has a
 target to replace.
+
+The wrapper uses ``display: contents`` so its children participate in
+the parent <a>'s flex layout while still giving HTMX a single
+``#inbox-badge`` node to replace. Two variants render simultaneously
+and are toggled by Alpine: a numeric pill when the sidebar is open and
+a corner dot when collapsed to the icon rail.
 {% endcomment %}
-{% if inbox_unread %}<span id="inbox-badge" x-show="$store.sidebar.open" x-cloak{% if oob %} hx-swap-oob="true"{% endif %} class="ml-auto inline-flex items-center justify-center min-w-[1.15rem] font-mono text-[10px] leading-none px-1.5 py-0.5 rounded bg-brand-500/20 text-brand-300">{{ inbox_unread }}</span>{% else %}<span id="inbox-badge"{% if oob %} hx-swap-oob="true"{% endif %} class="hidden"></span>{% endif %}
+{% if inbox_unread %}<span id="inbox-badge"{% if oob %} hx-swap-oob="true"{% endif %} class="contents"><span x-show="$store.sidebar.open" x-cloak class="ml-auto inline-flex items-center justify-center min-w-[1.15rem] font-mono text-[10px] leading-none px-1.5 py-0.5 rounded bg-brand-500/20 text-brand-300">{{ inbox_unread }}</span><span x-show="!$store.sidebar.open" x-cloak class="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-brand-400 ring-2 ring-background" aria-hidden="true"></span></span>{% else %}<span id="inbox-badge"{% if oob %} hx-swap-oob="true"{% endif %} class="hidden"></span>{% endif %}
