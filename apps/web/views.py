@@ -6316,6 +6316,10 @@ class WorkspaceSettingsView(LoginRequiredMixin, TemplateView):
         viewer_is_admin = ctx["viewer_is_admin"]
         ctx.update(_render_workspace_wip(workspace, viewer_is_admin=viewer_is_admin))
         ctx.update(_render_workspace_cycles(workspace, viewer_is_admin=viewer_is_admin))
+        # Labels card — open to every member (no admin gate per the
+        # 2026-05-28 UX decision); same context builder the CRUD endpoints
+        # use so the partial swaps in identically.
+        ctx.update(_labels_section_context(workspace))
         # Danger tab — owner-only actions (transfer ownership, delete). The
         # project count powers the delete warning; transfer candidates are
         # filtered from ``memberships`` in the template (no extra query).

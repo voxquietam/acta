@@ -1,0 +1,56 @@
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+One row inside a group's ``<ul data-sortable-labels>``. Carries the label
+data attributes Sortable.js + ``reorder_labels`` need (``data-label-id``,
+``data-group-id``), a hover-revealed edit toggle, and an inline delete
+with a usage-count confirm.
+
+Required context:
+    label        — :class:`Label` with ``usage_count`` annotation
+    workspace    — current :class:`Workspace`
+    label_groups — list of ``{"group", "labels"}`` (for the group picker)
+    label_colors — picker palette
+{% endcomment %}
+<li data-label
+    data-label-id="{{ label.id }}"
+    data-group-id="{{ label.group_id|default:'' }}"
+    class="group flex items-center gap-2 px-2 py-1.5 rounded-md text-[13px] hover:bg-muted/40 transition cursor-grab"
+    title="{% trans 'Drag to reorder' %}">
+  <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:{{ label.color }};"></span>
+  <span class="flex-1 min-w-0 text-foreground truncate">{{ label.name }}</span>
+  <span class="text-[10.5px] font-mono text-placeholder-foreground shrink-0">
+    {% if label.usage_count == 1 %}
+      {% blocktrans %}1 task{% endblocktrans %}
+    {% else %}
+      {% blocktrans count counter=label.usage_count %}{{ counter }} task{% plural %}{{ counter }} tasks{% endblocktrans %}
+    {% endif %}
+  </span>
+  <div class="shrink-0 inline-flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition">
+    <button type="button"
+            @click="openId = openId === 'label-edit-{{ label.id }}' ? null : 'label-edit-{{ label.id }}'"
+            class="p-1 rounded text-subtle-foreground hover:text-foreground hover:bg-muted/60 transition"
+            title="{% trans 'Edit' %}">
+      {% lucide "pencil" "w-3 h-3" %}
+    </button>
+    <form method="post"
+          hx-post="{% url 'web:delete_label' slug=workspace.slug label_id=label.id %}"
+          hx-target="#workspace-labels"
+          hx-swap="outerHTML"
+          {% if label.usage_count %}hx-confirm="{% blocktrans with n=label.name c=label.usage_count %}Delete label '{{ n }}'? It's currently attached to {{ c }} task(s); the attachments will be removed.{% endblocktrans %}"
+          {% else %}hx-confirm="{% blocktrans with n=label.name %}Delete label '{{ n }}'?{% endblocktrans %}"{% endif %}
+          class="inline">
+      {% csrf_token %}
+      <button type="submit"
+              class="p-1 rounded text-subtle-foreground hover:text-rose-400 hover:bg-muted/60 transition"
+              title="{% trans 'Delete' %}">
+        {% lucide "trash-2" "w-3 h-3" %}
+      </button>
+    </form>
+  </div>
+</li>
+{# Edit form — separate <li> so the form spans full width below the row. #}
+<li x-show="openId === 'label-edit-{{ label.id }}'" x-cloak
+    class="px-2 py-2.5 my-1 rounded-md bg-muted/30 border border-border/60">
+  {% include "web/workspaces/_label_form.html" with form_id="label-edit-"|add:label.id|stringformat:"s" label=label group_id=label.group_id|default:"" label_colors=label_colors workspace=workspace label_groups=label_groups %}
+</li>

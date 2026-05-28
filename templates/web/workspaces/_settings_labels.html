@@ -1,30 +1,227 @@
 {% load i18n %}
+{% load lucide %}
 {% comment %}
-Labels & label-groups management card for the workspace settings page.
+Labels & label-groups management card on the workspace settings page
+(Workflow tab). Wrapped in ``#workspace-labels`` so every CRUD endpoint
+returns this partial and HTMX swaps it in place; the inline edit /
+create forms collapse via a single Alpine ``openId`` so only one form
+shows at a time. Drag-drop is bound by ``acta.js``
+(``[data-sortable-labels]`` → POST ``reorder_labels`` on drop).
 
-Placeholder shell — the full UI (group CRUD, inline label edit, drag-drop
-between groups, colour picker, usage counts, delete-with-confirm modal)
-lands in the follow-up commit. For now this just ensures the endpoint
-returns a renderable fragment so backend tests can assert on the round-trip.
+Visual: inner group cards stay transparent (no second-tier ``bg-background``
+holes against the parent ``bg-card``) — just a soft border. Section
+dividers inside each group are thin and few; chips and color dots carry
+the visual rhythm instead of border lines.
 
-Context:
+Context (built by ``_labels_section_context`` in ``apps/web/views.py``):
     workspace          — current :class:`Workspace`
     label_groups       — list of ``{"group": LabelGroup, "labels": [Label]}``
-    ungrouped_labels   — list of :class:`Label` with ``group=None``
-    label_colors       — tuple of hex strings (the picker palette)
+    ungrouped_labels   — labels with ``group=None``
+    label_colors       — tuple of curated hex strings (the picker palette)
+
+Each label carries an ``usage_count`` annotation (M2M ``tasks`` distinct
+count) set by the same context helper — N+1-safe.
 {% endcomment %}
-<section data-labels-section data-workspace-slug="{{ workspace.slug }}" class="min-w-0">
-  <div class="bg-card border border-border rounded-lg p-4 text-sm text-muted-foreground">
-    <strong class="text-foreground">{% trans "Labels" %}</strong>
-    <div class="mt-2 text-xs text-placeholder-foreground">
-      {% blocktrans count counter=label_groups|length %}{{ counter }} group{% plural %}{{ counter }} groups{% endblocktrans %},
-      {% with total_labels=ungrouped_labels|length %}
-      {% for g in label_groups %}{% with c=g.labels|length %}{% if forloop.first %}{{ c }}{% else %}+{{ c }}{% endif %}{% endwith %}{% endfor %}
-      {% if ungrouped_labels %}+ {% blocktrans count counter=ungrouped_labels|length %}{{ counter }} ungrouped{% plural %}{{ counter }} ungrouped{% endblocktrans %}{% endif %}
+<section id="workspace-labels"
+         data-labels-section
+         data-workspace-slug="{{ workspace.slug }}"
+         class="min-w-0"
+         x-data="{ openId: null }">
+  <div class="bg-card border border-border rounded-lg flex flex-col">
+
+    <header class="flex items-start gap-3 px-4 pt-3.5 pb-2.5 border-b border-border bg-subtle/40 rounded-t-lg">
+      <span class="w-7 h-7 rounded-md grid place-items-center shrink-0 bg-brand-500/15 text-brand-300">
+        {% lucide "tag" "w-3.5 h-3.5" %}
+      </span>
+      <div class="flex-1 min-w-0">
+        <h2 class="text-sm font-semibold text-foreground">{% trans "Labels" %}</h2>
+        <p class="text-[11px] text-subtle-foreground mt-0.5 leading-5">
+          {% trans "Tags attachable to any task in the workspace. Group them by purpose; mark a group exclusive when only one label from it should ever apply." %}
+        </p>
+      </div>
+    </header>
+
+    <div class="p-4 space-y-3">
+
+      {% for entry in label_groups %}
+      {% with group=entry.group labels=entry.labels %}
+      <div data-label-group="{{ group.id }}" class="border border-border rounded-lg">
+
+        {# Group header row — name + meta + edit / delete. No bg, no divider line. #}
+        <div class="flex items-start gap-2 px-3 pt-2.5 pb-1">
+          <div class="flex-1 min-w-0">
+            <div class="inline-flex items-center gap-2 flex-wrap">
+              <span class="text-[13px] font-semibold text-foreground">{{ group.name }}</span>
+              {% if group.is_exclusive %}
+              <span class="text-[10px] font-mono uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 inline-flex items-center gap-1"
+                    title="{% trans 'A task can carry at most one label from this group' %}">
+                {% lucide "circle-slash" "w-2.5 h-2.5" %}{% trans "exclusive" %}
+              </span>
+              {% endif %}
+              <span class="text-[11px] text-placeholder-foreground font-mono">
+                {% blocktrans count counter=labels|length %}{{ counter }} label{% plural %}{{ counter }} labels{% endblocktrans %}
+              </span>
+            </div>
+            {% if group.description %}
+            <p class="text-[11.5px] text-subtle-foreground mt-0.5 leading-5">{{ group.description }}</p>
+            {% endif %}
+          </div>
+
+          <div class="shrink-0 inline-flex items-center gap-0.5">
+            <button type="button"
+                    @click="openId = openId === 'group-edit-{{ group.id }}' ? null : 'group-edit-{{ group.id }}'"
+                    class="p-1 rounded text-subtle-foreground hover:text-foreground hover:bg-muted/60 transition"
+                    title="{% trans 'Edit group' %}">
+              {% lucide "pencil" "w-3 h-3" %}
+            </button>
+            <form method="post"
+                  hx-post="{% url 'web:delete_label_group' slug=workspace.slug group_id=group.id %}"
+                  hx-target="#workspace-labels"
+                  hx-swap="outerHTML"
+                  hx-confirm="{% blocktrans with n=group.name %}Delete group '{{ n }}'? Its labels will move to Ungrouped.{% endblocktrans %}"
+                  class="inline">
+              {% csrf_token %}
+              <button type="submit"
+                      class="p-1 rounded text-subtle-foreground hover:text-rose-400 hover:bg-muted/60 transition"
+                      title="{% trans 'Delete group' %}">
+                {% lucide "trash-2" "w-3 h-3" %}
+              </button>
+            </form>
+          </div>
+        </div>
+
+        {# Inline edit-group form — only on demand #}
+        <div x-show="openId === 'group-edit-{{ group.id }}'" x-cloak class="px-3 py-2.5 bg-muted/30 border-y border-border/60">
+          <form method="post"
+                hx-post="{% url 'web:update_label_group' slug=workspace.slug group_id=group.id %}"
+                hx-target="#workspace-labels"
+                hx-swap="outerHTML"
+                class="space-y-2">
+            {% csrf_token %}
+            <input type="text" name="name" value="{{ group.name }}" required maxlength="60"
+                   placeholder="{% trans 'Group name' %}" class="acta-input">
+            <textarea name="description" rows="2" maxlength="500"
+                      placeholder="{% trans 'Short hint for the team (optional)' %}"
+                      class="acta-input resize-none">{{ group.description }}</textarea>
+            <label class="inline-flex items-center gap-2 text-[12px] text-subtle-foreground cursor-pointer">
+              <input type="checkbox" name="is_exclusive" value="1" {% if group.is_exclusive %}checked{% endif %}
+                     class="acta-checkbox">
+              {% trans "Exclusive — a task can only carry one label from this group" %}
+            </label>
+            <div class="flex items-center gap-2 pt-1">
+              <button type="submit"
+                      class="px-2.5 py-1.5 text-xs rounded-md bg-brand-600 hover:bg-brand-500 text-white transition">{% trans "Save" %}</button>
+              <button type="button" @click="openId = null"
+                      class="px-2.5 py-1.5 text-xs rounded-md text-subtle-foreground hover:text-foreground hover:bg-muted/60 transition">{% trans "Cancel" %}</button>
+            </div>
+          </form>
+        </div>
+
+        {# Labels list — empty state when group has no labels yet #}
+        {% if labels %}
+        <ul data-sortable-labels data-group-id="{{ group.id }}" class="px-2 py-1.5">
+          {% for label in labels %}
+          {% include "web/workspaces/_label_row.html" with label=label workspace=workspace label_groups=label_groups label_colors=label_colors %}
+          {% endfor %}
+        </ul>
+        {% else %}
+        <ul data-sortable-labels data-group-id="{{ group.id }}" class="px-3 pb-2 text-[11.5px] italic text-placeholder-foreground min-h-[1.25rem]">
+          {% trans "No labels yet. Add one below or drag from another group." %}
+        </ul>
+        {% endif %}
+
+        {# Per-group "+ New label" trigger + collapsing form #}
+        <div class="px-3 pb-2.5">
+          <button type="button"
+                  @click="openId = openId === 'label-new-{{ group.id }}' ? null : 'label-new-{{ group.id }}'"
+                  class="text-[11.5px] text-subtle-foreground hover:text-foreground inline-flex items-center gap-1.5 transition">
+            {% lucide "plus" "w-3 h-3" %}{% trans "New label" %}
+          </button>
+          <div x-show="openId === 'label-new-{{ group.id }}'" x-cloak class="mt-2 p-2.5 rounded-md bg-muted/30 border border-border/60">
+            {% include "web/workspaces/_label_form.html" with form_id="label-new-"|add:group.id|stringformat:"s" group_id=group.id label_colors=label_colors workspace=workspace %}
+          </div>
+        </div>
+
+      </div>
       {% endwith %}
+      {% endfor %}
+
+      {# Ungrouped bucket — soft dashed border to read as "loose pile" #}
+      {% if ungrouped_labels or not label_groups %}
+      <div data-label-group="" class="border border-dashed border-border rounded-lg">
+        <div class="flex items-start gap-2 px-3 pt-2.5 pb-1">
+          <div class="flex-1 min-w-0">
+            <span class="text-[13px] font-medium text-subtle-foreground">{% trans "Ungrouped" %}</span>
+            <span class="text-[11px] text-placeholder-foreground font-mono ml-1">
+              · {% blocktrans count counter=ungrouped_labels|length %}{{ counter }} label{% plural %}{{ counter }} labels{% endblocktrans %}
+            </span>
+          </div>
+        </div>
+        {% if ungrouped_labels %}
+        <ul data-sortable-labels data-group-id="" class="px-2 py-1.5">
+          {% for label in ungrouped_labels %}
+          {% include "web/workspaces/_label_row.html" with label=label workspace=workspace label_groups=label_groups label_colors=label_colors %}
+          {% endfor %}
+        </ul>
+        {% else %}
+        <ul data-sortable-labels data-group-id="" class="px-3 pb-2 text-[11.5px] italic text-placeholder-foreground min-h-[1.25rem]">
+          {% trans "No ungrouped labels." %}
+        </ul>
+        {% endif %}
+        <div class="px-3 pb-2.5">
+          <button type="button"
+                  @click="openId = openId === 'label-new-ungrouped' ? null : 'label-new-ungrouped'"
+                  class="text-[11.5px] text-subtle-foreground hover:text-foreground inline-flex items-center gap-1.5 transition">
+            {% lucide "plus" "w-3 h-3" %}{% trans "New label" %}
+          </button>
+          <div x-show="openId === 'label-new-ungrouped'" x-cloak class="mt-2 p-2.5 rounded-md bg-muted/30 border border-border/60">
+            {% include "web/workspaces/_label_form.html" with form_id="label-new-ungrouped" group_id="" label_colors=label_colors workspace=workspace %}
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      {# "+ New group" trigger #}
+      <div class="pt-1">
+        <button type="button"
+                @click="openId = openId === 'group-new' ? null : 'group-new'"
+                class="text-[12px] text-subtle-foreground hover:text-foreground inline-flex items-center gap-1.5 transition">
+          {% lucide "folder-plus" "w-3.5 h-3.5" %}{% trans "New group" %}
+        </button>
+        <div x-show="openId === 'group-new'" x-cloak class="mt-2 p-3 rounded-lg border border-border bg-muted/30">
+          <form method="post"
+                hx-post="{% url 'web:create_label_group' slug=workspace.slug %}"
+                hx-target="#workspace-labels"
+                hx-swap="outerHTML"
+                class="space-y-2">
+            {% csrf_token %}
+            <input type="text" name="name" required maxlength="60"
+                   placeholder="{% trans 'Group name (e.g. Type, Area, Layer)' %}" class="acta-input">
+            <textarea name="description" rows="2" maxlength="500"
+                      placeholder="{% trans 'Short hint for the team (optional)' %}"
+                      class="acta-input resize-none"></textarea>
+            <label class="inline-flex items-center gap-2 text-[12px] text-subtle-foreground cursor-pointer">
+              <input type="checkbox" name="is_exclusive" value="1" class="acta-checkbox">
+              {% trans "Exclusive — a task can only carry one label from this group" %}
+            </label>
+            <div class="flex items-center gap-2 pt-1">
+              <button type="submit"
+                      class="px-2.5 py-1.5 text-xs rounded-md bg-brand-600 hover:bg-brand-500 text-white transition">{% trans "Create group" %}</button>
+              <button type="button" @click="openId = null"
+                      class="px-2.5 py-1.5 text-xs rounded-md text-subtle-foreground hover:text-foreground hover:bg-muted/60 transition">{% trans "Cancel" %}</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
     </div>
-    <div class="mt-1 italic text-placeholder-foreground">
-      {% trans "Full management UI lands next commit." %}
-    </div>
+
+    <footer class="flex items-center gap-2.5 px-4 py-2.5 border-t border-border bg-subtle/30 rounded-b-lg">
+      <div class="flex-1 inline-flex items-center gap-1.5 text-[11px] italic text-placeholder-foreground min-w-0">
+        {% lucide "info" "w-3 h-3 shrink-0" %}
+        <span class="truncate">{% trans "Drag labels to reorder; drop one in another group to move it. Every workspace member can edit." %}</span>
+      </div>
+    </footer>
+
   </div>
 </section>

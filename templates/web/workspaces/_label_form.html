@@ -1,0 +1,64 @@
+{% load i18n %}
+{% comment %}
+Create / edit form for a single :class:`Label`. Used in three places on
+the labels card: the "+ New label" expander inside each group, the same
+expander inside the Ungrouped bucket, and the inline edit form for an
+existing label row. The form posts to ``create_label`` when ``label``
+is absent and ``update_label`` when it's present.
+
+Required context:
+    workspace    — current :class:`Workspace`
+    label_colors — picker palette (tuple of hex strings)
+    form_id      — unique slug for Alpine state names (currently unused
+                   but reserved so future per-form state stays scoped)
+    group_id     — current group id to pre-fill the hidden ``group`` field,
+                   or ``""`` for ungrouped
+    label_groups — list of ``{"group", ...}`` for the move-to-group select
+    label        — optional :class:`Label` (omit for the create case)
+{% endcomment %}
+{% if label %}
+{% url 'web:update_label' slug=workspace.slug label_id=label.id as form_action %}
+{% else %}
+{% url 'web:create_label' slug=workspace.slug as form_action %}
+{% endif %}
+<form method="post"
+      hx-post="{{ form_action }}"
+      hx-target="#workspace-labels"
+      hx-swap="outerHTML"
+      x-data="{ color: '{% if label %}{{ label.color }}{% else %}{{ label_colors|first }}{% endif %}' }"
+      class="space-y-2">
+  {% csrf_token %}
+  <div class="flex items-center gap-2">
+    <span class="w-4 h-4 rounded-full shrink-0 border border-border-strong" :style="`background:${color}`"></span>
+    <input type="text" name="name" value="{{ label.name|default:'' }}" required maxlength="60"
+           placeholder="{% trans 'Label name' %}" class="acta-input">
+    <select name="group" class="acta-input max-w-[10rem]">
+      <option value="" {% if not group_id %}selected{% endif %}>{% trans "Ungrouped" %}</option>
+      {% for entry in label_groups %}
+      <option value="{{ entry.group.id }}" {% if group_id|stringformat:"s" == entry.group.id|stringformat:"s" %}selected{% endif %}>{{ entry.group.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  {# Curated colour palette — radio-style swatch grid. Hidden input persists the choice. #}
+  <input type="hidden" name="color" :value="color">
+  <div class="flex flex-wrap gap-1">
+    {% for hex in label_colors %}
+    <button type="button"
+            @click="color = '{{ hex }}'"
+            class="w-6 h-6 rounded-md transition border-2"
+            :class="color === '{{ hex }}' ? 'border-foreground/80 scale-110' : 'border-transparent hover:border-border-strong'"
+            style="background:{{ hex }};"
+            aria-label="{{ hex }}"></button>
+    {% endfor %}
+  </div>
+
+  <div class="flex items-center gap-2 pt-1">
+    <button type="submit"
+            class="px-2.5 py-1.5 text-xs rounded-md bg-brand-600 hover:bg-brand-500 text-white transition">
+      {% if label %}{% trans "Save" %}{% else %}{% trans "Create label" %}{% endif %}
+    </button>
+    <button type="button" @click="openId = null"
+            class="px-2.5 py-1.5 text-xs rounded-md text-subtle-foreground hover:text-foreground hover:bg-muted/60 transition">{% trans "Cancel" %}</button>
+  </div>
+</form>

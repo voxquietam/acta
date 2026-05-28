@@ -721,10 +721,56 @@
   document.addEventListener("click", kanbanCardNewTab);
   document.addEventListener("auxclick", kanbanCardNewTab);
   document.body.addEventListener("htmx:afterSettle", initKanbanDnD);
+
+  // Labels-management drag-drop: any ``<ul data-sortable-labels>`` inside
+  // the settings labels card becomes a Sortable, all wired into the same
+  // ``"labels"`` group so labels can cross-drop between groups. On drop we
+  // collect the slice's current order and POST to ``reorder_labels``; the
+  // endpoint returns 204 because the client already moved the DOM. Re-runs
+  // on ``htmx:afterSettle`` so the binding survives a card-swap (every
+  // CRUD endpoint refreshes the whole ``#workspace-labels`` partial).
+  function initLabelsDnD() {
+    if (!window.Sortable) return;
+    document.querySelectorAll("[data-sortable-labels]").forEach((ul) => {
+      if (window.Sortable.get(ul)) return;
+      new window.Sortable(ul, {
+        group: "labels",
+        animation: 150,
+        ghostClass: "opacity-30",
+        handle: "[data-label]",
+        onEnd: persistLabelOrder,
+      });
+    });
+  }
+
+  function persistLabelOrder(evt) {
+    const ul = evt.to;
+    const groupId = ul.dataset.groupId || "";
+    const ids = Array.from(ul.querySelectorAll("[data-label-id]")).map((li) => li.dataset.labelId);
+    const section = ul.closest("[data-labels-section]");
+    if (!section) return;
+    const slug = section.dataset.workspaceSlug;
+    const form = new FormData();
+    form.append("group", groupId);
+    ids.forEach((id) => form.append("label_ids", id));
+    const token = document.querySelector("[name=csrfmiddlewaretoken]");
+    if (token) form.append("csrfmiddlewaretoken", token.value);
+    fetch(`/workspaces/${slug}/labels/reorder/`, {
+      method: "POST",
+      body: form,
+      credentials: "same-origin",
+      headers: token ? { "X-CSRFToken": token.value } : {},
+    });
+  }
+
+  document.body.addEventListener("htmx:afterSettle", initLabelsDnD);
+
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", initKanbanDnD);
+    document.addEventListener("DOMContentLoaded", initLabelsDnD);
   } else {
     initKanbanDnD();
+    initLabelsDnD();
   }
 
   // Recount the per-column ``[data-column-count]`` after a card is inserted
