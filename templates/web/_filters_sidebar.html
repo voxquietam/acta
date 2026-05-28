@@ -2,197 +2,304 @@
 {% load lucide %}
 {% load web_extras %}
 {% comment %}
-Shared task-filter sidebar. Used by All Tasks, My Work, and the
+Task-filter sidebar v2 — rail (48px) + per-section popover + expanded
+(512px, two-column) layout. Shared by All Tasks, My Work, and the
 per-project Kanban / Table page.
 
-Layout: a fixed-right floating panel on lg+. Height = content,
-capped at viewport.
+Architecture
+============
 
-**Sections are collapsible** — each section header is a button that
-toggles its body via Alpine ``x-show``; the open / closed state is
-persisted per section in ``localStorage`` (key
-``acta:filter-sec:<name>``). When collapsed, the header surfaces an
-active-count chip + a comma-separated preview of the first two active
-values, so the user doesn't have to expand to see what's on.
+One ``<form id="filter-form">`` owns every input, regardless of which
+layout is currently visible. Each filter section is rendered ONCE
+inside ``.acta-flt-content`` (so no duplicate hidden inputs / no form
+ambiguity). The element carries ``data-mode`` and ``data-open``
+attributes that drive CSS-only visibility:
 
-Long sections (Labels) carry a **type-to-filter** input above the
-chip list — Alpine binds an ``:class`` expression on each chip that
-hides non-matching values without a server round-trip.
+* ``[data-mode="rail"][data-open="status"]`` → 288px popover, only the
+  ``[data-section="status"]`` card visible.
+* ``[data-mode="expanded"]``                  → 512px panel, 2-col grid,
+  every section visible at once.
 
-Section order: search → status → priority → project → labels →
-workspace. Project sits above labels so the long scrollable list
-doesn't push the small sections off the fold. Done is a regular
-status checkbox; the page decides whether done is hidden by default
-via ``default_show_done`` passed to ``apply_task_filters``.
+State lives in ``$store.filters`` (acta.js): ``mode`` persists to
+``localStorage``, ``openSection`` is ephemeral. The legacy ``open``
+flag is still mirrored for any caller that hasn't migrated.
 
-Section visibility flags:
-* ``filter_hide_assignee`` — drop Assignee (handled by the top strip).
-* ``filter_hide_project`` — drop Project (page is scoped or hoisted).
-* ``filter_hide_status`` — drop Status (kanban columns already group by it).
+Tri-state chips & rows
+======================
 
-Quick Presets, Saved Views, prose-summary line, and collapsed icon
-rail are queued in [[project-todo-filter-sidebar-presets-views]]
-(stage B + C of the design rollout).
+Each chip / row carries Alpine ``x-data="{ state: 'none' | 'included'
+| 'excluded' }"``. The hidden input's ``name`` flips between the
+include key (``status``) and the exclude key (``xstatus``). Left-click
+cycles ``none → included → none``; right-click cycles
+``none → excluded → none``. The global ``acta:filter-reset`` event
+drops every chip back to ``'none'`` so the Reset button works without
+a hard reload. Cycle is the one exception — chips are include-only.
+
+Section visibility flags from the view:
+* ``filter_hide_assignee`` — drop Assignee (top strip handles it).
+* ``filter_hide_project``  — drop Project (page is scoped to one).
+* ``filter_hide_status``   — drop Status (kanban groups by it).
 {% endcomment %}
-<aside x-data="{ ready: false }"
-       x-init="$nextTick(() => ready = true)"
-       :class="[
-         $store.filters.open ? 'lg:!w-64' : 'lg:!w-10',
-         ready ? 'transition-[width] duration-200' : '',
-       ]"
-       class="acta-filters-aside w-full mt-6 lg:mt-0 lg:w-64 shrink-0 lg:max-h-full">
 
-  {% comment %}
-  Collapsed-state trigger and expanded form are both always in the DOM;
-  visibility is driven by the aside's ``acta-filters-open`` /
-  ``acta-filters-closed`` class (toggled in :class via the Alpine
-  store). Rules live in main.css. This avoids the HTMX-swap race
-  where Alpine's ``x-show`` directive briefly fails to bind on the
-  re-swapped form, leaving both visible at the same time.
-  {% endcomment %}
-  <button @click="$store.filters.set(true)"
-          class="acta-filters-collapsed-trigger w-full bg-card border border-border rounded-lg p-2 hover:border-border-strong transition relative"
-          title="{% trans 'Show filters' %}">
-    {% lucide "sliders-horizontal" "w-4 h-4 text-brand-400 mx-auto" %}
-    {% comment %}
-    Badge rendered by ``_filter_count_badges.html`` — single source of
-    truth. HTMX responses re-include it with ``oob=True`` so the
-    count updates without rendering the whole sidebar.
-    {% endcomment %}
-    {% include "web/_filter_count_badges.html" with variant="collapsed" %}
-  </button>
+<aside x-data="{
+         counts: { search:0, status:0, priority:0, project:0, label:0, cycle:0, size:0, date:0, toggles:0 },
+         get totalActive() {
+           return this.counts.search + this.counts.status + this.counts.priority
+                + this.counts.project + this.counts.label + this.counts.cycle
+                + this.counts.size + this.counts.date + this.counts.toggles;
+         },
+         refreshCounts() {
+           const form = document.getElementById('filter-form');
+           if (!form) return;
+           const fd = new FormData(form);
+           this.counts.search   = (fd.get('q') || '').trim() ? 1 : 0;
+           this.counts.status   = fd.getAll('status').length + fd.getAll('xstatus').length;
+           this.counts.priority = fd.getAll('priority').length + fd.getAll('xpriority').length;
+           this.counts.project  = fd.getAll('project').length + fd.getAll('xproject').length;
+           this.counts.label    = fd.getAll('label').length + fd.getAll('xlabel').length;
+           this.counts.cycle    = fd.getAll('cycle').length;
+           this.counts.size     = fd.getAll('size').length + fd.getAll('xsize').length;
+           this.counts.date     = ((fd.get('date_after') || '') + (fd.get('date_before') || '')).trim() ? 1 : 0;
+           this.counts.toggles  = (fd.getAll('show_backlog').slice(-1)[0] === '1' ? 1 : 0)
+                                + (fd.getAll('show_archived').slice(-1)[0] === '1' ? 1 : 0);
+         },
+         init() {
+           this.$store.filters._syncHtmlClass();
+           // Read current state from the freshly mounted form — chips
+           // are server-rendered with the URL's selected/excluded sets,
+           // so a FormData snapshot after Alpine flushes ``:checked`` /
+           // ``:name`` gives the correct initial badge counts on
+           // reload (URL → counts).
+           this.$nextTick(() => this.refreshCounts());
+           // Single source of truth for live refresh: every filter
+           // mutation (left-click, right-click chip, reset, toggle,
+           // search-on-enter) ends with the form being
+           // ``requestSubmit()``-ed; HTMX then fires
+           // ``htmx:configRequest`` on the form just before it
+           // serialises the payload — that's AFTER Alpine flushes
+           // reactive ``:name`` / ``:checked`` updates, so a fresh
+           // FormData snapshot here reflects the final state.
+           const form = document.getElementById('filter-form');
+           if (form) {
+             form.addEventListener('htmx:configRequest', () => this.refreshCounts());
+           }
+         },
+       }"
+       @keydown.escape.window="$store.filters.closePopover()"
+       class="acta-flt-aside-v2 mt-6 lg:mt-0 shrink-0"
+       :data-mode="$store.filters.mode">
 
-  {% comment %}
-  ``overflow-hidden`` keeps inner content from bleeding past the rounded
-  corners into adjacent columns (My Work / All Tasks lay the filter
-  sidebar next to the task list — without the clip, header text
-  could overlap the list). The tooltips on header buttons compensate
-  with ``data-tooltip-pos="below"`` so they drop DOWN into the form
-  body where they're visible, instead of UP past the clipped edge.
-  {% endcomment %}
   <form id="filter-form"
         method="get"
         hx-get="{{ filter_form_url }}"
         hx-target="{{ filter_htmx_target }}"
         hx-swap="innerHTML"
         hx-push-url="true"
-        class="acta-filters-form bg-card border border-border rounded-lg overflow-hidden
-               flex flex-col w-full lg:max-h-full">
+        class="flex flex-row-reverse gap-2 items-start lg:max-h-full">
 
     {% for name, value in filter_preserved_pairs %}
     <input type="hidden" name="{{ name }}" value="{{ value }}">
     {% endfor %}
 
-    {# Header — shrink-0. #}
-    <div class="shrink-0 flex items-center justify-between border-b border-border px-3 py-2.5">
-      <h2 class="text-xs uppercase tracking-wider text-muted-foreground font-medium flex items-center gap-1.5">
-        {% lucide "sliders-horizontal" "w-3.5 h-3.5 text-brand-400" %}
-        {% trans "Filters" %}
-        {% comment %}
-        The badge include here also pulls ``filter-count-collapsed``
-        into the DOM (hidden in this branch via ``x-show=open``). HTMX
-        responses target both IDs with ``oob=True`` so whichever pill
-        is visible at the moment refreshes correctly.
-        {% endcomment %}
+    {# ========================================================== #}
+    {# Rail (48px). Always rendered, hidden when expanded.         #}
+    {# ========================================================== #}
+    <div class="acta-flt-rail shrink-0" x-show="$store.filters.mode === 'rail'" x-cloak>
+
+      <button type="button" class="acta-flt-rail-btn" data-tooltip-pos="left"
+              title="{% trans 'Expand filters' %}"
+              @click="$store.filters.setMode('expanded')">
+        {% lucide "panel-left-open" "w-4 h-4" %}
+      </button>
+
+      <div class="sep"></div>
+
+      <button type="button" class="acta-flt-rail-btn" data-tooltip-pos="left"
+              :class="$store.filters.openSection === 'search' && 'is-active'"
+              title="{% trans 'Search' %}"
+              @click.stop="$store.filters.openOnly('search', $event)">
+        {% lucide "search" "w-4 h-4" %}
+        <span class="ind bare" x-show="counts.search > 0" x-cloak></span>
+      </button>
+
+      {% if not filter_hide_status %}
+      <button type="button" class="acta-flt-rail-btn" data-tooltip-pos="left"
+              :class="$store.filters.openSection === 'status' && 'is-active'"
+              title="{% trans 'Status' %}"
+              @click.stop="$store.filters.openOnly('status', $event)">
+        {% lucide "circle-dot" "w-4 h-4" %}
+        <span class="ind bare" x-show="counts.status === 1" x-cloak></span>
+        <span class="ind" x-show="counts.status > 1" x-cloak x-text="counts.status"></span>
+      </button>
+      {% endif %}
+
+      <button type="button" class="acta-flt-rail-btn" data-tooltip-pos="left"
+              :class="$store.filters.openSection === 'priority' && 'is-active'"
+              title="{% trans 'Priority' %}"
+              @click.stop="$store.filters.openOnly('priority', $event)">
+        {% lucide "flag" "w-4 h-4" %}
+        <span class="ind bare" x-show="counts.priority === 1" x-cloak></span>
+        <span class="ind" x-show="counts.priority > 1" x-cloak x-text="counts.priority"></span>
+      </button>
+
+      {% if not filter_hide_project %}
+      <button type="button" class="acta-flt-rail-btn" data-tooltip-pos="left"
+              :class="$store.filters.openSection === 'project' && 'is-active'"
+              title="{% trans 'Project' %}"
+              @click.stop="$store.filters.openOnly('project', $event)">
+        {% lucide "folders" "w-4 h-4" %}
+        <span class="ind bare" x-show="counts.project === 1" x-cloak></span>
+        <span class="ind" x-show="counts.project > 1" x-cloak x-text="counts.project"></span>
+      </button>
+      {% endif %}
+
+      {% if available_labels %}
+      <button type="button" class="acta-flt-rail-btn" data-tooltip-pos="left"
+              :class="$store.filters.openSection === 'label' && 'is-active'"
+              title="{% trans 'Labels' %}"
+              @click.stop="$store.filters.openOnly('label', $event)">
+        {% lucide "tags" "w-4 h-4" %}
+        <span class="ind bare" x-show="counts.label === 1" x-cloak></span>
+        <span class="ind" x-show="counts.label > 1" x-cloak x-text="counts.label"></span>
+      </button>
+      {% endif %}
+
+      {% if available_cycles %}
+      <button type="button" class="acta-flt-rail-btn" data-tooltip-pos="left"
+              :class="$store.filters.openSection === 'cycle' && 'is-active'"
+              title="{% trans 'Cycle' %}"
+              @click.stop="$store.filters.openOnly('cycle', $event)">
+        {% lucide "iteration-cw" "w-4 h-4" %}
+        <span class="ind bare" x-show="counts.cycle === 1" x-cloak></span>
+        <span class="ind" x-show="counts.cycle > 1" x-cloak x-text="counts.cycle"></span>
+      </button>
+      {% endif %}
+
+      <button type="button" class="acta-flt-rail-btn" data-tooltip-pos="left"
+              :class="$store.filters.openSection === 'size' && 'is-active'"
+              title="{% trans 'Size' %}"
+              @click.stop="$store.filters.openOnly('size', $event)">
+        {% lucide "ruler" "w-4 h-4" %}
+        <span class="ind bare" x-show="counts.size === 1" x-cloak></span>
+        <span class="ind" x-show="counts.size > 1" x-cloak x-text="counts.size"></span>
+      </button>
+
+      <button type="button" class="acta-flt-rail-btn" data-tooltip-pos="left"
+              :class="$store.filters.openSection === 'date' && 'is-active'"
+              title="{% trans 'Date' %}"
+              @click.stop="$store.filters.openOnly('date', $event)">
+        {% lucide "calendar" "w-4 h-4" %}
+        <span class="ind bare" x-show="counts.date > 0" x-cloak></span>
+      </button>
+
+      <button type="button" class="acta-flt-rail-btn" data-tooltip-pos="left"
+              :class="$store.filters.openSection === 'toggles' && 'is-active'"
+              title="{% trans 'Backlog / Archived' %}"
+              @click.stop="$store.filters.openOnly('toggles', $event)">
+        {% lucide "archive" "w-4 h-4" %}
+        <span class="ind bare" x-show="counts.toggles > 0" x-cloak></span>
+      </button>
+
+      <div class="flex-1"></div>
+
+      <template x-if="totalActive > 0">
+        <div class="contents">
+          <div class="sep"></div>
+          <button type="button" class="acta-flt-rail-btn is-reset" data-tooltip-pos="left"
+                  title="{% trans 'Reset all filters' %}"
+                  @click.prevent.stop="
+                    const form = document.getElementById('filter-form');
+                    window.dispatchEvent(new CustomEvent('acta:filter-reset'));
+                    $nextTick(() => form.requestSubmit());
+                  ">
+            {% lucide "filter-x" "w-4 h-4" %}
+          </button>
+        </div>
+      </template>
+    </div>
+
+    {# ========================================================== #}
+    {# Content panel. Single DOM tree; CSS reconfigures based on   #}
+    {# data-mode / data-open. Visible whenever in expanded mode    #}
+    {# OR in rail mode with a section open.                        #}
+    {# ========================================================== #}
+    <div class="acta-flt-content"
+         :data-mode="$store.filters.mode"
+         :data-open="$store.filters.openSection || ''"
+         :style="$store.filters.mode === 'rail' ? `top: ${$store.filters.openTop}px` : ''"
+         x-show="$store.filters.mode === 'expanded' || ($store.filters.mode === 'rail' && $store.filters.openSection)"
+         @click.outside="$store.filters.closePopover()"
+         x-cloak>
+
+      {# ----------- Expanded header ----------- #}
+      <div class="acta-flt-expanded-h" x-show="$store.filters.mode === 'expanded'">
+        {% lucide "filter" "w-4 h-4 text-brand-400" %}
+        <h3 class="text-foreground font-semibold text-[13px]">{% trans "Filters" %}</h3>
         {% include "web/_filter_count_badges.html" with variant="expanded" %}
-      </h2>
-      <div class="flex items-center gap-2">
-        {% comment %}
-        Reset clears every filter chip client-side, then re-submits
-        the form via HTMX so only ``filter_preserved_pairs`` (e.g.
-        ``view=table``) survive the trip. ``acta:filter-reset`` is a
-        custom event each chip's Alpine ``x-data`` listens for — they
-        flip ``state`` back to ``'none'`` so checkboxes and visual
-        state both reset. No full nav, no layout jump.
-        {% endcomment %}
+        <span class="flex-1"></span>
         <button type="button"
+                class="text-[11px] text-rose-300/80 hover:text-rose-300 px-2 py-1 rounded hover:bg-rose-500/10 inline-flex items-center gap-1.5"
+                x-show="totalActive > 0" x-cloak
                 @click.prevent="
                   const form = document.getElementById('filter-form');
                   window.dispatchEvent(new CustomEvent('acta:filter-reset'));
                   $nextTick(() => form.requestSubmit());
-                "
-                class="text-[10px] text-placeholder-foreground hover:text-foreground flex items-center gap-1">
-          {% lucide "refresh-cw" "w-3 h-3" %}
-          {% trans "Reset" %}
+                ">
+          {% lucide "filter-x" "w-3 h-3" %}
+          {% trans "Reset all" %}
         </button>
         <button type="button"
-                @click="$store.filters.set(false)"
-                data-tooltip="{% trans 'Hide filters' %}"
-                data-tooltip-pos="below"
-                aria-label="{% trans 'Hide filters' %}"
-                class="text-placeholder-foreground hover:text-foreground">
-          {% lucide "chevron-right" "w-3.5 h-3.5" %}
+                class="text-placeholder-foreground hover:text-foreground w-7 h-7 grid place-items-center rounded hover:bg-muted"
+                title="{% trans 'Collapse to rail' %}"
+                @click="$store.filters.setMode('rail')">
+          {% lucide "panel-left-close" "w-4 h-4" %}
         </button>
       </div>
-    </div>
 
-    {% comment %}
-    Body — natural height, overflow only as last resort. ``overflow-x-hidden``
-    is explicit because mixing ``overflow-y: auto`` with the default
-    ``overflow-x: visible`` makes browsers compute both axes as ``auto``
-    (CSS Overflow spec), which sneaks in a horizontal scrollbar whenever
-    any inner pill or label row hits the 256px sidebar width.
-    {% endcomment %}
-    <div class="min-h-0 overflow-y-auto overflow-x-hidden flex flex-col divide-y divide-border">
+      {# Popover close button — pinned to the top-right; section's own #}
+      {# header inside provides the (translated) section name.          #}
+      <button type="button"
+              class="absolute top-2 right-2 text-placeholder-foreground hover:text-foreground z-10"
+              x-show="$store.filters.mode === 'rail'"
+              @click="$store.filters.closePopover()">
+        {% lucide "x" "w-3.5 h-3.5" %}
+      </button>
 
-      {% comment %}
-      Interaction hint. Each chip / row carries a tri-state: idle →
-      ``click`` includes (only matching rows kept) → ``right-click``
-      excludes (matching rows dropped). Without this banner users
-      easily miss the right-click affordance.
-      {% endcomment %}
-      <div class="px-3 pt-3 pb-2 flex items-start gap-1.5 text-[10px] text-placeholder-foreground leading-snug">
-        {% lucide "info" "w-3 h-3 mt-0.5 shrink-0 text-placeholder-foreground" %}
-        <span>
-          {% trans "Click to include, right-click to exclude." %}
-        </span>
-      </div>
+      {# ----------- Sections container ----------- #}
+      <div class="acta-flt-content-b">
 
-      {# ---------- Search ---------- #}
-      <div x-data="{
-             open: (() => { const v = localStorage.getItem('acta:filter-sec:search'); return v === null ? true : v === '1'; })(),
-             toggle() { this.open = !this.open; localStorage.setItem('acta:filter-sec:search', this.open ? '1' : '0'); }
-           }">
-        <button type="button"
-                @click="toggle()"
-                class="w-full flex items-center gap-1.5 px-3 py-2 text-[10px] uppercase tracking-wider text-placeholder-foreground hover:text-foreground font-semibold transition">
-          <span :class="open ? '' : '-rotate-90'" class="inline-flex transition-transform">
-            {% lucide "chevron-down" "w-3 h-3" %}
-          </span>
-          <span class="flex-1 text-left">{% trans "Search" %}</span>
-          {% if q %}
-          <span class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-300 normal-case tracking-normal" title="{{ q }}">{{ q|truncatechars:12 }}</span>
-          {% endif %}
-        </button>
-        <div x-show="open" x-cloak class="px-3 pb-3">
-          <input type="search" name="q" value="{{ q }}"
-                 x-data
-                 @acta:filter-reset.window="$el.value = ''"
-                 placeholder="{% trans 'Title or description…' %}"
-                 class="w-full bg-muted border border-border-strong rounded px-2 py-1.5 text-xs text-foreground placeholder-zinc-500 focus:outline-none focus:border-brand-500">
+        {# ---------- SEARCH (col-span-2) ---------- #}
+        <div class="acta-flt-sec span2" data-section="search">
+          <div class="acta-flt-sec-h">
+            {% lucide "search" "w-3 h-3 ic" %}
+            <span class="lbl">{% trans "Search" %}</span>
+          </div>
+          <div class="acta-flt-input-wrap">
+            {% lucide "search" "w-3 h-3 ic-l" %}
+            <input type="search"
+                   name="q"
+                   value="{{ q }}"
+                   x-data
+                   @acta:filter-reset.window="$el.value = ''"
+                   placeholder="{% trans 'Title, description, ID…' %}"
+                   class="acta-flt-input">
+          </div>
         </div>
-      </div>
 
-      {# ---------- Status ---------- #}
-      <div x-show="$store.viewMode.current !== 'kanban'" x-cloak
-           x-data="{
-             open: (() => { const v = localStorage.getItem('acta:filter-sec:status'); return v === null ? true : v === '1'; })(),
-             toggle() { this.open = !this.open; localStorage.setItem('acta:filter-sec:status', this.open ? '1' : '0'); }
-           }">
-        <button type="button"
-                @click="toggle()"
-                class="w-full flex items-center gap-1.5 px-3 py-2 text-[10px] uppercase tracking-wider text-placeholder-foreground hover:text-foreground font-semibold transition">
-          <span :class="open ? '' : '-rotate-90'" class="inline-flex transition-transform">
-            {% lucide "chevron-down" "w-3 h-3" %}
-          </span>
-          <span class="flex-1 text-left">{% trans "Status" %}</span>
-          {% with sc=selected_statuses|length xc=excluded_statuses|length %}
-          <span data-filter-section-count="status"
-                class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-300 normal-case tracking-normal{% if not sc|add:xc %} hidden{% endif %}">{{ sc|add:xc }}</span>
-          {% endwith %}
-        </button>
-        <div x-show="open" x-cloak class="px-3 pb-3">
-          <div class="flex gap-1 flex-wrap">
+        {# ---------- STATUS (col-span-2) ---------- #}
+        {% if not filter_hide_status %}
+        <div class="acta-flt-sec span2" data-section="status">
+          <div class="acta-flt-sec-h">
+            {% lucide "circle-dot" "w-3 h-3 ic" %}
+            <span class="lbl">{% trans "Status" %}</span>
+            <span class="grow"></span>
+            {% with sc=selected_statuses|length xc=excluded_statuses|length %}
+              {% with cnt=sc|add:xc %}
+                {% if cnt %}<span class="cnt">{{ cnt }}</span>{% endif %}
+              {% endwith %}
+            {% endwith %}
+          </div>
+          <div class="flex flex-wrap gap-1.5">
             {% for key, label in status_labels.items %}
             <label class="cursor-pointer"
                    data-filter-name="status"
@@ -206,13 +313,9 @@ rail are queued in [[project-todo-filter-sidebar-presets-views]]
                      :checked="state !== 'none'"
                      class="peer sr-only"
                      @change.stop="state = $event.target.checked ? 'included' : 'none'; $event.target.form.requestSubmit()">
-              <span :class="{
-                      'border-rose-500/70 bg-rose-500/15 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 line-through': state === 'excluded',
-                      'border-brand-400 bg-brand-600 text-white dark:bg-brand-500/25 dark:text-white': state === 'included',
-                      'border-border bg-background text-subtle-foreground hover:bg-muted': state === 'none',
-                    }"
-                    class="flex items-center gap-1 px-2 py-1 rounded-md border text-[11px] transition">
-                <span class="w-1.5 h-1.5 rounded-full
+              <span class="acta-flt-chip"
+                    :class="{ 'is-include': state === 'included', 'is-exclude': state === 'excluded' }">
+                <span class="dot
                   {% if key == 'planned' %}bg-zinc-500
                   {% elif key == 'ready' %}bg-cyan-500
                   {% elif key == 'to-do' %}bg-blue-500
@@ -226,27 +329,21 @@ rail are queued in [[project-todo-filter-sidebar-presets-views]]
             {% endfor %}
           </div>
         </div>
-      </div>
+        {% endif %}
 
-      {# ---------- Priority ---------- #}
-      <div x-data="{
-             open: (() => { const v = localStorage.getItem('acta:filter-sec:priority'); return v === null ? true : v === '1'; })(),
-             toggle() { this.open = !this.open; localStorage.setItem('acta:filter-sec:priority', this.open ? '1' : '0'); }
-           }">
-        <button type="button"
-                @click="toggle()"
-                class="w-full flex items-center gap-1.5 px-3 py-2 text-[10px] uppercase tracking-wider text-placeholder-foreground hover:text-foreground font-semibold transition">
-          <span :class="open ? '' : '-rotate-90'" class="inline-flex transition-transform">
-            {% lucide "chevron-down" "w-3 h-3" %}
-          </span>
-          <span class="flex-1 text-left">{% trans "Priority" %}</span>
-          {% with sc=selected_priorities|length xc=excluded_priorities|length %}
-          <span data-filter-section-count="priority"
-                class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-300 normal-case tracking-normal{% if not sc|add:xc %} hidden{% endif %}">{{ sc|add:xc }}</span>
-          {% endwith %}
-        </button>
-        <div x-show="open" x-cloak class="px-3 pb-3">
-          <div class="flex gap-1 flex-wrap">
+        {# ---------- PRIORITY (col-span-2) ---------- #}
+        <div class="acta-flt-sec span2" data-section="priority">
+          <div class="acta-flt-sec-h">
+            {% lucide "flag" "w-3 h-3 ic" %}
+            <span class="lbl">{% trans "Priority" %}</span>
+            <span class="grow"></span>
+            {% with sc=selected_priorities|length xc=excluded_priorities|length %}
+              {% with cnt=sc|add:xc %}
+                {% if cnt %}<span class="cnt">{{ cnt }}</span>{% endif %}
+              {% endwith %}
+            {% endwith %}
+          </div>
+          <div class="flex flex-wrap gap-1.5">
             {% for key, label in priority_labels.items %}
             <label class="cursor-pointer"
                    data-filter-name="priority"
@@ -260,13 +357,9 @@ rail are queued in [[project-todo-filter-sidebar-presets-views]]
                      :checked="state !== 'none'"
                      class="peer sr-only"
                      @change.stop="state = $event.target.checked ? 'included' : 'none'; $event.target.form.requestSubmit()">
-              <span :class="{
-                      'border-rose-500/70 bg-rose-500/15 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 line-through': state === 'excluded',
-                      'border-brand-400 bg-brand-600 text-white dark:bg-brand-500/25 dark:text-white': state === 'included',
-                      'border-border bg-background text-subtle-foreground hover:bg-muted': state === 'none',
-                    }"
-                    class="flex items-center gap-1 px-2 py-1 rounded-md border text-[11px] transition">
-                <span class="w-1.5 h-1.5 rounded-full
+              <span class="acta-flt-chip"
+                    :class="{ 'is-include': state === 'included', 'is-exclude': state === 'excluded' }">
+                <span class="sqdot
                   {% if key == 1 %}bg-red-500
                   {% elif key == 2 %}bg-orange-500
                   {% elif key == 3 %}bg-amber-500
@@ -278,27 +371,230 @@ rail are queued in [[project-todo-filter-sidebar-presets-views]]
             {% endfor %}
           </div>
         </div>
-      </div>
 
-      {# ---------- Size ---------- #}
-      <div x-data="{
-             open: (() => { const v = localStorage.getItem('acta:filter-sec:size'); return v === null ? false : v === '1'; })(),
-             toggle() { this.open = !this.open; localStorage.setItem('acta:filter-sec:size', this.open ? '1' : '0'); }
-           }">
-        <button type="button"
-                @click="toggle()"
-                class="w-full flex items-center gap-1.5 px-3 py-2 text-[10px] uppercase tracking-wider text-placeholder-foreground hover:text-foreground font-semibold transition">
-          <span :class="open ? '' : '-rotate-90'" class="inline-flex transition-transform">
-            {% lucide "chevron-down" "w-3 h-3" %}
-          </span>
-          <span class="flex-1 text-left">{% trans "Size" %}</span>
-          {% with sc=selected_sizes|length xc=excluded_sizes|length %}
-          <span data-filter-section-count="size"
-                class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-300 normal-case tracking-normal{% if not sc|add:xc %} hidden{% endif %}">{{ sc|add:xc }}</span>
-          {% endwith %}
-        </button>
-        <div x-show="open" x-cloak class="px-3 pb-3">
-          <div class="flex gap-1 flex-wrap">
+        {# ---------- PROJECT — list w/ sticky-stack (col-span-2) ---------- #}
+        {% if not filter_hide_project %}
+        <div class="acta-flt-sec span2" data-section="project" x-data="{ q: '' }">
+          <div class="acta-flt-sec-h">
+            {% lucide "folders" "w-3 h-3 ic" %}
+            <span class="lbl">{% trans "Project" %}</span>
+            <span class="grow"></span>
+            {% with sc=selected_projects|length xc=excluded_projects|length %}
+              {% with cnt=sc|add:xc %}
+                {% if cnt %}<span class="cnt">{{ cnt }}</span>{% endif %}
+              {% endwith %}
+            {% endwith %}
+          </div>
+          {% if available_projects|length > 8 %}
+          <div class="acta-flt-input-wrap mb-1.5">
+            {% lucide "search" "w-3 h-3 ic-l" %}
+            <input class="acta-flt-input" type="search" x-model="q"
+                   placeholder="{% trans 'Search projects…' %}">
+          </div>
+          {% endif %}
+          <div class="acta-flt-scroller space-y-0.5 max-h-[180px] overflow-y-auto overflow-x-hidden pr-1 relative"
+               data-sticky-stack
+               x-data
+               @sticky-row-toggled.window="$nextTick(() => window.acta && window.acta.updateStickyStack && window.acta.updateStickyStack($el))">
+            {% for p in available_projects %}
+            <label class="cursor-pointer block"
+                   :class="q && !'{{ p.name|lower|escapejs }} {{ p.slug_prefix|lower|escapejs }}'.includes(q.toLowerCase()) ? 'hidden' : ''"
+                   x-data="{ state: '{% if p.id in excluded_projects %}excluded{% elif p.id in selected_projects %}included{% else %}none{% endif %}' }"
+                   :data-selected="state !== 'none'"
+                   data-sticky-row
+                   data-filter-name="project"
+                   data-filter-value="{{ p.id }}"
+                   @acta:filter-reset.window="state = 'none'; $dispatch('sticky-row-toggled')"
+                   @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $dispatch('sticky-row-toggled'); $nextTick(() => document.getElementById('filter-form').requestSubmit())">
+              <input type="checkbox"
+                     :name="state === 'excluded' ? 'xproject' : 'project'"
+                     value="{{ p.id }}"
+                     :checked="state !== 'none'"
+                     class="peer sr-only"
+                     @change.stop="state = $event.target.checked ? 'included' : 'none'; $dispatch('sticky-row-toggled'); $event.target.form.requestSubmit()">
+              <span class="acta-flt-row"
+                    :class="{ 'is-include': state === 'included', 'is-exclude': state === 'excluded' }">
+                <span class="check"
+                      x-show="state === 'included'">{% lucide "check" "w-2.5 h-2.5" %}</span>
+                <span class="check"
+                      x-show="state === 'excluded'">{% lucide "x" "w-2.5 h-2.5" %}</span>
+                <span class="check"
+                      x-show="state === 'none'"></span>
+                <span class="shrink-0 {{ p.icon_color_class }}">
+                  {% lucide p.icon|default:"folder" "w-3.5 h-3.5" %}
+                </span>
+                <span class="nm">{{ p.name }}</span>
+                <span class="n">{{ p.slug_prefix }}</span>
+              </span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        {# ---------- CYCLE (col 1) — include-only chips ---------- #}
+        {% if available_cycles %}
+        <div class="acta-flt-sec" data-section="cycle">
+          <div class="acta-flt-sec-h">
+            {% lucide "iteration-cw" "w-3 h-3 ic" %}
+            <span class="lbl">{% trans "Cycle" %}</span>
+            <span class="grow"></span>
+            {% if selected_cycles %}<span class="cnt">{{ selected_cycles|length }}</span>{% endif %}
+          </div>
+          <div class="flex flex-wrap gap-1.5">
+            <label class="cursor-pointer" data-filter-name="cycle" data-filter-value="active"
+                   x-data="{ on: {% if 'active' in selected_cycles %}true{% else %}false{% endif %} }"
+                   @acta:filter-reset.window="on = false">
+              <input type="checkbox" name="cycle" value="active" :checked="on" class="peer sr-only"
+                     @change.stop="on = $event.target.checked; $event.target.form.requestSubmit()">
+              <span class="acta-flt-chip" :class="{ 'is-include': on }">
+                {% lucide "iteration-cw" "w-2.5 h-2.5" %}{% trans "Active" %}
+              </span>
+            </label>
+            {% for cycle in available_cycles %}
+            <label class="cursor-pointer" data-filter-name="cycle" data-filter-value="{{ cycle.id }}"
+                   x-data="{ on: {% if cycle.id|stringformat:'s' in selected_cycles %}true{% else %}false{% endif %} }"
+                   @acta:filter-reset.window="on = false">
+              <input type="checkbox" name="cycle" value="{{ cycle.id }}" :checked="on" class="peer sr-only"
+                     @change.stop="on = $event.target.checked; $event.target.form.requestSubmit()">
+              <span class="acta-flt-chip" :class="{ 'is-include': on }">
+                <span class="dot {% if cycle.is_active %}bg-emerald-500{% else %}bg-zinc-600{% endif %}"></span>
+                {{ cycle.display_name }}
+              </span>
+            </label>
+            {% endfor %}
+            <label class="cursor-pointer" data-filter-name="cycle" data-filter-value="backlog"
+                   x-data="{ on: {% if 'backlog' in selected_cycles %}true{% else %}false{% endif %} }"
+                   @acta:filter-reset.window="on = false">
+              <input type="checkbox" name="cycle" value="backlog" :checked="on" class="peer sr-only"
+                     @change.stop="on = $event.target.checked; $event.target.form.requestSubmit()">
+              <span class="acta-flt-chip" :class="{ 'is-include': on }">{% trans "Backlog" %}</span>
+            </label>
+          </div>
+        </div>
+        {% endif %}
+
+        {# ---------- DATE (col 1) ---------- #}
+        <div class="acta-flt-sec" data-section="date"
+             x-data="{
+               fmt(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; },
+               submit() { document.getElementById('filter-form').requestSubmit(); },
+               setRange(after, before) { this.$refs.after.value = after; this.$refs.before.value = before; this.submit(); },
+               lastDays(n) { const to = new Date(); const from = new Date(); from.setDate(from.getDate() - (n - 1)); this.setRange(this.fmt(from), this.fmt(to)); },
+               clear() { this.setRange('', ''); }
+             }"
+             @acta:filter-reset.window="$refs.after.value = ''; $refs.before.value = ''">
+          <div class="acta-flt-sec-h">
+            {% lucide "calendar" "w-3 h-3 ic" %}
+            <span class="lbl">{% trans "Date" %}</span>
+            <span class="grow"></span>
+            {% if date_after or date_before %}<span class="cnt">1</span>{% endif %}
+          </div>
+          <select name="date_field" @change="submit()" class="acta-flt-input no-icon mb-1.5">
+            <option value="completed" {% if date_field == "completed" %}selected{% endif %}>{% trans "Completed" %}</option>
+            <option value="created" {% if date_field == "created" %}selected{% endif %}>{% trans "Created" %}</option>
+            <option value="updated" {% if date_field == "updated" %}selected{% endif %}>{% trans "Updated" %}</option>
+            <option value="start" {% if date_field == "start" %}selected{% endif %}>{% trans "Start" %}</option>
+            <option value="end" {% if date_field == "end" %}selected{% endif %}>{% trans "End" %}</option>
+            <option value="due" {% if date_field == "due" %}selected{% endif %}>{% trans "Due" %}</option>
+          </select>
+          <div class="flex flex-wrap gap-1 mb-1.5">
+            <button type="button" @click="lastDays(7)" class="acta-flt-chip">{% trans "7d" %}</button>
+            <button type="button" @click="lastDays(30)" class="acta-flt-chip">{% trans "30d" %}</button>
+            {% if active_cycle_start %}
+            <button type="button" @click="setRange('{{ active_cycle_start }}', '{{ active_cycle_end }}')"
+                    class="acta-flt-chip">{% trans "Cycle" %}</button>
+            {% endif %}
+            <button type="button" @click="clear()" class="acta-flt-chip">{% trans "Clear" %}</button>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="text-[10px] text-placeholder-foreground font-mono shrink-0">{% trans "from" %}</span>
+            <input x-ref="after" type="date" name="date_after" value="{{ date_after }}"
+                   @change="submit()" class="acta-flt-input no-icon font-mono">
+          </div>
+          <div class="flex items-center gap-1.5 mt-1">
+            <span class="text-[10px] text-placeholder-foreground font-mono shrink-0">{% trans "to" %}</span>
+            <input x-ref="before" type="date" name="date_before" value="{{ date_before }}"
+                   @change="submit()" class="acta-flt-input no-icon font-mono">
+          </div>
+        </div>
+
+        {# ---------- LABELS (col 2, row-span-2) ---------- #}
+        {% if available_labels %}
+        <div class="acta-flt-sec row2" data-section="label" x-data="{ q: '' }">
+          <div class="acta-flt-sec-h">
+            {% lucide "tags" "w-3 h-3 ic" %}
+            <span class="lbl">{% trans "Labels" %}</span>
+            <span class="grow"></span>
+            {% with sc=selected_labels|length xc=excluded_labels|length %}
+              {% with cnt=sc|add:xc %}
+                {% if cnt %}<span class="cnt">{{ cnt }}</span>{% endif %}
+              {% endwith %}
+            {% endwith %}
+          </div>
+          {% if available_labels|length > 8 %}
+          <div class="acta-flt-input-wrap mb-1.5">
+            {% lucide "search" "w-3 h-3 ic-l" %}
+            <input class="acta-flt-input" type="search" x-model="q"
+                   placeholder="{% trans 'Search labels…' %}">
+          </div>
+          {% endif %}
+          <div class="acta-flt-scroller max-h-[260px] overflow-y-auto overflow-x-hidden pr-1 space-y-2">
+            {% with bucket_count=available_label_groups|length %}
+            {% for entry in available_label_groups %}
+            {% if entry.labels %}
+            <div>
+              {% if bucket_count > 1 %}
+              <div class="acta-flt-cap">
+                <span>{{ entry.group.name|default:_("Other") }}</span>
+                <span class="ln"></span>
+              </div>
+              {% endif %}
+              <div class="flex flex-wrap gap-1">
+                {% for label in entry.labels %}
+                <label class="cursor-pointer"
+                       data-filter-name="label"
+                       data-filter-value="{{ label.id }}"
+                       :class="q && !'{{ label.name|lower|escapejs }}'.includes(q.toLowerCase()) ? 'hidden' : ''"
+                       x-data="{ state: '{% if label.id in excluded_labels %}excluded{% elif label.id in selected_labels %}included{% else %}none{% endif %}' }"
+                       @acta:filter-reset.window="state = 'none'"
+                       @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $nextTick(() => document.getElementById('filter-form').requestSubmit())">
+                  <input type="checkbox"
+                         :name="state === 'excluded' ? 'xlabel' : 'label'"
+                         value="{{ label.id }}"
+                         :checked="state !== 'none'"
+                         class="peer sr-only"
+                         @change.stop="state = $event.target.checked ? 'included' : 'none'; $event.target.form.requestSubmit()">
+                  <span class="acta-flt-chip"
+                        :class="{ 'is-include': state === 'included', 'is-exclude': state === 'excluded' }">
+                    <span class="dot" style="background:{{ label.color }};"></span>
+                    {{ label.name }}
+                  </span>
+                </label>
+                {% endfor %}
+              </div>
+            </div>
+            {% endif %}
+            {% endfor %}
+            {% endwith %}
+          </div>
+        </div>
+        {% endif %}
+
+        {# ---------- SIZE (col-span-2) ---------- #}
+        <div class="acta-flt-sec span2" data-section="size">
+          <div class="acta-flt-sec-h">
+            {% lucide "ruler" "w-3 h-3 ic" %}
+            <span class="lbl">{% trans "Size" %}</span>
+            <span class="text-[9px] text-placeholder-foreground font-mono normal-case ml-1">{% trans "fibonacci" %}</span>
+            <span class="grow"></span>
+            {% with sc=selected_sizes|length xc=excluded_sizes|length %}
+              {% with cnt=sc|add:xc %}
+                {% if cnt %}<span class="cnt">{{ cnt }}</span>{% endif %}
+              {% endwith %}
+            {% endwith %}
+          </div>
+          <div class="flex flex-wrap gap-1.5">
             {% for value in size_values %}
             <label class="cursor-pointer"
                    data-filter-name="size"
@@ -312,363 +608,58 @@ rail are queued in [[project-todo-filter-sidebar-presets-views]]
                      :checked="state !== 'none'"
                      class="peer sr-only"
                      @change.stop="state = $event.target.checked ? 'included' : 'none'; $event.target.form.requestSubmit()">
-              <span :class="{
-                      'border-rose-500/70 bg-rose-500/15 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 line-through': state === 'excluded',
-                      'border-brand-400 bg-brand-600 text-white dark:bg-brand-500/25 dark:text-white': state === 'included',
-                      'border-border bg-background text-subtle-foreground hover:bg-muted': state === 'none',
-                    }"
-                    class="flex items-center gap-1 px-2 py-1 rounded-md border text-[11px] font-mono transition">
-                {% lucide "gauge" "w-3 h-3" %}{{ value }}
+              <span class="acta-flt-chip font-mono"
+                    :class="{ 'is-include': state === 'included', 'is-exclude': state === 'excluded' }">
+                {{ value }}
               </span>
             </label>
             {% endfor %}
           </div>
         </div>
-      </div>
 
-      {# ---------- Cycle ---------- #}
-      {% if available_cycles %}
-      <div x-data="{
-             open: (() => { const v = localStorage.getItem('acta:filter-sec:cycle'); return v === null ? false : v === '1'; })(),
-             toggle() { this.open = !this.open; localStorage.setItem('acta:filter-sec:cycle', this.open ? '1' : '0'); }
-           }">
-        <button type="button"
-                @click="toggle()"
-                class="w-full flex items-center gap-1.5 px-3 py-2 text-[10px] uppercase tracking-wider text-placeholder-foreground hover:text-foreground font-semibold transition">
-          <span :class="open ? '' : '-rotate-90'" class="inline-flex transition-transform">
-            {% lucide "chevron-down" "w-3 h-3" %}
-          </span>
-          <span class="flex-1 text-left">{% trans "Cycle" %}</span>
-          {% with cc=selected_cycles|length %}
-          <span data-filter-section-count="cycle"
-                class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-300 normal-case tracking-normal{% if not cc %} hidden{% endif %}">{{ cc }}</span>
-          {% endwith %}
-        </button>
-        <div x-show="open" x-cloak class="px-3 pb-3">
-          <div class="flex gap-1 flex-wrap">
-            {% comment %}
-            Include-only chips (cycles OR-combine): Active, each upcoming
-            cycle, then Backlog (no-cycle). No exclude state — cycle is a
-            positive scope, not an axis you carve negatives out of.
-            {% endcomment %}
-            <label class="cursor-pointer" data-filter-name="cycle" data-filter-value="active"
-                   x-data="{ on: {% if 'active' in selected_cycles %}true{% else %}false{% endif %} }"
-                   @acta:filter-reset.window="on = false">
-              <input type="checkbox" name="cycle" value="active" :checked="on" class="peer sr-only"
-                     @change.stop="on = $event.target.checked; $event.target.form.requestSubmit()">
-              <span :class="on ? 'border-brand-400 bg-brand-600 text-white dark:bg-brand-500/25 dark:text-white' : 'border-border bg-background text-subtle-foreground hover:bg-muted'"
-                    class="flex items-center gap-1 px-2 py-1 rounded-md border text-[11px] transition">
-                {% lucide "iteration-cw" "w-3 h-3" %}{% trans "Active" %}
-              </span>
-            </label>
-            {% for cycle in available_cycles %}
-            <label class="cursor-pointer" data-filter-name="cycle" data-filter-value="{{ cycle.id }}"
-                   x-data="{ on: {% if cycle.id|stringformat:'s' in selected_cycles %}true{% else %}false{% endif %} }"
-                   @acta:filter-reset.window="on = false">
-              <input type="checkbox" name="cycle" value="{{ cycle.id }}" :checked="on" class="peer sr-only"
-                     @change.stop="on = $event.target.checked; $event.target.form.requestSubmit()">
-              <span :class="on ? 'border-brand-400 bg-brand-600 text-white dark:bg-brand-500/25 dark:text-white' : 'border-border bg-background text-subtle-foreground hover:bg-muted'"
-                    class="flex items-center gap-1 px-2 py-1 rounded-md border text-[11px] transition">
-                <span class="w-1.5 h-1.5 rounded-full {% if cycle.is_active %}bg-emerald-500{% else %}bg-zinc-600{% endif %}"></span>{{ cycle.display_name }}
-              </span>
-            </label>
-            {% endfor %}
-            <label class="cursor-pointer" data-filter-name="cycle" data-filter-value="backlog"
-                   x-data="{ on: {% if 'backlog' in selected_cycles %}true{% else %}false{% endif %} }"
-                   @acta:filter-reset.window="on = false">
-              <input type="checkbox" name="cycle" value="backlog" :checked="on" class="peer sr-only"
-                     @change.stop="on = $event.target.checked; $event.target.form.requestSubmit()">
-              <span :class="on ? 'border-brand-400 bg-brand-600 text-white dark:bg-brand-500/25 dark:text-white' : 'border-border bg-background text-subtle-foreground hover:bg-muted'"
-                    class="flex items-center gap-1 px-2 py-1 rounded-md border text-[11px] transition">
-                {% trans "Backlog" %}
-              </span>
-            </label>
+        {# ---------- TOGGLES (col-span-2) ---------- #}
+        {# Both toggles use hidden-0 + checkbox-1 so "off" still sends an  #}
+        {# explicit value — see resolve_show_backlog / resolve_show_archived. #}
+        <div class="acta-flt-sec span2" data-section="toggles">
+          <div class="acta-flt-sec-h">
+            {% lucide "archive" "w-3 h-3 ic" %}
+            <span class="lbl">{% trans "Visibility" %}</span>
           </div>
-        </div>
-      </div>
-      {% endif %}
-
-      {# ---------- Project ---------- #}
-      {% if not filter_hide_project %}
-      {% comment %}
-      Project section: capped at ``max-h-64`` (~10 rows) with internal
-      scroll. Selected rows pin to top/bottom of the scroll container
-      via ``sticky top-0 bottom-0`` — the JS-driven z-index in
-      ``acta.js`` keeps the row closest to the viewport on top.
-      {% endcomment %}
-      <div x-data="{
-             open: (() => { const v = localStorage.getItem('acta:filter-sec:project'); return v === null ? true : v === '1'; })(),
-             toggle() { this.open = !this.open; localStorage.setItem('acta:filter-sec:project', this.open ? '1' : '0'); }
-           }">
-        <button type="button"
-                @click="toggle()"
-                class="w-full flex items-center gap-1.5 px-3 py-2 text-[10px] uppercase tracking-wider text-placeholder-foreground hover:text-foreground font-semibold transition">
-          <span :class="open ? '' : '-rotate-90'" class="inline-flex transition-transform">
-            {% lucide "chevron-down" "w-3 h-3" %}
-          </span>
-          <span class="flex-1 text-left">{% trans "Project" %}</span>
-          {% with sc=selected_projects|length xc=excluded_projects|length %}
-          <span data-filter-section-count="project"
-                class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-300 normal-case tracking-normal{% if not sc|add:xc %} hidden{% endif %}">{{ sc|add:xc }}</span>
-          {% endwith %}
-        </button>
-        <div x-show="open" x-cloak class="px-3 pb-3">
-          <div class="space-y-0.5 max-h-64 overflow-y-auto overflow-x-hidden pr-1 relative"
-               data-sticky-stack
-               x-data
-               @sticky-row-toggled.window="$nextTick(() => window.acta.updateStickyStack($el))">
-            {% for p in available_projects %}
-            <label x-data="{ state: '{% if p.id in excluded_projects %}excluded{% elif p.id in selected_projects %}included{% else %}none{% endif %}' }"
-                   :class="state !== 'none' ? 'sticky top-0 bottom-0 z-10 bg-card' : ''"
-                   :data-selected="state !== 'none'"
-                   class="cursor-pointer flex items-center"
-                   data-sticky-row
-                   data-filter-name="project"
-                   data-filter-value="{{ p.id }}"
-                   @acta:filter-reset.window="state = 'none'; $dispatch('sticky-row-toggled')"
-                   @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $dispatch('sticky-row-toggled'); $nextTick(() => document.getElementById('filter-form').requestSubmit())">
-              <input type="checkbox"
-                     :name="state === 'excluded' ? 'xproject' : 'project'"
-                     value="{{ p.id }}"
-                     :checked="state !== 'none'"
-                     class="peer sr-only"
-                     @change.stop="state = $event.target.checked ? 'included' : 'none'; $dispatch('sticky-row-toggled'); $event.target.form.requestSubmit()">
-              <span :class="{
-                      'bg-rose-500/15 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 line-through': state === 'excluded',
-                      'bg-brand-600 text-white dark:bg-brand-500/25 dark:text-white': state === 'included',
-                      'text-subtle-foreground hover:bg-muted': state === 'none',
-                    }"
-                    class="w-full px-2 py-1 rounded-md text-[11px] transition flex items-center gap-1.5 min-w-0">
-                <span class="shrink-0 opacity-70 {{ p.icon_color_class }}">
-                  {% lucide p.icon|default:"folder" "w-3 h-3" %}
-                </span>
-                <span class="truncate">{{ p.name }}</span>
-              </span>
-            </label>
-            {% endfor %}
-          </div>
-        </div>
-      </div>
-      {% endif %}
-
-      {# ---------- Labels (with type-to-filter) ---------- #}
-      {% if available_labels %}
-      <div x-data="{
-             open: (() => { const v = localStorage.getItem('acta:filter-sec:labels'); return v === null ? false : v === '1'; })(),
-             toggle() { this.open = !this.open; localStorage.setItem('acta:filter-sec:labels', this.open ? '1' : '0'); },
-             q: ''
-           }">
-        <button type="button"
-                @click="toggle()"
-                class="w-full flex items-center gap-1.5 px-3 py-2 text-[10px] uppercase tracking-wider text-placeholder-foreground hover:text-foreground font-semibold transition">
-          <span :class="open ? '' : '-rotate-90'" class="inline-flex transition-transform">
-            {% lucide "chevron-down" "w-3 h-3" %}
-          </span>
-          <span class="flex-1 text-left">{% trans "Labels" %}</span>
-          {% with sc=selected_labels|length xc=excluded_labels|length %}
-          <span data-filter-section-count="label"
-                class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-300 normal-case tracking-normal{% if not sc|add:xc %} hidden{% endif %}">{{ sc|add:xc }}</span>
-          {% endwith %}
-        </button>
-        <div x-show="open" x-cloak class="px-3 pb-3 space-y-2">
-          {% comment %}
-          Type-to-filter — Alpine state ``q`` scopes the parent. Each
-          label chip computes its hidden class against ``q`` so
-          non-matching pills drop out instantly without a server hit.
-          {% endcomment %}
-          <div class="flex items-center gap-1.5 px-2 py-1 bg-muted border border-border-strong rounded
-                      focus-within:border-brand-500 focus-within:bg-background">
-            {% lucide "search" "w-3 h-3 text-placeholder-foreground" %}
-            <input type="search" x-model="q"
-                   placeholder="{% trans 'Filter labels…' %}"
-                   class="flex-1 bg-transparent text-xs text-foreground placeholder-zinc-500 focus:outline-none">
-          </div>
-          {% comment %}
-          Grouped sidebar: each ``LabelGroup`` gets its own subsection so
-          the filter strip teaches the workspace's taxonomy at a glance.
-          When the workspace has only an Ungrouped bucket (no real
-          groups) we skip the header for a flat layout — the visual
-          rhythm of the chips alone is enough.
-          {% endcomment %}
-          {% with bucket_count=available_label_groups|length %}
-          {% for entry in available_label_groups %}
-          {% if entry.labels %}
-          <div class="space-y-1">
-            {% if bucket_count > 1 %}
-            {% include "web/_label_group_header.html" with group=entry.group %}
-            {% endif %}
-            <div class="flex gap-1 flex-wrap">
-              {% for label in entry.labels %}
-              <label class="cursor-pointer"
-                     data-filter-name="label"
-                     data-filter-value="{{ label.id }}"
-                     :class="q && !'{{ label.name|lower|escapejs }}'.includes(q.toLowerCase()) ? 'hidden' : ''"
-                     x-data="{ state: '{% if label.id in excluded_labels %}excluded{% elif label.id in selected_labels %}included{% else %}none{% endif %}' }"
-                     @acta:filter-reset.window="state = 'none'"
-                     @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $nextTick(() => document.getElementById('filter-form').requestSubmit())">
-                <input type="checkbox"
-                       :name="state === 'excluded' ? 'xlabel' : 'label'"
-                       value="{{ label.id }}"
-                       :checked="state !== 'none'"
+          <div class="flex items-center gap-6 flex-wrap">
+            {% if show_backlog_toggle %}
+            <div x-data
+                 x-show="!($store.viewMode && $store.viewMode.current === 'backlog')"
+                 x-cloak
+                 class="flex items-center gap-2">
+              <input type="hidden" name="show_backlog" value="0">
+              <label class="cursor-pointer flex items-center gap-2 text-[12px] text-foreground"
+                     @acta:filter-reset.window="$el.querySelector('input[name=show_backlog][value=\'1\']').checked = false">
+                <input type="checkbox" name="show_backlog" value="1"
+                       {% if show_backlog %}checked{% endif %}
                        class="peer sr-only"
-                       @change.stop="state = $event.target.checked ? 'included' : 'none'; $event.target.form.requestSubmit()">
-                <span :data-state="state === 'excluded' ? 'excluded' : state === 'included' ? 'on' : 'off'"
-                      :class="{
-                        'line-through opacity-60 ring-1 ring-rose-500/60': state === 'excluded',
-                      }"
-                      class="acta-label-pill"
-                      style="--label-color: {{ label.color }};">
-                  <span class="acta-label-pill-dot" style="background-color: {{ label.color }};"></span>
-                  {{ label.name }}
-                </span>
+                       onchange="this.form.requestSubmit()">
+                <span class="acta-flt-tg"></span>
+                {% trans "Show backlog" %}
               </label>
-              {% endfor %}
+            </div>
+            {% endif %}
+            <div class="flex items-center gap-2">
+              <input type="hidden" name="show_archived" value="0">
+              <label class="cursor-pointer flex items-center gap-2 text-[12px] text-foreground"
+                     x-data
+                     @acta:filter-reset.window="$el.querySelector('input[name=show_archived][value=\'1\']').checked = false">
+                <input type="checkbox" name="show_archived" value="1"
+                       {% if show_archived %}checked{% endif %}
+                       class="peer sr-only"
+                       onchange="this.form.requestSubmit()">
+                <span class="acta-flt-tg"></span>
+                {% trans "Show archived" %}
+              </label>
             </div>
           </div>
-          {% endif %}
-          {% endfor %}
-          {% endwith %}
-{# end grouped label sections #}
         </div>
-      </div>
-      {% endif %}
 
-      {# ---------- Date range ---------- #}
-      {% comment %}
-      Range filter on a chosen Task date — ``date_field`` picks created /
-      updated / due / completed; presets fill the two native date inputs
-      and submit. Rows missing the chosen date (e.g. completed on an open
-      task, or no due date) drop out once a bound is set. Default-collapsed.
-      {% endcomment %}
-      <div x-data="{
-             open: (() => { const v = localStorage.getItem('acta:filter-sec:date'); return v === null ? false : v === '1'; })(),
-             toggle() { this.open = !this.open; localStorage.setItem('acta:filter-sec:date', this.open ? '1' : '0'); },
-             fmt(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; },
-             submit() { document.getElementById('filter-form').requestSubmit(); },
-             setRange(after, before) { this.$refs.after.value = after; this.$refs.before.value = before; this.submit(); },
-             lastDays(n) { const to = new Date(); const from = new Date(); from.setDate(from.getDate() - (n - 1)); this.setRange(this.fmt(from), this.fmt(to)); },
-             clear() { this.setRange('', ''); }
-           }"
-           @acta:filter-reset.window="$refs.after.value = ''; $refs.before.value = ''">
-        <button type="button"
-                @click="toggle()"
-                class="w-full flex items-center gap-1.5 px-3 py-2 text-[10px] uppercase tracking-wider text-placeholder-foreground hover:text-foreground">
-          <span :class="open ? '' : '-rotate-90'" class="inline-flex transition-transform">
-            {% lucide "chevron-down" "w-3 h-3" %}
-          </span>
-          <span class="flex-1 text-left">{% trans "Date" %}</span>
-          <span data-filter-section-count="date"
-                class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-300
-                       normal-case tracking-normal{% if not date_after and not date_before %} hidden{% endif %}">1</span>
-        </button>
-        <div x-show="open" x-cloak class="px-3 pb-3 space-y-2">
-          <select name="date_field" @change="submit()" class="acta-input text-xs py-1">
-            <option value="completed" {% if date_field == "completed" %}selected{% endif %}>{% trans "Completed" %}</option>
-            <option value="created" {% if date_field == "created" %}selected{% endif %}>{% trans "Created" %}</option>
-            <option value="updated" {% if date_field == "updated" %}selected{% endif %}>{% trans "Updated" %}</option>
-            <option value="start" {% if date_field == "start" %}selected{% endif %}>{% trans "Start" %}</option>
-            <option value="end" {% if date_field == "end" %}selected{% endif %}>{% trans "End" %}</option>
-            <option value="due" {% if date_field == "due" %}selected{% endif %}>{% trans "Due" %}</option>
-          </select>
-          <div class="flex gap-1 flex-wrap">
-            <button type="button" @click="lastDays(7)"
-                    class="px-2 py-1 rounded-md border border-border bg-background text-subtle-foreground hover:bg-muted text-[11px] transition">
-              {% trans "Last 7 days" %}
-            </button>
-            <button type="button" @click="lastDays(30)"
-                    class="px-2 py-1 rounded-md border border-border bg-background text-subtle-foreground hover:bg-muted text-[11px] transition">
-              {% trans "Last 30 days" %}
-            </button>
-            {% if active_cycle_start %}
-            <button type="button" @click="setRange('{{ active_cycle_start }}', '{{ active_cycle_end }}')"
-                    class="px-2 py-1 rounded-md border border-border bg-background text-subtle-foreground hover:bg-muted text-[11px] transition">
-              {% trans "This cycle" %}
-            </button>
-            {% endif %}
-            <button type="button" @click="clear()"
-                    class="px-2 py-1 rounded-md text-subtle-foreground hover:text-foreground text-[11px] transition">
-              {% trans "Clear" %}
-            </button>
-          </div>
-          <div class="space-y-2">
-            <label class="block">
-              <span class="block text-[10px] text-placeholder-foreground mb-0.5">{% trans "From" %}</span>
-              <input x-ref="after" type="date" name="date_after"
-                     value="{{ date_after }}" @change="submit()"
-                     class="acta-input text-xs py-1">
-            </label>
-            <label class="block">
-              <span class="block text-[10px] text-placeholder-foreground mb-0.5">{% trans "To" %}</span>
-              <input x-ref="before" type="date" name="date_before"
-                     value="{{ date_before }}" @change="submit()"
-                     class="acta-input text-xs py-1">
-            </label>
-          </div>
-        </div>
-      </div>
-
-      {% comment %}
-      Show archived toggle. Archive is orthogonal to status — flipping
-      this includes archived rows. Cookie ``acta_show_archived`` keeps
-      the choice across visits.
-
-      Hidden ``show_archived=0`` precedes the checkbox so unchecked
-      submits send an explicit ``"0"`` — without it, an unchecked
-      checkbox omits the field, the server falls back to the cookie,
-      and the toggle becomes one-way (no way to flip back off).
-      ``resolve_show_archived`` reads via ``getlist`` so the trailing
-      ``"1"`` (when checked) wins.
-      {% endcomment %}
-      <div class="px-3 py-3 space-y-2">
-        {% comment %}
-        Structural toggles. Like every chip they filter CLIENT-side: the form
-        submit is intercepted by acta.js → ``applyClientFilters``. Backlog
-        hides planned/ready (rows + the kanban planned/ready columns); archived
-        hides archived rows. Both rows + columns are always server-rendered, so
-        the toggle is instant. State is persisted to a cookie (written in
-        ``applyClientFilters``) so a reload restores it. Hidden-0 + checkbox-1
-        so "off" still submits an explicit value ("trailing 1 wins").
-        {% endcomment %}
-        {% if show_backlog_toggle %}
-        {% comment %}
-        Hidden on the Backlog tab — that tab always shows planned/ready (acta.js
-        ``rowMatches`` exempts rows inside the backlog panel), so the toggle is
-        irrelevant there and would just be a no-op switch.
-        {% endcomment %}
-        <div x-data x-show="!($store.viewMode && $store.viewMode.current === 'backlog')" x-cloak>
-          <input type="hidden" name="show_backlog" value="0">
-          <label class="cursor-pointer flex items-center gap-2 text-muted-foreground text-[11px]"
-                 @acta:filter-reset.window="$el.querySelector('input[name=show_backlog][value=\'1\']').checked = false"
-                 title="{% trans 'Include backlog (planned/ready)' %}">
-            <input type="checkbox" name="show_backlog" value="1"
-                   {% if show_backlog %}checked{% endif %}
-                   class="peer sr-only"
-                   onchange="this.form.requestSubmit()">
-            <span class="relative w-8 h-[18px] rounded-full bg-border-strong transition peer-checked:bg-brand-500
-                         after:content-[''] after:absolute after:top-[2px] after:left-[2px]
-                         after:w-[14px] after:h-[14px] after:bg-white after:rounded-full
-                         after:transition-transform peer-checked:after:translate-x-[14px]"></span>
-            {% trans "Show backlog" %}
-          </label>
-        </div>
-        {% endif %}
-        <input type="hidden" name="show_archived" value="0">
-        <label class="cursor-pointer flex items-center gap-2 text-muted-foreground text-[11px]"
-               x-data
-               @acta:filter-reset.window="$el.querySelector('input[name=show_archived][value=\'1\']').checked = false"
-               title="{% trans 'Include archived tasks' %}">
-          <input type="checkbox" name="show_archived" value="1"
-                 {% if show_archived %}checked{% endif %}
-                 class="peer sr-only"
-                 onchange="this.form.requestSubmit()">
-          <span class="relative w-8 h-[18px] rounded-full bg-border-strong transition peer-checked:bg-brand-500
-                       after:content-[''] after:absolute after:top-[2px] after:left-[2px]
-                       after:w-[14px] after:h-[14px] after:bg-white after:rounded-full
-                       after:transition-transform peer-checked:after:translate-x-[14px]"></span>
-          {% trans "Show archived" %}
-        </label>
-      </div>
-
-    </div>
+      </div>{# /.acta-flt-content-b #}
+    </div>{# /.acta-flt-content #}
   </form>
 </aside>

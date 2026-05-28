@@ -2871,13 +2871,15 @@
     }
 
     window.Alpine.store("filters", {
+      // Legacy open/closed flag, kept for the old sidebar layout. The
+      // new v2 layout uses ``mode`` ('rail' | 'expanded') instead — the
+      // two states aren't compatible so we keep both during transition.
       open: localStorage.getItem("filtersOpen") !== "false",
-      // Mirror open / closed onto <html> so the pre-paint script in
-      // base.html and the runtime class stay in sync. CSS in main.css
-      // (``html.acta-filters-open`` / ``html.acta-filters-closed``)
-      // drives visibility of the collapsed trigger vs the full form
-      // — keeping the class on <html> survives HTMX swaps and avoids
-      // the Alpine-reactivity race we hit on My Work / All Tasks nav.
+      // New layout state. ``mode`` persists; ``openSection`` is
+      // ephemeral (popover state, drops on reload).
+      mode: localStorage.getItem("acta:filters-mode") || "rail",
+      openSection: null,
+      openTop: 0,
       _syncHtmlClass() {
         const html = document.documentElement;
         html.classList.toggle("acta-filters-open", this.open);
@@ -2892,6 +2894,41 @@
         this.open = !!value;
         localStorage.setItem("filtersOpen", this.open);
         this._syncHtmlClass();
+      },
+      // --- v2 layout ---
+      setMode(value) {
+        this.mode = value === "expanded" ? "expanded" : "rail";
+        this.openSection = null;
+        localStorage.setItem("acta:filters-mode", this.mode);
+      },
+      toggleMode() {
+        this.setMode(this.mode === "rail" ? "expanded" : "rail");
+      },
+      openOnly(section, ev) {
+        // Click on a rail icon → pop only this section. Toggle off if
+        // the same icon is clicked again. No effect in expanded mode
+        // (everything is visible). When ``ev`` is passed, the popover's
+        // top is aligned to the clicked button so the user doesn't have
+        // to chase the cursor up to the panel header for icons that sit
+        // low on the rail.
+        if (this.mode !== "rail") return;
+        if (this.openSection === section) {
+          this.openSection = null;
+          return;
+        }
+        this.openSection = section;
+        if (ev && ev.currentTarget) {
+          const btn = ev.currentTarget;
+          const aside = btn.closest(".acta-flt-aside-v2");
+          if (aside) {
+            const btnRect = btn.getBoundingClientRect();
+            const asideRect = aside.getBoundingClientRect();
+            this.openTop = Math.max(0, Math.round(btnRect.top - asideRect.top));
+          }
+        }
+      },
+      closePopover() {
+        this.openSection = null;
       },
     });
 

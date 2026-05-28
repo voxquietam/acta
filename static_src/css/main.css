@@ -490,6 +490,442 @@ main {
    acta.js, so user clicks update the visual state immediately. */
 html.acta-filters-open  .acta-filters-collapsed-trigger { display: none; }
 html.acta-filters-closed .acta-filters-form              { display: none; }
+
+/* ============================================================ *
+ * Filter sidebar v2 — rail (48px) + popover + expanded 2-col    *
+ * (per Filter Sidebar.html mock from Claude Design 2026-05-28)  *
+ * Each subcomponent prefixed ``acta-flt-`` to avoid collision   *
+ * with the legacy ``acta-filters-*`` rules above. Legacy stays  *
+ * only until the new sidebar replaces every consumer.           *
+ * ============================================================ */
+
+/* Tri-state chip — none / include / exclude. */
+.acta-flt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 3px 9px;
+  border-radius: 5px;
+  border: 1px solid rgb(var(--border));
+  background: rgb(var(--muted) / 0.45);
+  color: rgb(var(--muted-foreground));
+  cursor: pointer;
+  user-select: none;
+  line-height: 1.3;
+  transition: background-color 80ms, border-color 80ms, color 80ms;
+}
+.acta-flt-chip:hover {
+  border-color: rgb(var(--border-strong));
+  color: rgb(var(--foreground));
+  background: rgb(var(--muted) / 0.65);
+}
+.acta-flt-chip.is-include {
+  background: rgb(46 68 214);
+  border-color: rgb(46 68 214);
+  color: #fff;
+}
+.acta-flt-chip.is-include:hover {
+  background: rgb(66 90 245);
+  border-color: rgb(66 90 245);
+}
+.acta-flt-chip.is-exclude {
+  background: rgb(244 63 94 / 0.13);
+  border-color: rgb(244 63 94 / 0.35);
+  color: #fda4af;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  text-decoration-color: rgb(253 164 175 / 0.6);
+}
+.acta-flt-chip.is-exclude:hover {
+  background: rgb(244 63 94 / 0.2);
+  border-color: rgb(244 63 94 / 0.5);
+}
+.acta-flt-chip > .dot {
+  width: 6px; height: 6px;
+  border-radius: 999px;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.acta-flt-chip > .sqdot {
+  width: 8px; height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* Section card. */
+.acta-flt-sec {
+  background: rgb(var(--card) / 0.65);
+  border: 1px solid rgb(var(--border));
+  border-radius: 8px;
+  padding: 10px 11px;
+}
+.acta-flt-sec-h {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.acta-flt-sec-h .lbl {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: rgb(var(--placeholder-foreground));
+  font-weight: 600;
+}
+.acta-flt-sec-h .lbl + .grow { flex: 1; }
+.acta-flt-sec-h .cnt {
+  background: rgb(46 68 214 / 0.18);
+  color: rgb(108 126 251);
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 9.5px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+.acta-flt-sec-h .ic {
+  color: rgb(var(--placeholder-foreground));
+  display: inline-flex;
+}
+
+/* Compact input (22px tall). */
+.acta-flt-input {
+  width: 100%;
+  height: 22px;
+  background: rgb(var(--background) / 0.5);
+  border: 1px solid rgb(var(--border));
+  border-radius: 4px;
+  padding: 0 8px 0 24px;
+  font-size: 11.5px;
+  color: rgb(var(--foreground));
+  outline: none;
+  font-family: inherit;
+  line-height: 1;
+  transition: border-color 80ms;
+}
+.acta-flt-input::placeholder { color: rgb(var(--placeholder-foreground)); }
+.acta-flt-input:focus {
+  border-color: rgb(66 90 245);
+  box-shadow: 0 0 0 3px rgb(66 90 245 / 0.13);
+}
+.acta-flt-input.no-icon { padding-left: 8px; }
+.acta-flt-input-wrap { position: relative; }
+.acta-flt-input-wrap > .ic-l {
+  position: absolute;
+  left: 8px; top: 50%;
+  transform: translateY(-50%);
+  color: rgb(var(--placeholder-foreground));
+  pointer-events: none;
+}
+
+/* Rail icon button. */
+.acta-flt-rail-btn {
+  width: 32px; height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  color: rgb(var(--muted-foreground));
+  position: relative;
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  transition: background-color 80ms, color 80ms;
+}
+.acta-flt-rail-btn:hover {
+  background: rgb(var(--muted) / 0.6);
+  color: rgb(var(--foreground));
+}
+.acta-flt-rail-btn.is-active {
+  background: rgb(46 68 214 / 0.18);
+  color: rgb(108 126 251);
+}
+.acta-flt-rail-btn .ind {
+  position: absolute;
+  top: 3px; right: 3px;
+  background: rgb(46 68 214);
+  color: #fff;
+  min-width: 13px; height: 13px;
+  padding: 0 3px;
+  border-radius: 999px;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 8.5px;
+  font-weight: 600;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid rgb(var(--card));
+  line-height: 1;
+}
+.acta-flt-rail-btn .ind.bare {
+  width: 7px; height: 7px;
+  min-width: 0;
+  padding: 0;
+  border-width: 2px;
+}
+.acta-flt-rail-btn.is-reset:hover {
+  background: rgb(244 63 94 / 0.13);
+  color: #fda4af;
+}
+
+/* Selectable list row (project / assignee / label). */
+.acta-flt-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 7px;
+  border-radius: 5px;
+  font-size: 12px;
+  color: rgb(var(--foreground));
+  cursor: pointer;
+  transition: background-color 80ms;
+  position: relative;
+}
+.acta-flt-row:hover { background: rgb(var(--muted) / 0.5); }
+.acta-flt-row .nm {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.acta-flt-row .n {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 10.5px;
+  color: rgb(var(--placeholder-foreground));
+}
+.acta-flt-row.is-include {
+  background: rgb(46 68 214 / 0.13);
+  color: rgb(108 126 251);
+}
+.acta-flt-row.is-include .n { color: rgb(108 126 251); }
+.acta-flt-row.is-exclude {
+  background: rgb(244 63 94 / 0.1);
+  color: #fda4af;
+  text-decoration: line-through;
+  text-decoration-color: rgb(253 164 175 / 0.5);
+}
+.acta-flt-row.is-exclude .n { color: #fda4af; }
+.acta-flt-row .check {
+  width: 13px; height: 13px;
+  border-radius: 3px;
+  border: 1px solid rgb(var(--border-strong));
+  background: rgb(var(--background) / 0.5);
+  display: grid;
+  place-items: center;
+  color: transparent;
+  flex-shrink: 0;
+}
+.acta-flt-row.is-include .check {
+  color: rgb(108 126 251);
+}
+.acta-flt-row.is-exclude .check {
+  border-color: rgb(244 63 94 / 0.5);
+  background: rgb(244 63 94 / 0.18);
+  color: #fda4af;
+}
+.acta-flt-row .av {
+  width: 18px; height: 18px;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 600;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.acta-flt-row .av.dashed {
+  background: transparent;
+  border: 1px dashed rgb(var(--placeholder-foreground));
+  color: rgb(var(--placeholder-foreground));
+}
+.acta-flt-row .pj {
+  width: 16px; height: 16px;
+  border-radius: 4px;
+  color: #fff;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 9px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.acta-flt-row .dot {
+  width: 6px; height: 6px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+/* Mini toggle (24×14). */
+.acta-flt-tg {
+  width: 24px; height: 14px;
+  background: rgb(var(--muted));
+  border: 1px solid rgb(var(--border-strong));
+  border-radius: 999px;
+  position: relative;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: background-color 120ms;
+}
+.acta-flt-tg::after {
+  content: "";
+  position: absolute;
+  top: 1px; left: 1px;
+  width: 10px; height: 10px;
+  background: rgb(var(--muted-foreground));
+  border-radius: 999px;
+  transition: transform 120ms, background-color 120ms;
+}
+.acta-flt-tg.is-on,
+input:checked + .acta-flt-tg {
+  background: rgb(46 68 214 / 0.3);
+  border-color: rgb(46 68 214);
+}
+.acta-flt-tg.is-on::after,
+input:checked + .acta-flt-tg::after {
+  transform: translateX(10px);
+  background: rgb(66 90 245);
+}
+
+/* Custom scrollbar inside filter lists. */
+.acta-flt-scroller { scrollbar-width: thin; scrollbar-color: rgb(var(--border-strong)) transparent; }
+.acta-flt-scroller::-webkit-scrollbar { width: 4px; height: 4px; }
+.acta-flt-scroller::-webkit-scrollbar-thumb { background: rgb(var(--border-strong)); border-radius: 2px; }
+.acta-flt-scroller::-webkit-scrollbar-thumb:hover { background: rgb(var(--muted-foreground)); }
+
+/* Pinned cap above a scrolling list ("selected · 3 / all · 12"). */
+.acta-flt-cap {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgb(var(--placeholder-foreground));
+  font-weight: 600;
+  padding: 2px 7px 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.acta-flt-cap .ln {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, rgb(var(--border)), transparent);
+}
+
+/* Outer aside — auto-sizes to its children. Width comes from the rail   *
+ * (48px) or expanded panel (512px); the rail-mode popover is absolute   *
+ * and overlays the task list rather than reserving flex space.          */
+.acta-flt-aside-v2 {
+  position: relative;
+  flex-shrink: 0;
+  width: 48px;
+}
+.acta-flt-aside-v2[data-mode="expanded"] {
+  width: 512px;
+}
+
+/* 48px rail. */
+.acta-flt-rail {
+  width: 48px;
+  background: rgb(var(--card) / 0.85);
+  border: 1px solid rgb(var(--border));
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 0;
+  gap: 2px;
+}
+.acta-flt-rail .sep {
+  width: 28px;
+  height: 1px;
+  background: rgb(var(--border));
+  margin: 4px 0;
+}
+
+/* Content panel — one container, reconfigures via data-mode/data-open.
+   In rail mode (``[data-mode="rail"]``) we render as a 288px popover next
+   to the rail with only the ``[data-section="<open>"]`` card visible. In
+   expanded mode (``[data-mode="expanded"]``) we render as a 512px panel
+   with a 2-col grid showing every section at once. Single DOM tree, no
+   duplicated form inputs. */
+.acta-flt-content {
+  background: rgb(var(--card) / 0.85);
+  border: 1px solid rgb(var(--border));
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.acta-flt-content[data-mode="rail"] {
+  position: absolute;
+  top: 0;
+  right: 56px; /* 48px rail + 8px gap */
+  width: 288px;
+  max-height: calc(100vh - 120px);
+  background: rgb(var(--card));
+  border-color: rgb(var(--border-strong));
+  box-shadow: 0 12px 32px -8px rgb(0 0 0 / 0.6), 0 4px 12px -4px rgb(0 0 0 / 0.4);
+  z-index: 30;
+}
+.acta-flt-content[data-mode="expanded"] {
+  width: 512px;
+}
+
+/* Headers — only one shows per mode (the other is x-show-hidden). */
+.acta-flt-popover-h {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgb(var(--border));
+}
+.acta-flt-expanded-h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgb(var(--border));
+}
+
+/* Sections container. Popover mode hides every section except the open  *
+ * one and drops the card frame so the popover body reads as one panel.  */
+.acta-flt-content[data-mode="rail"] .acta-flt-content-b {
+  padding: 8px 12px;
+  overflow-y: auto;
+}
+.acta-flt-content[data-mode="rail"] [data-section] {
+  display: none;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  border-radius: 0;
+}
+/* In popover mode the section's own count badge is redundant — the rail
+   icon already shows it, and it visually collides with the absolute
+   close (×) button at the top-right. */
+.acta-flt-content[data-mode="rail"] .acta-flt-sec-h .cnt {
+  display: none;
+}
+.acta-flt-content[data-mode="rail"][data-open="search"]   [data-section="search"],
+.acta-flt-content[data-mode="rail"][data-open="status"]   [data-section="status"],
+.acta-flt-content[data-mode="rail"][data-open="priority"] [data-section="priority"],
+.acta-flt-content[data-mode="rail"][data-open="project"]  [data-section="project"],
+.acta-flt-content[data-mode="rail"][data-open="label"]    [data-section="label"],
+.acta-flt-content[data-mode="rail"][data-open="cycle"]    [data-section="cycle"],
+.acta-flt-content[data-mode="rail"][data-open="size"]     [data-section="size"],
+.acta-flt-content[data-mode="rail"][data-open="date"]     [data-section="date"],
+.acta-flt-content[data-mode="rail"][data-open="toggles"]  [data-section="toggles"] {
+  display: block;
+}
+
+/* Expanded mode — 2-col grid layout. */
+.acta-flt-content[data-mode="expanded"] .acta-flt-content-b {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 12px 14px;
+  overflow-y: auto;
+}
+.acta-flt-content[data-mode="expanded"] .acta-flt-content-b > .span2 { grid-column: span 2; }
+.acta-flt-content[data-mode="expanded"] .acta-flt-content-b > .row2  { grid-row: span 2; }
 html.dark .acta-rail-active {
   color: rgb(148 163 255);                   /* brand-300 */
 }
@@ -692,6 +1128,24 @@ html.dark .acta-checkbox {
 [data-tooltip][data-tooltip-pos="above-left"]::after {
   left: 0;
   transform: none;
+}
+/* Tooltip to the LEFT of the trigger — for icons stacked vertically on
+   the right-edge filter rail. Default (above) would overlap the icon
+   above; "left" points away into the content area. */
+[data-tooltip][data-tooltip-pos="left"]::after {
+  bottom: auto;
+  top: 50%;
+  left: auto;
+  right: calc(100% + 0.5rem);
+  transform: translateY(-50%);
+}
+/* Tooltip to the RIGHT — mirror, in case rail ever moves. */
+[data-tooltip][data-tooltip-pos="right"]::after {
+  bottom: auto;
+  top: 50%;
+  left: calc(100% + 0.5rem);
+  right: auto;
+  transform: translateY(-50%);
 }
 /* Inside a modal the dense controls sit right under the header, so an
    upward tooltip is covered by the header / clipped at the panel's top
