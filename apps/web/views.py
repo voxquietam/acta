@@ -1683,20 +1683,32 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         """Resolve the project by slug_prefix and enforce membership.
 
         Annotates ``is_favourite`` via an ``Exists`` subquery so the
-        overview star renders without a separate favourites lookup
-        (keeps the page query count constant). Viewing a project also
-        pulls its workspace into focus (active-workspace switch) so the
-        sidebar and the scoped views stay consistent with what's on screen.
+        overview star renders without a separate favourites lookup, plus
+        ``my_workspace_role`` so ``viewer_is_workspace_admin`` derives
+        from data we already fetched (instead of a separate
+        ``WorkspaceMember.filter().first()`` round-trip). Keeps the page
+        query count constant. Viewing a project also pulls its workspace
+        into focus (active-workspace switch) so the sidebar and the
+        scoped views stay consistent with what's on screen.
         """
         slug_prefix = self.kwargs["slug_prefix"]
         favourited = self.request.user.favourite_projects.filter(pk=OuterRef("pk"))
+        my_role = WorkspaceMember.objects.filter(
+            workspace=OuterRef("workspace_id"),
+            user=self.request.user,
+        ).values(
+            "role"
+        )[:1]
         project = get_object_or_404(
             Project.objects.filter(
                 slug_prefix=slug_prefix,
                 workspace__memberships__user=self.request.user,
             )
             .select_related("workspace", "lead")
-            .annotate(is_favourite=Exists(favourited)),
+            .annotate(
+                is_favourite=Exists(favourited),
+                my_workspace_role=Subquery(my_role),
+            ),
         )
         set_active_workspace(self.request, project.workspace)
         return project
@@ -1779,7 +1791,13 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             project.members.order_by("first_name", "last_name", "username"),
         )
         # Gate the Overview archive/delete menu to workspace owners/admins.
-        ctx["viewer_is_workspace_admin"] = _user_is_workspace_admin(self.request.user, project.workspace)
+        # Derived from the ``my_workspace_role`` annotation on ``get_object`` —
+        # ``_user_is_workspace_admin`` would re-query ``WorkspaceMember`` for
+        # the same row, bumping the project-detail query count by one.
+        ctx["viewer_is_workspace_admin"] = project.my_workspace_role in (
+            WorkspaceMember.OWNER,
+            WorkspaceMember.ADMIN,
+        )
         ctx["workspace_members"] = _project_workspace_members(project, exclude_user=None)
         ctx["picker_icons"] = PROJECT_ICONS
         ctx["picker_icon_colors"] = PROJECT_ICON_COLORS
