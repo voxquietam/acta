@@ -741,6 +741,31 @@
   }
   document.body.addEventListener("acta:task-created", recountKanbanColumns);
 
+  // Cross-view freshness: any newly created task only inserts into the
+  // *active* view (kanban gets a card via HX-Retarget, table gets a row
+  // the same way, list runs ``acta:list-insert-row``). The sibling
+  // ``data-panel-slot`` panels already in the DOM hold stale data — they
+  // don't know about the new task. Clear them so the next view-switch
+  // re-fetches via ``lazyLoadPanels`` (the active slot we leave alone —
+  // it just got its inline insert, no point refetching). For an SSE peer
+  // who isn't on kanban, the same rule applies: their active slot stays,
+  // others get invalidated.
+  document.body.addEventListener("acta:task-created", () => {
+    const active = window.Alpine && window.Alpine.store && window.Alpine.store("viewMode")
+      ? window.Alpine.store("viewMode").current
+      : null;
+    document.querySelectorAll("[data-panel-slot]").forEach((slot) => {
+      if (slot.dataset.panelSlot === active) return;
+      slot.innerHTML = "";
+      slot.dataset.panelLoading = "false";
+    });
+    // Trigger an immediate background refetch so panels stay warm — a
+    // user who switches tabs right after a create doesn't sit on a
+    // spinner. ``lazyLoadPanels`` is a no-op for slots that already have
+    // children, so this is safe to call eagerly.
+    if (window.actaLoadPanels) window.actaLoadPanels();
+  });
+
   // Live-insert a freshly-created task into the list view without a panel
   // refetch. Payload from ``_task_card_insert_response`` carries the row
   // HTML once plus a ``{axis: section_key}`` map (server-computed via

@@ -1617,6 +1617,44 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
 
     context_object_name = "project"
 
+    def _kanban_columns_ctx(self, *, view_base, table_tasks, project, today):
+        """Kanban ctx — used by ``?panel=kanban`` and the cold-load kanban view.
+
+        Falls back to ``table_tasks`` (already in the kanban default ordering)
+        unless the user clicked a column-sort header on the table — in which
+        case ``table_tasks`` carries that custom order and we re-sort a fresh
+        ``view_base`` copy back to the kanban grouping order.
+        """
+        table_order_key = (self.request.GET.get("order") or "").strip().lstrip("-")
+        if table_order_key in SORTABLE_COLUMNS:
+            kanban_tasks = list(view_base.order_by("status", "-priority", "-updated_at"))
+        else:
+            kanban_tasks = table_tasks
+        wip_mode, wip_limits, wip_over = _wip_context(project.workspace)
+        return {
+            "tasks": kanban_tasks,
+            "wip_mode": wip_mode,
+            "columns": _build_kanban_columns(
+                kanban_tasks,
+                today=today,
+                wip_mode=wip_mode,
+                wip_limits=wip_limits,
+                over_by_status=wip_over,
+            ),
+        }
+
+    def _list_axes_ctx(self, *, table_tasks, project):
+        """List-view grouping ctx — used by ``?panel=list`` and cold-load list view."""
+        list_axis_keys = _with_cycle_axis(("deadline", "status", "priority", "assignee"), project.workspace)
+        list_axis = _resolve_list_axis(self.request, default="status", options=list_axis_keys)
+        return {
+            "list_axis": list_axis,
+            "list_axis_options": _list_axis_options(list_axis_keys, list_axis),
+            "list_sections_by_axis": {
+                key: group_tasks(table_tasks, key, request_user=self.request.user) for key in list_axis_keys
+            },
+        }
+
     def get_template_names(self):
         """Full page on cold load; only the panel fragment for HTMX swaps.
 
@@ -1626,6 +1664,10 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         when the user only wants the rows re-sorted).
         """
         if self.request.headers.get("HX-Target") == "task-table-root":
+            return ["web/projects/_table.html"]
+        if self.request.GET.get("panel") == "kanban":
+            return ["web/projects/_kanban.html"]
+        if self.request.GET.get("panel") == "table":
             return ["web/projects/_table.html"]
         if self.request.GET.get("panel") == "list":
             return ["web/projects/_list_panel.html"]
@@ -1852,70 +1894,65 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         # Cuts sort latency from "rebuild everything" to "ORDER BY +
         # the table partial".
         table_only = self.request.headers.get("HX-Target") == "task-table-root"
-        # ``?panel=list`` — lazy fetch of just the list view body.
+        # All non-active view bodies (kanban, table, list, timeline, backlog)
+        # render as empty ``data-panel-slot`` divs and are filled by ``acta.js``
+        # via ``?panel=<key>`` after first paint (and on demand after a
+        # ``acta:task-created`` invalidation). Keeps the cross-view rebuild
+        # cost off the cold-load path and guarantees every panel is fresh on
+        # the next switch after a create.
+        ctx["lazy_view_panels"] = True
+        # Per-view lazy panel fragments. Each fetch builds ONLY its own
+        # ctx so a table-sort or list-axis switch doesn't pay for the
+        # other panels' grouping passes.
         panel = self.request.GET.get("panel")
-        if panel == "list":
-            list_axis_keys = _with_cycle_axis(("deadline", "status", "priority", "assignee"), project.workspace)
-            list_axis = _resolve_list_axis(self.request, default="status", options=list_axis_keys)
-            ctx["list_axis"] = list_axis
-            ctx["list_axis_options"] = _list_axis_options(list_axis_keys, list_axis)
-            ctx["list_sections_by_axis"] = {
-                key: group_tasks(table_tasks, key, request_user=self.request.user) for key in list_axis_keys
-            }
+        if panel == "kanban":
+            ctx.update(
+                self._kanban_columns_ctx(
+                    view_base=view_base,
+                    table_tasks=table_tasks,
+                    project=project,
+                    today=today,
+                ),
+            )
             return ctx
-        # ``?panel=timeline`` — lazy fetch of just the Gantt body. Skip
-        # the kanban columns + list axes + filter sidebar build below.
+        if panel == "table":
+            ctx["tasks"] = table_tasks
+            ctx["show_labels"] = True
+            return ctx
+        if panel == "list":
+            ctx.update(self._list_axes_ctx(table_tasks=table_tasks, project=project))
+            return ctx
         if panel == "timeline":
             ctx.update(_timeline_context(table_tasks, today))
             return ctx
-        # ``?panel=backlog`` — lazy fetch of just the grooming body. Uses
-        # the full ``base`` (the show-backlog toggle never hides the tab).
         if panel == "backlog":
             ctx.update(_backlog_context(list(base), today=today))
             return ctx
-        if not table_only:
-            # When the user hasn't picked a custom ``?order=`` the table
-            # falls back to the same ordering kanban uses (status,
-            # -priority, -updated_at), so the two lists are identical.
-            # Reuse ``table_tasks`` instead of evaluating the queryset
-            # a second time — that double-fetch was the source of a
-            # +6-query N+1 regression caught by
-            # ``test_project_detail_constant_queries``.
-            table_order_key = (self.request.GET.get("order") or "").strip().lstrip("-")
-            if table_order_key in SORTABLE_COLUMNS:
-                kanban_tasks = list(view_base.order_by("status", "-priority", "-updated_at"))
-            else:
-                kanban_tasks = table_tasks
-            ctx["tasks"] = table_tasks if view_mode == "table" else kanban_tasks
-            wip_mode, wip_limits, wip_over = _wip_context(project.workspace)
-            ctx["wip_mode"] = wip_mode
-            # All columns (incl. planned / ready) always built; the kanban
-            # hides planned / ready columns client-side when the backlog
-            # toggle is off (acta.js).
-            ctx["columns"] = _build_kanban_columns(
-                kanban_tasks,
-                today=today,
-                wip_mode=wip_mode,
-                wip_limits=wip_limits,
-                over_by_status=wip_over,
-            )
-            list_axis_keys = _with_cycle_axis(("deadline", "status", "priority", "assignee"), project.workspace)
-            list_axis = _resolve_list_axis(self.request, default="status", options=list_axis_keys)
-            ctx["list_axis"] = list_axis
-            ctx["list_axis_options"] = _list_axis_options(list_axis_keys, list_axis)
-            ctx["list_sections_by_axis"] = {
-                key: group_tasks(table_tasks, key, request_user=self.request.user) for key in list_axis_keys
-            }
-        else:
+        if table_only:
             ctx["tasks"] = table_tasks
             ctx["show_labels"] = True
-
-        # Cold load straight onto the Backlog tab — render its body inline
-        # (the panel slot is gated on ``view_mode == "backlog"``). Other
-        # cold loads leave the slot empty for the lazy ``?panel=backlog``
-        # fetch, so this stays off the default-view query path.
-        if view_mode == "backlog":
-            ctx.update(_backlog_context(list(base), today=today))
+        else:
+            # Full inner render. With ``lazy_view_panels`` only the active
+            # view body renders inline (siblings render as empty
+            # ``data-panel-slot`` divs and pull their fragments via
+            # ``?panel=`` after first paint), so build the context for the
+            # active view alone — not table + kanban + list at once.
+            ctx["tasks"] = table_tasks
+            if view_mode == "kanban":
+                ctx.update(
+                    self._kanban_columns_ctx(
+                        view_base=view_base,
+                        table_tasks=table_tasks,
+                        project=project,
+                        today=today,
+                    ),
+                )
+            elif view_mode == "list":
+                ctx.update(self._list_axes_ctx(table_tasks=table_tasks, project=project))
+            elif view_mode == "timeline":
+                ctx.update(_timeline_context(table_tasks, today))
+            elif view_mode == "backlog":
+                ctx.update(_backlog_context(list(base), today=today))
 
         ctx["cycle_banner"] = _cycle_banner(self.request)
 
