@@ -666,6 +666,15 @@ html.acta-filters-closed .acta-filters-form              { display: none; }
   background: rgb(244 63 94 / 0.13);
   color: #fda4af;
 }
+/* Active state — at least one filter is on; tint rose so the user can
+   see at a glance the rail has something to clear. */
+.acta-flt-rail-btn.is-reset.has-active {
+  color: #fda4af;
+}
+.acta-flt-rail-btn.is-reset.has-active:hover {
+  background: rgb(244 63 94 / 0.18);
+  color: #fb7185;
+}
 
 /* Selectable list row (project / assignee / label). */
 .acta-flt-row {
@@ -818,20 +827,25 @@ input:checked + .acta-flt-tg::after {
   width: 48px;
 }
 .acta-flt-aside-v2[data-mode="expanded"] {
-  width: 512px;
+  width: 580px;
 }
 
-/* 48px rail. */
+/* 48px rail. Content-height (``align-self: start``) so the form's
+   ``items-stretch`` doesn't blow it up to viewport height. Right-side
+   corners drop their radius because the rail sits flush against the
+   page's right edge. */
 .acta-flt-rail {
   width: 48px;
   background: rgb(var(--card) / 0.85);
   border: 1px solid rgb(var(--border));
-  border-radius: 8px;
+  border-right: 0;
+  border-radius: 8px 0 0 8px;
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: 6px 0;
   gap: 2px;
+  align-self: flex-start;
 }
 .acta-flt-rail .sep {
   width: 28px;
@@ -866,7 +880,10 @@ input:checked + .acta-flt-tg::after {
   z-index: 30;
 }
 .acta-flt-content[data-mode="expanded"] {
-  width: 512px;
+  width: 580px;
+  /* Flush against the page right edge — no rounding on the right side. */
+  border-right: 0;
+  border-radius: 8px 0 0 8px;
 }
 
 /* Headers — only one shows per mode (the other is x-show-hidden). */
@@ -916,16 +933,146 @@ input:checked + .acta-flt-tg::after {
   display: block;
 }
 
-/* Expanded mode — 2-col grid layout. */
+/* Expanded mode — 2-col grid layout. Body takes the remaining height
+   between the header and the toggles footer; only the Project|Labels
+   row (row 5) stretches via ``1fr`` so the top chip sections stay
+   content-sized and don't blow up vertically. ``align-content: start``
+   pins everything to the top should rows underflow the container. */
 .acta-flt-content[data-mode="expanded"] .acta-flt-content-b {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  /* All rows content-sized — section cards hug their content so a
+     short Project / Labels list never leaves empty space inside the
+     card. The scroller inside each list section caps itself at 70vh,
+     which keeps the panel from outgrowing the viewport on long
+     lists. */
+  grid-template-rows: auto auto auto auto auto auto;
+  align-content: start;
   gap: 10px;
   padding: 12px 14px;
   overflow-y: auto;
+  /* Explicit hidden — without it the browser turns ``overflow-x``    *
+   * into ``auto`` (CSS Overflow spec) and a single wide chip / row   *
+   * triggers a horizontal scrollbar on the whole panel.              */
+  overflow-x: hidden;
+  /* Content-sized so a short list doesn't leave empty space inside
+     the panel; the toggles footer below uses ``margin-top: auto`` to
+     stay pinned at the bottom of the panel regardless. */
+  flex: 0 1 auto;
+  min-height: 0;
+}
+/* Sections that hold a scrolling list (Project, Labels) — make the
+   inner ``.acta-flt-scroller`` flex-1 so the list fills the grid
+   cell's height. Without this they stay capped at their inline
+   ``max-h-[…]`` class and the section card looks half-empty. */
+.acta-flt-content[data-mode="expanded"] [data-section="project"],
+.acta-flt-content[data-mode="expanded"] [data-section="label"] {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.acta-flt-content[data-mode="expanded"] [data-section="project"] .acta-flt-scroller,
+.acta-flt-content[data-mode="expanded"] [data-section="label"] .acta-flt-scroller {
+  /* Scroller is content-sized normally so short lists hug the card.
+     Capped at 70vh so a long list scrolls internally instead of
+     pushing the panel past the viewport edge. */
+  max-height: 70vh;
+}
+
+/* Toggles footer — pinned to the bottom of the expanded panel, outside
+   the scrollable grid. In rail mode it acts as a popover slot when the
+   archive icon is the active section; the ``[data-section]`` rule
+   above hides it otherwise. */
+.acta-flt-toggles-foot {
+  flex-shrink: 0;
+}
+.acta-flt-content[data-mode="expanded"] .acta-flt-toggles-foot {
+  /* ``margin-top: auto`` pins the card to the bottom of the panel       *
+   * (eats remaining flex space). Horizontal margins line up with the    *
+   * grid sections above; bottom margin gives breathing room from edge.  */
+  margin: auto 14px 14px 14px;
+  padding: 10px 11px;
+  background: rgb(var(--card) / 0.65);
+  border: 1px solid rgb(var(--border));
+  border-radius: 8px;
+}
+.acta-flt-content[data-mode="rail"][data-open="toggles"] .acta-flt-toggles-foot {
+  padding: 10px 12px;
+}
+
+/* Chip text truncation — a single very long label would otherwise
+   stretch its chip past the section width and trigger horizontal
+   scroll on the entire sidebar. Cap each chip to its container width
+   and ellipsize the text. Non-Labels chips have short fixed strings
+   so this is a no-op for them. */
+.acta-flt-chip {
+  max-width: 100%;
+}
+.acta-flt-chip > .truncate {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .acta-flt-content[data-mode="expanded"] .acta-flt-content-b > .span2 { grid-column: span 2; }
 .acta-flt-content[data-mode="expanded"] .acta-flt-content-b > .row2  { grid-row: span 2; }
+
+/* Grid items default to ``min-width: auto`` (= min-content), so a single
+   long chip / row inside any section would push that column past its
+   1fr share, expanding the whole panel past 512px. Force them to be
+   shrinkable — children handle truncation via ``.truncate``. */
+.acta-flt-content[data-mode="expanded"] .acta-flt-content-b > * {
+  min-width: 0;
+}
+/* Same for ``<label>`` chip wrappers in the Labels section — they sit  *
+ * inside a ``flex-wrap`` row and would otherwise refuse to shrink past *
+ * the chip's natural content width.                                    */
+.acta-flt-content [data-section="label"] label {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Explicit visual order in expanded mode — keeps the markup grouped by
+   filter type while the grid renders the pairs the user asked for:
+   Project | Labels (list pair), Date | Cycle (date/scope pair). */
+/* Inline-row sections (Status / Priority / Size) — section header and
+   chips share one wrap-flex line. If chips don't fit they wrap below
+   the header but stay inside the section's card padding. */
+.acta-flt-sec.acta-flt-sec-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.acta-flt-sec.acta-flt-sec-row > .acta-flt-sec-h {
+  margin-bottom: 0;
+  flex: 0 0 auto;
+}
+
+.acta-flt-content[data-mode="expanded"] [data-section="search"]   { order: 1; }
+.acta-flt-content[data-mode="expanded"] [data-section="status"]   { order: 2; }
+.acta-flt-content[data-mode="expanded"] [data-section="priority"] { order: 3; }
+.acta-flt-content[data-mode="expanded"] [data-section="size"]     { order: 4; }
+.acta-flt-content[data-mode="expanded"] [data-section="project"]  { order: 5; }
+.acta-flt-content[data-mode="expanded"] [data-section="label"]    { order: 6; }
+.acta-flt-content[data-mode="expanded"] [data-section="date"]     { order: 7; }
+.acta-flt-content[data-mode="expanded"] [data-section="cycle"]    { order: 8; }
+.acta-flt-content[data-mode="expanded"] [data-section="toggles"]  { order: 9; }
+
+/* "Bare" sections in expanded mode — Search and Visibility toggles. The
+   card chrome (background / border / header) is redundant: a bare
+   ``<input type=search>`` reads as obviously a search, and two
+   labelled toggles read as visibility controls. Skip the frame so they
+   take less vertical room. In popover mode (rail) the bare flag is
+   ignored — the section card chrome comes back. */
+.acta-flt-content[data-mode="expanded"] [data-bare] {
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+.acta-flt-content[data-mode="expanded"] [data-bare] .acta-flt-sec-h {
+  display: none;
+}
 html.dark .acta-rail-active {
   color: rgb(148 163 255);                   /* brand-300 */
 }
