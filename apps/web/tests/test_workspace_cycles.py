@@ -37,17 +37,38 @@ class TestSetWorkspaceCycles:
         assert cfg["length_weeks"] == 2
         assert workspace.cycles.exists()
 
-    def test_save_via_htmx_swaps_card_in_place(self, client, workspace):
-        """An HTMX save returns the cadence card partial + a toast, no redirect."""
+    def test_htmx_save_without_state_change_swaps_card_in_place(self, client, workspace):
+        """HTMX save with no enable-state transition returns the card partial + toast."""
+        # Pre-enable so this save doesn't transition the sidebar's Cycles link.
+        workspace.cycle_settings = {
+            "enabled": True,
+            "length_weeks": 2,
+            "start_date": "2026-05-04",
+            "auto_rollover": False,
+        }
+        workspace.save(update_fields=["cycle_settings"])
+        client.force_login(workspace.owner)
+        resp = client.post(
+            self.url(workspace),
+            {"enabled": "on", "length_weeks": "3", "start_date": "2026-05-04"},
+            HTTP_HX_REQUEST="true",
+        )
+        assert resp.status_code == 200
+        assert b'id="workspace-cycles"' in resp.content
+        assert "acta:toast" in resp.headers.get("HX-Trigger", "")
+        workspace.refresh_from_db()
+        assert workspace.cycle_config()["length_weeks"] == 3
+
+    def test_htmx_enable_transition_forces_full_refresh(self, client, workspace):
+        """Toggling cycles on/off forces HX-Refresh so the sidebar Cycles link updates."""
         client.force_login(workspace.owner)
         resp = client.post(
             self.url(workspace),
             {"enabled": "on", "length_weeks": "2", "start_date": "2026-05-04"},
             HTTP_HX_REQUEST="true",
         )
-        assert resp.status_code == 200
-        assert b'id="workspace-cycles"' in resp.content
-        assert "acta:toast" in resp.headers.get("HX-Trigger", "")
+        assert resp.status_code == 204
+        assert resp["HX-Refresh"] == "true"
         workspace.refresh_from_db()
         assert workspace.cycle_config()["enabled"] is True
 

@@ -53,12 +53,13 @@ class TestCreateWorkspacePost:
         ws = Workspace.objects.get(name="Acta Team")
         assert ws.slug == "acta-team"
         assert ws.owner_id == user.id
-        # Boosted client-side nav (no full reload) + modal-close trigger.
-        assert "HX-Redirect" not in resp.headers
-        assert f"/workspaces/{ws.slug}/settings/" in resp["HX-Location"]
-        assert "#app-content" in resp["HX-Location"]
-        assert "HX-Boosted" in resp["HX-Location"]
-        assert resp["HX-Trigger"] == "acta:workspace-created"
+        # Full browser navigation so the sidebar re-renders with the new
+        # workspace in the switcher (a partial #app-content swap left it
+        # stale). The new workspace also becomes the user's active one.
+        assert "HX-Location" not in resp.headers
+        assert resp["HX-Redirect"] == f"/workspaces/{ws.slug}/settings/"
+        user.refresh_from_db()
+        assert user.active_workspace_id == ws.id
 
     def test_create_seeds_owner_membership(self, client, user):
         client.force_login(user)

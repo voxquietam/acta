@@ -4206,6 +4206,7 @@ def set_workspace_cycles(request, slug):
     workspace = _get_user_workspace_or_404(request.user, slug)
     if not _user_is_workspace_admin(request.user, workspace):
         return HttpResponseForbidden("admin only")
+    was_enabled = workspace.cycle_config()["enabled"]
     enabled = bool(request.POST.get("enabled"))
     try:
         length = int((request.POST.get("length_weeks") or "").strip() or Workspace.CYCLE_DEFAULT_LENGTH_WEEKS)
@@ -4228,9 +4229,20 @@ def set_workspace_cycles(request, slug):
         "auto_rollover": bool(request.POST.get("auto_rollover")),
     }
     workspace.save(update_fields=["cycle_settings"])
-    if workspace.cycle_config()["enabled"]:
+    now_enabled = workspace.cycle_config()["enabled"]
+    if now_enabled:
         ensure_cycles(workspace)
     if request.headers.get("HX-Request"):
+        # Enable-state transition flips ``nav_cycles_enabled`` in the sidebar
+        # context processor — the in-place card swap can't update that (it
+        # lives outside the card). Force a full refresh so the sidebar's
+        # Cycles link appears/disappears immediately; the toast rides on
+        # Django messages across the reload.
+        if was_enabled != now_enabled:
+            messages.success(request, str(_("Cycles saved.")))
+            response = HttpResponse(status=204)
+            response["HX-Refresh"] = "true"
+            return response
         return _settings_panel_response(
             request,
             "web/workspaces/_settings_cycles.html",
@@ -6417,21 +6429,17 @@ def _create_workspace_post(request):
             user=request.user,
             role=WorkspaceMember.OWNER,
         )
+        # Make the just-created workspace the user's active one so the
+        # sidebar lands on it after the reload.
+        request.user.active_workspace = workspace
+        request.user.save(update_fields=["active_workspace"])
 
-    # Boosted client-side nav (no full reload): swap ``#app-content`` to
-    # the new workspace's settings and close the modal via
-    # ``acta:workspace-created``.
+    # Full browser navigation (HX-Redirect, not HX-Location with a partial
+    # ``#app-content`` swap) — the sidebar lives outside that region, so a
+    # partial swap left the new workspace missing from the switcher until a
+    # manual reload.
     response = HttpResponse(status=204)
-    response["HX-Trigger"] = "acta:workspace-created"
-    response["HX-Location"] = json.dumps(
-        {
-            "path": f"/workspaces/{workspace.slug}/settings/",
-            "target": "#app-content",
-            "select": "#app-content",
-            "swap": "outerHTML show:top",
-            "headers": {"HX-Boosted": "true"},
-        }
-    )
+    response["HX-Redirect"] = f"/workspaces/{workspace.slug}/settings/"
     return response
 
 
