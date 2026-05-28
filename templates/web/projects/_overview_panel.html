@@ -39,7 +39,8 @@ Members with role badges.
           </div>
           <h1 class="text-[22px] font-bold text-foreground leading-tight tracking-tight truncate">{{ project.name }}</h1>
         </div>
-        <span class="shrink-0 inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded
+        <div class="flex items-center gap-2 shrink-0">
+        <span class="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded
           {% if latest_health == 'on_track' %}bg-emerald-900 text-emerald-300
           {% elif latest_health == 'at_risk' %}bg-amber-900 text-amber-300
           {% elif latest_health == 'off_track' %}bg-rose-900 text-rose-300
@@ -64,7 +65,7 @@ Members with role badges.
         <div class="relative shrink-0" x-data="{ menu: false, del: false, typed: '' }">
           <button type="button" @click="menu = !menu" @click.outside="menu = false"
                   class="w-7 h-7 grid place-items-center rounded-md text-placeholder-foreground hover:bg-muted hover:text-foreground transition"
-                  data-tooltip="{% trans 'Project actions' %}" aria-label="{% trans 'Project actions' %}">
+                  aria-label="{% trans 'Project actions' %}">
             {% lucide "ellipsis-vertical" "w-4 h-4" %}
           </button>
           <div x-show="menu" x-cloak x-transition.opacity.duration.100ms
@@ -127,6 +128,7 @@ Members with role badges.
           </template>
         </div>
         {% endif %}
+        </div>
       </div>
 
       {% if project.archived %}
