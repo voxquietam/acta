@@ -435,6 +435,33 @@ main {
   100% { background-position: 150% 0; }
 }
 
+/* Sidebar nav row — pin a uniform height and icon size so the row
+   doesn't jitter between the collapsed (icon-only) and expanded
+   (icon + ``text-sm`` label) states. Without ``min-height`` the row
+   shrinks ~4px in collapsed mode (16px icon vs 20px ``text-sm``
+   line-box), and the inbox icon visually shifts during the width
+   animation. SVG dimensions are pinned with `!important` because
+   some Lucide SVGs ship ``width``/``height`` attributes — Tailwind's
+   ``w-4 h-4`` class wins under normal cascade, but pinning here keeps
+   any icon (even ones rendered without the size class) identical. */
+.acta-rail-link {
+  min-height: 2rem;
+  /* Clip text spans that appear/disappear mid-width-transition. Without
+     this, the new ``x-show`` text snaps to ``display:inline`` instantly
+     while the sidebar width is still animating 56 → 256px — text wraps
+     inside the still-narrow row and pushes the icon, then snaps back
+     when width catches up. ``overflow:hidden + white-space:nowrap``
+     keeps the row visually stable: the icon never moves, and text just
+     reveals from behind the right edge as width grows. */
+  overflow: hidden;
+  white-space: nowrap;
+}
+.acta-rail-link > svg {
+  width: 1rem !important;
+  height: 1rem !important;
+  flex-shrink: 0;
+}
+
 /* Active-state highlight for sidebar nav links. JS in ``acta.js``
    toggles this class onto the link whose ``href`` matches the
    current ``window.location.pathname`` after every HTMX boost
