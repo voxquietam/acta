@@ -483,33 +483,52 @@ rail are queued in [[project-todo-filter-sidebar-presets-views]]
                    placeholder="{% trans 'Filter labels…' %}"
                    class="flex-1 bg-transparent text-xs text-foreground placeholder-zinc-500 focus:outline-none">
           </div>
-          <div class="flex gap-1 flex-wrap">
-            {% for label in available_labels %}
-            <label class="cursor-pointer"
-                   data-filter-name="label"
-                   data-filter-value="{{ label.id }}"
-                   :class="q && !'{{ label.name|lower|escapejs }}'.includes(q.toLowerCase()) ? 'hidden' : ''"
-                   x-data="{ state: '{% if label.id in excluded_labels %}excluded{% elif label.id in selected_labels %}included{% else %}none{% endif %}' }"
-                   @acta:filter-reset.window="state = 'none'"
-                   @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $nextTick(() => document.getElementById('filter-form').requestSubmit())">
-              <input type="checkbox"
-                     :name="state === 'excluded' ? 'xlabel' : 'label'"
-                     value="{{ label.id }}"
-                     :checked="state !== 'none'"
-                     class="peer sr-only"
-                     @change.stop="state = $event.target.checked ? 'included' : 'none'; $event.target.form.requestSubmit()">
-              <span :data-state="state === 'excluded' ? 'excluded' : state === 'included' ? 'on' : 'off'"
-                    :class="{
-                      'line-through opacity-60 ring-1 ring-rose-500/60': state === 'excluded',
-                    }"
-                    class="acta-label-pill"
-                    style="--label-color: {{ label.color }};">
-                <span class="acta-label-pill-dot" style="background-color: {{ label.color }};"></span>
-                {{ label.name }}
-              </span>
-            </label>
-            {% endfor %}
+          {% comment %}
+          Grouped sidebar: each ``LabelGroup`` gets its own subsection so
+          the filter strip teaches the workspace's taxonomy at a glance.
+          When the workspace has only an Ungrouped bucket (no real
+          groups) we skip the header for a flat layout — the visual
+          rhythm of the chips alone is enough.
+          {% endcomment %}
+          {% with bucket_count=available_label_groups|length %}
+          {% for entry in available_label_groups %}
+          {% if entry.labels %}
+          <div class="space-y-1">
+            {% if bucket_count > 1 %}
+            {% include "web/_label_group_header.html" with group=entry.group %}
+            {% endif %}
+            <div class="flex gap-1 flex-wrap">
+              {% for label in entry.labels %}
+              <label class="cursor-pointer"
+                     data-filter-name="label"
+                     data-filter-value="{{ label.id }}"
+                     :class="q && !'{{ label.name|lower|escapejs }}'.includes(q.toLowerCase()) ? 'hidden' : ''"
+                     x-data="{ state: '{% if label.id in excluded_labels %}excluded{% elif label.id in selected_labels %}included{% else %}none{% endif %}' }"
+                     @acta:filter-reset.window="state = 'none'"
+                     @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $nextTick(() => document.getElementById('filter-form').requestSubmit())">
+                <input type="checkbox"
+                       :name="state === 'excluded' ? 'xlabel' : 'label'"
+                       value="{{ label.id }}"
+                       :checked="state !== 'none'"
+                       class="peer sr-only"
+                       @change.stop="state = $event.target.checked ? 'included' : 'none'; $event.target.form.requestSubmit()">
+                <span :data-state="state === 'excluded' ? 'excluded' : state === 'included' ? 'on' : 'off'"
+                      :class="{
+                        'line-through opacity-60 ring-1 ring-rose-500/60': state === 'excluded',
+                      }"
+                      class="acta-label-pill"
+                      style="--label-color: {{ label.color }};">
+                  <span class="acta-label-pill-dot" style="background-color: {{ label.color }};"></span>
+                  {{ label.name }}
+                </span>
+              </label>
+              {% endfor %}
+            </div>
           </div>
+          {% endif %}
+          {% endfor %}
+          {% endwith %}
+{# end grouped label sections #}
         </div>
       </div>
       {% endif %}

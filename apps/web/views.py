@@ -45,6 +45,7 @@ from apps.cycles.services import (
 )
 from apps.labels.models import Label, LabelGroup
 from apps.labels.palette import LABEL_COLORS, is_curated_label_color
+from apps.labels.services import grouped_labels
 from apps.notifications.models import Notification
 from apps.notifications.services import (
     notify_announcement,
@@ -1991,9 +1992,6 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
                 htmx_target="#project-view-panel",
                 extra_preserved={"view": view_mode},
                 effective_params=sidebar_params,
-                available_labels=list(
-                    Label.objects.filter(workspace=self.object.workspace).order_by("name"),
-                ),
                 # Scoped to users who actually have a task in this
                 # project (any status) — picking from every workspace
                 # member would clutter the strip with people who never
@@ -2084,6 +2082,7 @@ class TaskDetailView(LoginRequiredMixin, DetailView):
         ctx["priority_labels"] = dict(Task.PRIORITY_CHOICES)
         ctx["workspace_members"] = _workspace_members(task)
         ctx["workspace_labels"] = _workspace_labels(task)
+        ctx["workspace_label_groups"] = _workspace_label_groups(task)
         ctx["workspace_projects"] = _workspace_projects(task)
         ctx["workspace_cycles"] = _workspace_cycles(task.project.workspace)
         ctx["attached_label_ids"] = set(task.labels.values_list("id", flat=True))
@@ -2179,6 +2178,7 @@ def task_meta_fragment(request, slug_prefix, number):
                 "priority_labels": dict(Task.PRIORITY_CHOICES),
                 "workspace_members": _workspace_members(task),
                 "workspace_labels": _workspace_labels(task),
+                "workspace_label_groups": _workspace_label_groups(task),
                 "workspace_projects": _workspace_projects(task),
                 "workspace_cycles": _workspace_cycles(task.project.workspace),
                 "attached_label_ids": set(task.labels.values_list("id", flat=True)),
@@ -2237,6 +2237,7 @@ def task_meta_compact_fragment(request, slug_prefix, number):
                 "priority_labels": dict(Task.PRIORITY_CHOICES),
                 "workspace_members": _workspace_members(task),
                 "workspace_labels": _workspace_labels(task),
+                "workspace_label_groups": _workspace_label_groups(task),
                 "workspace_projects": _workspace_projects(task),
                 "workspace_cycles": _workspace_cycles(task.project.workspace),
                 "attached_label_ids": set(task.labels.values_list("id", flat=True)),
@@ -2479,9 +2480,10 @@ def _workspace_projects(task):
 
 
 def _workspace_labels(task):
-    """Return the workspace's labels ordered by name.
+    """Return the workspace's labels in picker order (``position``, then ``name``).
 
-    Used by the labels picker to populate its dropdown.
+    Used by the labels picker to populate its dropdown. Same ordering the
+    grouped picker uses so flat and grouped surfaces agree.
 
     Args:
         task: The :class:`Task` whose workspace's labels to fetch.
@@ -2489,7 +2491,17 @@ def _workspace_labels(task):
     Returns:
         A queryset of :class:`Label` rows.
     """
-    return Label.objects.filter(workspace=task.project.workspace).order_by("name")
+    return Label.objects.filter(workspace=task.project.workspace).order_by("position", "name")
+
+
+def _workspace_label_groups(task):
+    """Return the workspace's labels organised by :class:`LabelGroup`.
+
+    Wraps :func:`apps.labels.services.grouped_labels` so view code only
+    has to pass a task. Used wherever the labels dropdown / picker
+    template wants group sections.
+    """
+    return grouped_labels(task.project.workspace)
 
 
 def _workspace_cycles(workspace):
@@ -3193,6 +3205,7 @@ def toggle_task_label(request, slug_prefix, number):
     ctx = {
         "task": task,
         "workspace_labels": _workspace_labels(task),
+        "workspace_label_groups": _workspace_label_groups(task),
         "attached_label_ids": set(task.labels.values_list("id", flat=True)),
     }
     # Primary swap: the trigger contents (chips or placeholder). Keeping
@@ -4786,6 +4799,7 @@ def archive_task(request, slug_prefix, number):
             "status_labels": Task.STATUS_LABELS,
             "priority_labels": dict(Task.PRIORITY_CHOICES),
             "workspace_labels": _workspace_labels(task),
+            "workspace_label_groups": _workspace_label_groups(task),
             "workspace_projects": _workspace_projects(task),
             "workspace_cycles": _workspace_cycles(task.project.workspace),
             "attached_label_ids": set(task.labels.values_list("id", flat=True)),
@@ -4825,6 +4839,7 @@ def cancel_task(request, slug_prefix, number):
             "status_labels": Task.STATUS_LABELS,
             "priority_labels": dict(Task.PRIORITY_CHOICES),
             "workspace_labels": _workspace_labels(task),
+            "workspace_label_groups": _workspace_label_groups(task),
             "workspace_projects": _workspace_projects(task),
             "workspace_cycles": _workspace_cycles(task.project.workspace),
             "attached_label_ids": set(task.labels.values_list("id", flat=True)),
@@ -4915,6 +4930,7 @@ def task_context_menu(request, slug_prefix, number):
                 "workspace_projects": _workspace_projects(task),
                 "workspace_cycles": _workspace_cycles(task.project.workspace),
                 "workspace_labels": _workspace_labels(task),
+                "workspace_label_groups": _workspace_label_groups(task),
                 "attached_label_ids": set(task.labels.values_list("id", flat=True)),
             },
             request=request,
@@ -4942,7 +4958,8 @@ def bulk_context_menu(request):
             WorkspaceMember.objects.filter(workspace=workspace).select_related("user").order_by("user__username"),
         )
         projects = list(Project.objects.filter(workspace=workspace).order_by("name"))
-        labels = list(Label.objects.filter(workspace=workspace).order_by("name"))
+        labels = list(Label.objects.filter(workspace=workspace).order_by("position", "name"))
+        label_groups_ctx = grouped_labels(workspace)
         cycles = _workspace_cycles(workspace)
     return HttpResponse(
         render_to_string(
@@ -4954,6 +4971,7 @@ def bulk_context_menu(request):
                 "workspace_members": members,
                 "workspace_projects": projects,
                 "workspace_labels": labels,
+                "workspace_label_groups": label_groups_ctx,
                 "workspace_cycles": cycles,
             },
             request=request,
@@ -5381,15 +5399,16 @@ def _project_members_qs(project):
 
 
 def _project_labels_qs(project):
-    """Labels available in ``project``'s workspace.
+    """Labels available in ``project``'s workspace (picker order: ``position``).
 
     Args:
         project: The :class:`Project` whose workspace labels to fetch.
 
     Returns:
-        A queryset of :class:`Label` rows ordered by name.
+        A queryset of :class:`Label` rows ordered by ``position`` then ``name``
+        — the same order the management UI uses.
     """
-    return Label.objects.filter(workspace=project.workspace).order_by("name")
+    return Label.objects.filter(workspace=project.workspace).order_by("position", "name")
 
 
 @login_required
@@ -5447,6 +5466,7 @@ def _create_task_get(request):
         selected_project = projects[0]
     members = list(_project_members_qs(selected_project)) if selected_project else []
     labels = list(_project_labels_qs(selected_project)) if selected_project else []
+    label_groups = grouped_labels(selected_project.workspace) if selected_project else []
     pre_status = request.GET.get("status") or Task.STATUS_PLANNED
     if pre_status not in Task.STATUS_VALUES:
         pre_status = Task.STATUS_PLANNED
@@ -5497,6 +5517,7 @@ def _create_task_get(request):
                 "selected_project": selected_project,
                 "members": members,
                 "labels": labels,
+                "label_groups": label_groups,
                 "pre_status": pre_status,
                 "pre_priority": pre_priority,
                 "pre_assignee_id": pre_assignee_id,

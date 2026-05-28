@@ -11,7 +11,7 @@ from django.db.models import Case, F, IntegerField, Q, Value, When
 from django.db.models.functions import Lower
 from django.utils import timezone
 
-from apps.labels.models import Label
+from apps.labels.services import grouped_labels
 from apps.projects.models import Project
 from apps.tasks.models import Task
 from apps.web.nav import resolve_active_workspace
@@ -541,8 +541,14 @@ def filter_sidebar_context(
             if active
             else []
         )
+    # Grouped shape feeds the sidebar template; the flat list keeps the same
+    # row ordering by flattening the buckets so callers that override
+    # ``available_labels`` (project detail) and callers that read the flat
+    # list (exports, tests) agree with the picker order. Single pair of
+    # queries — flatten in Python instead of re-querying.
+    available_label_groups = grouped_labels(active) if active else []
     if available_labels is None:
-        available_labels = list(Label.objects.filter(workspace=active).order_by("name").distinct()) if active else []
+        available_labels = [label for entry in available_label_groups for label in entry["labels"]]
     if available_assignees is None:
         User = get_user_model()
         # The strip shows two groups: current members of any shared
@@ -696,6 +702,7 @@ def filter_sidebar_context(
         "active_cycle_end": active_cycle.end_date.isoformat() if active_cycle else "",
         "available_projects": available_projects,
         "available_labels": available_labels,
+        "available_label_groups": available_label_groups,
         "available_assignees": available_assignees,
         "active_filter_count": active_filter_count,
         "status_labels": Task.STATUS_LABELS,

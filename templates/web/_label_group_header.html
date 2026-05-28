@@ -1,0 +1,17 @@
+{% load i18n %}
+{% comment %}
+Tiny group-name header above a label picker's group block. Used by every
+picker / filter that renders labels through ``grouped_labels`` so the
+visual treatment stays consistent. Caller decides whether to render —
+when the workspace has only one bucket (Ungrouped only), it's noise.
+
+Required context:
+    group — :class:`LabelGroup` or ``None`` (Ungrouped bucket).
+{% endcomment %}
+<div class="px-1 pt-1.5 pb-0.5 text-[9.5px] uppercase tracking-wider text-placeholder-foreground font-semibold inline-flex items-center gap-1.5">
+  <span>{% if group %}{{ group.name }}{% else %}{% trans "Ungrouped" %}{% endif %}</span>
+  {% if group.is_exclusive %}
+  <span class="font-mono normal-case tracking-normal text-[9px] px-1 rounded bg-amber-500/15 text-amber-300"
+        title="{% trans 'A task can carry at most one label from this group' %}">{% trans "one only" %}</span>
+  {% endif %}
+</div>

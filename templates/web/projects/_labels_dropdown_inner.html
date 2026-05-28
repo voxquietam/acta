@@ -10,7 +10,13 @@ Each row's primary target is ``#labels-trigger-inner`` (the chips),
 not the whole cell.
 {% endcomment %}
 <div id="labels-dropdown-inner"{% if oob %} hx-swap-oob="true"{% endif %} class="max-h-64 overflow-y-auto">
-  {% for label in workspace_labels %}
+  {% with bucket_count=workspace_label_groups|length %}
+  {% for entry in workspace_label_groups %}
+  {% if entry.labels %}
+  {% if bucket_count > 1 %}
+  {% include "web/_label_group_header.html" with group=entry.group %}
+  {% endif %}
+  {% for label in entry.labels %}
   <form hx-post="{% url 'web:toggle_task_label' slug_prefix=task.project.slug_prefix number=task.number %}"
         hx-target="#labels-trigger-inner"
         hx-swap="outerHTML"
@@ -24,9 +30,12 @@ not the whole cell.
       {% if label.id in attached_label_ids %}<span class="text-placeholder-foreground">✓</span>{% endif %}
     </button>
   </form>
+  {% endfor %}
+  {% endif %}
   {% empty %}
   <div class="px-3 py-4 text-xs text-placeholder-foreground italic text-center">
     {% trans "No labels in this workspace yet." %}
   </div>
   {% endfor %}
+  {% endwith %}
 </div>
