@@ -72,7 +72,7 @@
         <span class="shrink-0 mt-0.5 {% if project.archived %}text-placeholder-foreground{% else %}{{ project.icon_color_class }}{% endif %}">
           {% lucide project.icon|default:"folder" "w-4 h-4" %}
         </span>
-        <div class="min-w-0 flex-1 pr-7">
+        <div class="min-w-0 flex-1 {% if project.latest_health %}pr-28{% else %}pr-7{% endif %}">
           <div class="font-mono text-[11px] text-placeholder-foreground tracking-wide uppercase">
             {{ project.slug_prefix }}
           </div>
@@ -87,22 +87,6 @@
           </div>
         </div>
 
-        {% if project.latest_health %}
-        <span class="shrink-0 inline-flex items-center gap-1 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded
-          {% if project.latest_health == 'on_track' %}bg-emerald-900 text-emerald-300
-          {% elif project.latest_health == 'at_risk' %}bg-amber-900 text-amber-300
-          {% elif project.latest_health == 'off_track' %}bg-rose-900 text-rose-300
-          {% elif project.latest_health == 'completed' %}bg-sky-900 text-sky-300
-          {% else %}bg-muted text-subtle-foreground{% endif %}">
-          <span class="w-1.5 h-1.5 rounded-full
-            {% if project.latest_health == 'on_track' %}bg-emerald-500
-            {% elif project.latest_health == 'at_risk' %}bg-amber-500
-            {% elif project.latest_health == 'off_track' %}bg-rose-500
-            {% elif project.latest_health == 'completed' %}bg-sky-500
-            {% else %}bg-zinc-500{% endif %}"></span>
-          {{ health_labels|get_item:project.latest_health|default:project.latest_health }}
-        </span>
-        {% endif %}
       </div>
 
       {% if total %}
@@ -217,7 +201,29 @@
         </span>
       </div>
     </a>
-    <div class="absolute top-2 right-2 z-10">
+    {% comment %}
+    Health pill + favourite star live in one absolute cluster at the
+    top-right so they share a baseline (the pill used to sit inside the
+    anchor's flex row, with the star overlapping it). The pill stays
+    display-only — clicking it no longer navigates, that's by design.
+    {% endcomment %}
+    <div class="absolute top-2 right-2 z-10 flex items-center gap-1.5">
+      {% if project.latest_health %}
+      <span class="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded
+        {% if project.latest_health == 'on_track' %}bg-emerald-900 text-emerald-300
+        {% elif project.latest_health == 'at_risk' %}bg-amber-900 text-amber-300
+        {% elif project.latest_health == 'off_track' %}bg-rose-900 text-rose-300
+        {% elif project.latest_health == 'completed' %}bg-sky-900 text-sky-300
+        {% else %}bg-muted text-subtle-foreground{% endif %}">
+        <span class="w-1.5 h-1.5 rounded-full
+          {% if project.latest_health == 'on_track' %}bg-emerald-500
+          {% elif project.latest_health == 'at_risk' %}bg-amber-500
+          {% elif project.latest_health == 'off_track' %}bg-rose-500
+          {% elif project.latest_health == 'completed' %}bg-sky-500
+          {% else %}bg-zinc-500{% endif %}"></span>
+        {{ health_labels|get_item:project.latest_health|default:project.latest_health }}
+      </span>
+      {% endif %}
       {% project_star project favourite_project_ids %}
     </div>
     </div>
