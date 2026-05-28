@@ -5617,11 +5617,48 @@ def _create_task_post(request):
             }
         )
     else:
-        # No redirect: stay on the current page, but tell the page to
-        # refresh its task list. Connected HTMX listeners on
-        # ``acta:task-created`` re-fetch their fragment; the modal
-        # picks up the same event and closes itself.
-        response["HX-Trigger"] = created_trigger
+        response = _task_card_insert_response(request, task, linked=linked)
+    return response
+
+
+def _task_card_insert_response(request, task, *, linked):
+    """Build the in-page create response that drops the new card into kanban.
+
+    The form posts with ``hx-swap="none"``; the server overrides that via
+    ``HX-Retarget`` (the matching kanban column) + ``HX-Reswap`` (``beforeend``)
+    and returns the rendered card as the body. htmx appends just that card —
+    no wrapper refetch, no cascade rebuild of the kanban. In non-kanban views
+    (table / list / timeline) the column id won't match, htmx skips the swap
+    silently, and the toast still confirms the create.
+
+    Why split the triggers: the toast fires immediately, but the modal-close
+    + link-changed events ride ``HX-Trigger-After-Settle`` so the form stays
+    in the DOM until htmx finishes the swap — otherwise the indicator class
+    never gets cleaned up (loader spins forever) and the swap can error out
+    with the elt detached mid-request.
+    """
+    card_html = render_to_string(
+        "web/projects/_task_card.html",
+        {
+            "task": task,
+            "status_labels": Task.STATUS_LABELS,
+            "priority_labels": dict(Task.PRIORITY_CHOICES),
+            "today": timezone.localdate(),
+        },
+        request=request,
+    )
+    toast = {
+        "message": str(_("Created %(slug)s") % {"slug": task.slug}),
+        "level": "success",
+    }
+    after_settle = {"acta:task-created": True}
+    if linked:
+        after_settle["acta:link-changed"] = True
+    response = HttpResponse(card_html, status=200, content_type="text/html; charset=utf-8")
+    response["HX-Retarget"] = f"#kanban-col-{task.status}"
+    response["HX-Reswap"] = "beforeend"
+    response["HX-Trigger"] = json.dumps({"acta:toast": toast}, default=str)
+    response["HX-Trigger-After-Settle"] = json.dumps(after_settle, default=str)
     return response
 
 

@@ -186,11 +186,20 @@ class TestCreateTaskPost:
             reverse("web:create_task"),
             data={"project": project.slug_prefix, "title": "First task"},
         )
-        assert resp.status_code == 204
-        # ``open_after_create`` defaults off → no HX-Redirect, panel
-        # refreshes via the ``acta:task-created`` HX-Trigger.
+        assert resp.status_code == 200
+        # ``open_after_create`` defaults off → no full-page HX-Redirect;
+        # server retargets the form's no-op swap into the matching kanban
+        # column (``HX-Retarget`` + ``HX-Reswap=beforeend``) and ships the
+        # rendered card as the body. The kanban column appends just that
+        # one card — no wrapper refetch, no cascade, no jerk. Outside
+        # kanban the retarget selector misses and htmx skips the swap;
+        # the toast still confirms the create.
         assert "HX-Redirect" not in resp.headers
-        assert resp.headers.get("HX-Trigger") == "acta:task-created"
+        assert resp.headers["HX-Retarget"] == f"#kanban-col-{Task.STATUS_PLANNED}"
+        assert resp.headers["HX-Reswap"] == "beforeend"
+        assert "data-kanban-card" in resp.content.decode()
+        assert "acta:toast" in resp.headers.get("HX-Trigger", "")
+        assert "acta:task-created" in resp.headers.get("HX-Trigger-After-Settle", "")
         task = Task.objects.get(project=project, title="First task")
         assert task.reporter == user
         assert task.status == Task.STATUS_PLANNED
@@ -206,7 +215,7 @@ class TestCreateTaskPost:
                 "open_after_create": "1",
             },
         )
-        assert resp.status_code == 204
+        assert resp.status_code in (200, 204)
         # Boosted client-side nav (no full-page HX-Redirect) + modal close.
         assert "HX-Redirect" not in resp.headers
         loc = resp.headers["HX-Location"]
@@ -217,7 +226,10 @@ class TestCreateTaskPost:
         # HX-Boosted so the GET returns the full shell (with #app-content),
         # not the inner partial — otherwise the swap lands empty.
         assert "HX-Boosted" in loc
-        assert resp.headers.get("HX-Trigger") == "acta:task-created"
+        # ``open_after_create=on`` navigates away (HX-Location); the modal-close
+        # event lives in plain ``HX-Trigger`` here because there's no settle to
+        # wait on — we're leaving the page.
+        assert "acta:task-created" in resp.headers.get("HX-Trigger", "")
 
     def test_creates_activity_event(self, client, setup):
         ws, project, user = setup
@@ -248,7 +260,7 @@ class TestCreateTaskPost:
                 "labels": [label.id],
             },
         )
-        assert resp.status_code == 204
+        assert resp.status_code in (200, 204)
         task = Task.objects.get(title="Big task")
         assert task.description == "details here"
         assert task.status == Task.STATUS_IN_PROGRESS
@@ -336,7 +348,7 @@ class TestCreateTaskPost:
                 "assignee": teammate.id,
             },
         )
-        assert resp.status_code == 204
+        assert resp.status_code in (200, 204)
         task = Task.objects.get(title="x")
         assert task.assignee_id == teammate.id
 
@@ -433,7 +445,7 @@ class TestCreateTaskActiveWorkspaceScoping:
         user, proj_a, proj_b = self._two_ws()
         client.force_login(user)
         resp = client.post(reverse("web:create_task"), data={"project": proj_a.slug_prefix, "title": "ok"})
-        assert resp.status_code == 204
+        assert resp.status_code in (200, 204)
         assert Task.objects.filter(project=proj_a, title="ok").exists()
 
 
@@ -449,13 +461,13 @@ class TestCreateTaskLinkRelated:
             reverse("web:create_task"),
             data={"project": project.slug_prefix, "title": "Spun off", "link_related": origin.slug},
         )
-        assert resp.status_code == 204
+        assert resp.status_code in (200, 204)
         new = Task.objects.get(project=project, title="Spun off")
         # related is symmetric — both sides see the link.
         assert origin in new.related.all()
         assert new in origin.related.all()
         # Fires the extra trigger so the origin's links panel refetches live.
-        assert "acta:link-changed" in resp.headers.get("HX-Trigger", "")
+        assert "acta:link-changed" in resp.headers.get("HX-Trigger-After-Settle", "")
 
     def test_unlinked_create_omits_link_trigger(self, client, setup):
         ws, project, user = setup
@@ -464,7 +476,7 @@ class TestCreateTaskLinkRelated:
             reverse("web:create_task"),
             data={"project": project.slug_prefix, "title": "Plain"},
         )
-        assert resp.headers.get("HX-Trigger") == "acta:task-created"
+        assert "acta:task-created" in resp.headers.get("HX-Trigger-After-Settle", "")
 
     def test_links_fragment_shows_related(self, client, setup):
         ws, project, user = setup
@@ -484,7 +496,7 @@ class TestCreateTaskLinkRelated:
             reverse("web:create_task"),
             data={"project": project.slug_prefix, "title": "No link", "link_related": "NOPE-999"},
         )
-        assert resp.status_code == 204
+        assert resp.status_code in (200, 204)
         new = Task.objects.get(project=project, title="No link")
         assert new.related.count() == 0  # bad slug → task created, no link
 
@@ -496,7 +508,7 @@ class TestCreateTaskLinkRelated:
             reverse("web:create_task"),
             data={"project": project.slug_prefix, "title": "No cross link", "link_related": foreign.slug},
         )
-        assert resp.status_code == 204
+        assert resp.status_code in (200, 204)
         new = Task.objects.get(project=project, title="No cross link")
         assert new.related.count() == 0
 

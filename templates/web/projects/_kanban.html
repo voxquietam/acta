@@ -184,7 +184,8 @@ hides the native scrollbar without losing the "you can scroll" cue.
     cards hidden on first paint until Alpine decides whether the
     column is folded.
     {% endcomment %}
-    <div class="flex-1 min-h-0 overflow-y-auto p-2 space-y-2 kanban-column scrollbar-none"
+    <div id="kanban-col-{{ col.key }}"
+         class="flex-1 min-h-0 overflow-y-auto p-2 space-y-2 kanban-column scrollbar-none"
          data-status="{{ col.key }}"
          x-show="!$store.kanban.isCollapsed('{{ col.key }}')"
          x-cloak>
