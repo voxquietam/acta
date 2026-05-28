@@ -35,6 +35,38 @@ class TestCompletedAtOnSave:
         task = TaskFactory(status=Task.STATUS_DONE)
         assert task.completed_at is not None
 
+    def test_create_as_done_stamps_same_day_start_and_end(self):
+        """Task created directly in done gets start_date == end_date == today.
+
+        Without this, ``start_date`` stayed null — the timeline bar had no
+        left edge and cycle/lead-time metrics couldn't measure a span.
+        """
+        today = timezone.localdate()
+        task = TaskFactory(status=Task.STATUS_DONE)
+        assert task.start_date == today
+        assert task.end_date == today
+
+    def test_create_as_done_preserves_explicit_start_date(self):
+        """If the caller passes ``start_date``, the auto-stamp does not overwrite it."""
+        explicit = timezone.localdate() - datetime.timedelta(days=3)
+        task = TaskFactory(status=Task.STATUS_DONE, start_date=explicit)
+        assert task.start_date == explicit
+        assert task.end_date == timezone.localdate()
+
+    def test_transition_to_done_does_not_invent_start_date(self):
+        """An existing task with no start_date moving into done keeps it null.
+
+        For an old task ``today`` would be a lie about when work began —
+        only the create-in-done case auto-fills the start.
+        """
+        task = TaskFactory(status=Task.STATUS_TODO)
+        assert task.start_date is None
+        task.status = Task.STATUS_DONE
+        task.save()
+        task.refresh_from_db()
+        assert task.start_date is None
+        assert task.end_date == timezone.localdate()
+
     def test_unrelated_save_preserves_timestamp(self):
         task = TaskFactory(status=Task.STATUS_DONE)
         original = task.completed_at

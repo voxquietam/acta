@@ -428,6 +428,15 @@ class Task(models.Model):
             self.completed_at = timezone.now()
             self.end_date = timezone.localdate()
             touched = ["completed_at", "end_date"]
+            # Task created directly in done — no in-flight period to measure,
+            # so stamp ``start_date`` with the same day. Gives the timeline
+            # bar both ends and lets cycle/lead-time metrics record a span
+            # of zero instead of NaN. For tasks moving into done later we
+            # leave ``start_date`` alone (``today`` would be a lie about
+            # when work began).
+            if self._state.adding and self.start_date is None:
+                self.start_date = self.end_date
+                touched.append("start_date")
         else:
             if self.completed_at is None:
                 return
