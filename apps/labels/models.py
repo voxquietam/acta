@@ -92,6 +92,14 @@ class Label(models.Model):
         validators=[HEX_COLOR_VALIDATOR],
         help_text="Hex color code (#RRGGBB or #RRGGBBAA). Required — labels must be visually distinguishable",
     )
+    position = models.IntegerField(
+        default=0,
+        help_text=(
+            "Sort order within the label's group (or within the ungrouped list when "
+            "``group`` is null). Lower comes first. Driven by the labels-management "
+            "drag-drop reorder; values are dense per ``(group, workspace)`` slice."
+        ),
+    )
     created_at = models.DateTimeField(
         auto_now_add=True,
         help_text="When the label was created",
@@ -108,6 +116,10 @@ class Label(models.Model):
                 ],
                 name="labels_unique_workspace_name",
             ),
+        ]
+        ordering = [
+            "position",
+            "name",
         ]
 
     def __str__(self) -> str:
