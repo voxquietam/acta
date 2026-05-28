@@ -27,6 +27,14 @@ class LabelGroup(models.Model):
         max_length=60,
         help_text='Group name shown in label pickers (e.g. "Type", "Priority", "Area")',
     )
+    description = models.TextField(
+        blank=True,
+        default="",
+        help_text=(
+            "Short guidance shown to the team — what kind of labels belong in this group. "
+            "Surfaces in admin and the future label-management UI."
+        ),
+    )
     is_exclusive = models.BooleanField(
         default=False,
         help_text="If true, a task can have at most one label from this group",

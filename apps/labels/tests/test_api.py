@@ -100,7 +100,11 @@ class TestLabelGroupCrud:
 
     def test_list_scoped_to_membership(self, client, workspace):
         mine = LabelGroupFactory(workspace=workspace)
-        LabelGroupFactory()  # foreign
+        foreign = LabelGroupFactory()
         resp = client.get("/api/v1/label-groups/")
         ids = {row["id"] for row in resp.data["results"]}
-        assert ids == {mine.id}
+        # Workspace creation auto-seeds the default groups (Type / Area / Layer
+        # via ``apps.labels.signals``) so a strict equality would also pin
+        # those — match on inclusion / exclusion instead.
+        assert mine.id in ids
+        assert foreign.id not in ids

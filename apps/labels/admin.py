@@ -41,6 +41,12 @@ class LabelGroupAdmin(ModelAdmin):
     search_fields = [
         "name",
     ]
+    fields = [
+        "workspace",
+        "name",
+        "description",
+        "is_exclusive",
+    ]
 
 
 @admin.register(Label)
