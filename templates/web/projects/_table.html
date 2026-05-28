@@ -105,7 +105,7 @@ clip overflowing text with an ellipsis instead of widening.
     very large number so it always lands last regardless of direction
     — same trick the server uses (_PRIORITY_NOPRIO_LAST in filters.py).
     {% endcomment %}
-    <tbody class="divide-y divide-border">
+    <tbody id="task-table-body" class="divide-y divide-border">
       {% for task in tasks %}{% include "web/projects/_table_row.html" %}{% empty %}
       <tr>
         <td colspan="{% if show_labels and show_project %}10{% elif show_labels or show_project %}9{% else %}8{% endif %}"

@@ -60,6 +60,7 @@ def log_event(
     payload: dict[str, Any] | None = None,
     project=None,
     bulk_id: UUID | None = None,
+    broadcast_extras: dict[str, Any] | None = None,
 ) -> ActivityLog:
     """Write a single activity log row and broadcast it on commit.
 
@@ -87,6 +88,10 @@ def log_event(
         bulk_id: UUID shared across all events emitted from one bulk
             endpoint call. Allows UI to group ``N`` events into a single
             feed entry while keeping per-task timelines intact.
+        broadcast_extras: Extra fields merged into the SSE broadcast only,
+            never persisted to ``ActivityLog.payload``. For send-once-and-
+            forget data like pre-rendered HTML that peers need for live DOM
+            inserts but the DB shouldn't carry forever.
 
     Returns:
         The newly created :class:`ActivityLog` instance.
@@ -112,6 +117,7 @@ def log_event(
         "bulk_id": str(bulk_id) if bulk_id else None,
         "occurred_at": row.created_at.isoformat() if row.created_at else None,
         **(payload or {}),
+        **(broadcast_extras or {}),
     }
     if IS_MCP_REQUEST.get():
         broadcast_payload["via_mcp"] = True

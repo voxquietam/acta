@@ -8,7 +8,7 @@ endpoints (or from `/api/v1/...` for JSON-only consumers).
 import datetime
 import json
 import re
-from urllib.parse import quote, urlencode
+from urllib.parse import parse_qs, quote, urlencode, urlparse
 
 from django.contrib import messages
 from django.contrib.auth import get_user_model
@@ -66,7 +66,7 @@ from apps.web.filters import (
     resolve_show_archived,
     resolve_show_backlog,
 )
-from apps.web.grouping import group_tasks
+from apps.web.grouping import LIST_AXES, group_tasks
 from apps.web.nav import resolve_active_workspace, set_active_workspace
 from apps.workspaces.models import Workspace, WorkspaceMember
 
@@ -5561,6 +5561,10 @@ def _create_task_post(request):
         task.save()
         if label_ids:
             task.labels.set(label_ids)
+        # Pre-render the kanban card once: feeds the local HX-Retarget swap
+        # below AND rides the SSE broadcast (``broadcast_extras``) so peers
+        # on the kanban view can live-insert it without a server round-trip.
+        kanban_card_html = _render_kanban_card_html(task, request)
         log_event(
             workspace=project.workspace,
             project=project,
@@ -5569,6 +5573,7 @@ def _create_task_post(request):
             target_type=ActivityLog.TARGET_TASK,
             target_id=task.id,
             payload={"title": task.title, "status": task.status},
+            broadcast_extras={"html_kanban": kanban_card_html},
         )
         notify_task_created(task=task, actor=request.user)
         # "Create task from comment / selection" passes ``link_related``;
@@ -5617,27 +5622,13 @@ def _create_task_post(request):
             }
         )
     else:
-        response = _task_card_insert_response(request, task, linked=linked)
+        response = _task_card_insert_response(request, task, linked=linked, kanban_html=kanban_card_html)
     return response
 
 
-def _task_card_insert_response(request, task, *, linked):
-    """Build the in-page create response that drops the new card into kanban.
-
-    The form posts with ``hx-swap="none"``; the server overrides that via
-    ``HX-Retarget`` (the matching kanban column) + ``HX-Reswap`` (``beforeend``)
-    and returns the rendered card as the body. htmx appends just that card —
-    no wrapper refetch, no cascade rebuild of the kanban. In non-kanban views
-    (table / list / timeline) the column id won't match, htmx skips the swap
-    silently, and the toast still confirms the create.
-
-    Why split the triggers: the toast fires immediately, but the modal-close
-    + link-changed events ride ``HX-Trigger-After-Settle`` so the form stays
-    in the DOM until htmx finishes the swap — otherwise the indicator class
-    never gets cleaned up (loader spins forever) and the swap can error out
-    with the elt detached mid-request.
-    """
-    card_html = render_to_string(
+def _render_kanban_card_html(task, request):
+    """Render the kanban card fragment for one task (re-used by SSE peers)."""
+    return render_to_string(
         "web/projects/_task_card.html",
         {
             "task": task,
@@ -5647,6 +5638,134 @@ def _task_card_insert_response(request, task, *, linked):
         },
         request=request,
     )
+
+
+def _render_table_row_html(task, request, *, show_project):
+    """Render one ``<tr>`` for the table view (column count tracks ``show_project``)."""
+    return render_to_string(
+        "web/projects/_table_row.html",
+        {
+            "task": task,
+            "status_labels": Task.STATUS_LABELS,
+            "priority_labels": dict(Task.PRIORITY_CHOICES),
+            "today": timezone.localdate(),
+            "show_labels": True,
+            "show_project": show_project,
+        },
+        request=request,
+    )
+
+
+def _render_task_row_html(task, request):
+    """Render the generic ``web/_task_row.html`` partial used by the list view."""
+    return render_to_string(
+        "web/_task_row.html",
+        {
+            "task": task,
+            "status_labels": Task.STATUS_LABELS,
+            "priority_labels": dict(Task.PRIORITY_CHOICES),
+            "today": timezone.localdate(),
+        },
+        request=request,
+    )
+
+
+def _compute_list_section_keys(task, request):
+    """Return ``{axis: section_key}`` mapping ``task`` to its bucket per list axis.
+
+    Used to drive client-side row insertion in the list view: for each axis the
+    panel pre-renders, the JS handler looks up the matching ``[data-list-axis]``
+    wrapper and the ``[data-section-key]`` ``<section>`` within it. Reuses
+    :func:`apps.web.grouping.group_tasks` so the keying logic stays in one
+    place — pass a single-task list and pick the only non-empty bucket.
+
+    Args:
+        task: The freshly-created :class:`Task`.
+        request: HTTP request, used for the acting-user timezone in the
+            deadline axis.
+
+    Returns:
+        Dict ``{axis: key}`` covering every axis in :data:`LIST_AXES` where a
+        bucket exists for ``task``. ``key`` is always a string (matches the
+        ``data-section-key`` attribute the template emits).
+    """
+    keys = {}
+    for axis in LIST_AXES:
+        sections = group_tasks([task], axis, request_user=request.user)
+        for section in sections:
+            if section["tasks"]:
+                keys[axis] = str(section["key"])
+                break
+    return keys
+
+
+def _current_view_from_htmx(request):
+    """Return ``(view, show_project)`` derived from htmx's ``HX-Current-URL``.
+
+    htmx sends ``HX-Current-URL`` with every request so the server knows the
+    URL the click came from. We parse ``?view=`` to know which surface the
+    new card needs to land on, and use the path to decide ``show_project``
+    (AllTasks needs the project column, project-scoped pages don't).
+    """
+    current_url = (request.headers.get("HX-Current-URL") or "").strip()
+    if not current_url:
+        return "kanban", True
+    try:
+        parsed = urlparse(current_url)
+    except ValueError:
+        return "kanban", True
+    qs = parse_qs(parsed.query)
+    view = (qs.get("view") or ["kanban"])[0]
+    show_project = not parsed.path.startswith("/projects/")
+    return view, show_project
+
+
+def _task_card_insert_response(request, task, *, linked, kanban_html):
+    """Build the in-page create response that drops the new card into the active view.
+
+    The form posts with ``hx-swap="none"``; the server overrides that via
+    ``HX-Retarget`` + ``HX-Reswap`` and returns the rendered fragment as the
+    body. htmx appends just that one element — no wrapper refetch, no
+    cascade rebuild of the kanban. Active view comes from ``HX-Current-URL``:
+
+    * ``kanban`` — kanban card into ``#kanban-col-<status>``.
+    * ``table`` — table row into ``#task-table-body`` (``show_project`` flag
+      tracks AllTasks vs ProjectDetail so the column count matches).
+    * ``list`` — pre-renders the row HTML + per-axis section keys and fires
+      ``acta:list-insert-row``; ``acta.js`` finds the matching
+      ``[data-list-axis] section[data-section-key]`` wrapper and appends.
+      No swap on the response itself (the panel pre-renders all axes, so a
+      single ``HX-Retarget`` can't reach all of them) — JS does the work.
+    * ``timeline`` / ``backlog`` — toast-only; gantt positioning and the
+      backlog's own grouping aren't covered yet. Modal still closes.
+
+    Why split the triggers: toast fires immediately, but the modal-close +
+    link-changed events ride ``HX-Trigger-After-Settle`` so the form stays
+    in the DOM until htmx finishes the swap — otherwise the indicator class
+    never gets cleaned up (loader spins forever) and the swap can error out
+    with the elt detached mid-request.
+    """
+    view, show_project = _current_view_from_htmx(request)
+    body = ""
+    retarget = None
+    reswap = None
+    list_insert = None
+    if view == "table":
+        body = _render_table_row_html(task, request, show_project=show_project)
+        retarget = "#task-table-body"
+        reswap = "beforeend"
+    elif view == "list":
+        list_insert = {
+            "task_id": task.id,
+            "row_html": _render_task_row_html(task, request),
+            "section_keys": _compute_list_section_keys(task, request),
+        }
+    elif view in {"timeline", "backlog"}:
+        pass  # toast-only — see docstring
+    else:
+        body = kanban_html
+        retarget = f"#kanban-col-{task.status}"
+        reswap = "beforeend"
     toast = {
         "message": str(_("Created %(slug)s") % {"slug": task.slug}),
         "level": "success",
@@ -5654,11 +5773,24 @@ def _task_card_insert_response(request, task, *, linked):
     after_settle = {"acta:task-created": True}
     if linked:
         after_settle["acta:link-changed"] = True
-    response = HttpResponse(card_html, status=200, content_type="text/html; charset=utf-8")
-    response["HX-Retarget"] = f"#kanban-col-{task.status}"
-    response["HX-Reswap"] = "beforeend"
-    response["HX-Trigger"] = json.dumps({"acta:toast": toast}, default=str)
-    response["HX-Trigger-After-Settle"] = json.dumps(after_settle, default=str)
+    immediate = {"acta:toast": toast}
+    if list_insert is not None:
+        immediate["acta:list-insert-row"] = list_insert
+    if retarget:
+        response = HttpResponse(body, status=200, content_type="text/html; charset=utf-8")
+        response["HX-Retarget"] = retarget
+        response["HX-Reswap"] = reswap
+        response["HX-Trigger"] = json.dumps(immediate, default=str)
+        # Modal-close + link-changed wait until after the swap so the form
+        # stays in the DOM (indicator class gets cleaned up, swap doesn't
+        # error on a detached elt).
+        response["HX-Trigger-After-Settle"] = json.dumps(after_settle, default=str)
+    else:
+        # No swap → settle never fires → ``HX-Trigger-After-Settle`` would
+        # silently drop. Send everything on immediate ``HX-Trigger`` instead;
+        # there's no swap to wait for and nothing to detach the form from.
+        response = HttpResponse(status=204)
+        response["HX-Trigger"] = json.dumps({**immediate, **after_settle}, default=str)
     return response
 
 

@@ -727,6 +727,59 @@
     initKanbanDnD();
   }
 
+  // Recount the per-column ``[data-column-count]`` after a card is inserted
+  // (HX-Retarget from ``_create_task_post`` appends a card but doesn't
+  // touch the header counter; the same recount runs on filter-apply and
+  // sortable-end already). ``acta:task-created`` fires after-settle so by
+  // here the new card is already in the DOM and the count picks it up.
+  function recountKanbanColumns() {
+    document.querySelectorAll(".kanban-column").forEach((c) => {
+      const visible = c.querySelectorAll("[data-task-id]:not([hidden])").length;
+      const counter = c.parentElement?.querySelector("[data-column-count]");
+      if (counter) counter.textContent = String(visible);
+    });
+  }
+  document.body.addEventListener("acta:task-created", recountKanbanColumns);
+
+  // Live-insert a freshly-created task into the list view without a panel
+  // refetch. Payload from ``_task_card_insert_response`` carries the row
+  // HTML once plus a ``{axis: section_key}`` map (server-computed via
+  // ``group_tasks``). For each axis pre-rendered in the panel, find the
+  // matching ``<section data-section-key>`` and append a fresh ``<li>``
+  // to its ``<ul>`` — also bump the per-section ``[data-list-count]``.
+  //
+  // If a section doesn't exist yet (first task of its kind in an axis
+  // that builds sections on-demand, e.g. assignee/project/cycle) we skip
+  // it silently — toast already confirmed the create. Next filter change
+  // or nav rebuilds the panel from scratch.
+  document.body.addEventListener("acta:list-insert-row", (evt) => {
+    const detail = evt.detail || {};
+    const html = detail.row_html;
+    const keys = detail.section_keys || {};
+    if (!html) return;
+    Object.entries(keys).forEach(([axis, key]) => {
+      const wrap = document.querySelector(`[data-list-axis="${axis}"]`);
+      if (!wrap) return;
+      const section = wrap.querySelector(`section[data-section-key="${CSS.escape(key)}"]`);
+      if (!section) return;
+      const ul = section.querySelector("ul");
+      if (!ul) return;
+      const li = document.createElement("li");
+      li.innerHTML = html;
+      // List view has no per-section sort control — it always uses the
+      // default Task ordering (``-updated_at``). A freshly-created task
+      // has the freshest timestamp, so it belongs at the top of the
+      // section, not the bottom.
+      ul.prepend(li);
+      if (window.htmx) window.htmx.process(li);
+      const counter = section.querySelector("[data-list-count]");
+      if (counter) {
+        const visible = ul.querySelectorAll("li").length;
+        counter.textContent = String(visible);
+      }
+    });
+  });
+
   // ── Timeline (Gantt) ───────────────────────────────────────────────
   // Ported out of an inline <script> in ``_timeline.html``. The timeline is
   // a lazy panel (``?panel=timeline``); HTMX + idiomorph DON'T re-execute
@@ -2062,14 +2115,30 @@
       refreshListPanel();
     });
 
-    // New task from another user — server emits ``task.created``
-    // without a pre-rendered card (the create path uses
-    // ``log_event`` directly, not the diff broadcaster). Mirror the
-    // same custom event the local create flow already fires; panel
-    // wrappers refetch themselves and the new row shows up. The
-    // flash is acceptable here because there's no other way to
-    // insert the row into the existing DOM.
-    handle("task.created", () => {
+    // New task from another user — server's ``task.created`` broadcast
+    // includes the pre-rendered kanban card in ``broadcast_extras``
+    // (see ``log_event`` + ``_create_task_post``). If the peer is on
+    // the kanban view, insert the card straight into the matching
+    // ``#kanban-col-<status>`` column — same target the local create
+    // flow's HX-Retarget hits — and run ``htmx.process`` so click-to-
+    // open wires up. ``acta:task-created`` still fires for the
+    // column-count recount and any other listeners.
+    //
+    // Non-kanban peers (table / list / timeline) won't have a target
+    // — they'll see the new task on next nav. Extending to table-row
+    // / list-row inserts is a follow-up (needs view detection +
+    // per-view HTML in the broadcast).
+    handle("task.created", (data) => {
+      const html = data && data.html_kanban;
+      const status = data && data.status;
+      if (html && status) {
+        const col = document.getElementById("kanban-col-" + status);
+        if (col) {
+          col.insertAdjacentHTML("beforeend", html);
+          const card = col.lastElementChild;
+          if (card && window.htmx) window.htmx.process(card);
+        }
+      }
       document.body.dispatchEvent(new CustomEvent("acta:task-created", { bubbles: true }));
     });
 

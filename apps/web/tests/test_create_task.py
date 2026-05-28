@@ -5,6 +5,7 @@ membership enforcement, activity event, HTMX redirect).
 """
 
 import datetime
+import json
 
 from django.urls import reverse
 from django.utils import timezone
@@ -203,6 +204,75 @@ class TestCreateTaskPost:
         task = Task.objects.get(project=project, title="First task")
         assert task.reporter == user
         assert task.status == Task.STATUS_PLANNED
+
+    def test_table_view_retargets_to_table_body(self, client, setup):
+        """``HX-Current-URL?view=table`` → server returns a ``<tr>`` for the table.
+
+        View-aware routing — the form has no idea which surface (kanban /
+        table / etc.) the user is on; htmx tells us via ``HX-Current-URL``
+        and the server picks the right template + retarget.
+        """
+        _ws, project, user = setup
+        client.force_login(user)
+        resp = client.post(
+            reverse("web:create_task"),
+            data={"project": project.slug_prefix, "title": "Row task"},
+            HTTP_HX_CURRENT_URL="http://localhost:8001/tasks/?view=table",
+        )
+        assert resp.status_code == 200
+        assert resp.headers["HX-Retarget"] == "#task-table-body"
+        assert resp.headers["HX-Reswap"] == "beforeend"
+        body = resp.content.decode()
+        assert "<tr" in body
+        assert "data-task-id" in body
+        # Modal-close still rides after-settle (form must stay in DOM for the swap).
+        assert "acta:task-created" in resp.headers.get("HX-Trigger-After-Settle", "")
+
+    def test_list_view_skips_swap_but_keeps_toast(self, client, setup):
+        """``?view=list`` → 204 + toast + ``acta:list-insert-row`` payload.
+
+        No HTMX swap on the response (list panel pre-renders every axis, so
+        a single ``HX-Retarget`` can't reach all of them). The client-side
+        handler in ``acta.js`` listens for ``acta:list-insert-row`` and
+        injects the pre-rendered row into the matching section per axis.
+        """
+        _ws, project, user = setup
+        client.force_login(user)
+        resp = client.post(
+            reverse("web:create_task"),
+            data={"project": project.slug_prefix, "title": "List task"},
+            HTTP_HX_CURRENT_URL="http://localhost:8001/tasks/?view=list",
+        )
+        assert resp.status_code == 204
+        assert "HX-Retarget" not in resp.headers
+        # No swap → settle never fires; modal-close rides plain HX-Trigger here.
+        trigger_raw = resp.headers.get("HX-Trigger", "")
+        assert "acta:toast" in trigger_raw
+        assert "acta:task-created" in trigger_raw
+        assert "HX-Trigger-After-Settle" not in resp.headers
+        # List view also ships row HTML + per-axis section keys so the
+        # client can insert the new row without a panel refetch.
+        trigger = json.loads(trigger_raw)
+        assert "acta:list-insert-row" in trigger
+        list_insert = trigger["acta:list-insert-row"]
+        assert list_insert["row_html"].lstrip().startswith("<")
+        keys = list_insert["section_keys"]
+        # status axis is stable — always resolves to the new task's status.
+        assert keys["status"] == "to-do"
+
+    def test_timeline_view_skips_swap_no_list_insert(self, client, setup):
+        """``?view=timeline`` / ``?view=backlog`` → toast-only, no list payload."""
+        _ws, project, user = setup
+        client.force_login(user)
+        resp = client.post(
+            reverse("web:create_task"),
+            data={"project": project.slug_prefix, "title": "T task"},
+            HTTP_HX_CURRENT_URL="http://localhost:8001/tasks/?view=timeline",
+        )
+        assert resp.status_code == 204
+        trigger = json.loads(resp.headers.get("HX-Trigger", "{}"))
+        assert "acta:list-insert-row" not in trigger
+        assert "acta:task-created" in trigger
 
     def test_open_after_create_navigates_boosted(self, client, setup):
         ws, project, user = setup
