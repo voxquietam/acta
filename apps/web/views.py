@@ -45,7 +45,7 @@ from apps.cycles.services import (
 )
 from apps.labels.models import Label, LabelGroup
 from apps.labels.palette import LABEL_COLORS, is_curated_label_color
-from apps.labels.services import grouped_labels
+from apps.labels.services import add_labels_to_tasks, grouped_labels, trim_exclusive_conflicts
 from apps.notifications.models import Notification
 from apps.notifications.services import (
     notify_announcement,
@@ -3200,7 +3200,15 @@ def toggle_task_label(request, slug_prefix, number):
         if task.labels.filter(id=label.id).exists():
             task.labels.remove(label)
         else:
-            task.labels.add(label)
+            # ``add_labels_to_tasks`` enforces exclusive-group semantics:
+            # if ``label.group.is_exclusive``, sibling labels from the same
+            # group are detached from this task before the attach. The
+            # helper writes the M2M through table directly, which doesn't
+            # invalidate Django's prefetch cache — bust it so the diff
+            # below sees the fresh label set.
+            add_labels_to_tasks([task.id], [label.id])
+            if hasattr(task, "_prefetched_objects_cache"):
+                task._prefetched_objects_cache.pop("labels", None)
         emit_task_diff_events(old_state=old, task=task, actor=request.user)
     ctx = {
         "task": task,
@@ -5637,7 +5645,10 @@ def _create_task_post(request):
             task.start_date = timezone.localdate()
         task.save()
         if label_ids:
-            task.labels.set(label_ids)
+            # Drop duplicates within an exclusive group (form lets the user
+            # tick more than one; only the first survives, see
+            # ``trim_exclusive_conflicts``).
+            task.labels.set(trim_exclusive_conflicts(label_ids))
         # Pre-render the kanban card once: feeds the local HX-Retarget swap
         # below AND rides the SSE broadcast (``broadcast_extras``) so peers
         # on the kanban view can live-insert it without a server round-trip.

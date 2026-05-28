@@ -462,21 +462,22 @@ def _bulk_apply_cycle_policy(ids: list[int], new_status: str) -> None:
 def _bulk_apply_labels(ids: list[int], add_label_ids: list[int], remove_label_ids: list[int]) -> None:
     """Bulk add and remove labels on a set of tasks via the through table.
 
-    Skips Django's per-row M2M descriptor (which would run 1 query per
-    task). The through model is accessed directly so the whole batch
-    commits in two queries at most (one bulk_create, one delete).
+    Adds run through :func:`apps.labels.services.add_labels_to_tasks` so
+    the exclusive-group rule (at most one label per ``is_exclusive`` group
+    per task) holds across bulk operations too: sibling labels from the
+    same group are detached before the just-added label is attached.
+    Removes go straight through (no exclusivity concern when detaching).
 
     Args:
         ids: List of task primary keys.
         add_label_ids: Label IDs to attach to each task.
         remove_label_ids: Label IDs to detach from each task.
     """
+    from apps.labels.services import add_labels_to_tasks
+
     through = Task.labels.through
     if add_label_ids:
-        through.objects.bulk_create(
-            [through(task_id=tid, label_id=lid) for tid in ids for lid in add_label_ids],
-            ignore_conflicts=True,
-        )
+        add_labels_to_tasks(ids, add_label_ids)
     if remove_label_ids:
         through.objects.filter(task_id__in=ids, label_id__in=remove_label_ids).delete()
 
