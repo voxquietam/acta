@@ -107,11 +107,13 @@ class TestDashboardView:
     def test_query_count_bounded(self, settings):
         """Adding more members/projects/tasks must not grow the query count.
 
-        Upper bound was 60 before PR-2; the KPI / alerts / hygiene counts
-        and ``_build_cfd`` were collapsed into aggregates there, dropping
-        ~14 round-trips. New bound is set with a small margin for
-        future defensible additions; tighten it back down if a refactor
-        removes more.
+        Upper bound was 60 before PR-2 collapsed the KPI / alerts /
+        hygiene counts and ``_build_cfd`` into aggregates (−14 round-trips,
+        new bound 50). Wave 2 baseline M6 measured the populated ksu24
+        workspace (260 tasks, 17 members) at 25 queries — well below 50,
+        so the bound is tightened to 30 with a margin of 5 for one
+        defensible future addition. See ``docs/audit/wave2/00-baseline.md
+        §3 (M6)`` for the live numbers.
         """
         settings.ALLOWED_HOSTS = ["*"]
         ws = WorkspaceFactory()
@@ -121,7 +123,7 @@ class TestDashboardView:
         with CaptureQueriesContext(connection) as ctx:
             resp = client.get("/?range=30d")
         assert resp.status_code == 200
-        assert len(ctx.captured_queries) < 50, len(ctx.captured_queries)
+        assert len(ctx.captured_queries) < 30, len(ctx.captured_queries)
 
     def test_partial_swap_query_count(self, settings):
         """``?partial=1`` HTMX swap renders the inner fragment alone.
@@ -129,7 +131,8 @@ class TestDashboardView:
         Same builders as the cold load — the only saving is the layout
         chrome — so the count is in the same neighbourhood. Regression
         guard: a future change to the partial path must not introduce
-        a new per-tile / per-member query.
+        a new per-tile / per-member query. Bound tightened 50→30 alongside
+        the cold-load case after Wave 2 M6 measurement.
         """
         settings.ALLOWED_HOSTS = ["*"]
         ws = WorkspaceFactory()
@@ -139,4 +142,4 @@ class TestDashboardView:
         with CaptureQueriesContext(connection) as ctx:
             resp = client.get("/?range=14d&partial=1", HTTP_HX_REQUEST="true")
         assert resp.status_code == 200
-        assert len(ctx.captured_queries) < 50, len(ctx.captured_queries)
+        assert len(ctx.captured_queries) < 30, len(ctx.captured_queries)
