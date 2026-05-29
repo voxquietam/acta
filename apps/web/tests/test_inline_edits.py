@@ -64,6 +64,22 @@ class TestSetTaskStatus:
         assert events.count() == 1
         assert events.get().payload == {"from": "to-do", "to": "done"}
 
+    def test_dropdown_panel_opts_into_force_apply_self_event(self, client, setup):
+        """The teleported dropdown must call ``actaForceApplySelfEvent``
+        for this task on ``htmx:before-request`` — without it the SSE
+        self-filter would drop the change and the surrounding table /
+        kanban / list row would stay stale until the page is reloaded."""
+        user, project, task = setup
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"status": Task.STATUS_TODO})
+        assert resp.status_code == 200
+        body = resp.content.decode()
+        # The dropdown panel carries the hook with the task id baked in.
+        assert f"actaForceApplySelfEvent({task.id})" in body
+        # And it's wired to ``htmx:before-request`` (so the SSE force-apply
+        # is set up before the broadcast can race the response).
+        assert "@htmx:before-request" in body or "x-on:htmx:before-request" in body
+
     def test_invalid_status_returns_400(self, client, setup):
         user, project, task = setup
         client.force_login(user)

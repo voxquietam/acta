@@ -42,9 +42,19 @@ without parsing the labels.
     {{ status_labels|get_item:task.status|default:task.status }}
   </button>
   <template x-teleport="body">
+  {% comment %}
+  Opt this task id into the SSE self-event force-apply set before any
+  request inside the dropdown fires. The status change broadcasts via
+  ``emit_task_diff_events`` carry pre-rendered HTML for table / kanban
+  card / list row; the same-tab actor would otherwise have those drops
+  filtered out (to avoid double-rendering against the direct HTTP swap
+  of the modal's own status cell). With the opt-in, the SSE event is
+  applied → surrounding surfaces refresh without a reload.
+  {% endcomment %}
   <div x-ref="panel"
        x-show="open"
        @click.outside="open = false"
+       @htmx:before-request="window.actaForceApplySelfEvent && window.actaForceApplySelfEvent({{ task.id }})"
        x-init="$nextTick(() => window.htmx && window.htmx.process($el))"
        x-cloak
        :style="`position:fixed; top:${rect.bottom + 4}px; left:${Math.min(rect.left, window.innerWidth - 184)}px; width:11rem;`"
