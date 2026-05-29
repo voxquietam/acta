@@ -179,10 +179,99 @@ class TestTaskDetailQueryCount:
         # replies.attachments); +1 for the move-task project picker
         # (one query listing the workspace's projects). All single queries
         # regardless of row count — constant, not N+1.
-        with django_assert_max_num_queries(29):
+        # Cap dropped from 29 → 28 in PR-2 (B3 F1): the duplicate
+        # ``task.labels.values_list("id")`` lookup was replaced with a
+        # comprehension over the prefetched labels.
+        with django_assert_max_num_queries(28):
             client.get(
                 reverse(
                     "web:task_detail",
+                    kwargs={"slug_prefix": project.slug_prefix, "number": task.number},
+                ),
+            )
+
+    def test_task_meta_fragment_query_count(self, client, task_setup, django_assert_max_num_queries):
+        """SSE-driven meta refresh — runs frequently under peer activity.
+
+        Pulls task + workspace members / labels / label groups / projects /
+        cycles + attached label ids. ``attached_label_ids`` should read
+        from the prefetched ``labels`` cache (B3 F1), not re-query.
+        """
+        user, project, task = task_setup
+        client.force_login(user)
+        with django_assert_max_num_queries(15):
+            client.get(
+                reverse(
+                    "web:task_meta_fragment",
+                    kwargs={"slug_prefix": project.slug_prefix, "number": task.number},
+                ),
+            )
+
+    def test_task_title_fragment_query_count(self, client, task_setup, django_assert_max_num_queries):
+        """Topbar / table title SSE refresh — base queryset + render."""
+        user, project, task = task_setup
+        client.force_login(user)
+        with django_assert_max_num_queries(12):
+            client.get(
+                reverse(
+                    "web:task_title_fragment",
+                    kwargs={"slug_prefix": project.slug_prefix, "number": task.number},
+                ),
+            )
+
+    def test_task_description_fragment_query_count(self, client, task_setup, django_assert_max_num_queries):
+        """SSE description refresh — base queryset + render."""
+        user, project, task = task_setup
+        client.force_login(user)
+        with django_assert_max_num_queries(12):
+            client.get(
+                reverse(
+                    "web:task_description_fragment",
+                    kwargs={"slug_prefix": project.slug_prefix, "number": task.number},
+                ),
+            )
+
+    def test_task_comments_fragment_query_count(self, client, task_setup, django_assert_max_num_queries):
+        """Comment fragment refresh — base + comments + replies + reactions.
+
+        The comment partial fans out a handful of subqueries per comment
+        (author render, attachments, reactions); base ~10, +1-2 per comment.
+        Upper bound chosen with margin — regression target is "stays
+        bounded as comment count grows", which this case (5 comments)
+        meets.
+        """
+        user, project, task = task_setup
+        for _ in range(5):
+            CommentFactory(task=task, author=user)
+        client.force_login(user)
+        with django_assert_max_num_queries(30):
+            client.get(
+                reverse(
+                    "web:task_comments_fragment",
+                    kwargs={"slug_prefix": project.slug_prefix, "number": task.number},
+                ),
+            )
+
+    def test_task_timeline_fragment_query_count(self, client, task_setup, django_assert_max_num_queries):
+        """Unified comments + activity timeline refresh — bounded under load."""
+        user, project, task = task_setup
+        for _ in range(5):
+            CommentFactory(task=task, author=user)
+        for i in range(5):
+            log_event(
+                workspace=project.workspace,
+                project=project,
+                actor=user,
+                event_type="task.updated",
+                target_type=ActivityLog.TARGET_TASK,
+                target_id=task.id,
+                payload={"changes": {"priority": {"old": 3, "new": i + 1}}},
+            )
+        client.force_login(user)
+        with django_assert_max_num_queries(25):
+            client.get(
+                reverse(
+                    "web:task_timeline_fragment",
                     kwargs={"slug_prefix": project.slug_prefix, "number": task.number},
                 ),
             )

@@ -105,7 +105,14 @@ class TestDashboardView:
         assert b"matrix-body" in resp.content
 
     def test_query_count_bounded(self, settings):
-        """Adding more members/projects/tasks must not grow the query count."""
+        """Adding more members/projects/tasks must not grow the query count.
+
+        Upper bound was 60 before PR-2; the KPI / alerts / hygiene counts
+        and ``_build_cfd`` were collapsed into aggregates there, dropping
+        ~14 round-trips. New bound is set with a small margin for
+        future defensible additions; tighten it back down if a refactor
+        removes more.
+        """
         settings.ALLOWED_HOSTS = ["*"]
         ws = WorkspaceFactory()
         _seed(ws, members=6, projects=4, tasks=40)
@@ -114,4 +121,22 @@ class TestDashboardView:
         with CaptureQueriesContext(connection) as ctx:
             resp = client.get("/?range=30d")
         assert resp.status_code == 200
-        assert len(ctx.captured_queries) < 60, len(ctx.captured_queries)
+        assert len(ctx.captured_queries) < 50, len(ctx.captured_queries)
+
+    def test_partial_swap_query_count(self, settings):
+        """``?partial=1`` HTMX swap renders the inner fragment alone.
+
+        Same builders as the cold load — the only saving is the layout
+        chrome — so the count is in the same neighbourhood. Regression
+        guard: a future change to the partial path must not introduce
+        a new per-tile / per-member query.
+        """
+        settings.ALLOWED_HOSTS = ["*"]
+        ws = WorkspaceFactory()
+        _seed(ws, members=6, projects=4, tasks=40)
+        client = Client()
+        client.force_login(ws.owner)
+        with CaptureQueriesContext(connection) as ctx:
+            resp = client.get("/?range=14d&partial=1", HTTP_HX_REQUEST="true")
+        assert resp.status_code == 200
+        assert len(ctx.captured_queries) < 50, len(ctx.captured_queries)

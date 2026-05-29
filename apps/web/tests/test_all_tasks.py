@@ -405,19 +405,45 @@ class TestAllTasksOrdering:
 
 @pytest.mark.django_db
 class TestAllTasksQueryCount:
-    """N+1 audit — large filtered list stays bounded."""
+    """N+1 audit — large filtered list stays bounded across cold load + each
+    lazy panel short-circuit (``?panel=table|kanban|list|timeline|backlog``)."""
+
+    def _seed_thirty(self, user, project):
+        """30 tasks each with one label — enough to surface any N+1."""
+        label = LabelFactory(workspace=project.workspace)
+        for i in range(30):
+            t = TaskFactory(project=project, reporter=user, title=f"t{i}", status=Task.STATUS_TODO)
+            t.labels.add(label)
 
     def test_no_n_plus_one(self, client, setup):
         user, _, _, p1, _ = setup
-        label = LabelFactory(workspace=p1.workspace)
-        for i in range(30):
-            t = TaskFactory(project=p1, reporter=user, title=f"t{i}", status=Task.STATUS_TODO)
-            t.labels.add(label)
+        self._seed_thirty(user, p1)
         client.force_login(user)
         with CaptureQueriesContext(connection) as ctx:
             resp = client.get(reverse("web:all_tasks"))
             assert resp.status_code == 200
         assert len(ctx.captured_queries) < 30, f"Got {len(ctx.captured_queries)} queries for 30 tasks — N+1 regression."
+
+    @pytest.mark.parametrize("panel", ["table", "kanban", "list", "timeline"])
+    def test_panel_short_circuit_query_count(self, client, setup, panel):
+        """``?panel=<key>`` skips the filter-sidebar build + sibling-view ctx.
+
+        Each lazy panel fetch should be lighter than the cold load — only
+        the requested panel's context builders run. Regression guard for
+        the lazy-panels mechanism (see ``docs/audit/01-all-tasks.md §2.1``).
+        """
+        user, _, _, p1, _ = setup
+        self._seed_thirty(user, p1)
+        client.force_login(user)
+        with CaptureQueriesContext(connection) as ctx:
+            resp = client.get(
+                reverse("web:all_tasks") + f"?panel={panel}",
+                HTTP_HX_REQUEST="true",
+            )
+            assert resp.status_code == 200
+        assert (
+            len(ctx.captured_queries) < 20
+        ), f"?panel={panel} took {len(ctx.captured_queries)} queries — lazy panel regression."
 
 
 @pytest.mark.django_db
