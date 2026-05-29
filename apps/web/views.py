@@ -7108,3 +7108,116 @@ def reorder_labels(request, slug):
     if to_update:
         Label.objects.bulk_update(to_update, ["position", "group"])
     return HttpResponse(status=204)
+
+
+@login_required
+def palette_search(request):
+    """JSON typeahead for the global command palette (``Cmd/Ctrl+K``).
+
+    Scoped to the user's active workspace. Returns three sections so the
+    Alpine component can render them as labelled groups:
+
+    * ``tasks`` — ILIKE on ``Task.title`` plus exact ``PREFIX-NUMBER`` or
+      bare-number match (same shape as ``task_link_search``). Up to 8,
+      newest-updated first.
+    * ``projects`` — ILIKE on ``Project.name`` / ``slug_prefix`` within
+      the active workspace. Up to 5, alphabetical.
+    * ``nav`` — static list of top-level destinations (Dashboard, Inbox,
+      My Work, etc.) filtered by case-insensitive substring on the
+      label.
+
+    An empty query returns the most-recent tasks, all accessible
+    projects, and every nav entry — so the palette is useful the moment
+    it opens, before the user types anything.
+    """
+    from apps.web.templatetags.lucide import lucide as _lucide
+
+    q = (request.GET.get("q") or "").strip()
+    workspace = resolve_active_workspace(request)
+
+    task_items = []
+    if workspace:
+        qs = _user_task_qs(request.user).filter(project__workspace=workspace)
+        if q:
+            match = Q(title__icontains=q)
+            upper = q.upper()
+            if "-" in upper:
+                prefix, _sep, num = upper.rpartition("-")
+                if num.isdigit():
+                    match |= Q(project__slug_prefix=prefix, number=int(num))
+            elif q.isdigit():
+                match |= Q(number=int(q))
+            qs = qs.filter(match)
+        for task in qs.order_by("-updated_at")[:8]:
+            task_items.append(
+                {
+                    "slug": task.slug,
+                    "title": task.title,
+                    "status": task.status,
+                    "project": task.project.name,
+                    "url": reverse(
+                        "web:task_detail",
+                        kwargs={
+                            "slug_prefix": task.project.slug_prefix,
+                            "number": task.number,
+                        },
+                    ),
+                },
+            )
+
+    project_items = []
+    if workspace:
+        pqs = Project.objects.filter(
+            workspace=workspace,
+            workspace__memberships__user=request.user,
+        ).distinct()
+        if q:
+            pqs = pqs.filter(Q(name__icontains=q) | Q(slug_prefix__icontains=q.upper()))
+        for project in pqs.order_by("name")[:5]:
+            project_items.append(
+                {
+                    "name": project.name,
+                    "slug_prefix": project.slug_prefix,
+                    "icon_html": _lucide(project.icon or "folder", "w-3.5 h-3.5"),
+                    "icon_color_class": project.icon_color_class,
+                    "url": reverse("web:project_detail", kwargs={"slug_prefix": project.slug_prefix}),
+                },
+            )
+
+    nav_targets = [
+        ("layout-dashboard", _("Dashboard"), reverse("web:dashboard")),
+        ("inbox", _("Inbox"), reverse("web:inbox")),
+        ("briefcase", _("My Work"), reverse("web:my_work")),
+        ("list-checks", _("All Tasks"), reverse("web:all_tasks")),
+        ("folders", _("Projects"), reverse("web:project_list")),
+        ("history", _("My activity"), reverse("web:my_activity")),
+    ]
+    if workspace and workspace.cycle_config()["enabled"]:
+        nav_targets.append(("iteration-cw", _("Cycles"), reverse("web:cycles_overview")))
+    nav_targets.append(("user", _("Account settings"), reverse("accounts:settings")))
+    if workspace:
+        nav_targets.append(
+            (
+                "settings",
+                _("Workspace settings"),
+                reverse("web:workspace_settings", kwargs={"slug": workspace.slug}),
+            ),
+        )
+
+    needle = q.lower()
+    nav_items = [
+        {"icon_html": _lucide(icon, "w-4 h-4"), "label": str(label), "url": url}
+        for icon, label, url in nav_targets
+        if not needle or needle in str(label).lower()
+    ]
+
+    return JsonResponse(
+        {
+            "q": q,
+            "sections": [
+                {"kind": "tasks", "label": str(_("Tasks")), "items": task_items},
+                {"kind": "projects", "label": str(_("Projects")), "items": project_items},
+                {"kind": "nav", "label": str(_("Navigation")), "items": nav_items},
+            ],
+        },
+    )

@@ -1,0 +1,253 @@
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+Global command palette (Cmd/Ctrl+K). Mounted once in ``base_app.html``
+so it overlays every authenticated page. Self-contained Alpine
+component — no esbuild bundle.
+
+Behaviour:
+* Toggled by ``Cmd+K`` / ``Ctrl+K`` anywhere (ignored while typing in an
+  input/textarea/contenteditable — handled in acta.js so it shares
+  ``isTypingTarget`` with the other shortcuts).
+* Listens to ``acta:palette-open`` and ``acta:palette-toggle`` window
+  events for the topbar button trigger.
+* Fetches ``web:palette_search?q=…`` with a 120 ms debounce; the first
+  fetch fires on open so the panel isn't empty.
+* Keyboard nav: ↑ / ↓ moves a flat cursor over the visible items
+  (sections are skipped), Enter follows the active item's URL, Esc
+  closes.
+* Click on an item navigates (htmx-boosted swap into ``#app-content``
+  to match the sidebar nav so Alpine state survives).
+
+Items carry ``url`` so the markup is the same for tasks / projects /
+nav — the section-specific bits (slug pill, project name, icon) sit
+inside each row template.
+{% endcomment %}
+
+<div id="command-palette"
+     x-data="actaPalette({ endpoint: '{% url 'web:palette_search' %}' })"
+     x-show="open"
+     x-cloak
+     @keydown.escape.window="if (open) { $event.preventDefault(); close() }"
+     @acta:palette-open.window="openPalette()"
+     @acta:palette-toggle.window="open ? close() : openPalette()"
+     class="fixed inset-0 z-[80] flex items-start justify-center pt-[12vh] px-4">
+
+  {# Backdrop — click to dismiss. #}
+  <div x-show="open"
+       x-transition.opacity.duration.100ms
+       @click="close()"
+       class="absolute inset-0 bg-black/50 backdrop-blur-sm"></div>
+
+  <div x-show="open"
+       x-transition:enter="transition ease-out duration-120"
+       x-transition:enter-start="opacity-0 translate-y-1 scale-[0.98]"
+       x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+       @click.stop
+       class="relative w-full max-w-xl bg-card border border-border rounded-lg shadow-2xl overflow-hidden">
+
+    {# ── Search input ── #}
+    <div class="flex items-center gap-2.5 px-3.5 py-3 border-b border-border">
+      <span class="text-placeholder-foreground shrink-0">{% lucide "search" "w-4 h-4" %}</span>
+      <input type="text"
+             x-ref="search"
+             x-model="query"
+             @input.debounce.120ms="fetchResults()"
+             @keydown.down.prevent="moveCursor(1)"
+             @keydown.up.prevent="moveCursor(-1)"
+             @keydown.enter.prevent="activate()"
+             @keydown.tab.prevent="moveCursor($event.shiftKey ? -1 : 1)"
+             placeholder="{% trans 'Search tasks, projects, jump to…' %}"
+             autocomplete="off"
+             spellcheck="false"
+             class="flex-1 bg-transparent border-0 outline-none text-sm text-foreground placeholder:text-placeholder-foreground">
+      <kbd class="hidden sm:inline-flex font-mono text-[10px] px-1.5 py-0.5 rounded bg-muted border border-border text-placeholder-foreground">esc</kbd>
+    </div>
+
+    {# ── Results ── #}
+    <div class="max-h-[60vh] overflow-y-auto py-1" x-ref="results">
+
+      {# Empty / no-match state. #}
+      <template x-if="!loading && totalItems() === 0">
+        <div class="px-4 py-8 text-center text-sm text-placeholder-foreground">
+          <span x-show="query.trim().length > 0">{% trans "No matches." %}</span>
+          <span x-show="query.trim().length === 0">{% trans "Type to search across tasks, projects, and pages." %}</span>
+        </div>
+      </template>
+
+      <template x-for="section in sections" :key="section.kind">
+        <div x-show="section.items.length > 0">
+          <div class="px-3.5 pt-2 pb-1 text-[10px] uppercase tracking-wider text-placeholder-foreground"
+               x-text="section.label"></div>
+
+          <template x-for="(item, idx) in section.items" :key="section.kind + ':' + (item.url || idx)">
+            <a :href="item.url"
+               @click.prevent="follow(item)"
+               @mousemove="cursor = flatIndex(section, idx)"
+               :class="cursor === flatIndex(section, idx) ? 'bg-muted' : ''"
+               class="flex items-center gap-2.5 px-3.5 py-1.5 text-sm text-foreground cursor-pointer">
+
+              {# ── Tasks ── #}
+              <template x-if="section.kind === 'tasks'">
+                <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                  <span class="shrink-0 font-mono text-[10px] px-1.5 py-0.5 rounded bg-muted border border-border text-muted-foreground"
+                        x-text="item.slug"></span>
+                  <span class="flex-1 min-w-0 truncate" x-text="item.title"></span>
+                  <span class="shrink-0 text-xs text-placeholder-foreground truncate max-w-[40%]"
+                        x-text="item.project"></span>
+                </div>
+              </template>
+
+              {# ── Projects ── #}
+              <template x-if="section.kind === 'projects'">
+                <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                  <span class="shrink-0 grid place-items-center w-5 h-5 rounded bg-muted"
+                        :class="item.icon_color_class"
+                        x-html="item.icon_html"></span>
+                  <span class="flex-1 min-w-0 truncate" x-text="item.name"></span>
+                  <span class="shrink-0 font-mono text-[10px] px-1.5 py-0.5 rounded bg-muted border border-border text-muted-foreground"
+                        x-text="item.slug_prefix"></span>
+                </div>
+              </template>
+
+              {# ── Nav ── #}
+              <template x-if="section.kind === 'nav'">
+                <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                  <span class="shrink-0 text-placeholder-foreground"
+                        x-html="item.icon_html"></span>
+                  <span class="flex-1 min-w-0 truncate" x-text="item.label"></span>
+                  <span class="shrink-0 text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Go" %}</span>
+                </div>
+              </template>
+            </a>
+          </template>
+        </div>
+      </template>
+    </div>
+
+    {# ── Footer hint ── #}
+    <div class="flex items-center justify-between gap-3 px-3.5 py-1.5 border-t border-border text-[10.5px] text-placeholder-foreground">
+      <span class="inline-flex items-center gap-1.5">
+        <kbd class="font-mono px-1.5 py-0.5 rounded bg-muted border border-border">↑↓</kbd>
+        {% trans "navigate" %}
+        <kbd class="font-mono px-1.5 py-0.5 rounded bg-muted border border-border ml-2">↵</kbd>
+        {% trans "open" %}
+      </span>
+      <span class="inline-flex items-center gap-1.5">
+        <kbd class="font-mono px-1.5 py-0.5 rounded bg-muted border border-border">⌘K</kbd>
+        {% trans "to toggle" %}
+      </span>
+    </div>
+  </div>
+</div>
+
+<script>
+  function actaPalette({ endpoint }) {
+    return {
+      open: false,
+      query: "",
+      sections: [],
+      loading: false,
+      cursor: 0,
+
+      openPalette() {
+        this.open = true;
+        this.query = "";
+        this.cursor = 0;
+        // Defer to next tick so the input exists when we focus it.
+        this.$nextTick(() => {
+          if (this.$refs.search) this.$refs.search.focus();
+        });
+        this.fetchResults();
+      },
+      close() {
+        this.open = false;
+      },
+
+      async fetchResults() {
+        this.loading = true;
+        try {
+          const url = endpoint + (this.query ? "?q=" + encodeURIComponent(this.query) : "");
+          const r = await fetch(url, { headers: { Accept: "application/json" } });
+          if (!r.ok) {
+            this.sections = [];
+            return;
+          }
+          const data = await r.json();
+          this.sections = Array.isArray(data.sections) ? data.sections : [];
+          this.cursor = 0;
+        } catch (e) {
+          this.sections = [];
+        } finally {
+          this.loading = false;
+        }
+      },
+
+      totalItems() {
+        return this.sections.reduce((n, s) => n + s.items.length, 0);
+      },
+
+      // Flat 0-based index across all visible sections so the cursor is
+      // a single number; (section, local index) → flat index.
+      flatIndex(section, localIdx) {
+        let offset = 0;
+        for (const s of this.sections) {
+          if (s.kind === section.kind) return offset + localIdx;
+          offset += s.items.length;
+        }
+        return localIdx;
+      },
+
+      // Resolve the currently-active flat cursor back to an item.
+      currentItem() {
+        let i = this.cursor;
+        for (const s of this.sections) {
+          if (i < s.items.length) return s.items[i];
+          i -= s.items.length;
+        }
+        return null;
+      },
+
+      moveCursor(delta) {
+        const total = this.totalItems();
+        if (!total) return;
+        this.cursor = (this.cursor + delta + total) % total;
+        this.$nextTick(() => {
+          const rows = this.$refs.results
+            ? this.$refs.results.querySelectorAll("a[href]")
+            : [];
+          const row = rows[this.cursor];
+          if (row && row.scrollIntoView) row.scrollIntoView({ block: "nearest" });
+        });
+      },
+
+      activate() {
+        const item = this.currentItem();
+        if (item) this.follow(item);
+      },
+
+      follow(item) {
+        if (!item || !item.url) return;
+        this.close();
+        // Route through the same boosted-swap path as the sidebar rail:
+        // ``HX-Boosted: true`` tells our views to return the FULL shell
+        // template so ``hx-select="#app-content"`` can pluck the inner
+        // panel out. Without it, ``_is_htmx_partial`` returns a partial
+        // and the select target is missing → empty swap.
+        if (window.htmx) {
+          window.htmx.ajax("GET", item.url, {
+            target: "#app-content",
+            swap: "outerHTML show:top",
+            select: "#app-content",
+            headers: { "HX-Boosted": "true" },
+          });
+          if (window.history && window.history.pushState) {
+            window.history.pushState({}, "", item.url);
+          }
+        } else {
+          window.location.href = item.url;
+        }
+      },
+    };
+  }
+</script>

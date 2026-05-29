@@ -256,6 +256,20 @@ Pages extend this and override the `app_main` block.
       <div class="flex items-center gap-3 flex-1 justify-end">
         {% block topbar_right_prepend %}{% endblock %}
         {% comment %}
+        Global command palette opener (Cmd/Ctrl+K). Dispatches the
+        ``acta:palette-open`` window event so the palette template
+        (mounted once at the body root) handles its own state; the
+        button here is just a discoverable trigger.
+        {% endcomment %}
+        <button type="button"
+                @click="$dispatch('acta:palette-open')"
+                data-tooltip="{% trans 'Search' %} (⌘K)"
+                data-tooltip-pos="below"
+                aria-label="{% trans 'Search' %}"
+                class="grid place-items-center p-1.5 rounded-md text-placeholder-foreground hover:bg-muted hover:text-foreground">
+          {% lucide "search" "w-4 h-4" %}
+        </button>
+        {% comment %}
         New task — global ``+``. The opener in acta.js pre-selects the
         current project when the URL is inside one; no context elsewhere.
         {% endcomment %}
@@ -331,6 +345,9 @@ Pages extend this and override the `app_main` block.
 
   {# Modal mount point — HTMX swaps create-task / future modals here. #}
   <div id="modal-root"></div>
+
+  {# Global command palette — Cmd/Ctrl+K. See _command_palette.html. #}
+  {% include "web/_command_palette.html" %}
 
   {% comment %}
   Right-click context-menu mount. acta.js fetches the per-task menu

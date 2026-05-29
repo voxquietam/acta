@@ -1646,6 +1646,19 @@
     evt.preventDefault();
     openCreateTaskModal();
   });
+
+  // Global command palette toggle. Works from anywhere — including
+  // inputs / contenteditable — because Cmd/Ctrl+K isn't an editor
+  // shortcut in any of our surfaces (TipTap doesn't bind it). Browsers
+  // map ⌘+K / Ctrl+K to the URL bar in Chromium/Safari, but only when
+  // the page hasn't preventDefault'd — we do, so the palette wins.
+  document.addEventListener("keydown", function onPaletteHotkey(evt) {
+    const isMod = evt.metaKey || evt.ctrlKey;
+    if (!isMod) return;
+    if (evt.key !== "k" && evt.key !== "K") return;
+    evt.preventDefault();
+    window.dispatchEvent(new CustomEvent("acta:palette-toggle"));
+  });
   // Topbar global ``+`` button (declarative hx-get would skip the
   // project prefill, so it routes through the opener instead).
   document.addEventListener("click", function onCreateTaskClick(evt) {
