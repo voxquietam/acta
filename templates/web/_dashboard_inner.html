@@ -366,6 +366,12 @@ the new range's data; Chart.js / Lucide are loaded once by the outer page.
     (function () {
       const body = $("matrix-body");
       if (!body) return;
+      /* Idempotent: this IIFE runs again on Back/Forward (acta.js page-cache
+         snapshots ``#app-content`` AFTER we appended rows, then re-runs the
+         inline script when restoring); without this reset the matrix would
+         duplicate every time we return to the dashboard. Same reasoning for
+         the heatmap grid below. */
+      body.innerHTML = "";
       let max = 1;
       MEMBERS.forEach((m) => STATUS_ORDER.forEach((s) => { if ((m.wip[s] || 0) > max) max = m.wip[s]; }));
       const totals = {}; STATUS_ORDER.forEach((s) => (totals[s] = 0));
@@ -447,6 +453,12 @@ the new range's data; Chart.js / Lucide are loaded once by the outer page.
     (function () {
       const grid = $("heat-grid");
       if (!grid) return;
+      /* Idempotent on cached-page restore — see matrix IIFE above.
+         (``legend`` / ``peak`` identifiers are reused below for the data
+         peak; clear via ``$()`` here to avoid shadowing those bindings.) */
+      grid.innerHTML = "";
+      { const el = $("heat-legend"); if (el) el.innerHTML = ""; }
+      { const el = $("heat-peak"); if (el) el.innerHTML = ""; }
       grid.appendChild(Object.assign(document.createElement("div"), { className: "lbl-y" }));
       for (let h = 0; h < 24; h++) {
         const c = document.createElement("div"); c.className = "lbl-x";
