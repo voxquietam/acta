@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any, Iterable
 
@@ -7,6 +8,8 @@ from django.db import transaction
 from django.utils import timezone
 
 from .models import Notification
+
+logger = logging.getLogger(__name__)
 
 _COMMENT_PREVIEW_CHARS = 280
 
@@ -180,6 +183,14 @@ def _broadcast_notification(notification: Notification) -> None:
             .first()
         )
         if row is None:
+            # Notification was deleted between persistence and the post-commit
+            # callback (e.g. test teardown or a concurrent admin action).
+            # Silent skip is correct — there is no recipient to broadcast to —
+            # but the log line surfaces the path so it stays distinguishable
+            # from a normal no-broadcast outcome in operational logs.
+            logger.debug(
+                "notification.broadcast.skip pk=%s recipient=%s row deleted before broadcast", pk, recipient_id
+            )
             return
         unread = _unread_count(recipient_id)
         payload = {

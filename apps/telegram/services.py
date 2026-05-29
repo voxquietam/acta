@@ -28,6 +28,39 @@ from .models import TelegramAccount, TelegramLinkToken, TelegramMessageTemplate
 
 _PLACEHOLDER_RE = re.compile(r"\{(\w+)\}")
 
+# Single source of truth for the ``{token}`` set ``_template_context``
+# returns. ``TelegramMessageTemplate.clean()`` validates admin-entered
+# bodies against this set so a typo like ``{statua}`` is rejected at
+# save time rather than rendering as the literal token in a DM. Update
+# both sides if a new placeholder is added.
+KNOWN_PLACEHOLDERS = frozenset(
+    {
+        "actor",
+        "slug",
+        "task",
+        "title",
+        "preview",
+        "quote",
+        "priority",
+        "due",
+        "meta",
+        "status",
+        "status_from",
+        "status_to",
+        "status_change",
+        "priority_from",
+        "priority_to",
+        "priority_change",
+        "due_from",
+        "due_to",
+        "due_change",
+        "project",
+        "health",
+        "cycle",
+        "headline",
+    },
+)
+
 _PREVIEW_LIMIT = 200
 _IMAGE_RE = re.compile(r"!\[[^\]]*\]\([^)]*\)")
 _LINK_TOKEN_RE = re.compile(r"\[([^\]]+)\]\((?:mention|task):\d+\)")

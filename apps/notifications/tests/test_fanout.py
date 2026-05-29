@@ -125,6 +125,78 @@ class TestTaskDiffFanout:
 
 
 @pytest.mark.django_db
+class TestAssigneeResolutionMatrix:
+    """All four combinations of (status changed, assignee changed) emit the
+    right notification kinds to the right recipients. Wave 2 C7 §F8 noted
+    that existing tests cover the status-only and reassignment cases but
+    not the full 2×2 matrix.
+    """
+
+    def test_status_only(self, trio):
+        """Status flips alone notifies current assignee + reporter; no ASSIGNED."""
+        project, assignee, reporter, actor = trio
+        task = TaskFactory(project=project, assignee=assignee, reporter=reporter, status=Task.STATUS_TODO)
+        old = snapshot_task(task)
+        task.status = Task.STATUS_IN_REVIEW
+        task.save()
+        emit_task_diff_events(old_state=old, task=task, actor=actor)
+        status_recipients = set(
+            Notification.objects.filter(kind=Notification.Kind.STATUS_CHANGE).values_list("recipient_id", flat=True),
+        )
+        assert status_recipients == {assignee.id, reporter.id}
+        assert not Notification.objects.filter(kind=Notification.Kind.ASSIGNED).exists()
+
+    def test_unassign_only(self, trio):
+        """Unassign (assignee → None) without status change emits ASSIGNED to former."""
+        project, old_assignee, reporter, actor = trio
+        task = TaskFactory(project=project, assignee=old_assignee, reporter=reporter, status=Task.STATUS_TODO)
+        old = snapshot_task(task)
+        task.assignee = None
+        task.save()
+        emit_task_diff_events(old_state=old, task=task, actor=actor)
+        assigned_recipients = set(
+            Notification.objects.filter(kind=Notification.Kind.ASSIGNED).values_list("recipient_id", flat=True),
+        )
+        assert assigned_recipients == {old_assignee.id}
+        assert not Notification.objects.filter(kind=Notification.Kind.STATUS_CHANGE).exists()
+
+    def test_both_status_and_assignee(self, trio):
+        """Two diffs in one save emit both kinds with their respective recipients.
+
+        STATUS_CHANGE reads current assignee + reporter (the new owners
+        get the news); ASSIGNED reaches the old assignee (their plate
+        just cleared) and the new one (they just got the task). The
+        sets intentionally overlap on the new assignee.
+        """
+        project, old_assignee, reporter, actor = trio
+        new_assignee = WorkspaceMemberFactory(workspace=project.workspace).user
+        task = TaskFactory(project=project, assignee=old_assignee, reporter=reporter, status=Task.STATUS_TODO)
+        old = snapshot_task(task)
+        task.status = Task.STATUS_IN_PROGRESS
+        task.assignee = new_assignee
+        task.save()
+        emit_task_diff_events(old_state=old, task=task, actor=actor)
+        status_recipients = set(
+            Notification.objects.filter(kind=Notification.Kind.STATUS_CHANGE).values_list("recipient_id", flat=True),
+        )
+        assigned_recipients = set(
+            Notification.objects.filter(kind=Notification.Kind.ASSIGNED).values_list("recipient_id", flat=True),
+        )
+        assert status_recipients == {new_assignee.id, reporter.id}
+        assert assigned_recipients == {old_assignee.id, new_assignee.id}
+
+    def test_neither(self, trio):
+        """A save with no watched-field diff fans out no notifications."""
+        project, assignee, reporter, actor = trio
+        task = TaskFactory(project=project, assignee=assignee, reporter=reporter, status=Task.STATUS_TODO)
+        old = snapshot_task(task)
+        task.title = "renamed — not a watched diff field"
+        task.save()
+        emit_task_diff_events(old_state=old, task=task, actor=actor)
+        assert Notification.objects.count() == 0
+
+
+@pytest.mark.django_db
 class TestCommentFanout:
     def test_comment_notifies_assignee_and_reporter(self, trio):
         project, assignee, reporter, actor = trio

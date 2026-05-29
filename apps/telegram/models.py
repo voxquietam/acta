@@ -91,6 +91,35 @@ class TelegramMessageTemplate(models.Model):
         """Return the kind this template customises."""
         return f"telegram template · {self.kind}"
 
+    def clean(self) -> None:
+        """Reject ``{tokens}`` not recognised by the renderer.
+
+        Without this, an admin typo (``{statua}`` instead of ``{status}``)
+        survives the form and reaches a real DM as the literal text. The
+        renderer leaves unknown tokens as-is by design (safer than
+        crashing in fan-out), so the only guard is at save time. Compares
+        every captured token against
+        :data:`apps.telegram.services.KNOWN_PLACEHOLDERS`.
+
+        Raises:
+            ValidationError: If ``body`` contains an unknown token.
+        """
+        from django.core.exceptions import ValidationError
+
+        from .services import _PLACEHOLDER_RE, KNOWN_PLACEHOLDERS
+
+        unknown = sorted(
+            {token for token in _PLACEHOLDER_RE.findall(self.body or "") if token not in KNOWN_PLACEHOLDERS},
+        )
+        if unknown:
+            joined = ", ".join("{" + t + "}" for t in unknown)
+            raise ValidationError(
+                {
+                    "body": _("Unknown placeholder(s): %(tokens)s. Available: %(known)s.")
+                    % {"tokens": joined, "known": ", ".join("{" + k + "}" for k in sorted(KNOWN_PLACEHOLDERS))},
+                },
+            )
+
 
 class TelegramLinkToken(models.Model):
     """A short one-use token that ties a ``/start`` deep link to a user.

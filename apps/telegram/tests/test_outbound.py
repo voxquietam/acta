@@ -181,6 +181,48 @@ class TestMessageTemplates:
         assert tg._format_notification(n) == "hi"
 
 
+@pytest.mark.django_db
+class TestMessageTemplateClean:
+    """``TelegramMessageTemplate.clean()`` rejects unknown ``{placeholder}``s.
+
+    Admin-form validation only — ``objects.create()`` deliberately
+    bypasses ``clean()`` so the renderer stays the runtime safety net
+    (``test_unknown_placeholder_left_as_is`` covers the renderer path).
+    Wave 2 C7 §F5.
+    """
+
+    def test_full_clean_rejects_unknown_token(self):
+        from django.core.exceptions import ValidationError
+
+        from apps.telegram.models import TelegramMessageTemplate
+
+        template = TelegramMessageTemplate(kind=Notification.Kind.ASSIGNED, body="hi {statua}!")
+        with pytest.raises(ValidationError) as exc:
+            template.full_clean()
+        assert "{statua}" in str(exc.value)
+
+    def test_full_clean_accepts_known_tokens(self):
+        from apps.telegram.models import TelegramMessageTemplate
+
+        template = TelegramMessageTemplate(
+            kind=Notification.Kind.ASSIGNED,
+            body="{actor} → {slug}: {title} {quote} {priority} {due} {meta} {status_change}",
+        )
+        template.full_clean()  # must not raise
+
+    def test_full_clean_lists_all_typos(self):
+        from django.core.exceptions import ValidationError
+
+        from apps.telegram.models import TelegramMessageTemplate
+
+        template = TelegramMessageTemplate(kind=Notification.Kind.ASSIGNED, body="{actor} {statua} {duue}")
+        with pytest.raises(ValidationError) as exc:
+            template.full_clean()
+        msg = str(exc.value)
+        assert "{statua}" in msg
+        assert "{duue}" in msg
+
+
 class TestCleanPreview:
     """`_clean_preview` turns raw markdown into a tidy plain-text snippet."""
 
