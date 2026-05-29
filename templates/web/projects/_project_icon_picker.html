@@ -48,7 +48,16 @@ Expects ``project`` + ``picker_icons`` (the curated list) in context.
          x-init="$nextTick(() => window.htmx && window.htmx.process($el))"
          x-effect="if (open) $nextTick(() => $refs.search && $refs.search.focus())"
          x-cloak
-         :style="`position:fixed; top:${rect.bottom + 6}px; left:${rect.left}px; width:18rem;`"
+         {% comment %}
+         Clamp ``left`` so the 18rem panel never pokes past the
+         viewport's right edge — when the trigger sits in the right
+         column of the page the unclamped ``rect.left`` would push the
+         panel out of view and the body picks up a horizontal scrollbar
+         (since ``position:fixed`` overflow still counts toward layout
+         in most browsers when the body itself does not clip
+         ``overflow-x``). 8 px margin on both sides.
+         {% endcomment %}
+         :style="`position:fixed; top:${rect.bottom + 6}px; left:${Math.max(8, Math.min(rect.left, window.innerWidth - 296))}px; width:18rem;`"
          class="bg-card border border-border rounded-lg shadow-lg overflow-hidden z-50">
 
       <div class="p-2 border-b border-border">
@@ -60,7 +69,14 @@ Expects ``project`` + ``picker_icons`` (the curated list) in context.
                class="w-full bg-muted border border-border-strong rounded px-2 py-1 text-xs text-foreground placeholder-placeholder-foreground focus:outline-none focus:border-brand-500">
       </div>
 
-      <div class="grid grid-cols-7 gap-0.5 p-2 max-h-64 overflow-y-auto">
+      {% comment %}
+      ``overflow-x-clip`` is required because ``overflow-y-auto`` would
+      otherwise force ``overflow-x: visible`` to compute as ``auto`` per
+      the CSS spec — tooltips wider than the 40 px icon cell would then
+      pop a horizontal scrollbar inside the grid. ``clip`` keeps the
+      tooltip overflow harmless without creating a scroll container.
+      {% endcomment %}
+      <div class="grid grid-cols-7 gap-0.5 p-2 max-h-64 overflow-y-auto overflow-x-clip">
         {# Clear option — empty value resets to default ``folder``. #}
         <form hx-post="{% url 'web:set_project_icon' slug_prefix=project.slug_prefix %}"
               hx-target="#project-icon-thumb"

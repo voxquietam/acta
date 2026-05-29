@@ -64,6 +64,18 @@ class TestSetProjectIcon:
             resp = client.post(_icon_url(project), {"icon": name})
             assert resp.status_code == 200, f"curated icon {name!r} rejected"
 
+    def test_every_curated_icon_exists_in_lucide(self):
+        """Curated names must match the bundled Lucide manifest — a typo
+        here would render as an empty SVG in the picker and break the
+        ``{% lucide %}`` tag silently in templates."""
+        import json
+        from pathlib import Path
+
+        manifest = json.loads(Path("apps/web/lucide_icons.json").read_text())
+        available = set(manifest)
+        unknown = [name for name in PROJECT_ICONS if name not in available]
+        assert not unknown, f"PROJECT_ICONS contains names not in Lucide: {unknown}"
+
     def test_foreign_project_returns_404(self, client, setup):
         user, _ = setup
         foreign_ws = WorkspaceFactory()
