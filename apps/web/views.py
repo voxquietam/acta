@@ -2102,15 +2102,7 @@ class TaskDetailView(LoginRequiredMixin, DetailView):
         ctx["timeline"] = _sort_timeline(ctx["comments"], non_comment_activity)
         ctx["status_labels"] = Task.STATUS_LABELS
         ctx["priority_labels"] = dict(Task.PRIORITY_CHOICES)
-        ctx["workspace_members"] = _workspace_members(task)
-        ctx["workspace_labels"] = _workspace_labels(task)
-        ctx["workspace_label_groups"] = _workspace_label_groups(task)
-        ctx["workspace_projects"] = _workspace_projects(task)
-        ctx["workspace_cycles"] = _workspace_cycles(task.project.workspace)
-        # Read from the prefetched ``labels`` queryset on the base task — the
-        # ``_user_task_qs`` Prefetch already loaded it. ``values_list`` would
-        # issue a fresh query bypassing the prefetch cache.
-        ctx["attached_label_ids"] = {label.id for label in task.labels.all()}
+        ctx.update(task_picker_context(task))
         return ctx
 
 
@@ -2201,14 +2193,7 @@ def task_meta_fragment(request, slug_prefix, number):
                 "task": task,
                 "status_labels": Task.STATUS_LABELS,
                 "priority_labels": dict(Task.PRIORITY_CHOICES),
-                "workspace_members": _workspace_members(task),
-                "workspace_labels": _workspace_labels(task),
-                "workspace_label_groups": _workspace_label_groups(task),
-                "workspace_projects": _workspace_projects(task),
-                "workspace_cycles": _workspace_cycles(task.project.workspace),
-                # Prefetched via ``_user_task_qs``; ``values_list`` would
-                # bypass the cache and issue a fresh query. See B3 §3.1.
-                "attached_label_ids": {label.id for label in task.labels.all()},
+                **task_picker_context(task),
             },
             request=request,
         ),
@@ -2262,12 +2247,7 @@ def task_meta_compact_fragment(request, slug_prefix, number):
                 "task": task,
                 "status_labels": Task.STATUS_LABELS,
                 "priority_labels": dict(Task.PRIORITY_CHOICES),
-                "workspace_members": _workspace_members(task),
-                "workspace_labels": _workspace_labels(task),
-                "workspace_label_groups": _workspace_label_groups(task),
-                "workspace_projects": _workspace_projects(task),
-                "workspace_cycles": _workspace_cycles(task.project.workspace),
-                "attached_label_ids": set(task.labels.values_list("id", flat=True)),
+                **task_picker_context(task),
             },
             request=request,
         ),
@@ -2556,6 +2536,44 @@ def _workspace_cycles(workspace):
             "start_date",
         ),
     )
+
+
+def task_picker_context(task):
+    """Return the bundle of workspace-scoped context for every task picker.
+
+    Centralises the ``workspace_members`` / ``workspace_labels`` /
+    ``workspace_label_groups`` / ``workspace_projects`` /
+    ``workspace_cycles`` / ``attached_label_ids`` block that the task
+    detail view and every meta-fragment endpoint inline. Memoised on the
+    ``task`` instance so a view that builds the bundle more than once
+    (e.g. rail + modal both rendering through the same context) issues
+    each helper's queries exactly once.
+
+    ``attached_label_ids`` reads from the prefetched ``task.labels.all()``
+    cache (loaded by ``_user_task_qs``); ``values_list`` would bypass
+    the prefetch and issue a fresh M2M query. See Wave 1 PR-2 / B3 §3.1
+    and Wave 2 PR-2 sweep.
+
+    Args:
+        task: The :class:`Task` whose workspace context to assemble.
+
+    Returns:
+        A dict with six keys ready to splat into a template context.
+    """
+    cached = getattr(task, "_picker_ctx", None)
+    if cached is not None:
+        return cached
+    workspace = task.project.workspace
+    ctx = {
+        "workspace_members": _workspace_members(task),
+        "workspace_labels": _workspace_labels(task),
+        "workspace_label_groups": _workspace_label_groups(task),
+        "workspace_projects": _workspace_projects(task),
+        "workspace_cycles": _workspace_cycles(workspace),
+        "attached_label_ids": {label.id for label in task.labels.all()},
+    }
+    task._picker_ctx = ctx
+    return ctx
 
 
 def _inline_edit_response(request, task, primary_template, primary_context):
@@ -3243,11 +3261,14 @@ def toggle_task_label(request, slug_prefix, number):
     # the trigger to the default layout, jerking the chip arrangement on
     # one surface or the other.
     trigger_layout = request.POST.get("trigger_layout") or "row"
+    # ``attached_label_ids`` reads from the prefetched ``task.labels.all()``
+    # cache loaded by ``_user_task_qs``; ``values_list`` would bypass the
+    # prefetch and issue a fresh M2M query. See Wave 2 PR-2 sweep.
     ctx = {
         "task": task,
         "workspace_labels": _workspace_labels(task),
         "workspace_label_groups": _workspace_label_groups(task),
-        "attached_label_ids": set(task.labels.values_list("id", flat=True)),
+        "attached_label_ids": {label.id for label in task.labels.all()},
         "trigger_layout": trigger_layout,
     }
     # Primary swap: the trigger contents (chips or placeholder). Keeping
@@ -4839,14 +4860,9 @@ def archive_task(request, slug_prefix, number):
         "web/projects/_task_meta.html",
         {
             "task": task,
-            "workspace_members": _workspace_members(task),
             "status_labels": Task.STATUS_LABELS,
             "priority_labels": dict(Task.PRIORITY_CHOICES),
-            "workspace_labels": _workspace_labels(task),
-            "workspace_label_groups": _workspace_label_groups(task),
-            "workspace_projects": _workspace_projects(task),
-            "workspace_cycles": _workspace_cycles(task.project.workspace),
-            "attached_label_ids": set(task.labels.values_list("id", flat=True)),
+            **task_picker_context(task),
         },
     )
 
@@ -4879,14 +4895,9 @@ def cancel_task(request, slug_prefix, number):
         "web/projects/_task_meta.html",
         {
             "task": task,
-            "workspace_members": _workspace_members(task),
             "status_labels": Task.STATUS_LABELS,
             "priority_labels": dict(Task.PRIORITY_CHOICES),
-            "workspace_labels": _workspace_labels(task),
-            "workspace_label_groups": _workspace_label_groups(task),
-            "workspace_projects": _workspace_projects(task),
-            "workspace_cycles": _workspace_cycles(task.project.workspace),
-            "attached_label_ids": set(task.labels.values_list("id", flat=True)),
+            **task_picker_context(task),
         },
     )
 
@@ -4970,12 +4981,7 @@ def task_context_menu(request, slug_prefix, number):
                 "status_labels": Task.STATUS_LABELS,
                 "priority_labels": dict(Task.PRIORITY_CHOICES),
                 "size_values": Task.SIZE_VALUES,
-                "workspace_members": _workspace_members(task),
-                "workspace_projects": _workspace_projects(task),
-                "workspace_cycles": _workspace_cycles(task.project.workspace),
-                "workspace_labels": _workspace_labels(task),
-                "workspace_label_groups": _workspace_label_groups(task),
-                "attached_label_ids": set(task.labels.values_list("id", flat=True)),
+                **task_picker_context(task),
             },
             request=request,
         ),
