@@ -135,3 +135,39 @@ class TestToggleView:
         client.force_login(ws.owner)
         resp = client.post(self._url("task", task.id), {"emoji": "  "})
         assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+class TestCascadeDeletion:
+    """Reactions ride the CASCADE on every polymorphic target FK.
+
+    The model declares ``on_delete=CASCADE`` for ``task`` /
+    ``comment`` / ``project_update`` so the row vanishes the moment
+    its target does. Wave 2 C5 §F5 flagged this as a gap because the
+    audit relies on the invariant holding across all three targets,
+    not just the one the existing toggle tests exercise.
+    """
+
+    def _build(self, target_field):
+        """Return ``(target, reaction)`` for the requested target type."""
+        ws = WorkspaceFactory()
+        project = ProjectFactory(workspace=ws)
+        if target_field == "task":
+            target = TaskFactory(project=project)
+            reaction = Reaction.objects.create(task=target, user=ws.owner, emoji=THUMB)
+        elif target_field == "comment":
+            task = TaskFactory(project=project)
+            target = Comment.objects.create(task=task, author=ws.owner, body="hi")
+            reaction = Reaction.objects.create(comment=target, user=ws.owner, emoji=THUMB)
+        elif target_field == "project_update":
+            target = ProjectUpdateFactory(project=project, author=ws.owner)
+            reaction = Reaction.objects.create(project_update=target, user=ws.owner, emoji=THUMB)
+        else:
+            raise AssertionError(target_field)
+        return target, reaction
+
+    @pytest.mark.parametrize("target_field", ["task", "comment", "project_update"])
+    def test_delete_target_removes_reaction(self, target_field):
+        target, reaction = self._build(target_field)
+        target.delete()
+        assert not Reaction.objects.filter(pk=reaction.pk).exists()
