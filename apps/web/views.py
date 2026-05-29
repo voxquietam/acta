@@ -4466,12 +4466,14 @@ def cycles_overview(request):
 def set_project_lead(request, slug_prefix):
     """Inline lead change on the project overview.
 
-    Accepts an integer ``lead_id`` form field, or an empty value to
-    clear the lead. The chosen user must be a member of the project's
-    workspace; non-member ids 400. Returns the rendered lead cell
-    fragment so HTMX can swap it in place.
+    Owner/admin only. Accepts an integer ``lead_id`` form field, or an
+    empty value to clear the lead. The chosen user must be a member of
+    the project's workspace; non-member ids 400. Returns the rendered
+    lead cell fragment so HTMX can swap it in place.
     """
     project = _get_user_project_or_404(request.user, slug_prefix)
+    if not _user_is_workspace_admin(request.user, project.workspace):
+        return HttpResponseForbidden("admin only")
     raw = (request.POST.get("lead_id") or "").strip()
     if raw == "":
         new_lead = None

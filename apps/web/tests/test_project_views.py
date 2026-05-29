@@ -293,6 +293,51 @@ class TestProjectDetailView:
         )
         assert resp.status_code == 404
 
+    def test_set_lead_rejects_non_admin_member(self, client, member_user):
+        """A regular workspace member (not owner/admin) cannot change the
+        project lead — the inline picker only renders for admins, but the
+        endpoint enforces the same gate server-side."""
+        from apps.workspaces.tests.factories import WorkspaceMemberFactory
+
+        _, ws, project = member_user
+        # Plain member (no admin/owner role) on the same workspace.
+        regular = WorkspaceMemberFactory(workspace=ws).user
+        client.force_login(regular)
+        resp = client.post(
+            reverse("web:set_project_lead", kwargs={"slug_prefix": project.slug_prefix}),
+            {"lead_id": ""},
+        )
+        assert resp.status_code == 403
+        project.refresh_from_db()
+        # Untouched: lead stays at whatever it was before (None by default).
+        assert project.lead is None
+
+    def test_overview_renders_lead_picker_for_admin(self, client, member_user):
+        """The lead picker (with workspace member dropdown) renders on the
+        project overview for workspace owners/admins."""
+        user, _, project = member_user
+        client.force_login(user)
+        resp = client.get(reverse("web:project_detail", kwargs={"slug_prefix": project.slug_prefix}))
+        assert resp.status_code == 200
+        body = resp.content.decode()
+        assert 'id="project-lead-cell"' in body
+        assert reverse("web:set_project_lead", kwargs={"slug_prefix": project.slug_prefix}) in body
+
+    def test_overview_hides_lead_picker_for_non_admin(self, client, member_user):
+        """Regular members see a read-only lead chip — no clickable
+        dropdown, no form action."""
+        from apps.workspaces.tests.factories import WorkspaceMemberFactory
+
+        _, ws, project = member_user
+        regular = WorkspaceMemberFactory(workspace=ws).user
+        client.force_login(regular)
+        resp = client.get(reverse("web:project_detail", kwargs={"slug_prefix": project.slug_prefix}))
+        assert resp.status_code == 200
+        body = resp.content.decode()
+        # No editable cell, no form action pointing at set_project_lead.
+        assert 'id="project-lead-cell"' not in body
+        assert reverse("web:set_project_lead", kwargs={"slug_prefix": project.slug_prefix}) not in body
+
     def test_toggle_member_adds_workspace_member(self, client, member_user):
         from apps.workspaces.tests.factories import WorkspaceMemberFactory
 

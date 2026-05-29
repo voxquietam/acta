@@ -139,7 +139,12 @@ Members with role badges.
       {% endif %}
 
       <div class="flex flex-wrap items-center gap-x-5 gap-y-2 mt-3 text-[11.5px] text-subtle-foreground">
-        {% if project.lead %}
+        {# Lead: editable picker for workspace owners/admins (matches the #}
+        {# permission gate on ``set_project_lead``); read-only chip for #}
+        {# regular members so they still see who owns the project. #}
+        {% if viewer_is_workspace_admin %}
+        {% include "web/projects/_overview_lead.html" %}
+        {% elif project.lead %}
         <span class="inline-flex items-center gap-1.5">
           <span class="text-placeholder-foreground">{% lucide "star" "w-3 h-3" %}</span>
           {% trans "Lead" %}
