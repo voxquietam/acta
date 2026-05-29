@@ -578,7 +578,9 @@ Section visibility flags from the view:
             {% for entry in available_label_groups %}
             {% if entry.labels %}
             <div>
-              {% if bucket_count > 1 %}
+              {# Named group → always header. "Other" only when there are #}
+              {# sibling buckets to disambiguate.                         #}
+              {% if entry.group or bucket_count > 1 %}
               <div class="acta-flt-cap">
                 <span>{{ entry.group.name|default:_("Other") }}</span>
                 <span class="ln"></span>

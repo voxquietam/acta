@@ -55,7 +55,7 @@ assignee treatment.
           x-ref="trigger"
           @click="toggle()"
           class="text-left cursor-pointer w-full">
-    {% include "web/projects/_labels_trigger.html" %}
+    {% include "web/projects/_labels_trigger.html" with trigger_layout=trigger_layout %}
   </button>
 
   <template x-teleport="body">
@@ -79,7 +79,7 @@ assignee treatment.
                class="w-full bg-muted border border-border-strong rounded px-2 py-1 text-xs text-foreground placeholder-placeholder-foreground focus:outline-none focus:border-brand-500">
       </div>
 
-      {% include "web/projects/_labels_dropdown_inner.html" %}
+      {% include "web/projects/_labels_dropdown_inner.html" with trigger_layout=trigger_layout %}
     </div>
   </template>
 </div>

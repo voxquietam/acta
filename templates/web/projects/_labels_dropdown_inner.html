@@ -9,11 +9,24 @@ refresh the ✓ marks while keeping the outer dropdown wrapper alive
 Each row's primary target is ``#labels-trigger-inner`` (the chips),
 not the whole cell.
 {% endcomment %}
-<div id="labels-dropdown-inner"{% if oob %} hx-swap-oob="true"{% endif %} class="max-h-64 overflow-y-auto">
+{# ``[overflow-x:clip]`` explicit: bare ``overflow-y: auto`` computes #}
+{# the x-axis to ``auto`` too, so a long label name or the group     #}
+{# header with the "one only" badge surfaces a horizontal scrollbar. #}
+{# ``clip`` keeps the parent free of the scrollbar without promoting #}
+{# this to a scroll container.                                       #}
+{# OOB swap uses idiomorph (``morph:outerHTML``) rather than the     #}
+{# default ``outerHTML`` so the element is patched in place rather   #}
+{# than replaced — preserving ``scrollTop``. Without this, picking a #}
+{# label near the bottom of the list jerks the user back to the top #}
+{# because the OOB swap recreates the scroll container.              #}
+<div id="labels-dropdown-inner"{% if oob %} hx-swap-oob="morph:outerHTML"{% endif %} class="max-h-64 overflow-y-auto [overflow-x:clip]">
   {% with bucket_count=workspace_label_groups|length %}
   {% for entry in workspace_label_groups %}
   {% if entry.labels %}
-  {% if bucket_count > 1 %}
+  {# Named group → always header (reads as "from group X"). Ungrouped → #}
+  {# header only when there are sibling buckets to disambiguate; the    #}
+  {# lone "Ungrouped" header on a workspace with no groups is noise.    #}
+  {% if entry.group or bucket_count > 1 %}
   {% include "web/_label_group_header.html" with group=entry.group %}
   {% endif %}
   {% for label in entry.labels %}
@@ -23,11 +36,15 @@ not the whole cell.
         x-show="matches('{{ label.name|escapejs }}')">
     {% csrf_token %}
     <input type="hidden" name="label_id" value="{{ label.id }}">
+    {# Tells the toggle endpoint which trigger layout to re-render with #}
+    {# so a label flip on the column-mode rail does not regress to the  #}
+    {# row-mode layout (and vice versa for the modal).                  #}
+    <input type="hidden" name="trigger_layout" value="{{ trigger_layout|default:'row' }}">
     <button type="submit"
             class="w-full text-left px-3 py-1.5 text-xs hover:bg-muted flex items-center gap-2 text-muted-foreground">
       <span class="acta-label-pill-dot" style="background-color: {{ label.color }};"></span>
-      <span class="flex-1">{{ label.name }}</span>
-      {% if label.id in attached_label_ids %}<span class="text-placeholder-foreground">✓</span>{% endif %}
+      <span class="flex-1 min-w-0 truncate">{{ label.name }}</span>
+      {% if label.id in attached_label_ids %}<span class="text-placeholder-foreground shrink-0">✓</span>{% endif %}
     </button>
   </form>
   {% endfor %}

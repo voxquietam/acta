@@ -1,15 +1,70 @@
-{% load i18n %}
+{% load i18n web_extras %}
 {% comment %}
-Inner content of the labels-cell trigger: either the chip row when
+Inner content of the labels-cell trigger: either the chip rows when
 labels are attached, or the dashed "Add labels" placeholder when not.
 Carries its own ``id`` so the toggle endpoint can swap just this piece
 without disturbing the outer ``#labels-cell`` Alpine state — that
 keeps the dropdown open across consecutive selections.
+
+Two grouped renderings, chosen by ``trigger_layout``:
+
+* ``"column"`` (default for the full task page's right rail) — one row
+  per group: fixed-width uppercase caption on the left, chips wrap on
+  the right. Caption ``min-w`` keeps chips aligned across rows when
+  group names differ in length.
+* ``"row"`` (task detail modal) — every group sits as a self-contained
+  cluster in a single wrapping flex row. Reads cluster boundaries via
+  a larger horizontal gap between clusters than between chips inside
+  one.
+
+Single-bucket workspaces (every label in one group, or all Ungrouped)
+collapse to a flat chip row in either layout — no axis to communicate.
 {% endcomment %}
 <div id="labels-trigger-inner">
-  {% if task.labels.all %}
+  {% with attached=task.labels.all %}
+  {% if attached %}
+  {% with groups=attached|labels_grouped layout=trigger_layout|default:"row" %}
+  {% if groups|length > 1 %}
+  {% if layout == "column" %}
+  <div class="space-y-1.5">
+    {% for entry in groups %}
+    <div class="flex items-start gap-2">
+      <span class="shrink-0 mt-1 min-w-[3rem] text-[9px] uppercase tracking-wider text-placeholder-foreground font-semibold whitespace-nowrap">
+        {% if entry.group %}{{ entry.group.name }}{% else %}{% trans "Other" %}{% endif %}
+      </span>
+      <div class="flex flex-wrap gap-1 flex-1 min-w-0">
+        {% for label in entry.labels %}
+        <span class="acta-label-pill"
+              style="--label-color: {{ label.color }};">
+          <span class="acta-label-pill-dot" style="background-color: {{ label.color }};"></span>
+          <span>{{ label.name }}</span>
+        </span>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="flex flex-wrap gap-x-3 gap-y-1.5">
+    {% for entry in groups %}
+    <div class="flex flex-wrap items-center gap-1">
+      <span class="text-[9px] uppercase tracking-wider text-placeholder-foreground font-semibold whitespace-nowrap">
+        {% if entry.group %}{{ entry.group.name }}{% else %}{% trans "Other" %}{% endif %}
+      </span>
+      {% for label in entry.labels %}
+      <span class="acta-label-pill"
+            style="--label-color: {{ label.color }};">
+        <span class="acta-label-pill-dot" style="background-color: {{ label.color }};"></span>
+        <span>{{ label.name }}</span>
+      </span>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% else %}
   <div class="flex flex-wrap gap-1">
-    {% for label in task.labels.all %}
+    {% for label in attached %}
     <span class="acta-label-pill"
           style="--label-color: {{ label.color }};">
       <span class="acta-label-pill-dot" style="background-color: {{ label.color }};"></span>
@@ -17,10 +72,13 @@ keeps the dropdown open across consecutive selections.
     </span>
     {% endfor %}
   </div>
+  {% endif %}
+  {% endwith %}
   {% else %}
   <div class="flex items-center gap-1.5">
     <span class="w-5 h-5 rounded-full border border-dashed border-border-strong grid place-items-center text-placeholder-foreground text-[10px]">+</span>
     <span class="text-placeholder-foreground">{% trans "Add labels" %}</span>
   </div>
   {% endif %}
+  {% endwith %}
 </div>

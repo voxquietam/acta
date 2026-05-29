@@ -33,6 +33,43 @@ def _read_static_file(relative_path: str) -> str:
     return Path(found).read_text(encoding="utf-8")
 
 
+@register.filter(name="labels_grouped")
+def labels_grouped(labels):
+    """Bucket an iterable of ``Label`` objects by their group.
+
+    Same shape as :func:`apps.labels.services.grouped_labels` but for an
+    already-loaded label collection (e.g. ``task.labels.all``). Lets the
+    label-chip surfaces on a task render group structure without an extra
+    query: named groups come first alphabetically by name, then an
+    Ungrouped bucket if any label has no group.
+
+    Pair with ``{% if labels|labels_grouped|length > 1 %}`` to decide
+    whether to render the grouped layout — a single bucket means there
+    is no axis to communicate, so a flat chip row stays compact.
+
+    Args:
+        labels: Iterable of :class:`apps.labels.models.Label` instances
+            (typically a queryset's ``.all()`` result).
+
+    Returns:
+        Ordered list of ``{"group", "labels"}`` dicts.
+    """
+    by_group: dict[int | None, dict] = {}
+    for label in labels or []:
+        gid = label.group_id
+        if gid not in by_group:
+            by_group[gid] = {"group": label.group, "labels": []}
+        by_group[gid]["labels"].append(label)
+    named = sorted(
+        (entry for gid, entry in by_group.items() if gid is not None),
+        key=lambda e: e["group"].name.lower(),
+    )
+    out = list(named)
+    if None in by_group:
+        out.append(by_group[None])
+    return out
+
+
 @register.simple_tag
 def inline_static(relative_path: str, *, tag: str = "style") -> str:
     """Inline the contents of a static file in a ``<style>`` / ``<script>`` tag.

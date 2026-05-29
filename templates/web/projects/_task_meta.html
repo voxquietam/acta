@@ -124,7 +124,7 @@ Re-included by ``task_detail.html`` and rendered standalone by
 <div class="bg-card border border-border rounded-lg p-4 mt-4">
   <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Labels" %}</div>
   <div class="mt-1">
-    {% include "web/projects/_labels_cell.html" %}
+    {% include "web/projects/_labels_cell.html" with trigger_layout="column" %}
   </div>
 </div>
 

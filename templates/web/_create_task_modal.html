@@ -196,39 +196,44 @@ x-data="{
       the modal stays compact for users who never set up groups.
       {% endcomment %}
       {% with bucket_count=label_groups|length %}
-      <div class="mt-1 space-y-2">
+      {# Groups laid out inline (single wrapping row). Each group is a    #}
+      {# self-contained cluster (caption + pills) so they never split     #}
+      {# across rows — only the spaces between groups wrap. Larger        #}
+      {# horizontal gap between groups than between pills within a group #}
+      {# so the eye reads cluster boundaries cleanly without dividers.   #}
+      <div class="mt-1 flex flex-wrap gap-x-4 gap-y-2">
         {% for entry in label_groups %}
         {% if entry.labels %}
-        <div class="space-y-1">
-          {% if bucket_count > 1 %}
-          {% include "web/_label_group_header.html" with group=entry.group %}
+        <div class="flex flex-wrap items-center gap-1.5">
+          {% if entry.group or bucket_count > 1 %}
+          <span class="text-[9.5px] uppercase tracking-wider text-placeholder-foreground font-semibold whitespace-nowrap">
+            {% if entry.group %}{{ entry.group.name }}{% else %}{% trans "Other" %}{% endif %}
+          </span>
           {% endif %}
-          <div class="flex flex-wrap gap-1.5">
-            {% for label in entry.labels %}
-            <label x-data="{ on: {% if label.id in pre_label_ids %}true{% else %}false{% endif %} }"
-                   :data-state="on ? 'on' : 'off'"
-                   class="acta-label-pill cursor-pointer select-none"
-                   style="--label-color: {{ label.color }};">
-              {% comment %}
-              Toggle is driven by the native ``<label>`` → ``<input>``
-              association — browser fires the right event on light /
-              force / keyboard activation alike. We deliberately do
-              NOT bind ``@click`` on the label too: that race-conditions
-              the state on Mac trackpads where light-press click was
-              eating the synthetic event and the ``on`` flag stayed
-              false. ``x-model`` on the checkbox is the single source
-              of truth.
-              {% endcomment %}
-              <input type="checkbox" name="labels" value="{{ label.id }}" x-model="on" class="sr-only">
-              <svg class="acta-label-pill-check" viewBox="0 0 16 16" fill="none" stroke="currentColor"
-                   stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <polyline points="3.5 8.5 6.5 11.5 12.5 4.5"></polyline>
-              </svg>
-              <span class="acta-label-pill-dot" style="background-color: {{ label.color }};"></span>
-              <span>{{ label.name }}</span>
-            </label>
-            {% endfor %}
-          </div>
+          {% for label in entry.labels %}
+          <label x-data="{ on: {% if label.id in pre_label_ids %}true{% else %}false{% endif %} }"
+                 :data-state="on ? 'on' : 'off'"
+                 class="acta-label-pill cursor-pointer select-none"
+                 style="--label-color: {{ label.color }};">
+            {% comment %}
+            Toggle is driven by the native ``<label>`` → ``<input>``
+            association — browser fires the right event on light /
+            force / keyboard activation alike. We deliberately do
+            NOT bind ``@click`` on the label too: that race-conditions
+            the state on Mac trackpads where light-press click was
+            eating the synthetic event and the ``on`` flag stayed
+            false. ``x-model`` on the checkbox is the single source
+            of truth.
+            {% endcomment %}
+            <input type="checkbox" name="labels" value="{{ label.id }}" x-model="on" class="sr-only">
+            <svg class="acta-label-pill-check" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                 stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="3.5 8.5 6.5 11.5 12.5 4.5"></polyline>
+            </svg>
+            <span class="acta-label-pill-dot" style="background-color: {{ label.color }};"></span>
+            <span>{{ label.name }}</span>
+          </label>
+          {% endfor %}
         </div>
         {% endif %}
         {% endfor %}

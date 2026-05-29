@@ -16,7 +16,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
-from django.db.models import Count, Exists, F, Max, OuterRef, Q, Subquery
+from django.db.models import Count, Exists, F, Max, OuterRef, Prefetch, Q, Subquery
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
@@ -386,13 +386,23 @@ def _user_task_qs(user):
         project/workspace, assignee, and labels (via prefetch).
     """
     return (
-        Task.objects.filter(project__workspace__memberships__user=user)
-        .select_related(
+        Task.objects.filter(project__workspace__memberships__user=user).select_related(
             "project__workspace",
             "assignee",
             "cycle",
         )
-        .prefetch_related("labels", "blocks", "blocked_by")
+        # ``Prefetch("labels", queryset=...select_related("group"))`` rather
+        # than the bare ``"labels"`` string: the task-detail rail's chip
+        # trigger groups labels by ``label.group`` (the ``labels_grouped``
+        # filter), so without the join each chip row would re-query the
+        # group FK. One JOIN in the labels prefetch query costs nothing on
+        # the high-traffic list / kanban surfaces and saves the N+1 for
+        # task detail / modal.
+        .prefetch_related(
+            Prefetch("labels", queryset=Label.objects.select_related("group")),
+            "blocks",
+            "blocked_by",
+        )
     )
 
 
@@ -3210,11 +3220,18 @@ def toggle_task_label(request, slug_prefix, number):
             if hasattr(task, "_prefetched_objects_cache"):
                 task._prefetched_objects_cache.pop("labels", None)
         emit_task_diff_events(old_state=old, task=task, actor=request.user)
+    # ``trigger_layout`` is round-tripped via a hidden input in
+    # ``_labels_dropdown_inner.html``: rail uses ``"column"``, modal uses
+    # ``"row"``. Without echoing it back here, every toggle would reset
+    # the trigger to the default layout, jerking the chip arrangement on
+    # one surface or the other.
+    trigger_layout = request.POST.get("trigger_layout") or "row"
     ctx = {
         "task": task,
         "workspace_labels": _workspace_labels(task),
         "workspace_label_groups": _workspace_label_groups(task),
         "attached_label_ids": set(task.labels.values_list("id", flat=True)),
+        "trigger_layout": trigger_layout,
     }
     # Primary swap: the trigger contents (chips or placeholder). Keeping
     # the outer #labels-cell intact preserves the Alpine state — the
