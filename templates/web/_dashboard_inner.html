@@ -116,7 +116,14 @@ the new range's data; Chart.js / Lucide are loaded once by the outer page.
     <div x-data="{ all: false }">
       <div class="g-velo" :class="all && 'show-all'">
         {% for v in velocity %}
-        <div class="velo{% if forloop.counter > 8 %} extra{% endif %}">
+        {# Wrapped in ``<a hx-boost>`` so a velocity tile opens the project's #}
+        {# Insights tab (velocity is a metric — Insights is the per-project  #}
+        {# metrics page, thematically the right landing). Same swap path     #}
+        {# used elsewhere on the dashboard (Distribution / Alerts / Hygiene).#}
+        {# Empty-state stays a plain ``<div>`` — nothing to navigate to.     #}
+        <a class="velo{% if forloop.counter > 8 %} extra{% endif %}"
+           href="{% url 'web:project_insights' slug_prefix=v.slug %}"
+           hx-boost="true" hx-target="#app-content" hx-select="#app-content" hx-swap="outerHTML show:top" hx-push-url="true">
           <div class="row1">
             <span class="proj-ic" style="background: {{ v.icon }};">{% lucide "folder" "w-3 h-3" %}</span>
             <span class="nm">{{ v.name }}</span>
@@ -131,7 +138,7 @@ the new range's data; Chart.js / Lucide are loaded once by the outer page.
             <svg data-series="{{ v.spark }}" data-opts='{"width":200,"height":22,"stroke":"{{ v.icon }}","fill":"{{ v.icon }}33"}'></svg>
           </div>
           <div class="forecast">{% trans "forecast next 4w" %} <span class="pill">{{ v.forecast }}</span></div>
-        </div>
+        </a>
         {% empty %}
         <div class="velo"><span class="nm" style="color: rgb(var(--placeholder-foreground));">{% trans "No projects yet." %}</span></div>
         {% endfor %}

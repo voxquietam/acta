@@ -130,8 +130,11 @@
 .dash .cfd .legend .swatch { width: 10px; height: 2px; border-radius: 2px; display: inline-block; margin-right: 5px; }
 
 /* ============================================================ VELOCITY */
-.dash .velo { padding: 12px 14px; background: rgb(var(--card)); border: 1px solid rgb(var(--border)); border-radius: 8px; transition: border-color 80ms; display: flex; flex-direction: column; gap: 6px; }
-.dash .velo:hover { border-color: rgb(var(--border-strong)); }
+/* ``.velo`` is rendered as ``<a hx-boost>`` (clickable navigation to the
+   project page); reset the anchor defaults so it still reads as a card,
+   not a link. */
+.dash .velo { padding: 12px 14px; background: rgb(var(--card)); border: 1px solid rgb(var(--border)); border-radius: 8px; transition: border-color 80ms, background-color 80ms; display: flex; flex-direction: column; gap: 6px; text-decoration: none; color: inherit; cursor: pointer; }
+.dash .velo:hover { border-color: rgb(var(--border-strong)); background: rgb(var(--muted)); }
 .dash .velo .row1 { display: flex; align-items: center; gap: 8px; }
 .dash .velo .proj-ic { width: 22px; height: 22px; border-radius: 5px; display: grid; place-items: center; color: #fff; flex-shrink: 0; }
 .dash .velo .nm { font-size: 12.5px; font-weight: 600; color: rgb(var(--foreground)); }
