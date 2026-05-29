@@ -409,7 +409,16 @@ if (document.readyState === "loading") {
 }
 
 // Re-mount after HTMX swaps (e.g., navigating tasks, re-rendering the
-// description cell).
-document.body.addEventListener("htmx:afterSwap", (event) => {
-  mountAll(event.detail.target);
+// description cell) and after the custom nav-router lands a page.
+//
+// We deliberately rescan the whole document instead of just
+// ``event.detail.target``. The nav-router in ``acta.js`` calls
+// ``htmx.swap("#app-content", ...)`` and the resulting event's target
+// occasionally lands on a wrapper that does not contain the freshly
+// swapped editor mounts (e.g., the announcement composer embedded in
+// ``inbox.html`` was never being mounted after a boosted nav). The
+// ``INSTANCES`` WeakMap short-circuits already-mounted roots, so the
+// extra ``querySelectorAll`` over the page is the only cost.
+document.body.addEventListener("htmx:afterSwap", () => {
+  mountAll();
 });
