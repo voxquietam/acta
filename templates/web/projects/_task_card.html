@@ -35,6 +35,18 @@ handler in ``_kanban.html`` restores it for middle / Ctrl+click.
   Amber from 3 days, rose from 7 — surfaces stalled work at a glance.
   Only set on the kanban board render (``task.age_days`` from
   ``_build_kanban_columns``); absent elsewhere = no bar.
+
+  **Project-scoped only.** ``ProjectDetailView`` annotates ``status_since``
+  on its queryset (see ``apps/web/views.py:_build_kanban_columns``); the
+  cross-project ``_user_task_qs`` base does **not**, so the aging bar
+  is silently absent on All Tasks. Intentional — "5 days in to-do" is
+  meaningful inside a project's cadence but noise across 18 projects
+  with different rhythms. If you ever want the bar everywhere, add the
+  ``Subquery`` annotation in ``_user_task_qs`` and the data flows
+  through with no template change. See
+  ``memory/project_todo_make_aging_wip_visible.md`` for the visibility
+  rework (the 2-px strip is too subtle to register even where it does
+  render).
   {% endcomment %}
   {% if task.age_days %}
   <span class="absolute left-0 top-0 bottom-0 w-0.5 {% if task.age_days >= 7 %}bg-rose-500/70{% elif task.age_days >= 3 %}bg-amber-500/60{% else %}bg-transparent{% endif %}"

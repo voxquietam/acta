@@ -6042,6 +6042,13 @@ def _build_kanban_columns(tasks, today=None, wip_mode=None, wip_limits=None, ove
         # ``status_since`` annotation (last status change), for active
         # statuses only — a settled Done card isn't "aging". Drives the
         # card's left-edge age bar. ``None`` when not annotated / done.
+        # ``status_since`` is annotated on the queryset only when the
+        # caller paid for it: ``ProjectDetailView.get_context_data`` adds
+        # the ``Subquery`` (last ``task.status_changed`` activity row),
+        # while ``_user_task_qs`` (used by All Tasks / My Work) does not.
+        # So the aging bar is project-scoped by construction; cross-
+        # project kanban renders without it. Intentional — see
+        # ``_task_card.html`` aging-WIP comment for the rationale.
         t.age_days = None
         since = getattr(t, "status_since", None)
         if status != Task.STATUS_DONE and since is not None:
