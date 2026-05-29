@@ -17,14 +17,15 @@ guard (``set_task_start_date``) blocks the write regardless. See
 
   {% if task.assignee_id and task.assignee_id != user.id %}
   <span class="text-sm {% if task.start_date %}text-muted-foreground{% else %}text-placeholder-foreground italic{% endif %}">
-    {% if task.start_date %}{{ task.start_date|date:"M j, Y" }}{% else %}{% trans "No start date" %}{% endif %}
+    {% if task.start_date %}{{ task.start_date|date:"M j, Y" }}{% else %}{% if compact %}—{% else %}{% trans "No start date" %}{% endif %}{% endif %}
   </span>
   {% else %}
   <button type="button"
           @click="$refs.input.showPicker()"
           class="text-sm hover:text-foreground cursor-pointer
-            {% if task.start_date %}text-muted-foreground{% else %}text-placeholder-foreground italic{% endif %}">
-    {% if task.start_date %}{{ task.start_date|date:"M j, Y" }}{% else %}{% trans "Set start date" %}{% endif %}
+            {% if task.start_date %}text-muted-foreground{% else %}text-placeholder-foreground italic{% endif %}"
+          {% if compact and not task.start_date %}data-tooltip="{% trans 'Set start date' %}" aria-label="{% trans 'Set start date' %}"{% endif %}>
+    {% if task.start_date %}{{ task.start_date|date:"M j, Y" }}{% else %}{% if compact %}—{% else %}{% trans "Set start date" %}{% endif %}{% endif %}
   </button>
 
   <form hx-post="{% url 'web:set_task_start_date' slug_prefix=task.project.slug_prefix number=task.number %}"
@@ -32,6 +33,10 @@ guard (``set_task_start_date``) blocks the write regardless. See
         hx-swap="outerHTML"
         class="contents">
     {% csrf_token %}
+    {# ``compact`` round-trip: endpoint re-renders this cell after a date #}
+    {# change, and without echoing the flag back we would lose the modal's #}
+    {# em-dash placeholder + chip layout on the next swap.                 #}
+    {% if compact %}<input type="hidden" name="compact" value="1">{% endif %}
     <input x-ref="input"
            type="date"
            name="start_date"
@@ -46,6 +51,7 @@ guard (``set_task_start_date``) blocks the write regardless. See
         hx-swap="outerHTML"
         class="inline">
     {% csrf_token %}
+    {% if compact %}<input type="hidden" name="compact" value="1">{% endif %}
     <input type="hidden" name="start_date" value="">
     <button type="submit"
             class="text-placeholder-foreground hover:text-rose-400 text-xs opacity-0 group-hover:opacity-100 transition"

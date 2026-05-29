@@ -21,15 +21,17 @@ the full-page layout for cases when those details matter.
   {% include "web/projects/_assignee_cell.html" %}
   <span class="text-border-strong" aria-hidden="true">·</span>
   {% comment %}
-  Three look-alike dates inline need disambiguating (the rail uses row
-  labels; here we lead each with a small icon + tooltip): play = start,
-  flag = planned end, alarm = deadline.
+  Schedule range: start and end share one chip (``calendar-range`` icon
+  + ``→`` separator) so the unset side does not double up the "Set …
+  date" placeholder. Cell partials accept ``compact=True`` and collapse
+  empty placeholders to ``—`` + a per-side tooltip. Due/deadline stays
+  separate — it's a different signal (the hard date triagers watch).
   {% endcomment %}
-  <span class="inline-flex items-center gap-1" data-tooltip="{% trans 'Start date' %}">
-    {% lucide "play" "w-3 h-3 text-placeholder-foreground shrink-0" %}{% include "web/projects/_start_date_cell.html" %}
-  </span>
-  <span class="inline-flex items-center gap-1" data-tooltip="{% trans 'End date' %}">
-    {% lucide "flag" "w-3 h-3 text-placeholder-foreground shrink-0" %}{% include "web/projects/_end_date_cell.html" %}
+  <span class="inline-flex items-center gap-1.5">
+    {% lucide "calendar-range" "w-3 h-3 text-placeholder-foreground shrink-0" %}
+    {% include "web/projects/_start_date_cell.html" with compact=True %}
+    <span class="text-placeholder-foreground text-xs" aria-hidden="true">→</span>
+    {% include "web/projects/_end_date_cell.html" with compact=True %}
   </span>
   <span class="inline-flex items-center gap-1" data-tooltip="{% trans 'Due date' %}">
     {% lucide "alarm-clock" "w-3 h-3 text-placeholder-foreground shrink-0" %}{% include "web/projects/_due_date_cell.html" %}

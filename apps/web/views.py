@@ -3865,7 +3865,7 @@ def set_task_start_date(request, slug_prefix, number):
         request,
         task,
         "web/projects/_start_date_cell.html",
-        {"task": task},
+        {"task": task, "compact": request.POST.get("compact") == "1"},
     )
     # See ``set_task_due_date``: refetch date-driven panels on an HTMX edit.
     # The timeline drag posts here via raw ``fetch`` and ignores this header.
@@ -3908,7 +3908,7 @@ def set_task_end_date(request, slug_prefix, number):
         request,
         task,
         "web/projects/_end_date_cell.html",
-        {"task": task},
+        {"task": task, "compact": request.POST.get("compact") == "1"},
     )
     response["HX-Trigger"] = "acta:task-changed"
     return response
