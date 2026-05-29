@@ -363,6 +363,10 @@ def broadcast_task_events(events: list[ActivityLog], tasks_by_id: dict[int, Task
         }
         if via_mcp:
             payload["via_mcp"] = True
+        # ``card_html_by_task`` / row dicts are seeded from the same task set the
+        # caller used to build ``events`` — every non-deletion event has a hit.
+        # A miss is benign (no surface HTML to swap; clients fall back to a refetch)
+        # so we silently omit the key rather than asserting. Wave 2 C1 §F9.
         card_html = card_html_by_task.get(ev.target_id)
         if card_html:
             payload["card_html"] = card_html

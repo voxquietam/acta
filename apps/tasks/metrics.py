@@ -234,6 +234,9 @@ def compute_bottlenecks(project, *, today: datetime.date | None = None, weeks: i
 
     Returns a dict consumed by the insights template + its charts.
     """
+    # ``today`` is naive (date) but only used for chart labels; the comparison
+    # at line 271 is ``ts < window_start_dt`` (datetime ← datetime). The mix is
+    # intentional and the two types never meet. Wave 2 C1 §F2.
     today = today or timezone.localdate()
     window_start_dt = timezone.now() - datetime.timedelta(weeks=weeks)
     events = _task_status_events(project)

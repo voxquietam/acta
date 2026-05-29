@@ -106,6 +106,10 @@ class IsWorkspaceAdmin(BasePermission):
             workspace_id = int(raw_workspace)
         except (TypeError, ValueError):
             return False
+        # ``filter(pk=...).first()`` (not ``get``) so a deleted / unknown
+        # workspace id deflects into a clean ``False`` instead of bubbling
+        # ``DoesNotExist``. ``membership(user, None)`` returns ``None`` so
+        # the role check below safely rejects. Wave 2 C3 §F6.
         workspace = Workspace.objects.filter(pk=workspace_id).first()
         m = membership(request.user, workspace)
         return m is not None and m.role in (WorkspaceMember.OWNER, WorkspaceMember.ADMIN)

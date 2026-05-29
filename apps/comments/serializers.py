@@ -51,6 +51,14 @@ class CommentSerializer(serializers.ModelSerializer):
     def validate_task(self, task):
         """Reject comments on tasks the user cannot access.
 
+        Defense-in-depth: ``CommentViewSet.get_queryset`` already filters
+        by ``task__project__workspace__memberships__user=request.user`` so
+        an outsider can't even see the task to address it. This validator
+        is a second guard against ``PATCH`` paths that bypass the queryset
+        (and against future refactors that loosen the viewset filter). The
+        cost is one ``WorkspaceMember.exists()`` query per successful write.
+        Wave 2 C5 §F1.
+
         Args:
             task: The candidate :class:`Task` to attach the comment to.
 

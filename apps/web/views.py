@@ -2490,7 +2490,10 @@ def _workspace_labels(task):
     """Return the workspace's labels in picker order (``position``, then ``name``).
 
     Used by the labels picker to populate its dropdown. Same ordering the
-    grouped picker uses so flat and grouped surfaces agree.
+    grouped picker uses so flat and grouped surfaces agree. Returns a
+    queryset (not a list) — callers reading the same task multiple times
+    in one request should go through :func:`task_picker_context`, which
+    memoises the materialised bundle on the task instance. Wave 2 C3 §F2.
 
     Args:
         task: The :class:`Task` whose workspace's labels to fetch.
@@ -2519,6 +2522,12 @@ def _workspace_cycles(workspace):
     cycles are not offered as fresh assignment targets. Returns an empty
     list when the workspace is missing or cadence is disabled, which the
     pickers treat as "no cycle UI".
+
+    Side-effect: ``ensure_cycles`` may INSERT new ``Cycle`` rows when
+    the rolling window has advanced past the last materialised cycle.
+    Idempotent (same input → same row set), but the first caller of a
+    new window pays the write cost. A scheduled job could pre-materialise
+    in the background to keep page renders read-only. Wave 2 C3 §F3.
 
     Args:
         workspace: The :class:`Workspace` (or ``None``).

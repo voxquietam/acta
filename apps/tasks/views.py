@@ -101,6 +101,9 @@ class TaskViewSet(viewsets.ModelViewSet):
                 "parent_id": task.parent_id,
             },
         )
+        # ``notify_task_created`` is fire-and-forget; the inbox + Telegram fan-out
+        # is queued on ``transaction.on_commit`` and never rolls the task save back.
+        # A delivery failure surfaces in logs, not on this request.
         notify_task_created(task=task, actor=self.request.user)
 
     def perform_update(self, serializer):

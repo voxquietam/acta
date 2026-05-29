@@ -212,7 +212,11 @@ class Task(models.Model):
     )
     updated_at = models.DateTimeField(
         auto_now=True,
-        help_text="When the task was last modified",
+        help_text=(
+            "When the task was last modified. ``auto_now`` fires on ``.save()``; the bulk "
+            "UPDATE path sets this column explicitly (see ``apps.tasks.bulk``) so it stays "
+            "correct when ``save()`` is bypassed for batched writes"
+        ),
     )
     completed_at = models.DateTimeField(
         null=True,

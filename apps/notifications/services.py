@@ -21,6 +21,14 @@ def _truncate_preview(body: str | None) -> str:
     so every surface (inbox, Telegram) shows that the snippet was cut rather
     than ending mid-sentence with no signal.
 
+    ``Notification.preview`` is **write-once**: this snippet is captured at
+    notification creation (the task title / description or the comment body
+    at that moment) and never re-denormalised. A later edit to the source
+    leaves the inbox row's preview stale by design — re-denormalising would
+    require an extra event listener and a polling mechanism, and the user
+    interaction model (inbox is a record, not a live view) makes the drift
+    acceptable. Wave 2 C7 §F1.
+
     Args:
         body: The raw comment / update markdown body.
 
