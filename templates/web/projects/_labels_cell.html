@@ -29,6 +29,10 @@ assignee treatment.
        dropUp: false,
        q: '',
        rect: { top: 0, left: 0, bottom: 0, width: 0 },
+       /* scrollTop preservation across OOB swap of #labels-dropdown-inner; */
+       /* see the matching event listeners on the wrapper. -1 == no pending  */
+       /* restore (sentinel, since 0 is a valid scrollTop).                  */
+       dropdownScrollTop: -1,
        matches(name) {
          return name.toLowerCase().includes(this.q.toLowerCase());
        },
@@ -49,6 +53,8 @@ assignee treatment.
        };
        document.addEventListener('scroll', onScroll, true);
      "
+     @htmx:oob-before-swap.window="if ($event.target && $event.target.id === 'labels-dropdown-inner') dropdownScrollTop = $event.target.scrollTop"
+     @htmx:oob-after-swap.window="if (dropdownScrollTop >= 0 && $event.target && $event.target.id === 'labels-dropdown-inner') { $event.target.scrollTop = dropdownScrollTop; dropdownScrollTop = -1; }"
      @resize.window="if (open) open = false">
 
   <button type="button"

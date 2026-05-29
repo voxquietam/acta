@@ -14,12 +14,12 @@ not the whole cell.
 {# header with the "one only" badge surfaces a horizontal scrollbar. #}
 {# ``clip`` keeps the parent free of the scrollbar without promoting #}
 {# this to a scroll container.                                       #}
-{# OOB swap uses idiomorph (``morph:outerHTML``) rather than the     #}
-{# default ``outerHTML`` so the element is patched in place rather   #}
-{# than replaced — preserving ``scrollTop``. Without this, picking a #}
-{# label near the bottom of the list jerks the user back to the top #}
-{# because the OOB swap recreates the scroll container.              #}
-<div id="labels-dropdown-inner"{% if oob %} hx-swap-oob="morph:outerHTML"{% endif %} class="max-h-64 overflow-y-auto [overflow-x:clip]">
+{# OOB swap is plain ``true`` (= default ``outerHTML``). Tried morph  #}
+{# to preserve scrollTop but it did not reliably patch the per-row    #}
+{# tint + ✓ child when toggling an unattached label. Scroll position  #}
+{# is captured / restored by ``_labels_cell.html`` on the OOB swap    #}
+{# events instead (see ``dropdownScrollTop`` in its Alpine state).    #}
+<div id="labels-dropdown-inner"{% if oob %} hx-swap-oob="true"{% endif %} class="max-h-64 overflow-y-auto [overflow-x:clip]">
   {% with bucket_count=workspace_label_groups|length %}
   {% for entry in workspace_label_groups %}
   {% if entry.labels %}
@@ -40,11 +40,15 @@ not the whole cell.
     {# so a label flip on the column-mode rail does not regress to the  #}
     {# row-mode layout (and vice versa for the modal).                  #}
     <input type="hidden" name="trigger_layout" value="{{ trigger_layout|default:'row' }}">
+    {# Attached row stands out from the rest: tinted background + brand-      #}
+    {# colored ✓ so the user spots the current selection at a glance.        #}
+    {# A placeholder-foreground ✓ on a default-state row was easy to miss.   #}
     <button type="submit"
-            class="w-full text-left px-3 py-1.5 text-xs hover:bg-muted flex items-center gap-2 text-muted-foreground">
+            class="w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 transition
+              {% if label.id in attached_label_ids %}text-foreground bg-brand-500/10 hover:bg-brand-500/15{% else %}text-muted-foreground hover:bg-muted{% endif %}">
       <span class="acta-label-pill-dot" style="background-color: {{ label.color }};"></span>
       <span class="flex-1 min-w-0 truncate">{{ label.name }}</span>
-      {% if label.id in attached_label_ids %}<span class="text-placeholder-foreground shrink-0">✓</span>{% endif %}
+      {% if label.id in attached_label_ids %}<span class="text-brand-400 shrink-0 font-medium">✓</span>{% endif %}
     </button>
   </form>
   {% endfor %}
