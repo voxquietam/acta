@@ -63,12 +63,14 @@ Card / header / label / button styling matches ``web/workspaces/settings.html``.
               <p class="mt-1.5 text-[11px] text-placeholder-foreground">{% trans "Email changes go through the admin for now." %}</p>
             </div>
             <div>
-              <label class="block text-[10px] uppercase tracking-wider text-placeholder-foreground mb-1.5">{% trans "Language" %}</label>
-              <select name="language" class="acta-input">
-                {% for code, label in languages %}
-                <option value="{{ code }}" {% if code == request.user.language %}selected{% endif %}>{{ label }}</option>
-                {% endfor %}
-              </select>
+              <label class="block text-[10px] uppercase tracking-wider text-placeholder-foreground mb-1.5">{% trans "Username" %}</label>
+              <div class="flex items-center gap-1.5">
+                <span class="font-mono text-sm text-placeholder-foreground">@</span>
+                <input type="text" name="username" maxlength="150" value="{{ request.user.username }}"
+                       pattern="[A-Za-z0-9@.+\-_]+"
+                       class="acta-input flex-1">
+              </div>
+              <p class="mt-1.5 text-[11px] text-placeholder-foreground">{% trans "Letters, digits, and @/./+/-/_ only." %}</p>
             </div>
           </div>
 
@@ -78,11 +80,33 @@ Card / header / label / button styling matches ``web/workspaces/settings.html``.
         </form>
 
         {% comment %}
-        Password + Session as two aligned action rows (text left, button right):
-        the password form lives in a modal so it costs no space, and logging out
-        is folded in here under it rather than as its own section.
+        Language + Password + Session as aligned action rows (text left,
+        control right). Language posts its own change immediately (HX-Refresh
+        reloads the page so the persistent shell speaks the new locale);
+        the password form lives in a modal so it costs no space; logging
+        out is folded in here as the last row.
         {% endcomment %}
         <div class="mt-4 border-t border-border divide-y divide-border">
+          <div class="flex items-center justify-between gap-3 py-3">
+            <div class="min-w-0">
+              <div class="text-sm text-foreground">{% trans "Language" %}</div>
+              <div class="text-[11px] text-placeholder-foreground">{% trans "Applies to the sidebar, topbar, and all pages." %}</div>
+            </div>
+            <form method="post" action="{% url 'accounts:settings' %}"
+                  hx-post="{% url 'accounts:settings' %}"
+                  hx-trigger="change from:select[name=language]"
+                  hx-swap="none"
+                  class="shrink-0">
+              {% csrf_token %}
+              <select name="language"
+                      class="text-xs px-2 py-1.5 rounded-md border border-border bg-card text-foreground focus:outline-none focus:border-brand-500 transition">
+                {% for code, label in languages %}
+                <option value="{{ code }}" {% if code == request.user.language %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </form>
+          </div>
+
           <div class="flex items-center justify-between gap-3 py-3">
             <div class="min-w-0">
               <div class="text-sm text-foreground">{% trans "Password" %}</div>

@@ -160,22 +160,57 @@ def user_settings(request):
     """
     user = request.user
     if request.method == "POST":
-        first = (request.POST.get("first_name") or "").strip()[:150]
-        last = (request.POST.get("last_name") or "").strip()[:150]
-        lang = (request.POST.get("language") or "").strip()
-        allowed = {code for code, _ in settings.LANGUAGES}
+        # Each field is only touched when its form field is actually
+        # present in the POST payload. This lets the small inline forms
+        # below (Language picker, future per-field auto-saves) post
+        # only the field they own without silently blanking the others.
         updates = []
-        if user.first_name != first:
-            user.first_name = first
-            updates.append("first_name")
-        if user.last_name != last:
-            user.last_name = last
-            updates.append("last_name")
+        if "first_name" in request.POST:
+            first = (request.POST.get("first_name") or "").strip()[:150]
+            if user.first_name != first:
+                user.first_name = first
+                updates.append("first_name")
+        if "last_name" in request.POST:
+            last = (request.POST.get("last_name") or "").strip()[:150]
+            if user.last_name != last:
+                user.last_name = last
+                updates.append("last_name")
+        # Username is the @handle used for display + mentions. Editable
+        # but validated: same charset as Django's default (letters,
+        # digits, ``@.+-_``), max 150 chars, unique case-insensitively
+        # so look-alikes like ``Vox`` vs ``vox`` cannot coexist. Empty
+        # input leaves the current value untouched; bad input flashes
+        # an error and short-circuits before any save.
+        if "username" in request.POST:
+            username_raw = (request.POST.get("username") or "").strip()
+            if username_raw and username_raw != user.username:
+                from django.contrib.auth.validators import UnicodeUsernameValidator
+
+                if len(username_raw) > 150:
+                    messages.error(request, gettext("Username is too long (max 150 characters)."))
+                    return HttpResponseRedirect(reverse("accounts:settings"))
+                try:
+                    UnicodeUsernameValidator()(username_raw)
+                except ValidationError:
+                    messages.error(
+                        request,
+                        gettext("Username can only contain letters, digits, and @/./+/-/_."),
+                    )
+                    return HttpResponseRedirect(reverse("accounts:settings"))
+                User = get_user_model()
+                if User.objects.exclude(pk=user.pk).filter(username__iexact=username_raw).exists():
+                    messages.error(request, gettext("That username is already taken."))
+                    return HttpResponseRedirect(reverse("accounts:settings"))
+                user.username = username_raw
+                updates.append("username")
         lang_changed = False
-        if lang and lang in allowed and getattr(user, "language", "") != lang:
-            user.language = lang
-            updates.append("language")
-            lang_changed = True
+        if "language" in request.POST:
+            lang = (request.POST.get("language") or "").strip()
+            allowed = {code for code, _ in settings.LANGUAGES}
+            if lang and lang in allowed and getattr(user, "language", "") != lang:
+                user.language = lang
+                updates.append("language")
+                lang_changed = True
         if updates:
             user.save(update_fields=updates)
         if lang_changed:

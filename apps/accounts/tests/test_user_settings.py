@@ -118,3 +118,88 @@ class TestUserSettingsPost:
         assert resp.status_code == 302
         user.refresh_from_db()
         assert len(user.first_name) == 150
+
+    def test_username_can_be_changed(self, client):
+        user = UserFactory(username="kaneo-ab12cd34")
+        client.force_login(user)
+        resp = client.post(
+            reverse("accounts:settings"),
+            {"first_name": "", "last_name": "", "username": "vox", "language": ""},
+        )
+        assert resp.status_code == 302
+        user.refresh_from_db()
+        assert user.username == "vox"
+
+    def test_username_unchanged_when_same_value(self, client):
+        user = UserFactory(username="stable")
+        client.force_login(user)
+        resp = client.post(
+            reverse("accounts:settings"),
+            {"first_name": "", "last_name": "", "username": "stable", "language": ""},
+        )
+        assert resp.status_code == 302
+        user.refresh_from_db()
+        assert user.username == "stable"
+
+    def test_username_empty_input_keeps_current(self, client):
+        """Empty ``username`` POST field is a no-op (doesn't blank it out)."""
+        user = UserFactory(username="kept")
+        client.force_login(user)
+        resp = client.post(
+            reverse("accounts:settings"),
+            {"first_name": "", "last_name": "", "username": "", "language": ""},
+        )
+        assert resp.status_code == 302
+        user.refresh_from_db()
+        assert user.username == "kept"
+
+    def test_username_rejected_when_taken_case_insensitive(self, client):
+        """Two users cannot end up with usernames that differ only in case."""
+        UserFactory(username="Taken")
+        user = UserFactory(username="kaneo-xyz")
+        client.force_login(user)
+        resp = client.post(
+            reverse("accounts:settings"),
+            {"first_name": "", "last_name": "", "username": "taken", "language": ""},
+        )
+        assert resp.status_code == 302
+        user.refresh_from_db()
+        assert user.username == "kaneo-xyz"
+
+    def test_username_rejected_with_invalid_characters(self, client):
+        user = UserFactory(username="ok")
+        client.force_login(user)
+        resp = client.post(
+            reverse("accounts:settings"),
+            {"first_name": "", "last_name": "", "username": "no spaces!", "language": ""},
+        )
+        assert resp.status_code == 302
+        user.refresh_from_db()
+        assert user.username == "ok"
+
+    def test_language_only_post_does_not_blank_other_fields(self, client):
+        """Inline language picker posts only ``language`` — first_name /
+        last_name / username must stay intact (the handler now keys off
+        which form fields are present, not their value)."""
+        user = UserFactory(first_name="Alice", last_name="Smith", username="alice", language="en")
+        client.force_login(user)
+        target = next(c for c, _ in settings.LANGUAGES if c != "en")
+        resp = client.post(reverse("accounts:settings"), {"language": target})
+        assert resp.status_code == 204
+        assert resp["HX-Refresh"] == "true"
+        user.refresh_from_db()
+        assert user.language == target
+        assert user.first_name == "Alice"
+        assert user.last_name == "Smith"
+        assert user.username == "alice"
+
+    def test_username_rejected_when_overlong(self, client):
+        user = UserFactory(username="short")
+        client.force_login(user)
+        resp = client.post(
+            reverse("accounts:settings"),
+            {"first_name": "", "last_name": "", "username": "v" * 151, "language": ""},
+        )
+        assert resp.status_code == 302
+        user.refresh_from_db()
+        assert user.username == "short"
