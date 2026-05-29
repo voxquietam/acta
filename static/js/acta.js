@@ -58,6 +58,16 @@
     // the status cell uses, then fires ``acta:task-changed`` so the
     // page's list refetches and the task moves / leaves its section.
     promoteTask(slugPrefix, number, status) {
+      // ``fetch`` (not HTMX) — the global ``htmx:responseError`` toast
+      // skips this path, so surface failures manually otherwise the
+      // chip click is silent and the user can't tell whether the
+      // server rejected or just hasn't applied yet.
+      //
+      // NB: the chip lives in ``_task_row.html`` (list view only). The
+      // ``acta:task-changed`` trigger below refetches the inner panel —
+      // unavoidably heavy on list view because the panel renders five
+      // axes × N rows. See [[project-todo-list-view-promote-chip-speed]]
+      // for the SSE-driven in-place row swap that would dodge it.
       fetch(`/projects/${slugPrefix}/${number}/status/`, {
         method: "POST",
         headers: {
@@ -65,9 +75,17 @@
           "Content-Type": "application/x-www-form-urlencoded",
         },
         body: "status=" + encodeURIComponent(status),
-      }).then((r) => {
-        if (r.ok && window.htmx) window.htmx.trigger(document.body, "acta:task-changed");
-      });
+      })
+        .then((r) => {
+          if (r.ok && window.htmx) {
+            window.htmx.trigger(document.body, "acta:task-changed");
+          } else if (!r.ok && window.actaToast) {
+            window.actaToast(`Couldn't promote task (${r.status}).`, "error");
+          }
+        })
+        .catch(() => {
+          if (window.actaToast) window.actaToast("Network error — task not promoted.", "error");
+        });
     },
 
     // Querystring for the "Export filtered tasks" button. Most filters are
@@ -715,6 +733,11 @@
     const taskId = card.dataset.taskId;
     if (!taskId || !newStatus) return;
     const rollback = () => evt.from.insertBefore(card, evt.from.children[evt.oldIndex] || null);
+    // Raw ``fetch`` (not HTMX) so the global ``htmx:responseError`` toast
+    // never sees this failure. Without a manual toast a silent rollback
+    // reads as "the card snapped back, no idea why" — surface the
+    // status code on a server reject and a generic message on a
+    // network drop, then roll back the DOM in both branches.
     fetch(`/api/v1/tasks/${taskId}/`, {
       method: "PATCH",
       headers: {
@@ -727,6 +750,7 @@
       .then((r) => {
         if (!r.ok) {
           rollback();
+          if (window.actaToast) window.actaToast(`Couldn't move card (${r.status}).`, "error");
           return;
         }
         document.querySelectorAll(".kanban-column").forEach((c) => {
@@ -734,7 +758,10 @@
           if (counter) counter.textContent = c.querySelectorAll("[data-task-id]").length;
         });
       })
-      .catch(rollback);
+      .catch(() => {
+        rollback();
+        if (window.actaToast) window.actaToast("Network error — card not moved.", "error");
+      });
   }
 
   function initKanbanDnD() {
@@ -2802,7 +2829,12 @@
   window.actaForceApplySelfEvent = function (id) {
     const n = Number(id);
     window.__actaForceApplySelf.add(n);
-    setTimeout(() => window.__actaForceApplySelf.delete(n), 4000);
+    // 30 s window — comfortably covers a slow activity-log fanout or a
+    // queued Telegram callback that delays the SSE broadcast beyond the
+    // raw HTTP round-trip. Was 4 s; observed in audit (docs/audit/05-nav-router.md
+    // §4.5) as too tight under heavy peer activity, where the id would
+    // expire before the SSE event landed and the row stayed stale.
+    setTimeout(() => window.__actaForceApplySelf.delete(n), 30000);
   };
 
   (function initTaskContextMenu() {
