@@ -47,7 +47,12 @@
     }
   }
 
-  window.acta = {
+  // ``Object.assign`` instead of wholesale assignment: any earlier inline
+  // script (currently only the command palette in ``_command_palette.html``)
+  // that touched ``window.acta`` before this bundle loaded keeps its
+  // properties intact, and a future late-loaded peer can't accidentally
+  // clobber our exports.
+  window.acta = Object.assign(window.acta || {}, {
     csrfToken: () => getCookie("csrftoken"),
     updateStickyStack: null, // assigned below once defined
     loadRecents,
@@ -160,7 +165,7 @@
         form.requestSubmit();
       }
     },
-  };
+  });
 
   // Lazy-load alternate view bodies. Server renders only the active
   // view (table / kanban / list) on initial response and leaves
@@ -2169,7 +2174,7 @@
         // Back/Forward to another page refetches instead of restoring a stale
         // snapshot. Done before the self-event filter on purpose: our own
         // edits can affect pages we're not currently looking at.
-        if (window.__actaInvalidatePageCache) window.__actaInvalidatePageCache();
+        invalidatePageCache();
         // Drop self-events to avoid double-rendering (kanban drag,
         // inline edits etc.) — *except* when the event came in via MCP
         // (Claude Desktop, Cursor, curl): those write through a different
@@ -2301,7 +2306,7 @@
         } catch (_) {
           return;
         }
-        if (window.__actaInvalidatePageCache) window.__actaInvalidatePageCache();
+        invalidatePageCache();
         applyTaskUpdate(d);
       });
     });
@@ -2407,7 +2412,7 @@
         } catch (_) {
           return;
         }
-        if (window.__actaInvalidatePageCache) window.__actaInvalidatePageCache();
+        invalidatePageCache();
         refreshTimeline(d.task_id);
       });
     });
