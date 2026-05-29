@@ -74,6 +74,24 @@ class TestCreateTaskGet:
         resp = client.get(reverse("web:create_task"))
         assert resp.status_code in (302, 301)
 
+    def test_guard_panel_when_no_accessible_projects(self, client):
+        """User whose active workspace has no projects sees a guard panel
+        with a "Create project" CTA instead of the (dead-end) task form."""
+        ws = WorkspaceFactory()
+        # ``ws.owner`` is the only member; no projects yet.
+        client.force_login(ws.owner)
+        resp = client.get(reverse("web:create_task"))
+        assert resp.status_code == 200
+        body = resp.content.decode()
+        # Guard copy + CTA must be present.
+        assert "Create a project first" in body or "Tasks live inside projects" in body
+        assert reverse("web:create_project") in body
+        # The task form fields must NOT render — no project picker, no
+        # title input, no description editor.
+        assert 'name="title"' not in body
+        assert "data-description-editor" not in body
+        assert 'name="project"' not in body
+
     def test_title_prefilled_from_querystring(self, client, setup):
         """``?title=`` survives the project-switch HTMX re-render."""
         _, _, user = setup

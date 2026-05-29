@@ -36,11 +36,44 @@ x-data="{
 
 {% block panel_class %}max-w-[640px]{% endblock %}
 
-{% block panel_attrs %}x-init="$nextTick(() => $refs.title.focus())"{% endblock %}
+{% block panel_attrs %}x-init="$nextTick(() => $refs.title?.focus())"{% endblock %}
 
-{% block title %}<h2 class="text-sm font-medium text-foreground">{% trans "New task" %}</h2>{% endblock %}
+{% block title %}<h2 class="text-sm font-medium text-foreground">{% if projects %}{% trans "New task" %}{% else %}{% trans "Create a project first" %}{% endif %}</h2>{% endblock %}
 
 {% block body %}
+{% if not projects %}
+{# ---------------------------------------------------------------- #}
+{# Guard panel: the active workspace has no projects (or the user   #}
+{# has no membership anywhere yet). Filling in a task form here     #}
+{# would dead-end on submit, so we redirect them to create their    #}
+{# first project. The CTA replaces this modal with the project      #}
+{# create modal (same ``#modal-root`` target), so Esc / cancel from #}
+{# there returns the user to a clean state.                         #}
+{# ---------------------------------------------------------------- #}
+<div class="p-6">
+  <div class="rounded-lg border border-dashed border-border bg-card/50 p-8 text-center space-y-3">
+    <div class="mx-auto w-10 h-10 rounded-full bg-muted grid place-items-center text-placeholder-foreground">
+      {% lucide "folder-plus" "w-5 h-5" %}
+    </div>
+    <p class="text-sm text-foreground">{% trans "Tasks live inside projects." %}</p>
+    <p class="text-xs text-placeholder-foreground max-w-sm mx-auto">
+      {% trans "This workspace has no projects yet — create one and you'll be able to add tasks straight away." %}
+    </p>
+  </div>
+</div>
+<footer class="flex items-center justify-end gap-2 px-4 py-3 border-t border-border bg-subtle/60">
+  <button type="button" @click="close()" class="acta-btn-ghost">
+    {% trans "Cancel" %}
+  </button>
+  <button type="button"
+          hx-get="{% url 'web:create_project' %}"
+          hx-target="#modal-root"
+          hx-swap="innerHTML"
+          class="acta-btn-primary inline-flex items-center gap-1.5">
+    {% lucide "folder-plus" "w-3.5 h-3.5" %}{% trans "Create project" %}
+  </button>
+</footer>
+{% else %}
 <form hx-post="{% url 'web:create_task' %}"
       hx-swap="none">
   {% csrf_token %}
@@ -50,7 +83,6 @@ x-data="{
     {# Project picker — change triggers a refresh of the modal. #}
     <div>
       <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Project" %}</label>
-      {% if projects %}
       <select name="project"
               hx-get="{% url 'web:create_task' %}"
               hx-trigger="change"
@@ -65,9 +97,6 @@ x-data="{
         </option>
         {% endfor %}
       </select>
-      {% else %}
-      <p class="mt-1 text-xs text-placeholder-foreground italic">{% trans "No accessible projects — ask an admin to add you to a workspace." %}</p>
-      {% endif %}
     </div>
 
     <div>
@@ -221,11 +250,11 @@ x-data="{
         {% trans "Cancel" %}
       </button>
       <button type="submit"
-              {% if not projects %}disabled{% endif %}
               class="acta-btn-primary">
         {% trans "Create task" %}
       </button>
     </div>
   </footer>
 </form>
+{% endif %}
 {% endblock %}
