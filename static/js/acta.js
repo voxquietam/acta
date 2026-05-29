@@ -10,9 +10,48 @@
     return null;
   }
 
+  // Command-palette "Recents" storage. Lives here so ``acta.js`` (which
+  // owns ``window.acta``) is the single source of truth — the palette
+  // template's inline script just reads via ``window.acta.loadRecents``.
+  // Loading order matters: acta.js is included at the *end* of base.html
+  // and overwrites ``window.acta = {...}`` wholesale, so anything the
+  // palette template assigned earlier (it runs in the body block above)
+  // would be wiped. Define the recents helpers here and the palette
+  // becomes a pure consumer.
+  const RECENTS_KEY = "acta:recent-tasks";
+  const RECENTS_CAP = 6;
+
+  function loadRecents() {
+    try {
+      const raw = window.localStorage.getItem(RECENTS_KEY);
+      const arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr.slice(0, RECENTS_CAP) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function recordRecentTask(entry) {
+    if (!entry || !entry.slug || !entry.url) return;
+    const remaining = loadRecents().filter((r) => r.slug !== entry.slug);
+    remaining.unshift({
+      slug: entry.slug,
+      title: entry.title || "",
+      project: entry.project || "",
+      url: entry.url,
+    });
+    try {
+      window.localStorage.setItem(RECENTS_KEY, JSON.stringify(remaining.slice(0, RECENTS_CAP)));
+    } catch (e) {
+      // Quota exceeded / privacy mode — recents silently skip.
+    }
+  }
+
   window.acta = {
     csrfToken: () => getCookie("csrftoken"),
     updateStickyStack: null, // assigned below once defined
+    loadRecents,
+    recordRecentTask,
 
     // Quick-promote a backlog task one stage (planned → ready → to-do)
     // from any list row. Posts to the same ``set_task_status`` endpoint
@@ -166,8 +205,12 @@
   window.actaLoadPanels = lazyLoadPanels;
   // Run after initial paint settles, and after any HTMX swap that
   // might bring back empty slots (filter form refresh swaps the
-  // whole panel wrapper).
+  // whole panel wrapper). Fast-exit when the page has no slot at
+  // all — most settle events (inline edits, status pills, comment
+  // posts) hit pages without lazy panels, and the 50ms timer +
+  // URL parse inside is wasted work otherwise.
   document.body.addEventListener("htmx:afterSettle", (evt) => {
+    if (!document.querySelector("[data-panel-slot]")) return;
     const path = evt.detail && evt.detail.requestConfig && evt.detail.requestConfig.path;
     setTimeout(() => lazyLoadPanels(path), 50);
   });
@@ -1659,6 +1702,38 @@
     evt.preventDefault();
     window.dispatchEvent(new CustomEvent("acta:palette-toggle"));
   });
+
+  // Recents tracking: the task-detail template ships a hidden
+  // ``[data-acta-track-recent]`` marker with slug / title / project /
+  // url so we don't have to parse ``document.title`` or guess. Every
+  // initial load and every htmx swap into ``#app-content`` re-runs the
+  // scan — if the marker is present, push to localStorage via the
+  // palette's exported recorder.
+  function scanRecentMarker() {
+    const node = document.querySelector("[data-acta-track-recent]");
+    if (!node) return;
+    if (!window.acta || typeof window.acta.recordRecentTask !== "function") return;
+    window.acta.recordRecentTask({
+      slug: node.dataset.taskSlug || "",
+      title: node.dataset.taskTitle || "",
+      project: node.dataset.taskProject || "",
+      url: node.dataset.taskUrl || window.location.pathname,
+    });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", scanRecentMarker);
+  } else {
+    scanRecentMarker();
+  }
+  // Any swap might bring a fresh task-detail body into view. Re-scanning
+  // unconditionally is cheap: the marker only exists on task-detail
+  // pages, and ``recordRecentTask`` dedupes by slug — so a fragment
+  // swap (status pill, comment list) just promotes the already-top
+  // entry. We can't filter by ``evt.detail.target ⊂ #app-content``
+  // because ``outerHTML`` swaps replace the element, leaving the
+  // pre-swap target detached and the new ``#app-content`` a different
+  // object — the containment check then always fails.
+  document.addEventListener("htmx:afterSettle", scanRecentMarker);
   // Topbar global ``+`` button (declarative hx-get would skip the
   // project prefill, so it routes through the opener instead).
   document.addEventListener("click", function onCreateTaskClick(evt) {

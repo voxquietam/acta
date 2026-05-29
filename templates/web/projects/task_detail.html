@@ -8,5 +8,12 @@
 {% endblock %}
 
 {% block app_main %}
+{# Recents-tracking marker — read by acta.js on every page load / swap #}
+{# so the command palette (Cmd+K) can list this task under "Recents". #}
+<span class="hidden" data-acta-track-recent
+      data-task-slug="{{ task.slug }}"
+      data-task-title="{{ task.title }}"
+      data-task-project="{{ task.project.name }}"
+      data-task-url="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"></span>
 {% include "web/projects/_task_detail_body.html" %}
 {% endblock %}

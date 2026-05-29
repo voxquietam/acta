@@ -20,14 +20,41 @@ class TestPaletteSearch:
         assert resp.status_code == 200
         data = resp.json()
         kinds = [s["kind"] for s in data["sections"]]
-        assert kinds == ["tasks", "projects", "nav"]
-        # Empty query: recent tasks + all projects + every nav target.
+        assert kinds == ["tasks", "actions", "projects", "nav"]
+        # Empty query: recent tasks + Quick actions + all projects + every nav target.
         by_kind = {s["kind"]: s for s in data["sections"]}
         assert any(t["title"] == "seed" for t in by_kind["tasks"]["items"])
         assert any(p["name"] == "Apollo" for p in by_kind["projects"]["items"])
         nav_labels = [n["label"] for n in by_kind["nav"]["items"]]
         assert "Dashboard" in nav_labels
         assert "Inbox" in nav_labels
+        # Quick actions: a bare "New task" plus a per-project entry.
+        action_labels = [a["label"] for a in by_kind["actions"]["items"]]
+        assert "New task" in action_labels
+        assert "New task in Apollo" in action_labels
+
+    def test_actions_carry_action_verb_and_payload(self, client):
+        ws = WorkspaceFactory()
+        ProjectFactory(workspace=ws, name="Mercury", slug_prefix="MER")
+        client.force_login(ws.owner)
+        resp = client.get(reverse("web:palette_search"))
+        actions = next(s for s in resp.json()["sections"] if s["kind"] == "actions")
+        bare = next(a for a in actions["items"] if a["label"] == "New task")
+        assert bare["action"] == "create_task"
+        assert "payload" not in bare
+        per_project = next(a for a in actions["items"] if a["label"] == "New task in Mercury")
+        assert per_project["action"] == "create_task"
+        assert per_project["payload"] == {"project": "MER"}
+
+    def test_query_filters_actions(self, client):
+        ws = WorkspaceFactory()
+        ProjectFactory(workspace=ws, name="Apollo")
+        ProjectFactory(workspace=ws, name="Mercury")
+        client.force_login(ws.owner)
+        resp = client.get(reverse("web:palette_search"), {"q": "mercury"})
+        actions = next(s for s in resp.json()["sections"] if s["kind"] == "actions")
+        labels = [a["label"] for a in actions["items"]]
+        assert labels == ["New task in Mercury"]
 
     def test_query_filters_tasks_by_title(self, client):
         ws = WorkspaceFactory()

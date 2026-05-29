@@ -7137,7 +7137,15 @@ def palette_search(request):
 
     task_items = []
     if workspace:
-        qs = _user_task_qs(request.user).filter(project__workspace=workspace)
+        # Palette tasks only need title / status / slug / project name —
+        # no labels / blocks / blocked_by like ``_user_task_qs`` would
+        # prefetch. Building a minimal queryset directly drops three
+        # joins per palette request (negligible per-hit, but the
+        # endpoint fires on every keystroke).
+        qs = Task.objects.filter(
+            project__workspace=workspace,
+            project__workspace__memberships__user=request.user,
+        ).select_related("project")
         if q:
             match = Q(title__icontains=q)
             upper = q.upper()
@@ -7166,14 +7174,28 @@ def palette_search(request):
             )
 
     project_items = []
+    accessible_projects = []
     if workspace:
-        pqs = Project.objects.filter(
-            workspace=workspace,
-            workspace__memberships__user=request.user,
-        ).distinct()
+        base_pqs = (
+            Project.objects.filter(
+                workspace=workspace,
+                workspace__memberships__user=request.user,
+                archived=False,
+            )
+            .distinct()
+            .order_by("name")
+        )
+        # Materialise once: same rows feed the projects section (filtered
+        # by ``q``) and the "Create task in <project>" Quick Actions
+        # (always full list, capped) so we don't run the lookup twice.
+        accessible_projects = list(base_pqs[:25])
+        pqs_for_section = accessible_projects
         if q:
-            pqs = pqs.filter(Q(name__icontains=q) | Q(slug_prefix__icontains=q.upper()))
-        for project in pqs.order_by("name")[:5]:
+            needle_upper = q.upper()
+            pqs_for_section = [
+                p for p in accessible_projects if q.lower() in p.name.lower() or needle_upper in p.slug_prefix
+            ]
+        for project in pqs_for_section[:5]:
             project_items.append(
                 {
                     "name": project.name,
@@ -7211,11 +7233,32 @@ def palette_search(request):
         if not needle or needle in str(label).lower()
     ]
 
+    # Quick Actions — verbs the palette executes client-side instead of
+    # navigating. Each carries ``action`` + optional ``payload`` so the
+    # Alpine ``follow()`` handler can dispatch the right open-modal /
+    # state change. We always offer "New task"; one entry per accessible
+    # project (capped) pre-fills the create modal with that project.
+    plus_icon = _lucide("plus", "w-4 h-4")
+    action_items = [
+        {"label": str(_("New task")), "icon_html": plus_icon, "action": "create_task"},
+    ]
+    for project in accessible_projects[:6]:
+        action_items.append(
+            {
+                "label": str(_("New task in %(name)s")) % {"name": project.name},
+                "icon_html": plus_icon,
+                "action": "create_task",
+                "payload": {"project": project.slug_prefix},
+            },
+        )
+    filtered_actions = [a for a in action_items if not needle or needle in a["label"].lower()]
+
     return JsonResponse(
         {
             "q": q,
             "sections": [
                 {"kind": "tasks", "label": str(_("Tasks")), "items": task_items},
+                {"kind": "actions", "label": str(_("Quick actions")), "items": filtered_actions},
                 {"kind": "projects", "label": str(_("Projects")), "items": project_items},
                 {"kind": "nav", "label": str(_("Navigation")), "items": nav_items},
             ],

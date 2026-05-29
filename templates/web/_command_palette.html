@@ -25,13 +25,31 @@ inside each row template.
 {% endcomment %}
 
 <div id="command-palette"
-     x-data="actaPalette({ endpoint: '{% url 'web:palette_search' %}' })"
+     x-data="actaPalette({ endpoint: '{% url 'web:palette_search' %}', createTaskUrl: '{% url 'web:create_task' %}' })"
      x-show="open"
      x-cloak
      @keydown.escape.window="if (open) { $event.preventDefault(); close() }"
      @acta:palette-open.window="openPalette()"
      @acta:palette-toggle.window="open ? close() : openPalette()"
      class="fixed inset-0 z-[80] flex items-start justify-center pt-[12vh] px-4">
+
+  {% comment %}
+  Hidden icon library — client-side actions don't run through the
+  server, so the Alpine code needs a way to render Lucide glyphs. We
+  pre-render the small set used by ``task_actions`` here and the JS
+  ``iconHtml()`` helper looks them up by name. Keeps icons inline SVG
+  (no FOUC, no extra fetch) and matches everything else in the palette.
+  {% endcomment %}
+  <div class="hidden" data-acta-icon-lib>
+    <span data-icon="check-circle-2">{% lucide "check-circle-2" "w-4 h-4" %}</span>
+    <span data-icon="play-circle">{% lucide "play-circle" "w-4 h-4" %}</span>
+    <span data-icon="eye">{% lucide "eye" "w-4 h-4" %}</span>
+    <span data-icon="circle-dot">{% lucide "circle-dot" "w-4 h-4" %}</span>
+    <span data-icon="x-circle">{% lucide "x-circle" "w-4 h-4" %}</span>
+    <span data-icon="link">{% lucide "link" "w-4 h-4" %}</span>
+    <span data-icon="external-link">{% lucide "external-link" "w-4 h-4" %}</span>
+    <span data-icon="history">{% lucide "history" "w-4 h-4" %}</span>
+  </div>
 
   {# Backdrop — click to dismiss. #}
   <div x-show="open"
@@ -52,6 +70,7 @@ inside each row template.
       <input type="text"
              x-ref="search"
              x-model="query"
+             @input="rebuildDisplayed()"
              @input.debounce.120ms="fetchResults()"
              @keydown.down.prevent="moveCursor(1)"
              @keydown.up.prevent="moveCursor(-1)"
@@ -68,28 +87,40 @@ inside each row template.
     <div class="max-h-[60vh] overflow-y-auto py-1" x-ref="results">
 
       {# Empty / no-match state. #}
-      <template x-if="!loading && totalItems() === 0">
+      <template x-if="!loading && displayed.total === 0">
         <div class="px-4 py-8 text-center text-sm text-placeholder-foreground">
           <span x-show="query.trim().length > 0">{% trans "No matches." %}</span>
           <span x-show="query.trim().length === 0">{% trans "Type to search across tasks, projects, and pages." %}</span>
         </div>
       </template>
 
-      <template x-for="section in sections" :key="section.kind">
+      <template x-for="section in displayed.sections" :key="section.kind">
         <div x-show="section.items.length > 0">
           <div class="px-3.5 pt-2 pb-1 text-[10px] uppercase tracking-wider text-placeholder-foreground"
                x-text="section.label"></div>
 
-          <template x-for="(item, idx) in section.items" :key="section.kind + ':' + (item.url || idx)">
-            <a :href="item.url"
+          <template x-for="item in section.items" :key="item._key">
+            <a :href="item.url || '#'"
                @click.prevent="follow(item)"
-               @mousemove="cursor = flatIndex(section, idx)"
-               :class="cursor === flatIndex(section, idx) ? 'bg-muted' : ''"
+               @mousemove="cursor = item._flatIdx"
+               :class="cursor === item._flatIdx ? 'bg-muted' : ''"
                class="flex items-center gap-2.5 px-3.5 py-1.5 text-sm text-foreground cursor-pointer">
 
               {# ── Tasks ── #}
               <template x-if="section.kind === 'tasks'">
                 <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                  <span class="shrink-0 font-mono text-[10px] px-1.5 py-0.5 rounded bg-muted border border-border text-muted-foreground"
+                        x-text="item.slug"></span>
+                  <span class="flex-1 min-w-0 truncate" x-text="item.title"></span>
+                  <span class="shrink-0 text-xs text-placeholder-foreground truncate max-w-[40%]"
+                        x-text="item.project"></span>
+                </div>
+              </template>
+
+              {# ── Recents (history icon + slug + title + project) ── #}
+              <template x-if="section.kind === 'recents'">
+                <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                  <span class="shrink-0 text-placeholder-foreground" x-html="section.rowIconHtml || ''"></span>
                   <span class="shrink-0 font-mono text-[10px] px-1.5 py-0.5 rounded bg-muted border border-border text-muted-foreground"
                         x-text="item.slug"></span>
                   <span class="flex-1 min-w-0 truncate" x-text="item.title"></span>
@@ -107,6 +138,24 @@ inside each row template.
                   <span class="flex-1 min-w-0 truncate" x-text="item.name"></span>
                   <span class="shrink-0 font-mono text-[10px] px-1.5 py-0.5 rounded bg-muted border border-border text-muted-foreground"
                         x-text="item.slug_prefix"></span>
+                </div>
+              </template>
+
+              {# ── Quick actions ── #}
+              <template x-if="section.kind === 'actions'">
+                <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                  <span class="shrink-0 text-placeholder-foreground" x-html="item.icon_html"></span>
+                  <span class="flex-1 min-w-0 truncate" x-text="item.label"></span>
+                  <span class="shrink-0 text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Run" %}</span>
+                </div>
+              </template>
+
+              {# ── Task-context actions (only on a task detail page) ── #}
+              <template x-if="section.kind === 'task_actions'">
+                <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                  <span class="shrink-0 text-placeholder-foreground" x-html="item.icon_html"></span>
+                  <span class="flex-1 min-w-0 truncate" x-text="item.label"></span>
+                  <span class="shrink-0 text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Run" %}</span>
                 </div>
               </template>
 
@@ -142,18 +191,47 @@ inside each row template.
 </div>
 
 <script>
-  function actaPalette({ endpoint }) {
+  // Recents storage lives in acta.js (which owns ``window.acta``).
+  // Reading the list here is just a thin wrapper so the Alpine code
+  // doesn't reach across the global directly. acta.js loads at the
+  // bottom of ``base.html`` AFTER this script runs, so anything we
+  // tried to assign to ``window.acta`` here would be wiped when
+  // acta.js's IIFE reassigns the whole object.
+
+  // Look up a Lucide SVG from the hidden in-template icon library.
+  // Returns "" when the icon wasn't pre-rendered — every render path
+  // ``x-html``-binds the result, so a missing icon is a quiet no-op.
+  // Memoized on first lookup: ``iconHtml`` is called per row per
+  // re-render, so a Map cache keeps the hot path off ``querySelector``.
+  const _iconCache = new Map();
+  function iconHtml(name) {
+    if (_iconCache.has(name)) return _iconCache.get(name);
+    const el = document.querySelector('[data-acta-icon-lib] [data-icon="' + name + '"]');
+    const html = el ? el.innerHTML : "";
+    _iconCache.set(name, html);
+    return html;
+  }
+
+  function actaPalette({ endpoint, createTaskUrl }) {
     return {
       open: false,
       query: "",
       sections: [],
+      recents: [],
       loading: false,
       cursor: 0,
+      // Pre-baked render model: ``rebuildDisplayed()`` updates this on
+      // open / fetch / query change. Each item carries its ``_flatIdx``
+      // so hover, ``cursor === item._flatIdx``, and keyboard nav are
+      // O(1) instead of recomputing section offsets per row per frame.
+      displayed: { sections: [], total: 0, flat: [] },
 
       openPalette() {
         this.open = true;
         this.query = "";
         this.cursor = 0;
+        this.recents = (window.acta && window.acta.loadRecents) ? window.acta.loadRecents() : [];
+        this.rebuildDisplayed();
         // Defer to next tick so the input exists when we focus it.
         this.$nextTick(() => {
           if (this.$refs.search) this.$refs.search.focus();
@@ -180,36 +258,148 @@ inside each row template.
           this.sections = [];
         } finally {
           this.loading = false;
+          this.rebuildDisplayed();
         }
       },
 
-      totalItems() {
-        return this.sections.reduce((n, s) => n + s.items.length, 0);
+      // Parse ``/projects/<prefix>/<n>/`` out of the current URL so the
+      // palette can offer task-context actions (status change, copy
+      // link, open in new tab) without a round-trip. Returns ``null``
+      // off-task pages — the section then collapses.
+      taskFromUrl() {
+        const m = window.location.pathname.match(/^\/projects\/([^/]+)\/(\d+)\/?$/);
+        if (!m) return null;
+        return { slugPrefix: m[1], number: m[2], slug: m[1] + "-" + m[2] };
       },
 
-      // Flat 0-based index across all visible sections so the cursor is
-      // a single number; (section, local index) → flat index.
-      flatIndex(section, localIdx) {
-        let offset = 0;
-        for (const s of this.sections) {
-          if (s.kind === section.kind) return offset + localIdx;
-          offset += s.items.length;
-        }
-        return localIdx;
+      // Client-side "on this task" actions. Cheap to recompute on each
+      // call — it's a fixed list. Filtered by query against the label
+      // so users can type "done" to land on "Mark … as Done".
+      taskActionItems() {
+        const t = this.taskFromUrl();
+        if (!t) return [];
+        const q = this.query.trim().toLowerCase();
+        const url = window.location.origin + window.location.pathname;
+        const items = [
+          {
+            label: "{% trans 'Mark as In Progress' %} (" + t.slug + ")",
+            icon_html: iconHtml("play-circle"),
+            action: "set_status",
+            payload: { slugPrefix: t.slugPrefix, number: t.number, status: "in-progress" },
+          },
+          {
+            label: "{% trans 'Mark as In Review' %} (" + t.slug + ")",
+            icon_html: iconHtml("eye"),
+            action: "set_status",
+            payload: { slugPrefix: t.slugPrefix, number: t.number, status: "in-review" },
+          },
+          {
+            label: "{% trans 'Mark as Done' %} (" + t.slug + ")",
+            icon_html: iconHtml("check-circle-2"),
+            action: "set_status",
+            payload: { slugPrefix: t.slugPrefix, number: t.number, status: "done" },
+          },
+          {
+            label: "{% trans 'Mark as To do' %} (" + t.slug + ")",
+            icon_html: iconHtml("circle-dot"),
+            action: "set_status",
+            payload: { slugPrefix: t.slugPrefix, number: t.number, status: "to-do" },
+          },
+          {
+            label: "{% trans 'Mark as Cancelled' %} (" + t.slug + ")",
+            icon_html: iconHtml("x-circle"),
+            action: "set_status",
+            payload: { slugPrefix: t.slugPrefix, number: t.number, status: "cancelled" },
+          },
+          {
+            label: "{% trans 'Copy task link' %}",
+            icon_html: iconHtml("link"),
+            action: "copy_link",
+            payload: { url: url },
+          },
+          {
+            label: "{% trans 'Open in new tab' %}",
+            icon_html: iconHtml("external-link"),
+            action: "new_tab",
+            payload: { url: window.location.pathname },
+          },
+        ];
+        return q ? items.filter((i) => i.label.toLowerCase().includes(q)) : items;
       },
 
-      // Resolve the currently-active flat cursor back to an item.
-      currentItem() {
-        let i = this.cursor;
-        for (const s of this.sections) {
-          if (i < s.items.length) return s.items[i];
-          i -= s.items.length;
+      // Build the render model once per input change. Each item gets a
+      // pre-computed ``_flatIdx`` (cursor math is O(1) lookup), a
+      // ``_key`` (stable identity for ``x-for``), and the section list
+      // is materialised in display order. Called from ``openPalette``,
+      // ``fetchResults`` finally, and the query @input handler — i.e.
+      // exactly when inputs to the model change. Render loops then read
+      // ``this.displayed.{sections,total}`` without recomputing
+      // anything per row per frame.
+      //
+      // Section ordering:
+      // * Empty query → [task_actions, recents, actions, projects,
+      //   nav, tasks] — context-first, then personal, then global.
+      // * Non-empty   → [tasks, projects, actions, task_actions, nav,
+      //   recents-filt] — search results win.
+      rebuildDisplayed() {
+        const q = this.query.trim().toLowerCase();
+        const recentsItems = q
+          ? this.recents.filter(
+              (r) =>
+                (r.title || "").toLowerCase().includes(q) ||
+                (r.slug || "").toLowerCase().includes(q),
+            )
+          : this.recents.slice();
+        const recents = {
+          kind: "recents",
+          label: "{% trans 'Recents' %}",
+          rowIconHtml: iconHtml("history"),
+          items: recentsItems,
+        };
+        const taskActions = {
+          kind: "task_actions",
+          label: "{% trans 'On this task' %}",
+          items: this.taskActionItems(),
+        };
+        const byKind = Object.fromEntries(this.sections.map((s) => [s.kind, s]));
+        const empty = (k, label) => ({ kind: k, label, items: [] });
+        const order = !q
+          ? [
+              taskActions,
+              recents,
+              byKind.actions || empty("actions", "{% trans 'Quick actions' %}"),
+              byKind.projects || empty("projects", "{% trans 'Projects' %}"),
+              byKind.nav || empty("nav", "{% trans 'Navigation' %}"),
+              byKind.tasks || empty("tasks", "{% trans 'Tasks' %}"),
+            ]
+          : [
+              byKind.tasks || empty("tasks", "{% trans 'Tasks' %}"),
+              byKind.projects || empty("projects", "{% trans 'Projects' %}"),
+              byKind.actions || empty("actions", "{% trans 'Quick actions' %}"),
+              taskActions,
+              byKind.nav || empty("nav", "{% trans 'Navigation' %}"),
+              recents,
+            ];
+
+        // Walk once, annotate items with cursor/key, build flat list.
+        let flat = [];
+        let cursor = 0;
+        for (const s of order) {
+          for (const item of s.items) {
+            const id = item.url || item.action || item.slug || item.label || cursor;
+            item._flatIdx = cursor;
+            item._key = s.kind + ":" + id;
+            flat.push(item);
+            cursor += 1;
+          }
         }
-        return null;
+        this.displayed = { sections: order, total: flat.length, flat: flat };
+        // Clamp the cursor when results shrink below its old position.
+        if (this.cursor >= flat.length) this.cursor = 0;
       },
 
       moveCursor(delta) {
-        const total = this.totalItems();
+        const total = this.displayed.total;
         if (!total) return;
         this.cursor = (this.cursor + delta + total) % total;
         this.$nextTick(() => {
@@ -222,12 +412,70 @@ inside each row template.
       },
 
       activate() {
-        const item = this.currentItem();
+        const item = this.displayed.flat[this.cursor];
         if (item) this.follow(item);
       },
 
       follow(item) {
-        if (!item || !item.url) return;
+        if (!item) return;
+        // Quick action: open the create-task modal, optionally pre-
+        // selecting a project.
+        if (item.action === "create_task") {
+          this.close();
+          if (!createTaskUrl || !window.htmx) return;
+          let url = createTaskUrl;
+          if (item.payload && item.payload.project) {
+            url += (url.includes("?") ? "&" : "?") + "project=" + encodeURIComponent(item.payload.project);
+          }
+          window.htmx.ajax("GET", url, { target: "#modal-root", swap: "innerHTML" });
+          return;
+        }
+        // Task-context: status change via the inline-edit endpoint.
+        // Targets ``#status-cell`` so the badge swap happens in place;
+        // SSE peers receive their own update via the activity log.
+        if (item.action === "set_status") {
+          this.close();
+          const p = item.payload || {};
+          if (!p.slugPrefix || !p.number || !p.status || !window.htmx) return;
+          const url = "/projects/" + p.slugPrefix + "/" + p.number + "/status/";
+          window.htmx.ajax("POST", url, {
+            target: "#status-cell",
+            swap: "outerHTML",
+            values: { status: p.status },
+          });
+          return;
+        }
+        // Task-context: copy the task URL via the clipboard API,
+        // surfacing a toast on success / failure. ``writeText`` is
+        // gated by secure context, so we fall back to a quiet toast
+        // when it's unavailable (e.g. plain ``http://`` on a remote
+        // host) rather than no-op silently.
+        if (item.action === "copy_link") {
+          this.close();
+          const text = (item.payload && item.payload.url) || "";
+          if (!text) return;
+          const announce = (msg, level) => {
+            if (window.actaToast) window.actaToast(msg, level);
+          };
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(
+              () => announce("{% trans 'Task link copied' %}", "success"),
+              () => announce("{% trans 'Could not copy task link' %}", "error"),
+            );
+          } else {
+            announce("{% trans 'Clipboard unavailable' %}", "warning");
+          }
+          return;
+        }
+        // Task-context: open the task in a new tab. ``noopener`` keeps
+        // the new window from getting a ``window.opener`` handle back.
+        if (item.action === "new_tab") {
+          this.close();
+          const url = (item.payload && item.payload.url) || "";
+          if (url) window.open(url, "_blank", "noopener");
+          return;
+        }
+        if (!item.url) return;
         this.close();
         // Route through the same boosted-swap path as the sidebar rail:
         // ``HX-Boosted: true`` tells our views to return the FULL shell
