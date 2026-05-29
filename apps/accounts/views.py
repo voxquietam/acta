@@ -19,7 +19,7 @@ from django.views.decorators.http import require_POST
 
 from allauth.account.views import SignupView
 
-from apps.accounts.adapters import INVITE_SESSION_KEY, resolve_invite_from_request
+from apps.accounts.adapters import INVITE_SESSION_KEY, claim_invite_for_user, resolve_invite_from_request
 from apps.accounts.models import ApiToken
 from apps.attachments.services import set_user_avatar
 
@@ -369,29 +369,30 @@ def invite_accept(request, token: str):
     """Landing page for an invite URL.
 
     The recipient clicks the link in their email; this view verifies
-    the token is still active and stashes it in the session so the
-    ``NoSignupAccountAdapter`` recognises the invite on every step of
-    the allauth signup flow — even the POST that submits the form,
-    where the querystring would otherwise have been dropped.
+    the token is still active and then branches:
+
+      * **Anonymous visitor** — stash the token in the session and
+        redirect to allauth's signup form so the adapter recognises
+        the invite on every step (including the POST where the
+        querystring would otherwise have been dropped).
+      * **Authenticated user with the same email** — promote them to
+        a member of the inviting workspace and consume the token in
+        one transaction (no signup needed; their existing account
+        just gains access).
+      * **Authenticated user with a different email** — keep the
+        historical "share the link with someone else" behaviour; we
+        deliberately do not let one account claim an invite issued
+        to another address.
 
     Failure paths:
       - Unknown / consumed / expired token → redirect to login with a
         flash explaining the link is no longer valid.
-      - Already-authenticated user → redirect to the home page; they
-        don't need to sign up again.
 
-    The success redirect points at allauth's signup view with the
-    token both in the session *and* the querystring for defence in
-    depth.
+    The anonymous success redirect points at allauth's signup view
+    with the token both in the session *and* the querystring for
+    defence in depth.
     """
     from apps.workspaces.models import WorkspaceInvite
-
-    if request.user.is_authenticated:
-        messages.info(
-            request,
-            _("You're already signed in — share the invite link with someone who needs an account."),
-        )
-        return redirect("/")
 
     try:
         invite = WorkspaceInvite.objects.select_related("workspace").get(token=token)
@@ -405,6 +406,29 @@ def invite_accept(request, token: str):
         else:
             messages.error(request, _("That invite link has expired — ask the admin to resend it."))
         return redirect("account_login")
+
+    if request.user.is_authenticated:
+        user_email = (request.user.email or "").strip().lower()
+        if user_email and user_email == invite.email:
+            # Existing account whose address matches the invite —
+            # treat the click as "accept": consume the token and add
+            # the user to the workspace with the invite's role. The
+            # ``get_or_create`` inside ``claim_invite_for_user`` keeps
+            # this idempotent if they were somehow already a member.
+            claim_invite_for_user(request, request.user, invite)
+            if request.user.active_workspace_id != invite.workspace_id:
+                request.user.active_workspace = invite.workspace
+                request.user.save(update_fields=["active_workspace"])
+            messages.success(
+                request,
+                _("You're now a member of %(workspace)s.") % {"workspace": invite.workspace.name},
+            )
+            return redirect("/")
+        messages.info(
+            request,
+            _("You're already signed in — share the invite link with someone who needs an account."),
+        )
+        return redirect("/")
 
     request.session[INVITE_SESSION_KEY] = invite.token
     # Keep the querystring as well so allauth's signup template can

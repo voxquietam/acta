@@ -97,16 +97,54 @@ class TestInviteAcceptView:
         assert response.status_code == 302
         assert INVITE_SESSION_KEY not in client.session
 
-    def test_already_authenticated_user_is_redirected_home(self, client):
-        user = UserFactory()
+    def test_authenticated_user_with_other_email_is_redirected_home(self, client):
+        # Someone else's account clicks the link — we deliberately keep
+        # the "share with someone who needs an account" behaviour rather
+        # than let one account claim an invite issued to another address.
+        user = UserFactory(email="stranger@example.com")
         client.force_login(user)
         ws = WorkspaceFactory()
         invite = WorkspaceInvite.generate(workspace=ws, email="a@b.c", role=WorkspaceMember.MEMBER)
         response = client.get(invite.signup_url, follow=False)
         assert response.status_code == 302
-        # No invite consumed.
         invite.refresh_from_db()
         assert invite.accepted_at is None
+        assert not WorkspaceMember.objects.filter(workspace=ws, user=user).exists()
+
+    def test_authenticated_user_with_matching_email_is_added_to_workspace(self, client):
+        # Existing user whose address matches the invite — clicking the
+        # link should add them straight to the workspace (no signup) and
+        # consume the token.
+        user = UserFactory(email="Match@team.test")
+        client.force_login(user)
+        ws = WorkspaceFactory()
+        invite = WorkspaceInvite.generate(workspace=ws, email="match@team.test", role=WorkspaceMember.ADMIN)
+        response = client.get(invite.signup_url, follow=False)
+        assert response.status_code == 302
+        assert response["Location"] == "/"
+        invite.refresh_from_db()
+        assert invite.accepted_at is not None
+        membership = WorkspaceMember.objects.get(workspace=ws, user=user)
+        assert membership.role == WorkspaceMember.ADMIN
+        user.refresh_from_db()
+        assert user.active_workspace_id == ws.id
+
+    def test_authenticated_user_with_matching_email_is_idempotent_if_already_member(self, client):
+        # If the user happens to already be a member (e.g. an admin
+        # pre-added them and then sent a redundant invite), claiming the
+        # link still consumes the token but does not crash.
+        user = UserFactory(email="already@team.test")
+        ws = WorkspaceFactory()
+        WorkspaceMember.objects.create(workspace=ws, user=user, role=WorkspaceMember.MEMBER)
+        client.force_login(user)
+        invite = WorkspaceInvite.generate(workspace=ws, email="already@team.test", role=WorkspaceMember.ADMIN)
+        response = client.get(invite.signup_url, follow=False)
+        assert response.status_code == 302
+        invite.refresh_from_db()
+        assert invite.accepted_at is not None
+        # Existing role wins because we use ``get_or_create``; the invite
+        # is consumed regardless to prevent re-use of the link.
+        assert WorkspaceMember.objects.get(workspace=ws, user=user).role == WorkspaceMember.MEMBER
 
 
 @pytest.mark.django_db
