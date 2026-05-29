@@ -24,9 +24,12 @@ reads it. See ``apps/web/views.py:1632`` for the kanban ctx builder.
   width (``w-72``) and a narrow strip (``w-10``) where the label is
   rotated vertically. Preference is per-status, persisted in
   ``localStorage`` via the ``kanban`` Alpine store so the choice
-  survives navigation. Cards inside a collapsed column are hidden
-  but drag-and-drop still works (sortable.js keeps the column as a
-  drop target so users can drop a card into a folded Done).
+  survives navigation. By design, a folded column is NOT a drop
+  target — Sortable hit-tests against ``.kanban-column`` body which
+  is ``display:none`` when collapsed, so dropping a card on a
+  folded strip just snaps it back. Users expand the destination
+  column first, then drag. Considered a deliberate UX speed-bump
+  for the rare cross-column move into a folded list.
   {% endcomment %}
   {% comment %}
   Column header redesigned per acta-design-system/preview/comp-kanban-
