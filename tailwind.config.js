@@ -18,6 +18,14 @@ module.exports = {
     "./apps/**/*.html",
     "./static_src/js/**/*.js",
     "./static/js/**/*.js",
+    // ``dashboard.css`` is handwritten (not piped through PostCSS) and
+    // lives next to ``main.bundle.css`` as a separate file inlined via
+    // ``{% inline_static %}`` on the dashboard page. Today it uses no
+    // Tailwind utility classes (everything is ``.dash``-prefixed), so
+    // scanning it here is a no-op. The entry is defensive: when someone
+    // adds e.g. ``.bg-zinc-900`` inside, Tailwind's purge keeps the
+    // utility instead of dropping it from the bundle.
+    "./static/css/dashboard.css",
   ],
   safelist: [
     // Project icon picker palette (apps/projects/icons.py). Class names

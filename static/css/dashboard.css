@@ -5,7 +5,20 @@
    dashboard page (linked inside the app_main block), so the generic
    class names here never reach the rest of the app. Uses Acta's existing
    semantic CSS variables from main.css; the shim below only fills the
-   three the design references that Acta doesn't define globally. */
+   three the design references that Acta doesn't define globally.
+
+   == Consumer surfaces ==
+   - ``templates/web/dashboard.html`` (root ``{% inline_static "css/dashboard.css" %}``)
+   - ``templates/web/_dashboard_inner.html`` (HTMX ``?partial=1`` swap — same
+     ``{% inline_static %}`` call so the swap renders styled on first paint)
+   Adding a new consumer? Update this header so the file's reach stays
+   discoverable from the file itself.
+
+   == Build pipeline ==
+   This file is handwritten — NOT processed by Tailwind / PostCSS. It is
+   listed in ``tailwind.config.js`` ``content`` so any Tailwind utility
+   classes added inside survive the purge, but no compilation runs over
+   it. Edit it directly; ``collectstatic`` ships the source. */
 
 :root {
   --font-sans: "Exo 2", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
