@@ -59,7 +59,12 @@ x-transition.opacity.duration.120ms
 {% endblock %}
 
 {% block body %}
-<div class="flex-1 overflow-y-auto px-4 md:px-8 py-5">
+{# ``[overflow-x:clip]`` so a wide image in the description or a long  #}
+{# breadcrumb cannot push the body sideways (see                       #}
+{# ``project_todo_task_modal_horizontal_scroll`` in memory). ``clip``  #}
+{# rather than ``hidden`` to avoid promoting this to a scroll          #}
+{# container, which would steal the body's vertical scroll. #}
+<div class="flex-1 overflow-y-auto [overflow-x:clip] px-4 md:px-8 py-5">
   {% include "web/projects/_task_detail_modal_body.html" %}
 </div>
 {% endblock %}
