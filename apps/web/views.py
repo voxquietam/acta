@@ -6,6 +6,7 @@ endpoints (or from `/api/v1/...` for JSON-only consumers).
 """
 
 import datetime
+from functools import cached_property
 import json
 import re
 from urllib.parse import parse_qs, quote, urlencode, urlparse
@@ -1488,6 +1489,18 @@ class DashboardView(LoginRequiredMixin, TemplateView):
       docs/decisions/0010-permissions.md.
     """
 
+    @cached_property
+    def active_workspace(self):
+        """Memoise the active-workspace resolution across the view's lifecycle.
+
+        ``get_context_data`` and ``get_template_names`` both need to know
+        whether the user has any accessible workspace; resolving twice
+        per request burned an unnecessary DB round-trip and also dropped
+        the redundant ``WorkspaceMember.exists()`` probe — a ``None``
+        return already means "no membership / no active workspace".
+        """
+        return resolve_active_workspace(self.request)
+
     def get_template_names(self):
         """Return the dashboard, its inner partial, or the no-workspaces page.
 
@@ -1496,8 +1509,7 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         window repaints the dashboard, not the whole page. A boosted nav to
         ``/`` has no ``partial`` flag and still gets the full page.
         """
-        has_membership = WorkspaceMember.objects.filter(user=self.request.user).exists()
-        if not has_membership:
+        if self.active_workspace is None:
             return ["web/no_workspaces.html"]
         if self.request.GET.get("partial") and self.request.headers.get("HX-Request"):
             return ["web/_dashboard_inner.html"]
@@ -1510,7 +1522,7 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         is rendered instead and ignores this context).
         """
         ctx = super().get_context_data(**kwargs)
-        workspace = resolve_active_workspace(self.request)
+        workspace = self.active_workspace
         if workspace is not None:
             ctx.update(
                 build_dashboard_context(
@@ -2095,7 +2107,10 @@ class TaskDetailView(LoginRequiredMixin, DetailView):
         ctx["workspace_label_groups"] = _workspace_label_groups(task)
         ctx["workspace_projects"] = _workspace_projects(task)
         ctx["workspace_cycles"] = _workspace_cycles(task.project.workspace)
-        ctx["attached_label_ids"] = set(task.labels.values_list("id", flat=True))
+        # Read from the prefetched ``labels`` queryset on the base task — the
+        # ``_user_task_qs`` Prefetch already loaded it. ``values_list`` would
+        # issue a fresh query bypassing the prefetch cache.
+        ctx["attached_label_ids"] = {label.id for label in task.labels.all()}
         return ctx
 
 
@@ -2191,7 +2206,9 @@ def task_meta_fragment(request, slug_prefix, number):
                 "workspace_label_groups": _workspace_label_groups(task),
                 "workspace_projects": _workspace_projects(task),
                 "workspace_cycles": _workspace_cycles(task.project.workspace),
-                "attached_label_ids": set(task.labels.values_list("id", flat=True)),
+                # Prefetched via ``_user_task_qs``; ``values_list`` would
+                # bypass the cache and issue a fresh query. See B3 §3.1.
+                "attached_label_ids": {label.id for label in task.labels.all()},
             },
             request=request,
         ),

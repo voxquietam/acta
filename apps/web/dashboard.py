@@ -26,7 +26,7 @@ from __future__ import annotations
 from datetime import timedelta
 import statistics
 
-from django.db.models import Count
+from django.db.models import Count, Q, Sum
 from django.db.models.functions import ExtractHour, ExtractIsoWeekDay, TruncDate, TruncWeek
 from django.utils import timezone
 
@@ -182,15 +182,38 @@ def build_dashboard_context(workspace, user, range_key=DEFAULT_RANGE):
     active = tasks.filter(archived_at__isnull=True)
 
     # ---- KPI tiles -------------------------------------------------------
-    created = tasks.filter(created_at__gte=since).count()
-    created_prev = tasks.filter(created_at__gte=prev_since, created_at__lt=since).count()
-    done = tasks.filter(status=Task.STATUS_DONE, completed_at__gte=since).count()
-    done_prev = tasks.filter(
-        status=Task.STATUS_DONE,
-        completed_at__gte=prev_since,
-        completed_at__lt=since,
-    ).count()
-    in_flight = active.exclude(status__in=[Task.STATUS_PLANNED, Task.STATUS_DONE, Task.STATUS_CANCELLED]).count()
+    # 5 ``COUNT`` calls collapsed into one ``aggregate`` — same numbers, one
+    # DB round-trip instead of five. ``in_flight`` adds an archived-aware
+    # filter that mirrors the ``active.exclude(...)`` shape from before.
+    inflight_excl = [Task.STATUS_PLANNED, Task.STATUS_DONE, Task.STATUS_CANCELLED]
+    kpi_counts = tasks.aggregate(
+        created=Count("id", filter=Q(created_at__gte=since)),
+        created_prev=Count(
+            "id",
+            filter=Q(created_at__gte=prev_since, created_at__lt=since),
+        ),
+        done=Count(
+            "id",
+            filter=Q(status=Task.STATUS_DONE, completed_at__gte=since),
+        ),
+        done_prev=Count(
+            "id",
+            filter=Q(
+                status=Task.STATUS_DONE,
+                completed_at__gte=prev_since,
+                completed_at__lt=since,
+            ),
+        ),
+        in_flight=Count(
+            "id",
+            filter=Q(archived_at__isnull=True) & ~Q(status__in=inflight_excl),
+        ),
+    )
+    created = kpi_counts["created"]
+    created_prev = kpi_counts["created_prev"]
+    done = kpi_counts["done"]
+    done_prev = kpi_counts["done_prev"]
+    in_flight = kpi_counts["in_flight"]
 
     member_users = list(workspace.memberships.select_related("user").all())
     member_count = len(member_users)
@@ -281,18 +304,40 @@ def build_dashboard_context(workspace, user, range_key=DEFAULT_RANGE):
     ]
 
     # ---- Attention alerts ------------------------------------------------
+    # 5 ``COUNT`` calls collapsed into one ``aggregate``. Same numbers, one
+    # DB round-trip.
     not_done = active.exclude(status__in=[Task.STATUS_DONE, Task.STATUS_CANCELLED])
     stale_before = now - timedelta(days=3)
     review_before = now - timedelta(days=7)
-    overdue_n = not_done.filter(due_date__lte=today).count()
-    due_soon_n = not_done.filter(due_date__gt=today, due_date__lte=today + timedelta(days=3)).count()
-    due_soon_urgent = not_done.filter(
-        due_date__gt=today,
-        due_date__lte=today + timedelta(days=3),
-        priority__in=[Task.URGENT, Task.HIGH],
-    ).count()
-    urgent_stale_n = not_done.filter(priority=Task.URGENT, updated_at__lt=stale_before).count()
-    stuck_review_n = not_done.filter(status=Task.STATUS_IN_REVIEW, updated_at__lt=review_before).count()
+    due_soon_cutoff = today + timedelta(days=3)
+    alert_counts = not_done.aggregate(
+        overdue=Count("id", filter=Q(due_date__lte=today)),
+        due_soon=Count(
+            "id",
+            filter=Q(due_date__gt=today, due_date__lte=due_soon_cutoff),
+        ),
+        due_soon_urgent=Count(
+            "id",
+            filter=Q(
+                due_date__gt=today,
+                due_date__lte=due_soon_cutoff,
+                priority__in=[Task.URGENT, Task.HIGH],
+            ),
+        ),
+        urgent_stale=Count(
+            "id",
+            filter=Q(priority=Task.URGENT, updated_at__lt=stale_before),
+        ),
+        stuck_review=Count(
+            "id",
+            filter=Q(status=Task.STATUS_IN_REVIEW, updated_at__lt=review_before),
+        ),
+    )
+    overdue_n = alert_counts["overdue"]
+    due_soon_n = alert_counts["due_soon"]
+    due_soon_urgent = alert_counts["due_soon_urgent"]
+    urgent_stale_n = alert_counts["urgent_stale"]
+    stuck_review_n = alert_counts["stuck_review"]
 
     alerts = [
         {
@@ -382,41 +427,53 @@ def build_dashboard_context(workspace, user, range_key=DEFAULT_RANGE):
     members, overloaded, idle = _build_people(workspace, member_users, tasks, now, today)
 
     # ---- Hygiene ---------------------------------------------------------
+    # 4 single-table counts collapsed into one ``aggregate``; the M2M
+    # ``labels__isnull`` count stays standalone because mixing it into the
+    # aggregate would force a LEFT JOIN onto ``task_labels`` for every
+    # filtered count and require ``distinct=True`` to dedupe row inflation.
+    # 5 queries → 2.
     hyg_base = active.filter(status__in=WIP_STATUSES)
+    hyg_counts = hyg_base.aggregate(
+        no_assignee=Count("id", filter=Q(assignee__isnull=True)),
+        no_priority=Count("id", filter=Q(priority=Task.NO_PRIORITY)),
+        no_due_date=Count("id", filter=Q(due_date__isnull=True)),
+        no_description=Count("id", filter=Q(description="")),
+    )
+    no_labels_n = hyg_base.filter(labels__isnull=True).count()
     hygiene = [
         {
             "key": "no_assignee",
             "label": "no assignee",
             "icon": "user-x",
-            "n": hyg_base.filter(assignee__isnull=True).count(),
+            "n": hyg_counts["no_assignee"],
             "q": "assignee=unassigned",
         },
         {
             "key": "no_priority",
             "label": "no priority",
             "icon": "circle-dashed",
-            "n": hyg_base.filter(priority=Task.NO_PRIORITY).count(),
+            "n": hyg_counts["no_priority"],
             "q": "priority=0",
         },
         {
             "key": "no_labels",
             "label": "no labels",
             "icon": "tag",
-            "n": hyg_base.filter(labels__isnull=True).count(),
+            "n": no_labels_n,
             "q": "label=none",
         },
         {
             "key": "no_due_date",
             "label": "no due date",
             "icon": "calendar-x",
-            "n": hyg_base.filter(due_date__isnull=True).count(),
+            "n": hyg_counts["no_due_date"],
             "q": "due=none",
         },
         {
             "key": "no_description",
             "label": "no description",
             "icon": "file-text",
-            "n": hyg_base.filter(description="").count(),
+            "n": hyg_counts["no_description"],
             "q": "desc=none",
         },
     ]
@@ -470,18 +527,21 @@ def _build_cfd(tasks, now):
     labels = [f"w{wk.isocalendar().week:02d}" for wk in week_keys]
     idx = {wk: i for i, wk in enumerate(week_keys)}
 
+    # ``Count("id") + Sum("size")`` in one annotate — one query per direction
+    # instead of two. ``Sum`` returns ``None`` on an empty group; coalesce in
+    # Python rather than wrapping every ``Sum`` in ``Coalesce(Sum(...), 0)``.
     created_count = [0] * weeks
     created_pts = [0] * weeks
     for r in (
-        tasks.filter(created_at__gte=start).annotate(w=TruncWeek("created_at")).values("w").annotate(n=Count("id"))
+        tasks.filter(created_at__gte=start)
+        .annotate(w=TruncWeek("created_at"))
+        .values("w")
+        .annotate(n=Count("id"), pts=Sum("size"))
     ):
         wk = r["w"].date() if hasattr(r["w"], "date") else r["w"]
         if wk in idx:
             created_count[idx[wk]] = r["n"]
-    for r in tasks.filter(created_at__gte=start).annotate(w=TruncWeek("created_at")).values("w", "size"):
-        wk = r["w"].date() if hasattr(r["w"], "date") else r["w"]
-        if wk in idx:
-            created_pts[idx[wk]] += r["size"] or 0
+            created_pts[idx[wk]] = r["pts"] or 0
 
     done_count = [0] * weeks
     done_pts = [0] * weeks
@@ -489,19 +549,12 @@ def _build_cfd(tasks, now):
         tasks.filter(status=Task.STATUS_DONE, completed_at__gte=start)
         .annotate(w=TruncWeek("completed_at"))
         .values("w")
-        .annotate(n=Count("id"))
+        .annotate(n=Count("id"), pts=Sum("size"))
     ):
         wk = r["w"].date() if hasattr(r["w"], "date") else r["w"]
         if wk in idx:
             done_count[idx[wk]] = r["n"]
-    for r in (
-        tasks.filter(status=Task.STATUS_DONE, completed_at__gte=start)
-        .annotate(w=TruncWeek("completed_at"))
-        .values("w", "size")
-    ):
-        wk = r["w"].date() if hasattr(r["w"], "date") else r["w"]
-        if wk in idx:
-            done_pts[idx[wk]] += r["size"] or 0
+            done_pts[idx[wk]] = r["pts"] or 0
 
     return {
         "weeks": labels,
