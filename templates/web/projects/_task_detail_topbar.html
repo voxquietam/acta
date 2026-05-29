@@ -49,6 +49,7 @@ Both icons are hydrated by Lucide on page load and toggled via Alpine
           @click="navigator.clipboard.writeText(window.location.href).then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
           :data-tooltip="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy task link' %}'"
           :aria-label="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy task link' %}'"
+          data-tooltip-pos="above-right"
           class="p-1 rounded hover:bg-muted text-placeholder-foreground hover:text-foreground transition">
     <span x-show="!copied">{% lucide "link-2" "w-3.5 h-3.5" %}</span>
     <span x-show="copied" x-cloak class="text-emerald-400">{% lucide "check" "w-3.5 h-3.5" %}</span>
@@ -58,6 +59,7 @@ Both icons are hydrated by Lucide on page load and toggled via Alpine
           @click="navigator.clipboard.writeText('{{ task.slug }}').then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
           :data-tooltip="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy task ID' %}'"
           :aria-label="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy task ID' %}'"
+          data-tooltip-pos="above-right"
           class="p-1 rounded hover:bg-muted text-placeholder-foreground hover:text-foreground transition">
     <span x-show="!copied">{% lucide "hash" "w-3.5 h-3.5" %}</span>
     <span x-show="copied" x-cloak class="text-emerald-400">{% lucide "check" "w-3.5 h-3.5" %}</span>

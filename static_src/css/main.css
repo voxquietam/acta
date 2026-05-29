@@ -1276,6 +1276,17 @@ html.dark .acta-checkbox {
   left: 0;
   transform: none;
 }
+/* Tooltip above + right-aligned — mirror of ``above-left`` for actions
+   hugging a right edge (the copy-link / copy-id buttons on the task
+   topbar, last items before the viewport border). A centered tooltip
+   there spills past the viewport's right edge and gets clipped by
+   ``#app-content``'s ``overflow-x: clip``; anchoring the tooltip's
+   right edge to the trigger keeps it inside, extending leftward. */
+[data-tooltip][data-tooltip-pos="above-right"]::after {
+  left: auto;
+  right: 0;
+  transform: none;
+}
 /* Tooltip to the LEFT of the trigger — for icons stacked vertically on
    the right-edge filter rail. Default (above) would overlap the icon
    above; "left" points away into the content area. */
