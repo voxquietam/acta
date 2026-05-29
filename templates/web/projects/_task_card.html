@@ -83,19 +83,22 @@ handler in ``_kanban.html`` restores it for middle / Ctrl+click.
     {{ task.title }}
   </div>
 
-  {% if task.labels.all %}
+  {# ``labels`` cached once — was evaluated 4× per card otherwise. #}
+  {% with labels=task.labels.all %}
+  {% if labels %}
   <div class="flex flex-wrap items-center gap-1 mt-2 min-w-0">
-    {% for label in task.labels.all|slice:":3" %}
+    {% for label in labels|slice:":3" %}
     <span class="acta-label-pill" style="--label-color: {{ label.color }};">
       <span class="acta-label-pill-dot" style="background-color: {{ label.color }};"></span>
       <span>{{ label.name }}</span>
     </span>
     {% endfor %}
-    {% if task.labels.all|length > 3 %}
-    <span class="text-[10px] text-placeholder-foreground font-mono">+{{ task.labels.all|length|add:"-3" }}</span>
+    {% if labels|length > 3 %}
+    <span class="text-[10px] text-placeholder-foreground font-mono">+{{ labels|length|add:"-3" }}</span>
     {% endif %}
   </div>
   {% endif %}
+  {% endwith %}
 
   <div class="flex items-center gap-2 mt-2 pt-2 border-t border-border text-[11px] text-placeholder-foreground min-w-0">
     {% if task.due_date %}

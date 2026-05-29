@@ -85,9 +85,11 @@ status dot · slug + priority chevron · title (flex-1) · size · labels
     </span>
     {% endif %}
 
-    {% if task.labels.all %}
+    {# ``labels`` cached once — was evaluated 4× per row otherwise. #}
+    {% with labels=task.labels.all %}
+    {% if labels %}
     <div class="group/labels flex items-center max-w-[240px] min-w-0 pl-1.5 overflow-hidden">
-      {% for label in task.labels.all|slice:":3" %}
+      {% for label in labels|slice:":3" %}
       <span class="acta-label-pill -ml-2 first:ml-0 cursor-pointer
                    group-hover/labels:ml-1 group-hover/labels:first:ml-0 transition-[margin] duration-200
                    hover:ring-1 hover:ring-offset-1 hover:ring-offset-card"
@@ -97,11 +99,12 @@ status dot · slug + priority chevron · title (flex-1) · size · labels
         <span class="truncate max-w-[88px]">{{ label.name }}</span>
       </span>
       {% endfor %}
-      {% if task.labels.all|length > 3 %}
-      <span class="font-mono text-[10px] text-placeholder-foreground ml-1">+{{ task.labels.all|length|add:"-3" }}</span>
+      {% if labels|length > 3 %}
+      <span class="font-mono text-[10px] text-placeholder-foreground ml-1">+{{ labels|length|add:"-3" }}</span>
       {% endif %}
     </div>
     {% endif %}
+    {% endwith %}
 
     <span class="text-placeholder-foreground truncate max-w-[140px] cursor-pointer hover:text-foreground hover:underline transition"
           title="{% trans 'Filter by project' %}: {{ task.project.workspace.name }} / {{ task.project.name }}"

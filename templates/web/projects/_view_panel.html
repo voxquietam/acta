@@ -30,7 +30,11 @@ no extra HTTP requests fire on tab change. Tabs themselves live in
   </div>
 
   <div x-show="$store.viewMode.current === 'table'" x-cloak{% if lazy_view_panels %} data-panel-slot="table"{% endif %} class="flex-1 min-h-0 flex flex-col">
-    {% if not lazy_view_panels or view_mode == "table" %}{% include "web/projects/_table.html" with tasks=table_tasks|default:tasks show_labels=True %}{% endif %}
+    {# ``show_labels`` is already in context (AllTasksView + ProjectDetailView   #}
+    {# both set ``ctx["show_labels"] = True``); no explicit pass needed.         #}
+    {# Lazy-panel cookie-write semantics live in ``apps/web/views.py`` (see the  #}
+    {# ``render_to_response`` comment) — DO NOT persist cookies on ?panel= fetches. #}
+    {% if not lazy_view_panels or view_mode == "table" %}{% include "web/projects/_table.html" with tasks=table_tasks|default:tasks %}{% endif %}
   </div>
 
   {% comment %}

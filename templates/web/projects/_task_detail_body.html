@@ -3,11 +3,13 @@
 {% load web_extras %}
 {% comment %}
 Body fragment for the task detail view — title + description + subtasks
-+ comments + sticky right rail. Hosted by both the full-page
-``task_detail.html`` (inside ``block app_main``) and the modal-mode
-``task_detail_modal`` shell, so the same content renders in either
-layout. Wrapper element keeps the SSE data attributes so the JS handler
-finds them whether the body lives in main or in a modal.
++ comments + sticky right rail. Hosted by the full-page
+``task_detail.html`` (inside ``block app_main``).
+
+Modal sibling: ``_task_detail_modal_body.html``. The two diverge on
+layout chrome (page = 2-col with rail; modal = stacked) but share the
+same inline-edit cells + comment thread. **Update both** when changing
+shared chrome (status/priority/assignee/due cells, comment form, etc.).
 
 Two-column grid on xl+: description (1fr) and right rail (22rem).
 ``max-w-2xl`` on the description block keeps it readable on wide

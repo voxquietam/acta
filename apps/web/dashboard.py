@@ -432,6 +432,10 @@ def build_dashboard_context(workspace, user, range_key=DEFAULT_RANGE):
         "dash_wip_inprogress": wip_inprogress,
         "dash_ranges": list(RANGE_DAYS.keys()),
         "dash_member_count": member_count,
+        # ``dash_project_count`` counts EVERY project that has at least one
+        # task (including done / cancelled / archived) — used for the
+        # workspace meta line. ``dist_project`` below counts only projects
+        # with in-flight tasks. Distinct semantics; do NOT merge.
         "dash_project_count": tasks.values("project_id").distinct().count(),
         "dash_open_total": open_total,
         "dash_done_total": status_counts.get(Task.STATUS_DONE, 0),

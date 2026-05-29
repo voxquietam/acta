@@ -9,6 +9,12 @@ issues a PATCH to /api/v1/tasks/<id>/ with the new status.
 Wrapped in ``relative`` so the edge fade gradients (left / right) sit
 on top of the scrolling content. Same pattern as the assignee strip —
 hides the native scrollbar without losing the "you can scroll" cue.
+
+NOTE: ``?axis=`` is a list-view querystring and is a **no-op** here.
+The kanban layout is fixed (status columns), so ``axis`` in the URL is
+benign noise — it survives in the URL across list↔kanban tab switches
+(``applyClientFilters`` preserves it), and the kanban template never
+reads it. See ``apps/web/views.py:1632`` for the kanban ctx builder.
 {% endcomment %}
 <div data-scroll-wrap class="relative flex-1 min-h-0">
 <div id="kanban" data-scroll-target class="flex gap-3 overflow-x-auto pb-3 scrollbar-none h-full">

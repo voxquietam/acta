@@ -9,6 +9,10 @@ full-page body (``_task_detail_body.html``) by:
   assignee / due / labels), replacing the right rail
 * same unified comments + activity timeline + comment form
 
+**Update both** when changing shared chrome (inline-edit cells,
+comment thread, label trigger, etc.). Drift between the two surfaces
+is a recurring regression risk.
+
 SSE refresh + inline-edit wiring works unchanged: the compact meta
 listens for ``refresh`` on ``#task-meta-compact``, the timeline on
 ``#task-timeline-wrap``.

@@ -96,7 +96,11 @@ in context.
   </td>
   {% if show_labels %}
   <td class="px-3 py-2">
-    {% if task.labels.all %}
+    {# ``labels`` cached once — ``task.labels.all`` was evaluated 6× per row #}
+    {# below; with the M2M prefetched, those were all in-memory passes but   #}
+    {# still wasteful. One ``{% with %}`` collapses them into a single list. #}
+    {% with labels=task.labels.all %}
+    {% if labels %}
     {% comment %}
     Dot cluster + Alpine-driven popover. ``position: fixed`` on the
     popover positions it against the viewport (not the table cell), so
@@ -127,23 +131,23 @@ in context.
       <div x-ref="cluster"
            @mouseenter="show()"
            @mouseleave="hide()"
-           aria-label="{% for label in task.labels.all %}{{ label.name }}{% if not forloop.last %}, {% endif %}{% endfor %}"
+           aria-label="{% for label in labels %}{{ label.name }}{% if not forloop.last %}, {% endif %}{% endfor %}"
            class="inline-flex items-center gap-1.5 whitespace-nowrap">
         {# No native ``title`` — Alpine popover above already names every label. #}
-        {% for label in task.labels.all|slice:":3" %}
+        {% for label in labels|slice:":3" %}
         <span class="block w-2.5 h-2.5 rounded-full shrink-0 cursor-pointer transition hover:ring-2 hover:ring-offset-1 hover:ring-offset-card"
               style="background-color: {{ label.color }};"
               @click.stop="window.acta.toggleFilter('label', '{{ label.id }}')"></span>
         {% endfor %}
-        {% if task.labels.all|length > 3 %}
-        <span class="text-placeholder-foreground text-[10px] leading-none shrink-0 font-mono">+{{ task.labels.all|length|add:"-3" }}</span>
+        {% if labels|length > 3 %}
+        <span class="text-placeholder-foreground text-[10px] leading-none shrink-0 font-mono">+{{ labels|length|add:"-3" }}</span>
         {% endif %}
       </div>
       <div x-show="open"
            x-cloak
            :style="`top: ${coords.top}px; left: ${coords.left}px; transform: translate(-50%, ${coords.placement === 'above' ? '-100%' : '0'});`"
            class="fixed z-50 max-w-xs flex flex-wrap gap-1 p-2 bg-card border border-border rounded-lg shadow-lg pointer-events-none">
-        {% for label in task.labels.all %}
+        {% for label in labels %}
         <span class="acta-label-pill" style="--label-color: {{ label.color }};">
           <span class="acta-label-pill-dot" style="background-color: {{ label.color }};"></span>
           <span>{{ label.name }}</span>
@@ -152,6 +156,7 @@ in context.
       </div>
     </div>
     {% else %}<span class="text-placeholder-foreground">—</span>{% endif %}
+    {% endwith %}
   </td>
   {% endif %}
   <td class="px-3 py-2 text-xs overflow-hidden">
