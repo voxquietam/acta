@@ -406,7 +406,16 @@ class TestAllTasksOrdering:
 @pytest.mark.django_db
 class TestAllTasksQueryCount:
     """N+1 audit — large filtered list stays bounded across cold load + each
-    lazy panel short-circuit (``?panel=table|kanban|list|timeline|backlog``)."""
+    lazy panel short-circuit (``?panel=table|kanban|list|timeline|backlog``).
+
+    Bounds anchored to Wave 2 baseline M1 (see
+    ``docs/audit/wave2/00-baseline.md §3``): on the populated ksu24
+    workspace (260 tasks, 17 members) cold load is 15 queries, each
+    lazy panel 10-11. Synthetic seed here is smaller (30 tasks, 1
+    label, 1 user) so the actual cost is even lower; bounds are set
+    with a margin of ~5 over the live numbers to leave room for one
+    benign addition.
+    """
 
     def _seed_thirty(self, user, project):
         """30 tasks each with one label — enough to surface any N+1."""
@@ -422,7 +431,7 @@ class TestAllTasksQueryCount:
         with CaptureQueriesContext(connection) as ctx:
             resp = client.get(reverse("web:all_tasks"))
             assert resp.status_code == 200
-        assert len(ctx.captured_queries) < 30, f"Got {len(ctx.captured_queries)} queries for 30 tasks — N+1 regression."
+        assert len(ctx.captured_queries) < 20, f"Got {len(ctx.captured_queries)} queries for 30 tasks — N+1 regression."
 
     @pytest.mark.parametrize("panel", ["table", "kanban", "list", "timeline"])
     def test_panel_short_circuit_query_count(self, client, setup, panel):
@@ -430,7 +439,8 @@ class TestAllTasksQueryCount:
 
         Each lazy panel fetch should be lighter than the cold load — only
         the requested panel's context builders run. Regression guard for
-        the lazy-panels mechanism (see ``docs/audit/01-all-tasks.md §2.1``).
+        the lazy-panels mechanism (see ``docs/audit/01-all-tasks.md §2.1``
+        and ``docs/audit/wave2/00-baseline.md §3 (M1)``).
         """
         user, _, _, p1, _ = setup
         self._seed_thirty(user, p1)
@@ -442,8 +452,60 @@ class TestAllTasksQueryCount:
             )
             assert resp.status_code == 200
         assert (
-            len(ctx.captured_queries) < 20
+            len(ctx.captured_queries) < 15
         ), f"?panel={panel} took {len(ctx.captured_queries)} queries — lazy panel regression."
+
+    @pytest.mark.parametrize(
+        "qs",
+        [
+            "priority=1,2",
+            "status=in-progress",
+            "labels=1",
+        ],
+    )
+    def test_filter_swap_query_count(self, client, setup, qs):
+        """Filter querystring swaps must not raise query count beyond cold.
+
+        A swap re-renders the full layout (chrome + sidebar + active
+        panel) with a narrower task queryset — the count is in the same
+        neighbourhood as cold load. Locks in Wave 2 M1: a filter swap
+        on ksu24 ran at 15 queries (identical to cold), so per-filter
+        joins (labels M2M, assignee FK) cost nothing on top.
+        """
+        user, _, _, p1, _ = setup
+        self._seed_thirty(user, p1)
+        client.force_login(user)
+        with CaptureQueriesContext(connection) as ctx:
+            resp = client.get(reverse("web:all_tasks") + f"?{qs}")
+            assert resp.status_code == 200
+        assert (
+            len(ctx.captured_queries) < 20
+        ), f"?{qs} swap took {len(ctx.captured_queries)} queries — filter join regression."
+
+    def test_panel_list_payload_size_bounded(self, client, setup):
+        """``?panel=list`` payload must stay below an upper byte bound.
+
+        On the populated ksu24 workspace (260 tasks) the list view is
+        already 3.7 MB / ~14 KB per task (Wave 2 M1/M3). A future field
+        addition that pushes per-row size further would compound: the
+        same workspace at 500 tasks would cross 7 MB. This test
+        regression-guards the synthetic-seed payload below a generous
+        500 KB ceiling — anything past that flags a row-template growth
+        problem at the source. See
+        ``docs/audit/wave2/00-baseline.md §3 (M3)`` and
+        ``project_todo_all_tasks_lazy_panels``.
+        """
+        user, _, _, p1, _ = setup
+        self._seed_thirty(user, p1)
+        client.force_login(user)
+        resp = client.get(
+            reverse("web:all_tasks") + "?panel=list",
+            HTTP_HX_REQUEST="true",
+        )
+        assert resp.status_code == 200
+        assert (
+            len(resp.content) < 500_000
+        ), f"?panel=list returned {len(resp.content)} B for 30 tasks — row template grew."
 
 
 @pytest.mark.django_db
