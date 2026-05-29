@@ -100,3 +100,4 @@ locale/*/LC_MESSAGES/*.mo
 # ---- Misc ----
 *.bak
 *.tmp
+kaneo_dump/
