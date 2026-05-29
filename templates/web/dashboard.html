@@ -1,5 +1,5 @@
 {% extends "base_app.html" %}
-{% load static i18n %}
+{% load static i18n web_extras %}
 
 {% block title %}{% trans "Dashboard" %} · Acta{% endblock %}
 
@@ -8,7 +8,12 @@
 {% endblock %}
 
 {% block app_main %}
-<link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+{# Inlined, not <link>: a stylesheet injected via innerHTML on a boosted #}
+{# nav (acta.js swap) does not render-block, so the dashboard paints     #}
+{# without grids and the sparklines balloon to the SVG default 300x150  #}
+{# for the duration of the CSS fetch. ``inline_static`` embeds the      #}
+{# rules in the swap HTML so they apply on the first paint.             #}
+{% inline_static "css/dashboard.css" %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 {% include "web/_dashboard_inner.html" %}
 {% endblock %}

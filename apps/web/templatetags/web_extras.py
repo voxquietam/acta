@@ -1,10 +1,14 @@
 """Small template filters used by the ``web`` app templates."""
 
 import datetime
+from functools import lru_cache
 import html
+from pathlib import Path
 import re
 
 from django import template
+from django.conf import settings
+from django.contrib.staticfiles import finders
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.safestring import mark_safe
@@ -13,6 +17,49 @@ from django.utils.translation import gettext_lazy as _
 from apps.common.markdown import render_markdown
 
 register = template.Library()
+
+
+@lru_cache(maxsize=32)
+def _read_static_file(relative_path: str) -> str:
+    """Cache static file contents in memory for ``inline_static``.
+
+    LRU-cached so repeated dashboard renders don't re-hit disk; the cache
+    survives across requests within one worker but is rebuilt on reload,
+    which matches the lifecycle of any other in-process cache.
+    """
+    found = finders.find(relative_path)
+    if not found:
+        return ""
+    return Path(found).read_text(encoding="utf-8")
+
+
+@register.simple_tag
+def inline_static(relative_path: str, *, tag: str = "style") -> str:
+    """Inline the contents of a static file in a ``<style>`` / ``<script>`` tag.
+
+    Used for assets that need to apply synchronously after an
+    ``innerHTML`` swap (notably ``dashboard.css``). A ``<link
+    rel="stylesheet">`` inserted via innerHTML does NOT render-block, so
+    the swap content paints unstyled — grids collapse, sparkline SVGs
+    expand to their default 300x150, and the dashboard looks "blown up"
+    for the duration of the CSS fetch. Inlining the file embeds the
+    rules in the same HTML chunk, so they apply on the first paint.
+
+    Args:
+        relative_path: Path relative to a ``STATICFILES_DIRS`` entry
+            (e.g. ``"css/dashboard.css"``).
+        tag: ``"style"`` (default) or ``"script"``.
+
+    Returns:
+        Safe HTML — the tag wrapping the file contents, or empty if the
+        file can't be located.
+    """
+    if settings.DEBUG:
+        _read_static_file.cache_clear()
+    content = _read_static_file(relative_path)
+    if not content:
+        return ""
+    return mark_safe(f"<{tag}>{content}</{tag}>")
 
 
 @register.simple_tag(takes_context=True)
