@@ -2071,6 +2071,45 @@
   // and activity rows (which use ``data-activity-for-task``).
   const KANBAN_CARD = (id) => `[data-kanban-card][data-task-id="${id}"]`;
 
+  // Workaround for an Alpine x-show drift on the column body after a card
+  // mutation. ``existing.replaceWith(fresh)`` (or insertBefore for a move)
+  // triggers Alpine's MutationObserver in the body subtree, which somehow
+  // sets the body's ``x-show="!$store.kanban.isCollapsed(...)"`` to
+  // display:block — even though ``$store.kanban.isCollapsed(key)`` still
+  // returns true. The body unhides, cards bleed through the narrow w-10
+  // collapsed strip. Root cause unknown (suspect a transient Alpine
+  // store-proxy state during mutation processing).
+  //
+  // Tried scheduling across sync + microtask + rAF — fixed priority but
+  // not due-date (the date-picker change path apparently lands later than
+  // any of those). Self-healing instead: park a MutationObserver on each
+  // column body that snaps display back to "none" whenever something tries
+  // to change the style attribute while the store still says collapsed.
+  // Per-body MO, fires only on attribute changes, no re-entry (idempotent
+  // writes don't re-fire), bounded cost.
+  function installCollapsedBodySnap(body) {
+    if (body.__actaSnapObs) return;
+    const store = window.Alpine && window.Alpine.store && window.Alpine.store("kanban");
+    if (!store || typeof store.isCollapsed !== "function") return;
+    const status = body.dataset.status;
+    if (!status) return;
+    const snap = () => {
+      if (store.isCollapsed(status) && body.style.display !== "none") {
+        body.style.display = "none";
+      }
+    };
+    snap();
+    const obs = new MutationObserver(snap);
+    obs.observe(body, { attributes: true, attributeFilter: ["style"] });
+    body.__actaSnapObs = obs;
+  }
+  function snapCollapsedBodies() {
+    document.querySelectorAll(".kanban-column[data-status]").forEach(installCollapsedBodySnap);
+  }
+  // Bind on cold load + after every HTMX settle (board panel re-renders
+  // replace the column bodies).
+  document.body.addEventListener("htmx:afterSettle", snapCollapsedBodies);
+
   function applyCardReplace(taskId, cardHtml) {
     if (!cardHtml) return;
     const existing = document.querySelector(KANBAN_CARD(taskId));
@@ -2087,6 +2126,7 @@
     // assignee, due, labels, etc.) on the same-tab actor. Status changes go
     // through ``applyCardMove`` below — same fix.
     if (window.htmx) window.htmx.process(fresh);
+    snapCollapsedBodies();
     renderIcons();
   }
   function applyCardMove(taskId, newStatus, cardHtml) {
@@ -2114,6 +2154,7 @@
     // Same as applyCardReplace: HTMX needs to scan the fresh element so
     // click-to-open-modal works on the moved card.
     if (window.htmx) window.htmx.process(fresh);
+    snapCollapsedBodies();
     renderIcons();
   }
   function applyCardRemove(taskId) {
