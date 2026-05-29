@@ -153,6 +153,20 @@ class TestSetTaskPriority:
         resp = client.post(self._url(project, task), {"priority": "abc"})
         assert resp.status_code == 400
 
+    def test_dropdown_panel_opts_into_force_apply_self_event(self, client, setup):
+        """Mirror of the status-cell opt-in — see TestSetTaskStatus.
+
+        Without it the SSE self-filter drops the change and the row in
+        the kanban / table behind the modal stays stale until reload.
+        """
+        user, project, task = setup
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"priority": Task.URGENT})
+        assert resp.status_code == 200
+        body = resp.content.decode()
+        assert f"actaForceApplySelfEvent({task.id})" in body
+        assert "@htmx:before-request" in body or "x-on:htmx:before-request" in body
+
 
 @pytest.mark.django_db
 class TestSetTaskSize:
@@ -186,6 +200,16 @@ class TestSetTaskSize:
         assert resp.status_code == 400
         task.refresh_from_db()
         assert task.size is None
+
+    def test_dropdown_panel_opts_into_force_apply_self_event(self, client, setup):
+        """Mirror of the status-cell opt-in — see TestSetTaskStatus."""
+        user, project, task = setup
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"size": "5"})
+        assert resp.status_code == 200
+        body = resp.content.decode()
+        assert f"actaForceApplySelfEvent({task.id})" in body
+        assert "@htmx:before-request" in body or "x-on:htmx:before-request" in body
 
     def test_non_int_returns_400(self, client, setup):
         user, project, task = setup
@@ -1506,3 +1530,122 @@ class TestDateEditPermission:
         assert resp.status_code == 200
         task.refresh_from_db()
         assert task.end_date == datetime.date(2026, 6, 2)
+
+
+@pytest.mark.django_db
+class TestInlineCellPropagationOptIn:
+    """Every inline cell that mutates a task must opt the task into the
+    self-event force-apply set so the SSE swap reaches the surrounding
+    row / card / list item (otherwise the modal change leaves the row
+    behind stale until a hard reload).
+
+    Reference pattern: ``_status_cell.html`` (covered by
+    ``TestSetTaskStatus.test_dropdown_panel_opts_into_force_apply_self_event``).
+    This class covers the remaining cells from the sweep — see
+    ``project_todo_inline_cells_propagation``.
+
+    Each test posts the cell endpoint and asserts the response carries
+    both the call site ``actaForceApplySelfEvent(<id>)`` and an
+    Alpine-bound ``htmx:before-request`` event handler.
+    """
+
+    def _assert_opt_in(self, body, task_id):
+        assert f"actaForceApplySelfEvent({task_id})" in body, "missing opt-in call"
+        assert "@htmx:before-request" in body or "x-on:htmx:before-request" in body, "missing htmx:before-request hook"
+
+    def _due_url(self, project, task):
+        return reverse(
+            "web:set_task_due_date",
+            kwargs={"slug_prefix": project.slug_prefix, "number": task.number},
+        )
+
+    def _start_url(self, project, task):
+        return reverse(
+            "web:set_task_start_date",
+            kwargs={"slug_prefix": project.slug_prefix, "number": task.number},
+        )
+
+    def _end_url(self, project, task):
+        return reverse(
+            "web:set_task_end_date",
+            kwargs={"slug_prefix": project.slug_prefix, "number": task.number},
+        )
+
+    def _cycle_url(self, project, task):
+        return reverse(
+            "web:set_task_cycle",
+            kwargs={"slug_prefix": project.slug_prefix, "number": task.number},
+        )
+
+    def _project_url(self, project, task):
+        return reverse(
+            "web:set_task_project",
+            kwargs={"slug_prefix": project.slug_prefix, "number": task.number},
+        )
+
+    def _assignee_url(self, project, task):
+        return reverse(
+            "web:set_task_assignee",
+            kwargs={"slug_prefix": project.slug_prefix, "number": task.number},
+        )
+
+    def test_due_date_form_opts_in(self, client, setup):
+        user, project, task = setup
+        client.force_login(user)
+        resp = client.post(self._due_url(project, task), {"due_date": "2026-12-31"})
+        assert resp.status_code == 200
+        self._assert_opt_in(resp.content.decode(), task.id)
+
+    def test_start_date_form_opts_in(self, client, setup):
+        user, project, task = setup
+        # Start/End cells gate on assignee — claim it to render the editable
+        # form rather than the read-only sibling branch.
+        task.assignee = user
+        task.save(update_fields=["assignee"])
+        client.force_login(user)
+        resp = client.post(self._start_url(project, task), {"start_date": "2026-06-01"})
+        assert resp.status_code == 200
+        self._assert_opt_in(resp.content.decode(), task.id)
+
+    def test_end_date_form_opts_in(self, client, setup):
+        user, project, task = setup
+        task.assignee = user
+        task.save(update_fields=["assignee"])
+        client.force_login(user)
+        resp = client.post(self._end_url(project, task), {"end_date": "2026-06-30"})
+        assert resp.status_code == 200
+        self._assert_opt_in(resp.content.decode(), task.id)
+
+    def test_assignee_dropdown_opts_in(self, client, setup):
+        user, project, task = setup
+        client.force_login(user)
+        resp = client.post(self._assignee_url(project, task), {"assignee_id": user.id})
+        assert resp.status_code == 200
+        self._assert_opt_in(resp.content.decode(), task.id)
+
+    def test_cycle_dropdown_opts_in(self, client, setup):
+        user, project, task = setup
+        # Cycle picker is only rendered on non-backlog statuses (the planned /
+        # ready branch returns a read-only "Backlog" span without the
+        # dropdown). Move into to-do first to exercise the dropdown render
+        # path.
+        task.status = Task.STATUS_TODO
+        task.save(update_fields=["status"])
+        client.force_login(user)
+        resp = client.post(self._cycle_url(project, task), {"cycle_id": ""})
+        assert resp.status_code == 200
+        self._assert_opt_in(resp.content.decode(), task.id)
+
+    def test_project_dropdown_opts_in(self, client, setup):
+        user, project, task = setup
+        client.force_login(user)
+        # Re-target to the same project — endpoint still re-renders the cell
+        # with the opt-in markup; we don't need an actual move to verify the
+        # template wiring.
+        resp = client.post(self._project_url(project, task), {"project_id": project.id})
+        # Move to the same project is a no-op success — the cell still
+        # re-renders. Status code may be 200 (same project) or a 30x to a
+        # new URL on a real move; we just need the rendered cell.
+        assert resp.status_code in (200, 204, 302)
+        if resp.status_code == 200:
+            self._assert_opt_in(resp.content.decode(), task.id)

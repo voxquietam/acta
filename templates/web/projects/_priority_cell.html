@@ -49,9 +49,17 @@ to the equally-colored status badge).
     <span>{{ priority_labels|get_item:task.priority }}</span>
   </button>
   <template x-teleport="body">
+  {# Self-event opt-in (see _status_cell for the rationale): the priority   #}
+  {# change broadcasts pre-rendered HTML for table / kanban card / list row #}
+  {# via ``emit_task_diff_events``; the same-tab actor's own SSE messages   #}
+  {# are filtered out by default to avoid double-rendering against the      #}
+  {# direct HTTP swap of the modal's own cell, so without this opt-in the   #}
+  {# underlying row stays stale until a hard reload. Mirror across the      #}
+  {# remaining inline cells; see project_todo_inline_cells_propagation.     #}
   <div x-ref="panel"
        x-show="open"
        @click.outside="open = false"
+       @htmx:before-request="window.actaForceApplySelfEvent && window.actaForceApplySelfEvent({{ task.id }})"
        x-init="$nextTick(() => window.htmx && window.htmx.process($el))"
        x-cloak
        :style="`position:fixed; top:${rect.bottom + 4}px; left:${Math.min(rect.left, window.innerWidth - 184)}px; width:11rem;`"

@@ -65,6 +65,7 @@ dropdown focused on member selection rather than mixing in a no-op
     <form hx-post="{% url 'web:set_task_assignee' slug_prefix=task.project.slug_prefix number=task.number %}"
           hx-target="#assignee-cell"
           hx-swap="outerHTML"
+          @htmx:before-request="window.actaForceApplySelfEvent && window.actaForceApplySelfEvent({{ task.id }})"
           class="inline">
       {% csrf_token %}
       <input type="hidden" name="assignee_id" value="">
@@ -77,9 +78,11 @@ dropdown focused on member selection rather than mixing in a no-op
   </div>
 
   <template x-teleport="body">
+  {# Self-event opt-in — see _status_cell + project_todo_inline_cells_propagation. #}
   <div x-ref="panel"
        x-show="open"
        @click.outside="open = false"
+       @htmx:before-request="window.actaForceApplySelfEvent && window.actaForceApplySelfEvent({{ task.id }})"
        x-init="$nextTick(() => window.htmx && window.htmx.process($el))"
        x-effect="if (open) $nextTick(() => $refs.search.focus())"
        x-cloak

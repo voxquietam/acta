@@ -2048,6 +2048,13 @@
     const fresh = tmp.firstElementChild;
     if (!fresh) return;
     existing.replaceWith(fresh);
+    // ``replaceWith`` swaps the DOM node — HTMX has not scanned the fresh
+    // element's ``hx-get`` / ``hx-trigger`` attrs yet, so click-to-open-modal
+    // is dead until something else processes the subtree. Without this the
+    // card silently swallows clicks after any non-status mutation (priority,
+    // assignee, due, labels, etc.) on the same-tab actor. Status changes go
+    // through ``applyCardMove`` below — same fix.
+    if (window.htmx) window.htmx.process(fresh);
     renderIcons();
   }
   function applyCardMove(taskId, newStatus, cardHtml) {
@@ -2072,6 +2079,9 @@
     } else {
       column.insertBefore(fresh, column.firstChild);
     }
+    // Same as applyCardReplace: HTMX needs to scan the fresh element so
+    // click-to-open-modal works on the moved card.
+    if (window.htmx) window.htmx.process(fresh);
     renderIcons();
   }
   function applyCardRemove(taskId) {

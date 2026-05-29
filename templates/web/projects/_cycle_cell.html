@@ -51,9 +51,11 @@ task moves into committed work). See apps/cycles/services.apply_cycle_policy.
     {% endif %}
   </button>
   <template x-teleport="body">
+  {# Self-event opt-in — see _status_cell + project_todo_inline_cells_propagation. #}
   <div x-ref="panel"
        x-show="open"
        @click.outside="open = false"
+       @htmx:before-request="window.actaForceApplySelfEvent && window.actaForceApplySelfEvent({{ task.id }})"
        x-init="$nextTick(() => window.htmx && window.htmx.process($el))"
        x-cloak
        :style="`position:fixed; top:${rect.bottom + 4}px; left:${Math.min(rect.left, window.innerWidth - 232)}px; width:14rem;`"

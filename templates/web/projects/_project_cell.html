@@ -52,9 +52,11 @@ the project renders as plain read-only text.
   </button>
 
   <template x-teleport="body">
+  {# Self-event opt-in — see _status_cell + project_todo_inline_cells_propagation. #}
   <div x-ref="panel"
        x-show="open"
        @click.outside="open = false"
+       @htmx:before-request="window.actaForceApplySelfEvent && window.actaForceApplySelfEvent({{ task.id }})"
        x-init="$nextTick(() => window.htmx && window.htmx.process($el))"
        x-effect="if (open) $nextTick(() => $refs.search.focus())"
        x-cloak

@@ -28,9 +28,11 @@ guard (``set_task_start_date``) blocks the write regardless. See
     {% if task.start_date %}{{ task.start_date|date:"M j, Y" }}{% else %}{% if compact %}—{% else %}{% trans "Set start date" %}{% endif %}{% endif %}
   </button>
 
+  {# Self-event opt-in — see _status_cell + project_todo_inline_cells_propagation. #}
   <form hx-post="{% url 'web:set_task_start_date' slug_prefix=task.project.slug_prefix number=task.number %}"
         hx-target="#start-date-cell"
         hx-swap="outerHTML"
+        @htmx:before-request="window.actaForceApplySelfEvent && window.actaForceApplySelfEvent({{ task.id }})"
         class="contents">
     {% csrf_token %}
     {# ``compact`` round-trip: endpoint re-renders this cell after a date #}
@@ -46,9 +48,11 @@ guard (``set_task_start_date``) blocks the write regardless. See
   </form>
 
   {% if task.start_date %}
+  {# Self-event opt-in — see _status_cell + project_todo_inline_cells_propagation. #}
   <form hx-post="{% url 'web:set_task_start_date' slug_prefix=task.project.slug_prefix number=task.number %}"
         hx-target="#start-date-cell"
         hx-swap="outerHTML"
+        @htmx:before-request="window.actaForceApplySelfEvent && window.actaForceApplySelfEvent({{ task.id }})"
         class="inline">
     {% csrf_token %}
     {% if compact %}<input type="hidden" name="compact" value="1">{% endif %}

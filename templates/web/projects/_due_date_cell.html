@@ -19,9 +19,11 @@ explicit.
     {% if task.due_date %}{{ task.due_date|date:"M j, Y" }}{% else %}{% trans "Set deadline" %}{% endif %}
   </button>
 
+  {# Self-event opt-in — see _status_cell + project_todo_inline_cells_propagation. #}
   <form hx-post="{% url 'web:set_task_due_date' slug_prefix=task.project.slug_prefix number=task.number %}"
         hx-target="#due-date-cell"
         hx-swap="outerHTML"
+        @htmx:before-request="window.actaForceApplySelfEvent && window.actaForceApplySelfEvent({{ task.id }})"
         class="contents">
     {% csrf_token %}
     <input x-ref="input"
@@ -33,9 +35,11 @@ explicit.
   </form>
 
   {% if task.due_date %}
+  {# Self-event opt-in — see _status_cell + project_todo_inline_cells_propagation. #}
   <form hx-post="{% url 'web:set_task_due_date' slug_prefix=task.project.slug_prefix number=task.number %}"
         hx-target="#due-date-cell"
         hx-swap="outerHTML"
+        @htmx:before-request="window.actaForceApplySelfEvent && window.actaForceApplySelfEvent({{ task.id }})"
         class="inline">
     {% csrf_token %}
     <input type="hidden" name="due_date" value="">
