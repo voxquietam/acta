@@ -14,9 +14,12 @@
         hx-get="{% url 'web:create_project' %}"
         hx-target="#modal-root"
         hx-swap="innerHTML"
-        class="acta-btn-primary">
+        aria-label="{% trans 'Create project' %}"
+        data-tooltip="{% trans 'Create project' %}"
+        data-tooltip-pos="below"
+        class="acta-btn-primary max-md:px-2">
   {% lucide "plus" "w-4 h-4" %}
-  {% trans "Create project" %}
+  <span class="hidden md:inline">{% trans "Create project" %}</span>
 </button>
 {% endif %}
 {% endblock %}
