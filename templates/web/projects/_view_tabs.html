@@ -72,25 +72,16 @@ visible with a ``lock`` glyph.
         {% lucide "layout-grid" "w-3.5 h-3.5" %}{% trans "Overview" %}
       </button>
       {% endif %}
-      <button type="button" @click="pick('kanban')" role="menuitem"
-              :class="$store.viewMode.current === 'kanban' ? 'bg-brand-500/15 text-brand-300' : 'text-subtle-foreground hover:bg-muted/50 hover:text-foreground'"
-              class="w-full inline-flex items-center gap-2 px-2.5 py-1.5 rounded-md text-sm transition">
-        {% lucide "kanban" "w-3.5 h-3.5" %}{% trans "Kanban" %}
-      </button>
-      <button type="button" @click="pick('table')" role="menuitem"
-              :class="$store.viewMode.current === 'table' ? 'bg-brand-500/15 text-brand-300' : 'text-subtle-foreground hover:bg-muted/50 hover:text-foreground'"
-              class="w-full inline-flex items-center gap-2 px-2.5 py-1.5 rounded-md text-sm transition">
-        {% lucide "table-2" "w-3.5 h-3.5" %}{% trans "Table" %}
-      </button>
+      {# Mobile dropdown intentionally drops Kanban / Table / Timeline:    #}
+      {# none of them render well on a 393 px phone (kanban needs side-by- #}
+      {# side columns, table needs ~7 columns, timeline needs a wide       #}
+      {# horizontal scroller). The list view is the only useful surface on #}
+      {# mobile, so the picker is reduced to Backlog / Overview / List per #}
+      {# Vox's call. Desktop still gets the full segmented bar below.      #}
       <button type="button" @click="pick('list')" role="menuitem"
               :class="$store.viewMode.current === 'list' ? 'bg-brand-500/15 text-brand-300' : 'text-subtle-foreground hover:bg-muted/50 hover:text-foreground'"
               class="w-full inline-flex items-center gap-2 px-2.5 py-1.5 rounded-md text-sm transition">
         {% lucide "list" "w-3.5 h-3.5" %}{% trans "List" %}
-      </button>
-      <button type="button" @click="pick('timeline')" role="menuitem"
-              :class="$store.viewMode.current === 'timeline' ? 'bg-brand-500/15 text-brand-300' : 'text-subtle-foreground hover:bg-muted/50 hover:text-foreground'"
-              class="w-full inline-flex items-center gap-2 px-2.5 py-1.5 rounded-md text-sm transition">
-        {% lucide "chart-gantt" "w-3.5 h-3.5" %}{% trans "Timeline" %}
       </button>
     </div>
   </div>

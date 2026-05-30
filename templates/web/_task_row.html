@@ -44,15 +44,17 @@ status dot · slug + priority chevron · title (flex-1) · size · labels
   <div class="flex items-center gap-2 shrink-0 text-xs">
     {% if task.status == 'planned' or task.status == 'ready' %}
     {% comment %}Quick-promote backlog rows one stage; ``@click.stop`` keeps
-    the row's open-task navigation from firing.{% endcomment %}
+    the row's open-task navigation from firing. Hover-only affordance —
+    hidden on mobile where touch can't preview hover, and the row is
+    already compressed.{% endcomment %}
     <span @click.prevent.stop="window.acta.promoteTask('{{ task.project.slug_prefix }}', {{ task.number }}, '{% if task.status == 'planned' %}ready{% else %}to-do{% endif %}')"
-          class="opacity-0 group-hover:opacity-100 cursor-pointer inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-border text-[11px] text-subtle-foreground hover:bg-muted hover:text-foreground transition"
+          class="hidden md:inline-flex opacity-0 group-hover:opacity-100 cursor-pointer items-center gap-1 px-1.5 py-0.5 rounded-md border border-border text-[11px] text-subtle-foreground hover:bg-muted hover:text-foreground transition"
           title="{% if task.status == 'planned' %}{% trans 'Promote to Ready' %}{% else %}{% trans 'Pull into To-do' %}{% endif %}">
       {% lucide "arrow-right" "w-3 h-3" %}{% if task.status == 'planned' %}{{ status_labels|get_item:"ready" }}{% else %}{{ status_labels|get_item:"to-do" }}{% endif %}
     </span>
     {% endif %}
     {% if task.size %}
-    <span class="text-subtle-foreground font-mono inline-flex items-center gap-1 cursor-pointer rounded transition hover:ring-1 hover:ring-offset-1 hover:ring-offset-card hover:ring-zinc-500/40"
+    <span class="hidden md:inline-flex text-subtle-foreground font-mono items-center gap-1 cursor-pointer rounded transition hover:ring-1 hover:ring-offset-1 hover:ring-offset-card hover:ring-zinc-500/40"
           title="{% trans 'Filter by size' %}: {{ task.size }}"
           @click.prevent.stop="window.acta.toggleFilter('size', '{{ task.size }}')">
       {% lucide "gauge" "w-3 h-3" %}{{ task.size }}
@@ -60,17 +62,30 @@ status dot · slug + priority chevron · title (flex-1) · size · labels
     {% endif %}
 
     {% if task.cycle_id %}
-    <span class="text-placeholder-foreground inline-flex items-center gap-0.5 cursor-pointer rounded transition hover:ring-1 hover:ring-offset-1 hover:ring-offset-card hover:ring-zinc-500/40"
+    <span class="hidden md:inline-flex text-placeholder-foreground items-center gap-0.5 cursor-pointer rounded transition hover:ring-1 hover:ring-offset-1 hover:ring-offset-card hover:ring-zinc-500/40"
           title="{% trans 'Cycle' %}: {{ task.cycle.display_name }}"
           @click.prevent.stop="window.acta.toggleFilter('cycle', '{{ task.cycle.id }}')">
       {% lucide "iteration-cw" "w-3 h-3" %}<span class="font-mono">{{ task.cycle.number }}</span>
     </span>
     {% endif %}
 
-    {# ``labels`` cached once — was evaluated 4× per row otherwise. #}
+    {# ``labels`` cached once — was evaluated 4× per row otherwise.        #}
+    {# Mobile shows up to 3 colored dots; desktop keeps the full overlap-  #}
+    {# stack of pills with names. Drops naming friction on phones where    #}
+    {# 88px-wide label pills eat the row.                                  #}
     {% with labels=task.labels.all %}
     {% if labels %}
-    <div class="group/labels flex items-center max-w-[240px] min-w-0 pl-1.5 overflow-hidden">
+    <div class="md:hidden inline-flex items-center gap-0.5 shrink-0">
+      {% for label in labels|slice:":3" %}
+      <span class="w-2 h-2 rounded-full"
+            style="background-color: {{ label.color }};"
+            title="{{ label.name }}"></span>
+      {% endfor %}
+      {% if labels|length > 3 %}
+      <span class="font-mono text-[10px] text-placeholder-foreground ml-0.5">+{{ labels|length|add:"-3" }}</span>
+      {% endif %}
+    </div>
+    <div class="group/labels hidden md:flex items-center max-w-[240px] min-w-0 pl-1.5 overflow-hidden">
       {% for label in labels|slice:":3" %}
       <span class="acta-label-pill -ml-2 first:ml-0 cursor-pointer
                    group-hover/labels:ml-1 group-hover/labels:first:ml-0 transition-[margin] duration-200
@@ -88,14 +103,16 @@ status dot · slug + priority chevron · title (flex-1) · size · labels
     {% endif %}
     {% endwith %}
 
-    <span class="text-placeholder-foreground truncate max-w-[140px] cursor-pointer hover:text-foreground hover:underline transition"
+    {# Project name hides on mobile — the task slug (e.g. ``KSU-12``)      #}
+    {# already encodes the project so a separate name chip is redundant.  #}
+    <span class="hidden md:inline text-placeholder-foreground truncate max-w-[140px] cursor-pointer hover:text-foreground hover:underline transition"
           title="{% trans 'Filter by project' %}: {{ task.project.workspace.name }} / {{ task.project.name }}"
           @click.prevent.stop="window.acta.toggleFilter('project', '{{ task.project.id }}')">
       {{ task.project.name }}
     </span>
 
     {% if task.due_date %}
-    <span class="font-mono text-[11px] tabular-nums w-16 text-right
+    <span class="font-mono text-[11px] tabular-nums md:w-16 md:text-right
       {% if today and task.due_date < today and task.status != 'done' %}text-rose-400
       {% elif today and task.due_date == today and task.status != 'done' %}text-amber-400
       {% else %}text-placeholder-foreground{% endif %}">{{ task.due_date|date:"M j" }}</span>
