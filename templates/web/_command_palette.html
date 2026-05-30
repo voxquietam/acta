@@ -3,7 +3,9 @@
 {% comment %}
 Global command palette (Cmd/Ctrl+K). Mounted once in ``base_app.html``
 so it overlays every authenticated page. Self-contained Alpine
-component — no esbuild bundle.
+component — its inline ``<script>`` registers ``actaPalette()`` rather
+than being separately transpiled; the JS that ships with the page
+(``acta.js``) is bundled.
 
 Behaviour:
 * Toggled by ``Cmd+K`` / ``Ctrl+K`` anywhere (ignored while typing in an
@@ -228,6 +230,12 @@ inside each row template.
   // ``x-html``-binds the result, so a missing icon is a quiet no-op.
   // Memoized on first lookup: ``iconHtml`` is called per row per
   // re-render, so a Map cache keeps the hot path off ``querySelector``.
+  //
+  // Scope: lives at IIFE top, persists across open/close cycles —
+  // good for cache hit rate, fine because the page only mounts one
+  // palette. If a future theme-toggle ever swaps the icon SVGs in
+  // ``[data-acta-icon-lib]``, this cache holds stale HTML; invalidate
+  // it (``_iconCache.clear()``) from the theme switcher then.
   const _iconCache = new Map();
   function iconHtml(name) {
     if (_iconCache.has(name)) return _iconCache.get(name);
@@ -436,6 +444,9 @@ inside each row template.
       moveCursor(delta) {
         const total = this.displayed.total;
         if (!total) return;
+        // Carousel: wrap at boundaries (↓ on last item → first, ↑ on
+        // first → last). Matches Cmd-K palettes in Linear / Slack /
+        // VS Code; differs from native ``<select>`` which clamps.
         this.cursor = (this.cursor + delta + total) % total;
         this.$nextTick(() => {
           const rows = this.$refs.results

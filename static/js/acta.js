@@ -1,5 +1,38 @@
 // Cross-cutting helpers for the Acta frontend.
 // See docs/decisions/0014-frontend-architecture.md.
+//
+// Public window surface (every entry below is a load-order anchor for
+// templates that reference it; renames break inline scripts that this
+// file is the SSR-time peer of):
+//
+//   window.acta.csrfToken()                 cookie reader, fetch() helper
+//   window.acta.loadRecents()               command-palette "Recents" backing store
+//   window.acta.recordRecentTask(entry)     command-palette write side
+//   window.acta.promoteTask(slugPrefix, n, status)  status PATCH from inline list-view chip
+//   window.acta.exportQuery()               URL builder for CSV/JSON export buttons
+//   window.acta.removeFilter(name, value)   filter-strip chip ✕
+//   window.acta.toggleFilter(name, value)   filter-strip chip toggle
+//   window.acta.clearFilter(name)           filter-strip clear-all
+//   window.acta.updateStickyStack(container) z-index recompute for sticky-pinned rows
+//   window.acta.updateStripCounters(strip)  +N off-screen chip counter
+//   window.acta.updateScrollFades(target)   data-overflow-* attribute toggle
+//   window.acta.createTaskFromText(text)    hotkey + selection-bubble create
+//   window.acta.actaLightbox(img)           image preview opener (templates use inline onclick)
+//   window.actaLoadPanels(basePath)         lazy-fetch [data-panel-slot]
+//   window.actaApplyFilters()               re-run client-side filter pass
+//   window.actaToast(msg, level, ms)        global toast queue; safe before alpine:init
+//   window.actaBulkPatch(updates, opts)     bulk action bar PATCH driver
+//   window.actaBulkDelete()                 bulk action bar DELETE driver
+//   window.actaBulkArchive()                bulk action bar archive driver
+//   window.actaOpenBulkMenu(x, y)           context-menu opener (multi-select mode)
+//   window.actaForceApplySelfEvent(id)      opt task into self-SSE replay (ADR 0015 self-filter bypass)
+//   window.__actaInvalidatePageCache()      clear nav-router page cache (ADR 0024); fired on writes + SSE
+//   window.__actaForceApplySelf             Set<taskId>; consulted by SSE handler's self-filter
+//   window.__tlAfterFilter                  filter -> timeline today-line redraw callback
+//   window.__tlRanAt                        diagnostic timestamp; debug only
+//
+// Anything not in this list is private to the IIFE. When adding a new
+// window.* export, update this map AND audit/wave3/01-acta-js.md §4.
 
 (function () {
   // CSRF token retrieval for fetch() calls outside HTMX.
@@ -52,6 +85,12 @@
   // that touched ``window.acta`` before this bundle loaded keeps its
   // properties intact, and a future late-loaded peer can't accidentally
   // clobber our exports.
+  // Style note: helpers defined as named functions earlier in the file
+  // (loadRecents, recordRecentTask) are exported by reference; helpers
+  // that read template-only context (promoteTask, exportQuery, the
+  // filter helpers) are defined inline because they don't need to be
+  // callable from other places in this file. Either pattern is fine —
+  // don't refactor for symmetry alone.
   window.acta = Object.assign(window.acta || {}, {
     csrfToken: () => getCookie("csrftoken"),
     updateStickyStack: null, // assigned below once defined
