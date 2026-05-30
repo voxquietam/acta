@@ -121,6 +121,15 @@ Q_CLUSTER = {
 # -----------------------------------------------------------------------------
 
 MIDDLEWARE = [
+    # GZip must sit at the top so it compresses the FINAL response after
+    # every downstream middleware has had its say. Without it, dev shipped
+    # /tasks/?view=table at 1.5 MB over the wire (vs ~250 KB gzipped); CSS
+    # / JS bundles paid the same uncompressed tax. Sets ``Vary:
+    # Accept-Encoding`` automatically. Note: BREACH-style attacks need a
+    # reflected user-controlled string sharing a response with a secret —
+    # Acta never echoes raw user input alongside CSRF tokens, so the risk
+    # is theoretical for this app.
+    "django.middleware.gzip.GZipMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
