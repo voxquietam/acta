@@ -87,15 +87,49 @@ while the sidebar stays mounted.
   detail). The preview body caps its own reading width (max-w-3xl) so a
   short update doesn't sprawl across the pane.
   {% endcomment %}
-  <div class="flex-1 grid grid-cols-1 md:grid-cols-[minmax(0,38%)_1fr] min-h-0">
+  {% comment %}
+  Below ``md:`` the preview pane has no horizontal room next to the list,
+  so it's hidden by default. On a row / update tap the htmx swap fills the
+  preview AND ``acta:inbox-preview-shown`` flips ``mobileOpen``, lifting
+  the preview into a fixed full-viewport overlay with a Back affordance.
+  Tapping Back resets the flag and reveals the list again. The id stays
+  the same (``#inbox-preview``) so existing notification-row + update-row
+  ``hx-target`` selectors keep working without per-viewport branching.
+  {% endcomment %}
+  <div class="flex-1 grid grid-cols-1 md:grid-cols-[minmax(0,38%)_1fr] min-h-0"
+       x-data="{ mobileOpen: false }"
+       x-init="$refs.preview.addEventListener('htmx:afterSwap', () => {
+                 if (window.innerWidth < 768) mobileOpen = true;
+               })"
+       @keydown.escape.window="mobileOpen = false">
     {% if active_tab == 'updates' %}
     {% include "web/_inbox_updates_list.html" %}
-    <div id="inbox-preview" class="hidden md:flex flex-col min-w-0 border-l border-border">
+    <div id="inbox-preview"
+         x-ref="preview"
+         :class="mobileOpen
+           ? 'flex flex-col fixed inset-0 z-40 bg-background'
+           : 'hidden md:flex flex-col min-w-0 border-l border-border'">
+      <button type="button"
+              x-show="mobileOpen"
+              @click="mobileOpen = false"
+              class="md:hidden flex items-center gap-1.5 px-3 py-2 border-b border-border text-sm text-foreground hover:bg-muted shrink-0">
+        {% lucide "chevron-left" "w-4 h-4" %}{% trans "Back to inbox" %}
+      </button>
       {% include "web/_inbox_update_preview.html" %}
     </div>
     {% else %}
     {% include "web/_inbox_list.html" %}
-    <div id="inbox-preview" class="hidden md:flex flex-col min-w-0 border-l border-border">
+    <div id="inbox-preview"
+         x-ref="preview"
+         :class="mobileOpen
+           ? 'flex flex-col fixed inset-0 z-40 bg-background'
+           : 'hidden md:flex flex-col min-w-0 border-l border-border'">
+      <button type="button"
+              x-show="mobileOpen"
+              @click="mobileOpen = false"
+              class="md:hidden flex items-center gap-1.5 px-3 py-2 border-b border-border text-sm text-foreground hover:bg-muted shrink-0">
+        {% lucide "chevron-left" "w-4 h-4" %}{% trans "Back to inbox" %}
+      </button>
       {% include "web/_inbox_preview.html" %}
     </div>
     {% endif %}
