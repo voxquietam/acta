@@ -285,6 +285,7 @@ Section visibility flags from the view:
                    x-data
                    @acta:filter-reset.window="$el.value = ''"
                    placeholder="{% trans 'Search tasks…' %}"
+                   aria-label="{% trans 'Search tasks by title or description' %}"
                    class="acta-flt-input">
           </div>
         </div>
@@ -544,12 +545,16 @@ Section visibility flags from the view:
           <div class="flex items-center gap-1.5">
             <span class="text-[10px] text-placeholder-foreground font-mono shrink-0">{% trans "from" %}</span>
             <input x-ref="after" type="date" name="date_after" value="{{ date_after }}"
-                   @change="submit()" class="acta-flt-input no-icon font-mono">
+                   @change="submit()" @keyup.enter="submit()"
+                   aria-label="{% trans 'Filter: date from' %}"
+                   class="acta-flt-input no-icon font-mono">
           </div>
           <div class="flex items-center gap-1.5 mt-1">
             <span class="text-[10px] text-placeholder-foreground font-mono shrink-0">{% trans "to" %}</span>
             <input x-ref="before" type="date" name="date_before" value="{{ date_before }}"
-                   @change="submit()" class="acta-flt-input no-icon font-mono">
+                   @change="submit()" @keyup.enter="submit()"
+                   aria-label="{% trans 'Filter: date to' %}"
+                   class="acta-flt-input no-icon font-mono">
           </div>
         </div>
 

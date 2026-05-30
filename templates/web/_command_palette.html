@@ -31,6 +31,9 @@ inside each row template.
      @keydown.escape.window="if (open) { $event.preventDefault(); close() }"
      @acta:palette-open.window="openPalette()"
      @acta:palette-toggle.window="open ? close() : openPalette()"
+     role="dialog"
+     aria-modal="true"
+     aria-label="{% trans 'Command palette' %}"
      class="fixed inset-0 z-[80] flex items-start justify-center pt-[12vh] px-4">
 
   {% comment %}
@@ -79,16 +82,35 @@ inside each row template.
              placeholder="{% trans 'Search tasks, projects, jump to…' %}"
              autocomplete="off"
              spellcheck="false"
+             role="combobox"
+             aria-label="{% trans 'Search command palette' %}"
+             aria-controls="acta-palette-results"
+             aria-autocomplete="list"
+             :aria-expanded="displayed.total > 0 ? 'true' : 'false'"
+             :aria-activedescendant="displayed.total > 0 ? ('acta-palette-option-' + cursor) : null"
              class="flex-1 bg-transparent border-0 outline-none text-sm text-foreground placeholder:text-placeholder-foreground">
       <kbd class="hidden sm:inline-flex font-mono text-[10px] px-1.5 py-0.5 rounded bg-muted border border-border text-placeholder-foreground">esc</kbd>
     </div>
 
     {# ── Results ── #}
-    <div class="max-h-[60vh] overflow-y-auto py-1" x-ref="results">
+    {% comment %}
+    ``role="listbox"`` + per-row ``role="option"`` makes the keyboard
+    cursor visible to screen readers; the input's ``aria-activedescendant``
+    above points at the currently highlighted option. ``aria-live="polite"``
+    on the empty-state region announces "No matches." when search
+    returns nothing so AT users aren't left wondering.
+    {% endcomment %}
+    <div id="acta-palette-results"
+         role="listbox"
+         aria-label="{% trans 'Search results' %}"
+         class="max-h-[60vh] overflow-y-auto py-1"
+         x-ref="results">
 
       {# Empty / no-match state. #}
       <template x-if="!loading && displayed.total === 0">
-        <div class="px-4 py-8 text-center text-sm text-placeholder-foreground">
+        <div class="px-4 py-8 text-center text-sm text-placeholder-foreground"
+             role="status"
+             aria-live="polite">
           <span x-show="query.trim().length > 0">{% trans "No matches." %}</span>
           <span x-show="query.trim().length === 0">{% trans "Type to search across tasks, projects, and pages." %}</span>
         </div>
@@ -103,6 +125,9 @@ inside each row template.
             <a :href="item.url || '#'"
                @click.prevent="follow(item)"
                @mousemove="cursor = item._flatIdx"
+               role="option"
+               :id="'acta-palette-option-' + item._flatIdx"
+               :aria-selected="cursor === item._flatIdx ? 'true' : 'false'"
                :class="cursor === item._flatIdx ? 'bg-muted' : ''"
                class="flex items-center gap-2.5 px-3.5 py-1.5 text-sm text-foreground cursor-pointer">
 
