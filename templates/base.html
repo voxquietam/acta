@@ -98,11 +98,11 @@
     .shrink-0 { flex-shrink: 0; }
     .relative { position: relative; }
     .overflow-y-auto { overflow-y: auto; }
-    /* Axis-div pre-allocation is now per-axis SSR-side: views.py emits an
-       inline ``min-height: Npx`` on the active ``[data-list-axis]`` based
-       on the row + header count, so the browser reserves the exact final
-       height on first paint. See ``apps/web/views.py::_compute_axis_height_px``
-       and ``[[project-todo-cls-root-fix]]``. */
+    /* Pre-allocate height for the active axis section on All Tasks list
+       view — the 5 242-px reflow Lighthouse attributes to this div is
+       what tanks CLS to 0.58. The real ``flex-1 min-h-0`` from the
+       bundle takes over once parsed; this only matters before then. */
+    [data-list-axis] { min-height: 80vh; }
     [x-cloak] { display: none !important; }
   </style>
 
