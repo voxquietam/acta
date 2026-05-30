@@ -1,0 +1,19 @@
+{% load lucide %}
+{% comment %}
+Single priority chevron / dash icon. Replaces a 5-branch ``{% if %}`` /
+``{% lucide %}`` block that was inlined in ``_task_row.html``,
+``_task_card.html``, and ``_table_row.html``. Wave 3 PR-1 / D4 §F2.
+
+Required context:
+    priority: integer 0–4 (Task.priority).
+
+Optional context:
+    size_class (default "w-3 h-3"): the lucide size utility classes.
+    none_icon (default "" — render nothing): icon name to use when
+        priority == 0; pass "circle-dashed" to match the table cell.
+{% endcomment %}
+{% if priority == 1 %}{% lucide "chevrons-up" size_class|default:"w-3 h-3" %}
+{% elif priority == 2 %}{% lucide "chevron-up" size_class|default:"w-3 h-3" %}
+{% elif priority == 3 %}{% lucide "minus" size_class|default:"w-3 h-3" %}
+{% elif priority == 4 %}{% lucide "chevron-down" size_class|default:"w-3 h-3" %}
+{% elif none_icon %}{% lucide none_icon size_class|default:"w-3 h-3" %}{% endif %}

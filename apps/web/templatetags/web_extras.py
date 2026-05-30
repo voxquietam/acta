@@ -99,6 +99,38 @@ def inline_static(relative_path: str, *, tag: str = "style") -> str:
     return mark_safe(f"<{tag}>{content}</{tag}>")
 
 
+_STATUS_DOT_CLASSES = {
+    "planned": "bg-zinc-500 hover:ring-zinc-500/40",
+    "ready": "bg-cyan-500 hover:ring-cyan-500/40",
+    "to-do": "bg-blue-500 hover:ring-blue-500/40",
+    "in-progress": "bg-violet-500 hover:ring-violet-500/40",
+    "in-review": "bg-amber-500 hover:ring-amber-500/40",
+    "done": "bg-emerald-500 hover:ring-emerald-500/40",
+    "cancelled": "bg-zinc-600 hover:ring-zinc-600/40",
+}
+
+
+@register.filter(name="status_dot_classes")
+def status_dot_classes(status_key) -> str:
+    """Return ``bg-<colour>-500 hover:ring-<colour>-500/40`` for a status key.
+
+    Single source of truth for the kanban dot palette mirrored across
+    the row partials. Wave 3 PR-1 / D4 §F1 — previously inlined as a
+    7-branch ``{% if %}`` block in ``_task_row.html`` and friends,
+    repeated 260+ times per list render. The dict lookup is O(1) and
+    runs once per template interpolation.
+
+    Args:
+        status_key: ``Task.status`` value (``planned``, ``in-progress``…).
+
+    Returns:
+        A class string ready for ``class="… {{ task.status|status_dot_classes }}"``.
+        Falls back to ``bg-zinc-700`` styling for unknown statuses (matches
+        the previous default branch).
+    """
+    return _STATUS_DOT_CLASSES.get(status_key, "bg-zinc-700 hover:ring-zinc-700/40")
+
+
 @register.simple_tag(takes_context=True)
 def task_filter_attrs(context, task):
     """Emit ``data-*`` attributes that drive client-side filtering.

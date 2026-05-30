@@ -2,14 +2,34 @@
 {% load lucide %}
 {% load web_extras %}
 {% comment %}
-List view body — grouped sections of task rows. All axes pre-computed
-in ``list_sections_by_axis`` so axis switching is purely client-side
-(Alpine ``x-show``), no round-trip. Initial axis comes from the
-``list_axis`` cookie / ``?axis=`` querystring; clicking an axis tab
-updates ``activeAxis`` + ``history.pushState`` so URLs stay shareable.
+List view body — grouped sections of task rows.
+
+Cold load renders only the **active** axis inline (``list_axis`` from
+cookie / ``?axis=`` querystring). The other axes are placeholders that
+lazy-fetch via ``?panel=list&axis_only=KEY`` on first switch (Wave 3 PR-1
+F4). After the first switch, the populated section stays in the DOM and
+subsequent toggles are pure client-side ``x-show`` (no round-trip).
+
+This shaves ~80% off the cold-load payload on the All Tasks list view
+(previously all 5 axes × N rows were inlined; now only the active one).
 {% endcomment %}
 <div data-scroll-wrap class="relative flex-1 min-h-0"
-     x-data="{ activeAxis: '{{ list_axis }}' }">
+     x-data="{
+       activeAxis: '{{ list_axis }}',
+       loadedAxes: { '{{ list_axis }}': true },
+       switchAxis(key) {
+         this.activeAxis = key;
+         const u = new URL(window.location);
+         u.searchParams.set('axis', key);
+         history.pushState({}, '', u);
+         document.cookie = `acta_list_axis=${key}; path=/; max-age=${60*60*24*365}; samesite=Lax`;
+         if (!this.loadedAxes[key]) {
+           this.loadedAxes[key] = true;
+           const slot = this.$root.querySelector(`[data-list-axis='${key}'][data-axis-pending]`);
+           if (slot) slot.dispatchEvent(new CustomEvent('acta:load-axis'));
+         }
+       }
+     }">
 <div data-scroll-target class="h-full overflow-y-auto scrollbar-none pb-4">
 
   <div class="flex items-center gap-3 mb-3 text-xs">
@@ -17,13 +37,7 @@ updates ``activeAxis`` + ``history.pushState`` so URLs stay shareable.
     <nav class="flex items-center gap-1">
       {% for ax in list_axis_options %}
       <a href="?axis={{ ax.key }}"
-         @click.prevent="
-           activeAxis = '{{ ax.key }}';
-           const u = new URL(window.location);
-           u.searchParams.set('axis', '{{ ax.key }}');
-           history.pushState({}, '', u);
-           document.cookie = `acta_list_axis={{ ax.key }}; path=/; max-age=${60*60*24*365}; samesite=Lax`;
-         "
+         @click.prevent="switchAxis('{{ ax.key }}')"
          :class="activeAxis === '{{ ax.key }}'
            ? 'bg-muted text-foreground'
            : 'text-subtle-foreground hover:text-foreground hover:bg-muted/60'"
@@ -35,54 +49,22 @@ updates ``activeAxis`` + ``history.pushState`` so URLs stay shareable.
   </div>
 
   {% for axis_key, sections in list_sections_by_axis.items %}
-  <div x-show="activeAxis === '{{ axis_key }}'" x-cloak data-list-axis="{{ axis_key }}">
-    {% if sections %}
-    <div class="space-y-6" data-list-sections>
-      {% for section in sections %}
-      {% if section.tasks %}
-      <section data-list-section data-section-key="{{ section.key }}">
-        <div class="flex items-baseline gap-2 mb-2 px-1">
-          <h2 class="text-xs uppercase tracking-wider font-medium
-            {% if section.tone == 'rose' %}text-rose-400
-            {% elif section.tone == 'amber' %}text-amber-400
-            {% elif section.tone == 'violet' %}text-violet-400
-            {% elif section.tone == 'emerald' %}text-emerald-400
-            {% elif section.tone == 'blue' %}text-blue-400
-            {% elif section.tone == 'cyan' %}text-cyan-400
-            {% elif section.tone == 'orange' %}text-orange-400
-            {% elif section.tone == 'sky' %}text-sky-400
-            {% else %}text-placeholder-foreground{% endif %}">{{ section.label }}</h2>
-          <span data-list-count class="text-xs text-placeholder-foreground">{{ section.tasks|length }}</span>
-          {% comment %}
-          Personal WIP warning (My Work only): when the current user holds
-          more than their workspace WIP limit in this status. ``wip_self_over``
-          is set by MyWorkView; absent on other list surfaces.
-          {% endcomment %}
-          {% if wip_self_over %}{% with over=wip_self_over|get_item:section.key %}{% if over %}
-          <span class="text-[11px] font-mono text-rose-400" title="{% trans 'Over your WIP limit' %}">!! {{ over.count }}/{{ over.limit }} {% trans "over WIP" %}</span>
-          {% endif %}{% endwith %}{% endif %}
-        </div>
-        <ul class="bg-card border border-border rounded-lg overflow-hidden divide-y divide-border">
-          {% for task in section.tasks %}
-          <li>{% include "web/_task_row.html" with task=task %}</li>
-          {% endfor %}
-        </ul>
-      </section>
-      {% endif %}
-      {% endfor %}
+  {% if list_lazy_axes and axis_key != list_axis %}
+  <div x-show="activeAxis === '{{ axis_key }}'" x-cloak
+       data-list-axis="{{ axis_key }}" data-axis-pending
+       hx-get="?panel=list&amp;axis_only={{ axis_key }}"
+       hx-trigger="acta:load-axis"
+       hx-swap="innerHTML"
+       hx-indicator="this">
+    <div class="grid place-items-center text-center py-12 text-placeholder-foreground text-xs">
+      <span class="htmx-indicator">{% trans "Loading…" %}</span>
     </div>
-    {% else %}
-    <div class="grid place-items-center text-center py-20">
-      <div>
-        <div class="w-12 h-12 rounded-full border border-dashed border-border-strong grid place-items-center text-placeholder-foreground mx-auto mb-3">
-          {% lucide "list" "w-5 h-5" %}
-        </div>
-        <h2 class="text-lg font-medium text-muted-foreground">{% trans "No tasks match these filters" %}</h2>
-        <p class="text-sm text-placeholder-foreground mt-1">{% trans "Try a different group axis or clear filters." %}</p>
-      </div>
-    </div>
-    {% endif %}
   </div>
+  {% else %}
+  <div x-show="activeAxis === '{{ axis_key }}'" x-cloak data-list-axis="{{ axis_key }}">
+    {% include "web/projects/_list_axis_section.html" %}
+  </div>
+  {% endif %}
   {% endfor %}
 
 </div>

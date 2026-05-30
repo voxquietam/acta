@@ -1,0 +1,58 @@
+{% load i18n %}
+{% load web_extras %}
+{% comment %}
+One axis grouping of the list view (a stack of sections, each a card
+of task rows). Extracted as a partial so the All Tasks view can lazy-
+fetch the non-active axes on first switch via ``?panel=list&axis_only=KEY``
+instead of pre-rendering all five (5× payload) on the initial paint.
+
+Required context:
+    sections: the ordered list of ``{key, label, tone, tasks}`` dicts
+        for this axis (typically ``list_sections_by_axis[axis_key]``).
+
+Optional context:
+    wip_self_over: dict[status_key, {count, limit}] for the My Work
+        personal-WIP marker; absent on the All Tasks surface.
+    status_labels / priority_labels / today: standard list-row context.
+{% endcomment %}
+{% if sections %}
+<div class="space-y-6" data-list-sections>
+  {% for section in sections %}
+  {% if section.tasks %}
+  <section data-list-section data-section-key="{{ section.key }}">
+    <div class="flex items-baseline gap-2 mb-2 px-1">
+      <h2 class="text-xs uppercase tracking-wider font-medium
+        {% if section.tone == 'rose' %}text-rose-400
+        {% elif section.tone == 'amber' %}text-amber-400
+        {% elif section.tone == 'violet' %}text-violet-400
+        {% elif section.tone == 'emerald' %}text-emerald-400
+        {% elif section.tone == 'blue' %}text-blue-400
+        {% elif section.tone == 'cyan' %}text-cyan-400
+        {% elif section.tone == 'orange' %}text-orange-400
+        {% elif section.tone == 'sky' %}text-sky-400
+        {% else %}text-placeholder-foreground{% endif %}">{{ section.label }}</h2>
+      <span data-list-count class="text-xs text-placeholder-foreground">{{ section.tasks|length }}</span>
+      {% if wip_self_over %}{% with over=wip_self_over|get_item:section.key %}{% if over %}
+      <span class="text-[11px] font-mono text-rose-400" title="{% trans 'Over your WIP limit' %}">!! {{ over.count }}/{{ over.limit }} {% trans "over WIP" %}</span>
+      {% endif %}{% endwith %}{% endif %}
+    </div>
+    <ul class="bg-card border border-border rounded-lg overflow-hidden divide-y divide-border">
+      {% for task in section.tasks %}
+      <li>{% include "web/_task_row.html" with task=task %}</li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+  {% endfor %}
+</div>
+{% else %}
+<div class="grid place-items-center text-center py-20">
+  <div>
+    <div class="w-12 h-12 rounded-full border border-dashed border-border-strong grid place-items-center text-placeholder-foreground mx-auto mb-3">
+      {% load lucide %}{% lucide "list" "w-5 h-5" %}
+    </div>
+    <h2 class="text-lg font-medium text-muted-foreground">{% trans "No tasks match these filters" %}</h2>
+    <p class="text-sm text-placeholder-foreground mt-1">{% trans "Try a different group axis or clear filters." %}</p>
+  </div>
+</div>
+{% endif %}

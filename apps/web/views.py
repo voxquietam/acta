@@ -490,6 +490,13 @@ class AllTasksView(LoginRequiredMixin, ListView):
         if self.request.GET.get("panel") == "kanban":
             return ["web/projects/_kanban.html"]
         if self.request.GET.get("panel") == "list":
+            # ``?panel=list&axis_only=KEY`` is the per-axis lazy fetch fired by
+            # the in-panel axis tab on first switch (Wave 3 PR-1 F4). Renders
+            # just the section bundle for KEY (no list-panel chrome / Alpine
+            # wrapper) so the htmx ``innerHTML`` swap drops it straight into
+            # the pending placeholder.
+            if self.request.GET.get("axis_only"):
+                return ["web/projects/_list_axis_section.html"]
             return ["web/projects/_list_panel.html"]
         if self.request.GET.get("panel") == "timeline":
             return ["web/projects/_timeline.html"]
@@ -599,24 +606,45 @@ class AllTasksView(LoginRequiredMixin, ListView):
     def _list_axes_ctx(self, table_tasks):
         """List-view grouping context (inline list body or ``?panel=list``).
 
+        On the cold-load ``?panel=list`` path the active axis is rendered
+        inline and the rest are pending placeholders that lazy-fetch via
+        ``?panel=list&axis_only=KEY`` (Wave 3 PR-1 F4). The per-axis
+        fetch short-circuits ``group_tasks`` to the one axis it needs and
+        returns ``sections`` (a flat list) for the
+        ``_list_axis_section.html`` partial instead of the full bundle.
+
         Args:
             table_tasks: The already-filtered task list.
 
         Returns:
-            A context dict with ``list_axis`` + ``list_axis_options`` +
-            ``list_sections_by_axis`` (one ``group_tasks`` pass per axis).
+            A context dict. The cold-load path returns ``list_axis`` +
+            ``list_axis_options`` + ``list_sections_by_axis``; the per-axis
+            fetch path returns just ``sections`` for the section partial.
         """
         list_axis_keys = _with_cycle_axis(
             ("deadline", "status", "priority", "assignee", "project"),
             resolve_active_workspace(self.request),
         )
+        axis_only = self.request.GET.get("axis_only")
+        if axis_only and axis_only in list_axis_keys:
+            return {
+                "sections": group_tasks(table_tasks, axis_only, request_user=self.request.user),
+            }
         list_axis = _resolve_list_axis(self.request, default="project", options=list_axis_keys)
+        # Build sections only for the active axis on cold load; the other
+        # placeholders fetch their bundle on first switch (``list_lazy_axes``
+        # flag tells the template to emit a placeholder for non-active
+        # keys). The dict still lists every key so the ``{% for %}`` over
+        # axes iterates the full set.
+        list_sections_by_axis = {
+            key: group_tasks(table_tasks, key, request_user=self.request.user) if key == list_axis else []
+            for key in list_axis_keys
+        }
         return {
             "list_axis": list_axis,
             "list_axis_options": _list_axis_options(list_axis_keys, list_axis),
-            "list_sections_by_axis": {
-                key: group_tasks(table_tasks, key, request_user=self.request.user) for key in list_axis_keys
-            },
+            "list_sections_by_axis": list_sections_by_axis,
+            "list_lazy_axes": True,
         }
 
     def get_context_data(self, **kwargs):

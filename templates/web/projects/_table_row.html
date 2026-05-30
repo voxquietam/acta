@@ -42,13 +42,7 @@ in context.
         {% elif task.priority == 4 %}text-[#a5b4d9] hover:ring-[#a5b4d9]/40
         {% else %}text-zinc-600 hover:ring-zinc-600/40{% endif %}"
             title="{% trans 'Filter by priority' %}: {{ priority_labels|get_item:task.priority|default:_('No priority') }}"
-            @click.stop="window.acta.toggleFilter('priority', '{{ task.priority|default:0 }}')">
-        {% if task.priority == 1 %}{% lucide "chevrons-up" "w-3.5 h-3.5" %}
-        {% elif task.priority == 2 %}{% lucide "chevron-up" "w-3.5 h-3.5" %}
-        {% elif task.priority == 3 %}{% lucide "minus" "w-3.5 h-3.5" %}
-        {% elif task.priority == 4 %}{% lucide "chevron-down" "w-3.5 h-3.5" %}
-        {% else %}{% lucide "circle-dashed" "w-3.5 h-3.5" %}{% endif %}
-      </span>
+            @click.stop="window.acta.toggleFilter('priority', '{{ task.priority|default:0 }}')">{% include "web/projects/_priority_icon.html" with priority=task.priority size_class="w-3.5 h-3.5" none_icon="circle-dashed" %}</span>
       <a href="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
          {% open_task_modal_attrs task %}
          class="hover:text-foreground transition">{{ task.slug }}</a>

@@ -1,0 +1,73 @@
+{% load i18n %}
+{% comment %}
+Assignee avatar covering all three states (photo / initial circle /
+unassigned dashed circle). Consolidates a 25-line inline block that
+previously lived in ``_task_row.html`` and ``_task_card.html``. Wave 3
+PR-1 / D4 §F3.
+
+Required context:
+    assignee: User or None — the task's current assignee.
+
+Optional context:
+    request_user: the request.user; needed when ``clickable=True`` so
+        the filter handler emits the ``me`` token instead of the
+        viewer's own user id (the assignee strip pins ``me`` as a
+        separate chip).
+    size_class (default "w-[22px] h-[22px]"): avatar dimensions.
+    text_class (default "text-[11px]"): initial-circle font size.
+    none_text_class (default "text-[10px]"): the ``?`` placeholder
+        font size.
+    clickable (default False): wraps the avatar in the
+        ``window.acta.toggleFilter('assignee', ...)`` handler used on
+        the All Tasks list view; kanban cards stay non-interactive
+        so the row's click-to-open isn't shadowed.
+    with_substatus_data (default False): when True, emit the
+        ``data-task-assignee-avatar`` marker + ``data-avatar-*`` attrs
+        consumed by the kanban column substatus recompute in acta.js
+        (see Wave 1 PR-4 + the `_kanban.html` header). Off by default
+        so list / table rows stay slim.
+    extra_class (default ""): extra layout classes (e.g. ``ml-auto``).
+    ring_focus_class (default "hover:ring-brand-400/40"): the
+        ``hover:ring-…`` colour for the interactive halo when
+        ``clickable=True``. The dashed unassigned slot uses
+        ``hover:ring-zinc-500/40`` regardless.
+    avatar_box_shadow (default ""): inline ``style="box-shadow: …"``
+        appended to the photo / initial circle (kanban cards layer a
+        1.5 px card-coloured ring to lift the avatar off the bottom
+        meta line).
+{% endcomment %}
+{% with sz=size_class|default:"w-[22px] h-[22px]" tc=text_class|default:"text-[11px]" ntc=none_text_class|default:"text-[10px]" rfc=ring_focus_class|default:"hover:ring-brand-400/40" %}
+{% if assignee %}
+{% if assignee.avatar %}
+<img src="{% url 'accounts:serve_avatar' user_id=assignee.id %}?v={{ assignee.avatar_version }}"
+     alt="{{ assignee.display_name }}"
+     class="{{ extra_class }} {{ sz }} rounded-full object-cover{% if clickable %} shrink-0 cursor-pointer transition hover:ring-2 hover:ring-offset-1 hover:ring-offset-card {{ rfc }}{% endif %}"
+     {% if avatar_box_shadow %}style="{{ avatar_box_shadow }}"{% endif %}
+     title="{% if clickable %}{% trans 'Filter by assignee' %}: {{ assignee.display_name }}{% else %}{{ assignee.display_name }}{% endif %}"
+     {% if clickable %}@click.prevent.stop="window.acta.toggleFilter('assignee', '{% if assignee == request_user %}me{% else %}{{ assignee.id }}{% endif %}')"{% endif %}
+     {% if with_substatus_data %}data-task-assignee-avatar
+     data-avatar-url="{% url 'accounts:serve_avatar' user_id=assignee.id %}?v={{ assignee.avatar_version }}"
+     data-avatar-initial="{{ assignee.display_name|slice:':1'|upper }}"
+     data-avatar-bg="{{ assignee.avatar_color }}"
+     data-avatar-name="{{ assignee.display_name }}"{% endif %}>
+{% else %}
+<span class="{{ extra_class }} {{ sz }} {{ tc }} rounded-full text-white grid place-items-center font-medium{% if clickable %} shrink-0 cursor-pointer transition hover:ring-2 hover:ring-offset-1 hover:ring-offset-card {{ rfc }}{% endif %}"
+      style="background-color: {{ assignee.avatar_color }};{% if avatar_box_shadow %} {{ avatar_box_shadow }}{% endif %}"
+      title="{% if clickable %}{% trans 'Filter by assignee' %}: {{ assignee.display_name }}{% else %}{{ assignee.display_name }}{% endif %}"
+      {% if clickable %}@click.prevent.stop="window.acta.toggleFilter('assignee', '{% if assignee == request_user %}me{% else %}{{ assignee.id }}{% endif %}')"{% endif %}
+      {% if with_substatus_data %}data-task-assignee-avatar
+      data-avatar-initial="{{ assignee.display_name|slice:':1'|upper }}"
+      data-avatar-bg="{{ assignee.avatar_color }}"
+      data-avatar-name="{{ assignee.display_name }}"{% endif %}>{{ assignee.display_name|slice:":1"|upper }}</span>
+{% endif %}
+{% else %}
+{% if clickable %}
+<span class="{{ extra_class }} {{ sz }} {{ ntc }} rounded-full border border-dashed border-border-strong grid place-items-center text-placeholder-foreground shrink-0 cursor-pointer transition hover:ring-2 hover:ring-offset-1 hover:ring-offset-card hover:ring-zinc-500/40"
+      title="{% trans 'Filter by assignee' %}: {% trans 'Unassigned' %}"
+      @click.prevent.stop="window.acta.toggleFilter('assignee', 'unassigned')">?</span>
+{% else %}
+<span class="{{ extra_class }} {{ sz }} {{ ntc }} rounded-full border border-dashed border-border-strong grid place-items-center text-placeholder-foreground italic"
+      title="{% trans 'Unassigned' %}">?</span>
+{% endif %}
+{% endif %}
+{% endwith %}

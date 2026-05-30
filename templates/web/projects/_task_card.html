@@ -67,13 +67,7 @@ handler in ``_kanban.html`` restores it for middle / Ctrl+click.
       {% elif task.priority == 3 %}text-amber-400
       {% elif task.priority == 4 %}text-[#a5b4d9]
       {% else %}text-placeholder-foreground{% endif %}"
-          title="{{ priority_labels|get_item:task.priority }}">
-      {% if task.priority == 1 %}{% lucide "chevrons-up" "w-3.5 h-3.5" %}
-      {% elif task.priority == 2 %}{% lucide "chevron-up" "w-3.5 h-3.5" %}
-      {% elif task.priority == 3 %}{% lucide "minus" "w-3.5 h-3.5" %}
-      {% elif task.priority == 4 %}{% lucide "chevron-down" "w-3.5 h-3.5" %}
-      {% else %}{% lucide "circle-dashed" "w-3.5 h-3.5" %}{% endif %}
-    </span>
+          title="{{ priority_labels|get_item:task.priority }}">{% include "web/projects/_priority_icon.html" with priority=task.priority size_class="w-3.5 h-3.5" none_icon="circle-dashed" %}</span>
     {% endif %}
     {% if task.size %}
     <span class="px-1.5 py-0.5 rounded bg-muted text-subtle-foreground font-mono inline-flex items-center gap-1"
@@ -125,37 +119,13 @@ handler in ``_kanban.html`` restores it for middle / Ctrl+click.
     {% endif %}
     <span class="font-mono text-[10px] opacity-70"
           title="{{ task.updated_at|date:'M j Y H:i' }}">{{ task.updated_at|timesince }}</span>
-    {% if task.assignee %}
     {% comment %}
-    The avatar carries explicit ``data-avatar-*`` attrs so the column
-    substatus recompute (acta.js) can rebuild the header avatar stack from
-    cards regardless of whether each is a photo or a colour circle.
+    Kanban card avatar carries explicit ``data-avatar-*`` attrs so the
+    column substatus recompute (acta.js) can rebuild the header avatar
+    stack regardless of photo vs colour circle. Card is non-clickable
+    (the row click opens the modal) — handled by passing
+    ``clickable=False``.
     {% endcomment %}
-    {% if task.assignee.avatar %}
-    <img src="{% url 'accounts:serve_avatar' user_id=task.assignee.id %}?v={{ task.assignee.avatar_version }}"
-         alt="{{ task.assignee.display_name }}"
-         class="ml-auto w-[18px] h-[18px] rounded-full object-cover"
-         style="box-shadow: 0 0 0 1.5px rgb(var(--card));"
-         title="{{ task.assignee.display_name }}"
-         data-task-assignee-avatar
-         data-avatar-url="{% url 'accounts:serve_avatar' user_id=task.assignee.id %}?v={{ task.assignee.avatar_version }}"
-         data-avatar-initial="{{ task.assignee.display_name|slice:':1'|upper }}"
-         data-avatar-bg="{{ task.assignee.avatar_color }}"
-         data-avatar-name="{{ task.assignee.display_name }}">
-    {% else %}
-    <span class="ml-auto w-[18px] h-[18px] rounded-full text-white grid place-items-center font-medium text-[9px]"
-          style="background-color: {{ task.assignee.avatar_color }}; box-shadow: 0 0 0 1.5px rgb(var(--card));"
-          title="{{ task.assignee.display_name }}"
-          data-task-assignee-avatar
-          data-avatar-initial="{{ task.assignee.display_name|slice:':1'|upper }}"
-          data-avatar-bg="{{ task.assignee.avatar_color }}"
-          data-avatar-name="{{ task.assignee.display_name }}">
-      {{ task.assignee.display_name|slice:":1"|upper }}
-    </span>
-    {% endif %}
-    {% else %}
-    <span class="ml-auto w-[18px] h-[18px] rounded-full border border-dashed border-border-strong grid place-items-center text-placeholder-foreground text-[9px] italic"
-          title="{% trans 'Unassigned' %}">?</span>
-    {% endif %}
+    {% include "web/_assignee_avatar.html" with assignee=task.assignee size_class="w-[18px] h-[18px]" text_class="text-[9px]" none_text_class="text-[9px]" with_substatus_data=True extra_class="ml-auto" avatar_box_shadow="box-shadow: 0 0 0 1.5px rgb(var(--card));" %}
   </div>
 </div>
