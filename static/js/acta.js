@@ -732,12 +732,64 @@
   // restored via ``htmx.swap`` doesn't reliably re-run, which left cards
   // undraggable (text just selected) after a Back/Forward or boosted nav
   // until a full reload. ``Sortable.get`` keeps the bind idempotent.
+
+  // Local fall-back for the visual "done / cancelled" treatment on a
+  // kanban card. The SSE-replace path (``actaForceApplySelfEvent`` +
+  // ``applyCardMove``) is faithful — it swaps in a fresh server-rendered
+  // card — but it only fires when the dropper is subscribed to the
+  // task's workspace SSE channel. On the cross-workspace All Tasks page
+  // the SSE wrapper subscribes to the active workspace only; tasks
+  // from other workspaces never get the broadcast. This delta covers
+  // that case (and is a harmless no-op when the SSE swap arrives and
+  // overwrites the card outright).
+  function applyKanbanCardStatusStyle(card, newStatus) {
+    if (!card) return;
+    const muted = newStatus === "done" || newStatus === "cancelled";
+    card.classList.toggle("opacity-90", newStatus === "done");
+    const title = card.querySelector("[data-kanban-card-title]");
+    if (title) {
+      title.classList.toggle("line-through", muted);
+      title.classList.toggle("text-placeholder-foreground", muted);
+      title.classList.toggle("text-foreground", !muted);
+    }
+    // Due-date highlight (rose = overdue, amber = today) only applies
+    // to non-done cards per the template; drop both on entry to done so
+    // the card doesn't shout "overdue!" while sitting in Done.
+    if (newStatus === "done") {
+      card
+        .querySelectorAll("[title^='Due'], [title^=Due]")
+        .forEach((el) => el.classList.remove("text-rose-400", "text-amber-400"));
+    }
+  }
+
   function handleKanbanDrop(evt) {
     const card = evt.item;
     const newStatus = evt.to.dataset.status;
+    const oldStatus = evt.from.dataset.status;
     const taskId = card.dataset.taskId;
     if (!taskId || !newStatus) return;
-    const rollback = () => evt.from.insertBefore(card, evt.from.children[evt.oldIndex] || null);
+    const rollback = () => {
+      evt.from.insertBefore(card, evt.from.children[evt.oldIndex] || null);
+      applyKanbanCardStatusStyle(card, oldStatus);
+    };
+    // Optimistic style update — applied synchronously in onAdd so the
+    // greying / strike-through lands the moment the card lands in the
+    // column, with no PATCH round-trip wait. If the PATCH fails we
+    // revert it inside ``rollback`` together with the position. The
+    // SSE swap (if it arrives) will overwrite the card outright; this
+    // delta is also the only fix on the cross-workspace All Tasks page
+    // where the SSE event goes to a channel we don't subscribe to.
+    applyKanbanCardStatusStyle(card, newStatus);
+    // Opt this card into self-SSE replay BEFORE firing the PATCH. The
+    // server-side ``task.status_changed`` broadcast carries a freshly
+    // rendered ``card_html`` that picks up the done/cancelled
+    // ``line-through`` + ``text-placeholder-foreground`` classes (and the
+    // ``opacity-90`` on the root). Without the opt-in, the SSE handler
+    // drops the event as self-actor, so the visually-moved card keeps its
+    // pre-drop classes until the next page nav. With it, ``applyCardMove``
+    // replaces the card in place + re-anchors it to the server-sorted
+    // position (priority desc, updated_at desc), matching what peers see.
+    if (window.actaForceApplySelfEvent) window.actaForceApplySelfEvent(taskId);
     // Raw ``fetch`` (not HTMX) so the global ``htmx:responseError`` toast
     // never sees this failure. Without a manual toast a silent rollback
     // reads as "the card snapped back, no idea why" — surface the
