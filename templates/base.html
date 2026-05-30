@@ -50,6 +50,62 @@
     })();
   </script>
 
+  {% comment %}
+  Critical CSS — reset + theme vars + layout primitives + axis-div size
+  pre-allocation. Inlined to break the layout pass's dependency on the
+  114-KB ``main.bundle.css``: Lighthouse otherwise records a 5 000+px
+  reflow on All Tasks list view (CLS 0.58) when the bundle finishes
+  parsing and the shell finally gets ``flex-1`` / ``min-h-0`` semantics.
+  Everything here is also re-declared in the full bundle below; the
+  bundle's rules win once parsed (later, more specific selectors), so
+  this block only matters for the first paint.
+  {% endcomment %}
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; }
+    :root {
+      --background: 255 255 255;
+      --card: 255 255 255;
+      --foreground: 24 24 27;
+      --muted: 244 244 245;
+      --border: 228 228 231;
+      color-scheme: light;
+    }
+    html.dark {
+      --background: 9 9 11;
+      --card: 24 24 27;
+      --foreground: 244 244 245;
+      --muted: 39 39 42;
+      --border: 39 39 42;
+      color-scheme: dark;
+    }
+    html.midnight {
+      --background: 12 13 23;
+      --card: 22 24 38;
+      --foreground: 244 244 250;
+      --muted: 33 36 53;
+      --border: 36 39 56;
+    }
+    body.bg-background { background-color: rgb(var(--background)); }
+    body.text-foreground { color: rgb(var(--foreground)); }
+    .h-screen { height: 100vh; }
+    .h-full { height: 100%; }
+    .flex { display: flex; }
+    .flex-col { flex-direction: column; }
+    .flex-1 { flex: 1 1 0%; }
+    .min-h-0 { min-height: 0; }
+    .min-w-0 { min-width: 0; }
+    .shrink-0 { flex-shrink: 0; }
+    .relative { position: relative; }
+    .overflow-y-auto { overflow-y: auto; }
+    /* Pre-allocate height for the active axis section on All Tasks list
+       view — the 5 242-px reflow Lighthouse attributes to this div is
+       what tanks CLS to 0.58. The real ``flex-1 min-h-0`` from the
+       bundle takes over once parsed; this only matters before then. */
+    [data-list-axis] { min-height: 80vh; }
+    [x-cloak] { display: none !important; }
+  </style>
+
   {# Pre-compiled Tailwind stylesheet — replaces the Tailwind Play CDN.  #}
   {# Built from ``static_src/css/main.css`` (Tailwind base/components/   #}
   {# utilities + project-specific rules) via ``npm run build:css``.     #}
@@ -69,15 +125,6 @@
   {# applied — no stale content, no race. See "Own the history           #}
   {# navigation" in static/js/acta.js.                                    #}
   <meta name="htmx-config" content='{"historyEnabled": false}'>
-
-  {% comment %}
-  Alpine's official ``x-cloak`` rule. Without it every ``x-show=false``
-  block stays visible until Alpine boots, then snaps to ``display:none``
-  — the All Tasks list view used to stack five axis sections before the
-  active one was picked, producing a Lighthouse CLS of 0.6+. Inlined so
-  the rule applies on the very first paint, not after main.bundle.css.
-  {% endcomment %}
-  <style>[x-cloak]{display:none !important}</style>
 
   {% comment %}
   Render-blocking trio served from our own static so the first paint
