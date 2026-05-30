@@ -15,11 +15,19 @@
   plus a couple of explicit arbitraries), so ``z-[20]`` etc. silently do
   nothing. Without these rules the bars (z-index:2 below) paint OVER the
   sticky header. Keep every timeline z-index here, not in classes.
+
+  Layered top-down:
+    #tl-left   z=30  sticky task column, painted over EVERYTHING that
+                     scrolls under it horizontally (date header + bars).
+    #tl-header z=20  opaque date header, above the body + bars.
+    bars       z=2   above body bg + today-line.
+    #tl-body   z=1   traps bars under the date header.
+    today-line z=1   between row bg (auto) and bars, so the line passes
+                     BEHIND task bars instead of painting over them.
 */
-#tl-body       { position: relative; z-index: 1; }  /* traps bars under the header */
+#tl-left       { z-index: 30; }                      /* sticky task col, beats header */
+#tl-body       { position: relative; z-index: 1; }   /* traps bars under the header */
 #tl-header     { z-index: 20; }                      /* opaque date header, above body */
-/* today-line lives inside #tl-body: z between row backgrounds (auto) and
-   bars (z-index:2) so the line passes BEHIND the task bars. */
 #tl-today-line { z-index: 1; }
 
 /* Bar wrapper — positioned absolute inside .tl-row */
@@ -323,8 +331,14 @@ because grid items' containing block was just the 56px header row.
 <div id="tl-scroll" class="flex-1 min-h-0 overflow-x-auto overflow-y-auto bg-card border border-border rounded-lg mb-4"
      style="scrollbar-width:thin;scrollbar-color:rgb(var(--border-strong)) transparent;overscroll-behavior:none;">
   {# ``isolation: isolate`` roots the inner flex's stacking context so each #}
-  {# sticky element's z-index competes only with the flex's own children. #}
-  <div class="flex" style="isolation: isolate;">
+  {# sticky element's z-index competes only with the flex's own children.   #}
+  {# ``w-max`` makes the flex container grow to fit ``#tl-gantt``'s width   #}
+  {# (the chart is much wider than the scroller's clientWidth). Without it  #}
+  {# the containing block of ``#tl-left``'s ``sticky left-0`` was limited   #}
+  {# to clientWidth, so the column un-pinned the moment the user scrolled   #}
+  {# past (clientWidth − 260 px). With ``w-max`` the containing block       #}
+  {# spans the full scroll range and the column stays pinned end-to-end.    #}
+  <div class="flex w-max" style="isolation: isolate;">
 
   {% comment %} Left task-name column — sticky-left so it never leaves the viewport. {% endcomment %}
   <div id="tl-left" class="sticky left-0 z-20 shrink-0 bg-card border-r border-border" style="width:260px">
