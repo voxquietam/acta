@@ -177,7 +177,19 @@ Pages extend this and override the `app_main` block.
         <span x-show="$store.sidebar.open" x-cloak class="shrink-0 text-placeholder-foreground">{% lucide "chevrons-up-down" "w-3.5 h-3.5" %}</span>
       </button>
 
+      {% comment %}
+      ``@click="wsOpen = false"`` on the panel itself collapses the
+      dropdown the moment anything inside is clicked — covers the
+      Workspace settings link (which boosts via hx-boost and would
+      otherwise leave the sidebar Alpine state untouched, keeping
+      the dropdown floating over the new page), the switch-workspace
+      submit buttons, and the Create workspace button. The handler
+      on this element fires before the click reaches the inner
+      control's action so navigation / submit / htmx.ajax all
+      proceed normally.
+      {% endcomment %}
       <div x-show="wsOpen" x-cloak x-transition.opacity.duration.100ms
+           @click="wsOpen = false"
            class="absolute left-2 right-2 bottom-full mb-1 min-w-[13rem] z-30 bg-card border border-border rounded-lg shadow-lg py-1 max-h-80 overflow-y-auto">
         <div class="px-2 py-1 text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Workspaces" %}</div>
         {% for ws in nav_workspaces %}
