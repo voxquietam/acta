@@ -1320,7 +1320,10 @@
         method: "POST",
         headers: { "X-CSRFToken": csrf, "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams(data),
-      }).catch((err) => console.error("[timeline] patch failed:", err));
+      }).catch((err) => {
+        console.error("[timeline] patch failed:", err);
+        if (window.actaToast) window.actaToast("Network error — date not updated.", "error");
+      });
     }
 
     function renderTodayLine(dayW) {
@@ -1993,9 +1996,6 @@
       strip.addEventListener("scroll", () => updateStripCounters(strip), {
         passive: true,
       });
-      window.addEventListener("resize", () => updateStripCounters(strip), {
-        passive: true,
-      });
     });
   }
 
@@ -2025,11 +2025,23 @@
       target.addEventListener("scroll", () => updateScrollFades(target), {
         passive: true,
       });
-      window.addEventListener("resize", () => updateScrollFades(target), {
-        passive: true,
-      });
     });
   }
+
+  // Single delegated resize handler. Earlier ``initStrips`` and
+  // ``initScrollFades`` each added a per-element listener on ``window``
+  // closing over the element, so every HTMX swap that produced fresh
+  // strips/targets piled new listeners on window (and the closures
+  // kept the detached elements alive). One global listener that walks
+  // the current bound elements keeps the per-swap cost flat and lets
+  // detached elements GC normally.
+  function recomputeOverflowOnResize() {
+    document.querySelectorAll('[data-strip][data-strip-bound="true"]').forEach(updateStripCounters);
+    document
+      .querySelectorAll('[data-scroll-target][data-scroll-fades-bound="true"]')
+      .forEach(updateScrollFades);
+  }
+  window.addEventListener("resize", recomputeOverflowOnResize, { passive: true });
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => {
@@ -2081,6 +2093,12 @@
   // to change the style attribute while the store still says collapsed.
   // Per-body MO, fires only on attribute changes, no re-entry (idempotent
   // writes don't re-fire), bounded cost.
+  // Track live snap observers so we can disconnect those whose body
+  // was swapped out by HTMX (board panel re-render replaces column
+  // bodies; the old `__actaSnapObs` reference dies with the node, but
+  // the observer itself keeps observing a detached DOM tree until we
+  // disconnect it explicitly).
+  const _snapObservers = new Map(); // body -> obs
   function installCollapsedBodySnap(body) {
     if (body.__actaSnapObs) return;
     const store = window.Alpine && window.Alpine.store && window.Alpine.store("kanban");
@@ -2096,8 +2114,18 @@
     const obs = new MutationObserver(snap);
     obs.observe(body, { attributes: true, attributeFilter: ["style"] });
     body.__actaSnapObs = obs;
+    _snapObservers.set(body, obs);
+  }
+  function pruneDetachedSnapObservers() {
+    for (const [body, obs] of _snapObservers) {
+      if (!body.isConnected) {
+        obs.disconnect();
+        _snapObservers.delete(body);
+      }
+    }
   }
   function snapCollapsedBodies() {
+    pruneDetachedSnapObservers();
     document.querySelectorAll(".kanban-column[data-status]").forEach(installCollapsedBodySnap);
   }
   // Bind on cold load + after every HTMX settle (board panel re-renders
