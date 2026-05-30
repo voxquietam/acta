@@ -23,7 +23,7 @@ All Tasks / project view tabs. Boosted links swap #app-content (which
 includes the topbar), so the active tab + content re-render together
 while the sidebar stays mounted.
 {% endcomment %}
-<nav class="inline-flex items-center bg-card border border-border rounded-lg p-1 gap-0.5 text-sm">
+<nav class="hidden sm:inline-flex items-center bg-card border border-border rounded-lg p-1 gap-0.5 text-sm">
   <a href="{% url 'web:inbox' %}" hx-boost="true" hx-target="#app-content" hx-select="#app-content" hx-swap="outerHTML show:top" hx-push-url="true"
      class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md transition {% if active_tab == 'notifications' %}bg-brand-500/15 text-brand-300 ring-1 ring-brand-500/30 ring-inset{% else %}text-subtle-foreground hover:text-foreground hover:bg-muted/50{% endif %}">
     {% lucide "inbox" "w-3.5 h-3.5" %}{% trans "Notifications" %}

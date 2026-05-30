@@ -313,12 +313,14 @@ Pages extend this and override the `app_main` block.
 
       {% comment %}
       Topbar middle — view tabs (Backlog / Overview / Kanban / Table /
-      Timeline) on All Tasks + project detail. Hidden below ``sm:``
-      because 5 tabs × ~80 px don't fit alongside hamburger + title +
-      action buttons on a 393 px iPhone. Mobile users switch view via
-      the page-level UI or by re-opening the page from the nav.
+      Timeline) on All Tasks + project detail. The container always
+      renders; each ``topbar_mid`` consumer decides its own mobile
+      strategy. ``_view_tabs.html`` shows a compact mobile dropdown
+      below ``sm:`` and the full segmented pill at ``sm:+``; the inbox
+      and workspace-settings tabs hide entirely on mobile (their content
+      is reachable through the page body / sidebar).
       {% endcomment %}
-      <div class="hidden sm:flex items-center shrink-0">
+      <div class="flex items-center shrink-0">
         {% block topbar_mid %}{% endblock %}
       </div>
 

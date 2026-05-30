@@ -40,7 +40,7 @@ paint and update in lockstep when one changes.
 <nav x-data="{ tab: (new URLSearchParams(window.location.search).get('tab')) || 'general' }"
      @acta:settings-tab.window="tab = $event.detail"
      @popstate.window="tab = (new URLSearchParams(window.location.search).get('tab')) || 'general'"
-     class="inline-flex items-center bg-card border border-border rounded-lg p-1 gap-0.5 text-sm">
+     class="hidden sm:inline-flex items-center bg-card border border-border rounded-lg p-1 gap-0.5 text-sm">
   {% include "web/workspaces/_settings_tab_button.html" with key="general" icon="settings" label_text="General" tone="brand" %}
   {% include "web/workspaces/_settings_tab_button.html" with key="workflow" icon="workflow" label_text="Workflow" tone="brand" %}
   {% include "web/workspaces/_settings_tab_button.html" with key="danger" icon="triangle-alert" label_text="Danger" tone="rose" %}

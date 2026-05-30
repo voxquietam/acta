@@ -16,6 +16,85 @@ Disabled placeholders (Timeline; Overview on All Tasks) keep the slot
 visible with a ``lock`` glyph.
 {% endcomment %}
 <div x-data class="inline-flex items-center gap-2">
+
+  {% comment %}
+  Mobile view picker — a single dropdown trigger that shows the active
+  view's icon + label + chevron. Replaces the segmented pill below ``sm:``
+  because 5-7 tab buttons don't fit alongside hamburger + heading + action
+  icons on a 393 px iPhone. The dropdown menu lists every view available
+  on this page (gated by ``allow_backlog`` / ``allow_overview`` just like
+  the desktop tabs). Selecting one mirrors the desktop ``@click.prevent``
+  flow: ``$store.viewMode.set`` + ``history.pushState`` (no full nav).
+  {% endcomment %}
+  <div x-data="{ open: false, pick(view) {
+         $store.viewMode.set(view);
+         const u = new URL(window.location);
+         u.searchParams.set('view', view);
+         if (view !== 'list') u.searchParams.delete('axis');
+         history.pushState({}, '', u);
+         this.open = false;
+       } }"
+       @keydown.escape.window="open = false"
+       class="sm:hidden relative">
+    <button type="button"
+            @click="open = !open"
+            @click.outside="open = false"
+            :aria-expanded="open"
+            aria-haspopup="menu"
+            class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-card border border-border text-sm text-foreground">
+      <span class="inline-flex items-center gap-1.5"
+            x-text="({
+              backlog: '{% trans 'Backlog' %}',
+              overview: '{% trans 'Overview' %}',
+              kanban: '{% trans 'Kanban' %}',
+              table: '{% trans 'Table' %}',
+              list: '{% trans 'List' %}',
+              timeline: '{% trans 'Timeline' %}',
+            })[$store.viewMode.current] || '{% trans 'View' %}'"></span>
+      {% lucide "chevron-down" "w-3.5 h-3.5 text-placeholder-foreground" %}
+    </button>
+    <div x-show="open"
+         x-transition.opacity.duration.100ms
+         x-cloak
+         role="menu"
+         class="absolute left-0 top-full mt-1 z-30 min-w-[160px] bg-card border border-border rounded-lg shadow-lg p-1">
+      {% if allow_backlog %}
+      <button type="button" @click="pick('backlog')" role="menuitem"
+              :class="$store.viewMode.current === 'backlog' ? 'bg-brand-500/15 text-brand-300' : 'text-subtle-foreground hover:bg-muted/50 hover:text-foreground'"
+              class="w-full inline-flex items-center gap-2 px-2.5 py-1.5 rounded-md text-sm transition">
+        {% lucide "layers" "w-3.5 h-3.5" %}{% trans "Backlog" %}
+      </button>
+      {% endif %}
+      {% if allow_overview %}
+      <button type="button" @click="pick('overview')" role="menuitem"
+              :class="$store.viewMode.current === 'overview' ? 'bg-brand-500/15 text-brand-300' : 'text-subtle-foreground hover:bg-muted/50 hover:text-foreground'"
+              class="w-full inline-flex items-center gap-2 px-2.5 py-1.5 rounded-md text-sm transition">
+        {% lucide "layout-grid" "w-3.5 h-3.5" %}{% trans "Overview" %}
+      </button>
+      {% endif %}
+      <button type="button" @click="pick('kanban')" role="menuitem"
+              :class="$store.viewMode.current === 'kanban' ? 'bg-brand-500/15 text-brand-300' : 'text-subtle-foreground hover:bg-muted/50 hover:text-foreground'"
+              class="w-full inline-flex items-center gap-2 px-2.5 py-1.5 rounded-md text-sm transition">
+        {% lucide "kanban" "w-3.5 h-3.5" %}{% trans "Kanban" %}
+      </button>
+      <button type="button" @click="pick('table')" role="menuitem"
+              :class="$store.viewMode.current === 'table' ? 'bg-brand-500/15 text-brand-300' : 'text-subtle-foreground hover:bg-muted/50 hover:text-foreground'"
+              class="w-full inline-flex items-center gap-2 px-2.5 py-1.5 rounded-md text-sm transition">
+        {% lucide "table-2" "w-3.5 h-3.5" %}{% trans "Table" %}
+      </button>
+      <button type="button" @click="pick('list')" role="menuitem"
+              :class="$store.viewMode.current === 'list' ? 'bg-brand-500/15 text-brand-300' : 'text-subtle-foreground hover:bg-muted/50 hover:text-foreground'"
+              class="w-full inline-flex items-center gap-2 px-2.5 py-1.5 rounded-md text-sm transition">
+        {% lucide "list" "w-3.5 h-3.5" %}{% trans "List" %}
+      </button>
+      <button type="button" @click="pick('timeline')" role="menuitem"
+              :class="$store.viewMode.current === 'timeline' ? 'bg-brand-500/15 text-brand-300' : 'text-subtle-foreground hover:bg-muted/50 hover:text-foreground'"
+              class="w-full inline-flex items-center gap-2 px-2.5 py-1.5 rounded-md text-sm transition">
+        {% lucide "chart-gantt" "w-3.5 h-3.5" %}{% trans "Timeline" %}
+      </button>
+    </div>
+  </div>
+
   {% comment %}
   Backlog grooming tab — split out of the main segmented bar into its
   own pill (with a gap) so the "grooming" surface reads as separate from
@@ -33,13 +112,13 @@ visible with a ``lock`` glyph.
      :class="$store.viewMode.current === 'backlog'
        ? 'bg-brand-500/15 text-brand-300 ring-1 ring-brand-500/30 ring-inset border-transparent'
        : 'bg-card text-subtle-foreground hover:text-foreground hover:bg-muted/50'"
-     class="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg border border-border transition text-sm">
+     class="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg border border-border transition text-sm">
     {% lucide "layers" "w-3.5 h-3.5" %}
     {% trans "Backlog" %}
   </a>
   {% endif %}
 
-  <nav class="inline-flex items-center bg-card border border-border rounded-lg p-1 gap-0.5 text-sm">
+  <nav class="hidden sm:inline-flex items-center bg-card border border-border rounded-lg p-1 gap-0.5 text-sm">
   {% if allow_overview %}
   <a href="?view=overview"
      @click.prevent="
