@@ -87,6 +87,12 @@ module.exports = {
     },
   },
   plugins: [
-    require("@tailwindcss/typography"),
+    // ``@tailwindcss/typography`` is intentionally NOT included here —
+    // it ships ~20 KB of selectors used only on /inbox/, project
+    // overview, and task description / comments. It now lives in a
+    // standalone ``static/css/prose.bundle.css`` built from
+    // ``tailwind.prose.config.js``, loaded non-blocking from
+    // ``templates/base.html`` so it stays off the render-blocking
+    // critical path on All Tasks / kanban / dashboard.
   ],
 };

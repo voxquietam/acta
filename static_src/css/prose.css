@@ -1,0 +1,13 @@
+/* Standalone bundle for ``@tailwindcss/typography`` (``prose-*`` classes).
+
+   Only ``@tailwind components`` is included — that is the layer the
+   typography plugin emits its rules into. Skipping ``base`` /
+   ``utilities`` keeps the output minimal: no reset duplication (main
+   bundle owns that) and no extra Tailwind utilities (Tailwind would
+   otherwise generate the full utility surface even though nothing in
+   this file references them).
+
+   Output: ``static/css/prose.bundle.css``. See ``tailwind.prose.config.js``
+   for the why and how. */
+
+@tailwind components;

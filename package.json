@@ -6,7 +6,9 @@
   "scripts": {
     "build:js": "esbuild static_src/js/description_editor.js --bundle --format=iife --minify --target=es2020 --outfile=static/js/description_editor.bundle.js --log-level=info && esbuild static_src/js/reactions.js --bundle --format=iife --minify --target=es2020 --outfile=static/js/reactions.bundle.js --log-level=info",
     "watch:js": "esbuild static_src/js/description_editor.js --bundle --format=iife --target=es2020 --outfile=static/js/description_editor.bundle.js --watch --log-level=info",
-    "build:css": "tailwindcss -i static_src/css/main.css -o static/css/main.bundle.css --minify",
+    "build:css": "tailwindcss -i static_src/css/main.css -o static/css/main.bundle.css --minify && tailwindcss -c tailwind.prose.config.js -i static_src/css/prose.css -o static/css/prose.bundle.css --minify",
+    "build:css:main": "tailwindcss -i static_src/css/main.css -o static/css/main.bundle.css --minify",
+    "build:css:prose": "tailwindcss -c tailwind.prose.config.js -i static_src/css/prose.css -o static/css/prose.bundle.css --minify",
     "watch:css": "tailwindcss -i static_src/css/main.css -o static/css/main.bundle.css --watch",
     "test": "vitest run",
     "test:watch": "vitest"

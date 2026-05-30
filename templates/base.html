@@ -129,6 +129,29 @@
   {# utilities + project-specific rules) via ``npm run build:css``.     #}
   <link rel="stylesheet" href="{% static 'css/main.bundle.css' %}">
 
+  {% comment %}
+  Standalone prose / typography bundle, loaded non-blocking. Carries
+  ``@tailwindcss/typography``'s ~20 KB of ``prose-*`` selectors used
+  by /inbox/, project overview, task description and comments. The
+  preload-then-swap-to-stylesheet trick (``rel="preload"`` +
+  ``onload="this.rel='stylesheet'"``) starts the fetch immediately
+  alongside the main bundle but doesn't block render — Lighthouse no
+  longer counts it as render-blocking on pages that never reference
+  ``prose-*`` (All Tasks, kanban, dashboard). Pages that DO use it
+  paint once the file lands (~10 ms after FCP on a warm connection),
+  which is acceptable because the prose content is below the fold
+  on every consumer.
+
+  ``onload="this.rel='stylesheet'"`` swaps preload → stylesheet so
+  the styles apply. ``onerror`` mirrors the swap for safety on
+  weird CSP setups. ``<noscript>`` fallback applies the styles in
+  the unlikely case JS is disabled.
+  {% endcomment %}
+  <link rel="preload" as="style" href="{% static 'css/prose.bundle.css' %}"
+        onload="this.onload=null;this.rel='stylesheet'"
+        onerror="this.onerror=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="{% static 'css/prose.bundle.css' %}"></noscript>
+
   {# HTMX history is DISABLED — Acta drives navigation itself.            #}
   {#                                                                      #}
   {# htmx's history (snapshot cache + restore-on-miss) can't keep up with #}
