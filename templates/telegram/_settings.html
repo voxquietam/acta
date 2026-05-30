@@ -12,30 +12,38 @@ swapped-in markup carries no poll trigger, so polling stops. Expects
      {% if not telegram_account and telegram_link_url %}hx-get="{% url 'telegram:status' %}" hx-trigger="every 4s" hx-swap="outerHTML"{% endif %}>
 
   {% if telegram_account %}
-  <div class="flex items-center gap-3">
-    <span class="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-cyan-500/15 text-cyan-400">
-      {% lucide "send" "w-4 h-4" %}
-    </span>
-    <div class="min-w-0 flex-1">
-      <div class="text-sm text-foreground">
-        {% trans "Connected" %}{% if telegram_account.username %} · <span class="text-muted-foreground">@{{ telegram_account.username }}</span>{% endif %}
+  {# Stack vertically on mobile: icon + identity on row 1, toggle +       #}
+  {# disconnect on row 2. The 4-item single-row layout overlapped its own #}
+  {# children on a 393 px phone — the buttons' fixed widths didn't leave  #}
+  {# room for the identity block to breathe.                              #}
+  <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+    <div class="flex items-center gap-3 min-w-0 flex-1">
+      <span class="w-9 h-9 rounded-lg grid place-items-center shrink-0 bg-cyan-500/15 text-cyan-400">
+        {% lucide "send" "w-4 h-4" %}
+      </span>
+      <div class="min-w-0 flex-1">
+        <div class="text-sm text-foreground">
+          {% trans "Connected" %}{% if telegram_account.username %} · <span class="text-muted-foreground">@{{ telegram_account.username }}</span>{% endif %}
+        </div>
+        <div class="text-[11px] text-placeholder-foreground">{% blocktrans with d=telegram_account.linked_at|date:"M j, Y" %}linked {{ d }}{% endblocktrans %}</div>
       </div>
-      <div class="text-[11px] text-placeholder-foreground">{% blocktrans with d=telegram_account.linked_at|date:"M j, Y" %}linked {{ d }}{% endblocktrans %}</div>
     </div>
-    <form hx-post="{% url 'telegram:toggle' %}" hx-target="#telegram-settings" hx-swap="outerHTML" class="shrink-0">
-      {% csrf_token %}
-      <button type="submit"
-              class="text-xs px-3 py-1.5 rounded-md border transition
-                {% if telegram_account.enabled %}border-emerald-500/40 text-emerald-400{% else %}border-border text-placeholder-foreground{% endif %}">
-        {% if telegram_account.enabled %}{% trans "Notifications on" %}{% else %}{% trans "Muted" %}{% endif %}
-      </button>
-    </form>
-    <form hx-post="{% url 'telegram:disconnect' %}" hx-target="#telegram-settings" hx-swap="outerHTML" class="shrink-0">
-      {% csrf_token %}
-      <button type="submit" class="text-xs px-3 py-1.5 rounded-md border border-border text-subtle-foreground hover:text-rose-400 hover:border-rose-400/40 transition">
-        {% trans "Disconnect" %}
-      </button>
-    </form>
+    <div class="flex items-center gap-2 shrink-0">
+      <form hx-post="{% url 'telegram:toggle' %}" hx-target="#telegram-settings" hx-swap="outerHTML">
+        {% csrf_token %}
+        <button type="submit"
+                class="text-xs px-3 py-1.5 rounded-md border transition
+                  {% if telegram_account.enabled %}border-emerald-500/40 text-emerald-400{% else %}border-border text-placeholder-foreground{% endif %}">
+          {% if telegram_account.enabled %}{% trans "Notifications on" %}{% else %}{% trans "Muted" %}{% endif %}
+        </button>
+      </form>
+      <form hx-post="{% url 'telegram:disconnect' %}" hx-target="#telegram-settings" hx-swap="outerHTML">
+        {% csrf_token %}
+        <button type="submit" class="text-xs px-3 py-1.5 rounded-md border border-border text-subtle-foreground hover:text-rose-400 hover:border-rose-400/40 transition">
+          {% trans "Disconnect" %}
+        </button>
+      </form>
+    </div>
   </div>
 
   {% comment %}

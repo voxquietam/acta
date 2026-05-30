@@ -59,10 +59,15 @@
 .dash .sec > .sec-h .desc { font-size: 11.5px; color: rgb(var(--subtle-foreground)); font-style: italic; }
 
 /* ============================================================ PAGE HEADER */
-.dash .page-h { display: flex; align-items: flex-end; gap: 14px; padding-bottom: 14px; border-bottom: 1px solid rgb(var(--border)); margin-bottom: 4px; }
-.dash .page-h .title-block { flex: 1; min-width: 0; }
+/* ``flex-wrap`` lets the range pill drop below the title block on narrow
+   viewports instead of being squeezed alongside it (393 px phone). */
+.dash .page-h { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; padding-bottom: 14px; border-bottom: 1px solid rgb(var(--border)); margin-bottom: 4px; }
+.dash .page-h .title-block { flex: 1 1 240px; min-width: 0; }
 .dash .page-h h1 { margin: 0 0 4px; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; color: rgb(var(--foreground)); line-height: 1.15; }
-.dash .page-h .sub { font-size: 11.5px; color: rgb(var(--placeholder-foreground)); font-family: var(--font-mono); display: inline-flex; align-items: center; gap: 6px; }
+/* Sub-meta line: plain inline so the workspace name + dot-separated stat
+   chunks wrap as natural text. ``inline-flex`` here put each text node on
+   its own flex axis and produced a broken line-break layout on mobile. */
+.dash .page-h .sub { font-size: 11.5px; color: rgb(var(--placeholder-foreground)); font-family: var(--font-mono); display: inline; line-height: 1.5; }
 .dash .page-h .sub b { color: rgb(var(--muted-foreground)); font-weight: 500; }
 .dash .page-h .range { display: inline-flex; background: rgb(var(--card)); border: 1px solid rgb(var(--border)); border-radius: 6px; padding: 2px; gap: 2px; }
 .dash .page-h .range a { padding: 3px 9px; border-radius: 4px; font-size: 11px; color: rgb(var(--subtle-foreground)); font-weight: 500; transition: background-color 80ms, color 80ms; }
