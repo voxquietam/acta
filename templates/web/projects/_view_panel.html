@@ -11,8 +11,20 @@ no extra HTTP requests fire on tab change. Tabs themselves live in
 
   {% if cycle_banner %}{% include "web/projects/_cycle_banner.html" %}{% endif %}
 
+  {% comment %}
+  Active view renders without ``x-cloak`` — the heavy list / table /
+  kanban panels would otherwise stay hidden until Alpine boots, then
+  snap to a multi-kilo-px height the moment ``x-show`` reveals them
+  (Lighthouse CLS 0.6+). Inactive views ship with inline
+  ``style="display:none"`` so they start hidden by default; ``x-show``
+  keeps owning the runtime switch but does not change their initial
+  layout. Result: zero pre-Alpine layout shift.
+  {% endcomment %}
+
   {% if allow_overview %}
-  <div x-show="$store.viewMode.current === 'overview'" x-cloak class="flex-1 min-h-0 flex flex-col">
+  <div x-show="$store.viewMode.current === 'overview'"
+       {% if view_mode != 'overview' %}style="display:none"{% endif %}
+       class="flex-1 min-h-0 flex flex-col">
     {% include "web/projects/_overview_panel.html" %}
   </div>
   {% endif %}
@@ -25,11 +37,17 @@ no extra HTTP requests fire on tab change. Tabs themselves live in
   structural-filter round-trip light. Project detail (flag absent) keeps both
   bodies in the DOM for instant ``x-show`` switching.
   {% endcomment %}
-  <div x-show="$store.viewMode.current === 'kanban'" x-cloak{% if lazy_view_panels %} data-panel-slot="kanban"{% endif %} class="flex-1 min-h-0 flex flex-col">
+  <div x-show="$store.viewMode.current === 'kanban'"
+       {% if view_mode != 'kanban' %}style="display:none"{% endif %}
+       {% if lazy_view_panels %}data-panel-slot="kanban"{% endif %}
+       class="flex-1 min-h-0 flex flex-col">
     {% if not lazy_view_panels or view_mode == "kanban" %}{% include "web/projects/_kanban.html" %}{% endif %}
   </div>
 
-  <div x-show="$store.viewMode.current === 'table'" x-cloak{% if lazy_view_panels %} data-panel-slot="table"{% endif %} class="flex-1 min-h-0 flex flex-col">
+  <div x-show="$store.viewMode.current === 'table'"
+       {% if view_mode != 'table' %}style="display:none"{% endif %}
+       {% if lazy_view_panels %}data-panel-slot="table"{% endif %}
+       class="flex-1 min-h-0 flex flex-col">
     {# ``show_labels`` is already in context (AllTasksView + ProjectDetailView   #}
     {# both set ``ctx["show_labels"] = True``); no explicit pass needed.         #}
     {# Lazy-panel cookie-write semantics live in ``apps/web/views.py`` (see the  #}
@@ -45,7 +63,9 @@ no extra HTTP requests fire on tab change. Tabs themselves live in
   Switching to list from another view stays instant once the slot
   is populated.
   {% endcomment %}
-  <div x-show="$store.viewMode.current === 'list'" x-cloak data-panel-slot="list" class="flex-1 min-h-0 flex flex-col">
+  <div x-show="$store.viewMode.current === 'list'"
+       {% if view_mode != 'list' %}style="display:none"{% endif %}
+       data-panel-slot="list" class="flex-1 min-h-0 flex flex-col">
     {% if view_mode == "list" %}{% include "web/projects/_list_panel.html" %}{% endif %}
   </div>
 
@@ -56,7 +76,9 @@ no extra HTTP requests fire on tab change. Tabs themselves live in
   load, otherwise leave an empty ``data-panel-slot="timeline"`` div that
   ``acta.js`` fetches via ``?panel=timeline`` after first paint.
   {% endcomment %}
-  <div x-show="$store.viewMode.current === 'timeline'" x-cloak data-panel-slot="timeline" class="flex-1 min-h-0 flex flex-col">
+  <div x-show="$store.viewMode.current === 'timeline'"
+       {% if view_mode != 'timeline' %}style="display:none"{% endif %}
+       data-panel-slot="timeline" class="flex-1 min-h-0 flex flex-col">
     {% if view_mode == "timeline" %}{% include "web/projects/_timeline.html" %}{% endif %}
   </div>
 
@@ -65,7 +87,9 @@ no extra HTTP requests fire on tab change. Tabs themselves live in
   Lazy-loaded like list / timeline via ``?panel=backlog``.
   {% endcomment %}
   {% if allow_backlog %}
-  <div x-show="$store.viewMode.current === 'backlog'" x-cloak data-panel-slot="backlog" class="flex-1 min-h-0 flex flex-col">
+  <div x-show="$store.viewMode.current === 'backlog'"
+       {% if view_mode != 'backlog' %}style="display:none"{% endif %}
+       data-panel-slot="backlog" class="flex-1 min-h-0 flex flex-col">
     {% if view_mode == "backlog" %}{% include "web/projects/_backlog_panel.html" %}{% endif %}
   </div>
   {% endif %}

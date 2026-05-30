@@ -4,17 +4,26 @@ colour-initial circle. One place decides photo-vs-circle so every surface
 stays consistent.
 
 Usage:
-    {% include "web/_user_avatar.html" with user=comment.author class="w-5 h-5" text_class="text-[10px]" %}
+    {% include "web/_user_avatar.html" with user=comment.author class="w-5 h-5" text_class="text-[10px]" thumb_size=64 %}
 
 ``class``      — sizing + any layout extras (shrink-0, ring-…); applied to
                  both the <img> and the fallback circle.
 ``text_class`` — initial's font size for the fallback circle (e.g.
                  "text-[10px]"); ignored when a photo is shown.
+``thumb_size`` — optional 32 / 64 / 128 / 256; appends ``?size=N`` so
+                 ``serve_avatar`` returns a Pillow-resized JPEG instead
+                 of the 512×512 original. **Defaults to 64**, which
+                 covers every current callsite (w-5 / w-6 / w-7 / w-22px
+                 = 20–28 px × DPR 2). Pass 32 for the very smallest
+                 contexts, 128 for the assignee strip selected state,
+                 or 256 for the settings page edit surface.
 {% endcomment %}
 {% if user.avatar %}
-<img src="{% url 'accounts:serve_avatar' user_id=user.id %}?v={{ user.avatar_version }}"
+{% with ts=thumb_size|default:64 %}
+<img src="{% url 'accounts:serve_avatar' user_id=user.id %}?v={{ user.avatar_version }}&amp;size={{ ts }}"
      alt="{{ user.display_name }}"
      class="{{ class }} rounded-full object-cover">
+{% endwith %}
 {% else %}
 <span class="{{ class }} {{ text_class }} rounded-full text-white grid place-items-center font-medium"
       style="background-color: {{ user.avatar_color }};">{{ user.display_name|slice:":1"|upper }}</span>

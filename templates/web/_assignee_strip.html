@@ -52,7 +52,7 @@ via ``form=`` and submits through the existing HTMX pipeline.
                class="sr-only"
                @change.stop="state = $event.target.checked ? 'included' : 'none'; $event.target.form.requestSubmit()">
         {% if request.user.avatar %}
-        <img src="{% url 'accounts:serve_avatar' user_id=request.user.id %}?v={{ request.user.avatar_version }}" alt="{{ request.user.display_name }}"
+        <img src="{% url 'accounts:serve_avatar' user_id=request.user.id %}?v={{ request.user.avatar_version }}&amp;size=64" alt="{{ request.user.display_name }}"
              class="w-6 h-6 rounded-full object-cover shrink-0 transition ring-1 ring-brand-400/60"
              :class="{
                'ring-2 ring-brand-400': state === 'included',
@@ -140,7 +140,7 @@ via ``form=`` and submits through the existing HTMX pipeline.
         </span>
         {% else %}
         {% if u.avatar %}
-        <img src="{% url 'accounts:serve_avatar' user_id=u.id %}?v={{ u.avatar_version }}" alt="{{ u.display_name }}"
+        <img src="{% url 'accounts:serve_avatar' user_id=u.id %}?v={{ u.avatar_version }}&amp;size=64" alt="{{ u.display_name }}"
              class="w-6 h-6 rounded-full object-cover shrink-0 transition"
              :class="{
                'ring-2 ring-brand-400': state === 'included',

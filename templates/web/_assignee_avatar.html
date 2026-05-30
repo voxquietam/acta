@@ -35,18 +35,22 @@ Optional context:
         appended to the photo / initial circle (kanban cards layer a
         1.5 px card-coloured ring to lift the avatar off the bottom
         meta line).
+    thumb_size (default 64): ``?size=N`` appended to the avatar URL so
+        ``serve_avatar`` returns a Pillow-resized JPEG; 64 covers a
+        22-32 px render at 2× DPR. Pass 32 for the smallest inline
+        contexts.
 {% endcomment %}
-{% with sz=size_class|default:"w-[22px] h-[22px]" tc=text_class|default:"text-[11px]" ntc=none_text_class|default:"text-[10px]" rfc=ring_focus_class|default:"hover:ring-brand-400/40" %}
+{% with sz=size_class|default:"w-[22px] h-[22px]" tc=text_class|default:"text-[11px]" ntc=none_text_class|default:"text-[10px]" rfc=ring_focus_class|default:"hover:ring-brand-400/40" ts=thumb_size|default:64 %}
 {% if assignee %}
 {% if assignee.avatar %}
-<img src="{% url 'accounts:serve_avatar' user_id=assignee.id %}?v={{ assignee.avatar_version }}"
+<img src="{% url 'accounts:serve_avatar' user_id=assignee.id %}?v={{ assignee.avatar_version }}&amp;size={{ ts }}"
      alt="{{ assignee.display_name }}"
      class="{{ extra_class }} {{ sz }} rounded-full object-cover{% if clickable %} shrink-0 cursor-pointer transition hover:ring-2 hover:ring-offset-1 hover:ring-offset-card {{ rfc }}{% endif %}"
      {% if avatar_box_shadow %}style="{{ avatar_box_shadow }}"{% endif %}
      title="{% if clickable %}{% trans 'Filter by assignee' %}: {{ assignee.display_name }}{% else %}{{ assignee.display_name }}{% endif %}"
      {% if clickable %}@click.prevent.stop="window.acta.toggleFilter('assignee', '{% if assignee == request_user %}me{% else %}{{ assignee.id }}{% endif %}')"{% endif %}
      {% if with_substatus_data %}data-task-assignee-avatar
-     data-avatar-url="{% url 'accounts:serve_avatar' user_id=assignee.id %}?v={{ assignee.avatar_version }}"
+     data-avatar-url="{% url 'accounts:serve_avatar' user_id=assignee.id %}?v={{ assignee.avatar_version }}&amp;size={{ ts }}"
      data-avatar-initial="{{ assignee.display_name|slice:':1'|upper }}"
      data-avatar-bg="{{ assignee.avatar_color }}"
      data-avatar-name="{{ assignee.display_name }}"{% endif %}>

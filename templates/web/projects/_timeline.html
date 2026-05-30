@@ -337,7 +337,7 @@
            title="{{ task.title }}">{{ task.title }}</a>
         {% if task.assignee %}
         {% if task.assignee.avatar %}
-        <img src="{% url 'accounts:serve_avatar' user_id=task.assignee.id %}?v={{ task.assignee.avatar_version }}" alt="{{ task.assignee.display_name }}"
+        <img src="{% url 'accounts:serve_avatar' user_id=task.assignee.id %}?v={{ task.assignee.avatar_version }}&amp;size=64" alt="{{ task.assignee.display_name }}"
              class="w-5 h-5 rounded-full object-cover shrink-0 ml-auto"
              title="{{ task.assignee.display_name }}">
         {% else %}

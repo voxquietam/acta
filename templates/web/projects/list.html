@@ -158,7 +158,7 @@
         <div class="flex items-center">
           {% for member in project.members.all|slice:":3" %}
           {% if member.avatar %}
-          <img src="{% url 'accounts:serve_avatar' user_id=member.id %}?v={{ member.avatar_version }}" alt="{{ member.display_name }}"
+          <img src="{% url 'accounts:serve_avatar' user_id=member.id %}?v={{ member.avatar_version }}&amp;size=64" alt="{{ member.display_name }}"
                class="w-[22px] h-[22px] rounded-full object-cover {% if not forloop.first %}-ml-1.5{% endif %}"
                style="box-shadow: 0 0 0 1.5px rgb(var(--card));"
                title="{{ member.display_name }}">

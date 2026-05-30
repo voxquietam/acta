@@ -48,6 +48,11 @@ This shaves ~80% off the cold-load payload on the All Tasks list view
     </nav>
   </div>
 
+  {% comment %}
+  Active axis renders unCloaked to avoid a multi-kilo-px CLS shift the
+  moment Alpine ``x-show`` reveals it. Lazy placeholders + MyWork's
+  pre-built non-active axes stay cloaked — their bodies are tiny.
+  {% endcomment %}
   {% for axis_key, sections in list_sections_by_axis.items %}
   {% if list_lazy_axes and axis_key != list_axis %}
   <div x-show="activeAxis === '{{ axis_key }}'" x-cloak
@@ -59,6 +64,10 @@ This shaves ~80% off the cold-load payload on the All Tasks list view
     <div class="grid place-items-center text-center py-12 text-placeholder-foreground text-xs">
       <span class="htmx-indicator">{% trans "Loading…" %}</span>
     </div>
+  </div>
+  {% elif axis_key == list_axis %}
+  <div x-show="activeAxis === '{{ axis_key }}'" data-list-axis="{{ axis_key }}">
+    {% include "web/projects/_list_axis_section.html" %}
   </div>
   {% else %}
   <div x-show="activeAxis === '{{ axis_key }}'" x-cloak data-list-axis="{{ axis_key }}">

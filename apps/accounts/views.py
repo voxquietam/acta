@@ -1,5 +1,7 @@
 """Account-related page views."""
 
+from functools import lru_cache
+import io
 import json
 
 from django.conf import settings
@@ -520,18 +522,81 @@ def remove_avatar(request):
     return HttpResponseRedirect(reverse("accounts:settings"))
 
 
+# Allowed thumbnail sizes for ``?size=``. Restricted to a tiny menu so a
+# malicious caller can't churn the cache with arbitrary dimensions. 32 /
+# 64 / 128 / 256 cover all current consumers: 32 for inline icons, 64 for
+# task row + card avatars (22–28 px × DPR 2), 128 for the assignee strip
+# circles, 256 for the settings page edit surface. Anything outside this
+# set falls through to the original file.
+_ALLOWED_THUMB_SIZES = frozenset({32, 64, 128, 256})
+
+
+@lru_cache(maxsize=512)
+def _avatar_thumbnail(avatar_path: str, version: int, size: int) -> bytes:
+    """Return a JPEG thumbnail of ``avatar_path`` capped at ``size`` px.
+
+    Memoised on ``(path, version, size)``. ``version`` is the user's
+    ``avatar_version`` field — bumping it on re-upload invalidates the
+    cache without an explicit purge. The cache is per-worker process; a
+    cold worker re-builds on demand. Pillow's ``thumbnail`` preserves
+    aspect ratio and never enlarges, so a small source returns as-is.
+
+    Args:
+        avatar_path: ``user.avatar.path`` (absolute filesystem path).
+        version: ``user.avatar_version`` — invalidates on re-upload.
+        size: Target max dimension in pixels.
+
+    Returns:
+        Encoded JPEG bytes, or empty bytes if the source is missing /
+        unreadable (caller should fall back to a 404).
+    """
+    del version  # used only as cache-key salt
+    try:
+        from PIL import Image
+    except ImportError:
+        return b""
+    try:
+        with Image.open(avatar_path) as img:
+            img = img.convert("RGB")
+            img.thumbnail((size, size), Image.LANCZOS)
+            out = io.BytesIO()
+            img.save(out, format="JPEG", quality=85, optimize=True)
+            return out.getvalue()
+    except (FileNotFoundError, OSError):
+        return b""
+
+
 @login_required
 def serve_avatar(request, user_id: int):
-    """Stream a user's avatar image.
+    """Stream a user's avatar image, optionally resized via ``?size=``.
 
     Any authenticated user may view any avatar — a profile photo is shown
     wherever the user appears (comments, assignees, member lists), possibly
     across workspaces, so this is login-gated but not workspace-scoped.
     Avatars are normalized to JPEG on upload.
+
+    Pass ``?size=32|64|128|256`` to receive a memoised thumbnail instead
+    of the full original. Useful where the rendered size is a few dozen
+    pixels but the uploaded source is 512×512 (43 KB) — a 64-px
+    thumbnail is ~3 KB. Sizes outside the allow-list quietly fall back
+    to the original. The cache key includes ``avatar_version`` so a
+    re-upload invalidates the thumbnail.
     """
     user = get_object_or_404(get_user_model(), pk=user_id)
     if not user.avatar:
         raise Http404("no avatar")
+    raw_size = request.GET.get("size")
+    if raw_size and raw_size.isdigit() and int(raw_size) in _ALLOWED_THUMB_SIZES:
+        try:
+            avatar_path = user.avatar.path
+        except (NotImplementedError, ValueError):
+            avatar_path = ""
+        if avatar_path:
+            thumb = _avatar_thumbnail(avatar_path, user.avatar_version, int(raw_size))
+            if thumb:
+                response = HttpResponse(thumb, content_type="image/jpeg")
+                response["Cache-Control"] = "private, max-age=300"
+                return response
     try:
         handle = user.avatar.open("rb")
     except (FileNotFoundError, OSError):

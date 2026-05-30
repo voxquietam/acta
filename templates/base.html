@@ -70,19 +70,23 @@
   {# navigation" in static/js/acta.js.                                    #}
   <meta name="htmx-config" content='{"historyEnabled": false}'>
 
-  {# Alpine's official ``x-cloak`` rule. Without it every ``x-show=false`` #}
-  {# block stays visible until Alpine boots, then snaps to ``display:none`` #}
-  {# — the All Tasks list view used to stack five axis sections before the #}
-  {# active one was picked, producing a Lighthouse CLS of 0.6+. Inlined so #}
-  {# the rule applies on the very first paint, not after main.bundle.css. #}
+  {% comment %}
+  Alpine's official ``x-cloak`` rule. Without it every ``x-show=false``
+  block stays visible until Alpine boots, then snaps to ``display:none``
+  — the All Tasks list view used to stack five axis sections before the
+  active one was picked, producing a Lighthouse CLS of 0.6+. Inlined so
+  the rule applies on the very first paint, not after main.bundle.css.
+  {% endcomment %}
   <style>[x-cloak]{display:none !important}</style>
 
-  {# Render-blocking trio served from our own static so the first paint #}
-  {# doesn't wait on three unpkg.com round-trips. Lighthouse measured   #}
-  {# ~560 ms of render-blocking time from those CDN requests before     #}
-  {# self-hosting them; see Wave 3 PR-2. Versions pinned: htmx 2.0.4,   #}
-  {# htmx-ext-sse 2.2.3, idiomorph 0.7.3 — re-download from unpkg into  #}
-  {# ``static/vendor/`` when bumping.                                   #}
+  {% comment %}
+  Render-blocking trio served from our own static so the first paint
+  doesn't wait on three unpkg.com round-trips. Lighthouse measured
+  ~560 ms of render-blocking time from those CDN requests before
+  self-hosting them; see Wave 3 PR-2. Versions pinned: htmx 2.0.4,
+  htmx-ext-sse 2.2.3, idiomorph 0.7.3 — re-download from unpkg into
+  ``static/vendor/`` when bumping.
+  {% endcomment %}
   <script src="{% static 'vendor/htmx.min.js' %}"></script>
   <script src="{% static 'vendor/htmx-ext-sse.min.js' %}"></script>
   {# Idiomorph — DOM diff/merge for HTMX swaps. Used by per-row SSE  #}
