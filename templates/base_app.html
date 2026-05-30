@@ -62,7 +62,7 @@ Pages extend this and override the `app_main` block.
          hx-select="#app-content"
          hx-swap="outerHTML show:top"
          hx-push-url="true"
-         class="fixed inset-y-0 left-0 z-40 w-64 -translate-x-full md:translate-x-0 flex flex-col shrink-0 bg-subtle border-r border-border transition-all duration-200 md:relative md:z-auto md:w-auto">
+         class="fixed inset-y-0 left-0 z-40 w-64 -translate-x-full md:translate-x-0 flex flex-col shrink-0 bg-subtle border-r border-border transition-all duration-200 md:relative">
     {% comment %}
     Acta brand header. Collapses to just the "A" pill when the
     sidebar is in icon-rail mode so the row aligns vertically with
@@ -324,7 +324,19 @@ Pages extend this and override the `app_main` block.
         {% block topbar_mid %}{% endblock %}
       </div>
 
-      <div class="flex items-center gap-3 flex-1 justify-end">
+      {% comment %}
+      ``shrink-0`` (not ``flex-1``) so the right cluster's natural content
+      width is preserved — when both left and right were ``flex-1`` on a
+      393 px phone, available space was split equally and the right's
+      content (search + plus + avatar, ~130 px) was wider than its allotted
+      half. With ``justify-end`` the overflow leaked LEFT into the gap
+      between topbar_mid and topbar_right, visually crashing the search
+      icon into the view-picker dropdown trigger.
+      Left keeps its ``flex-1 min-w-0 overflow-hidden`` so the page title
+      truncates instead. Headers gap-3 now reads as a real 12 px between
+      the mid and right clusters.
+      {% endcomment %}
+      <div class="flex items-center gap-3 shrink-0">
         {% block topbar_right_prepend %}{% endblock %}
         {% comment %}
         Global command palette opener (Cmd/Ctrl+K). Dispatches the

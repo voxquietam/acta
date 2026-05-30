@@ -1018,6 +1018,13 @@ body.acta-flt-mobile-locked {
   /* Flush against the page right edge — no rounding on the right side. */
   border-right: 0;
   border-radius: 8px 0 0 8px;
+  /* Defensive height cap so a long Projects / Labels list never pushes
+     the expanded panel past the viewport — the inner ``.acta-flt-content-b``
+     already has ``overflow-y: auto``, but it only kicks in when this
+     container is height-bounded. Without an explicit max-height the panel
+     grew to content size on flex-col layouts (<lg: viewports) where the
+     parent row's ``items-stretch`` doesn't apply. */
+  max-height: calc(100vh - 80px);
 }
 
 /* Headers — only one shows per mode (the other is x-show-hidden). */
