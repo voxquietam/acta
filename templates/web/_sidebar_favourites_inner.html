@@ -22,9 +22,9 @@ the ``workspace_nav`` context processor.
       <span class="shrink-0 {{ project.icon_color_class }}" data-project-icon-for="{{ project.slug_prefix }}">
         {% lucide project.icon|default:"folder" "w-3.5 h-3.5" %}
       </span>
-      <span x-show="$store.sidebar.open" x-cloak class="font-mono text-xs text-subtle-foreground">{{ project.slug_prefix }}</span>
-      <span x-show="$store.sidebar.open" x-cloak class="truncate">{{ project.name }}</span>
-      <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{{ project.slug_prefix }} · {{ project.name }}</span>
+      <span :class="!$store.sidebar.open && 'md:hidden'" x-cloak class="font-mono text-xs text-subtle-foreground">{{ project.slug_prefix }}</span>
+      <span :class="!$store.sidebar.open && 'md:hidden'" x-cloak class="truncate">{{ project.name }}</span>
+      <span x-show="!$store.sidebar.open" x-cloak class="hidden md:block acta-rail-tip">{{ project.slug_prefix }} · {{ project.name }}</span>
     </a>
   </li>
   {% endfor %}
@@ -32,7 +32,7 @@ the ``workspace_nav`` context processor.
 {% endif %}
 
 {% if not nav_has_favourites %}
-<div x-show="$store.sidebar.open" x-cloak
+<div :class="!$store.sidebar.open && 'md:hidden'" x-cloak
      class="px-2 py-3 text-xs text-placeholder-foreground italic flex items-start gap-2">
   {% lucide "star" "w-3.5 h-3.5 mt-0.5 shrink-0" %}
   <span>{% trans "Star a project from the Projects page to pin it here." %}</span>

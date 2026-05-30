@@ -3265,6 +3265,19 @@
       },
     });
 
+    // Mobile slide-in drawer for the sidebar nav on viewports below
+    // ``md:`` (< 768 px). The desktop sidebar (``$store.sidebar``)
+    // is hidden by the responsive transform; this drawer overlays
+    // the same aside as a fixed left panel with a backdrop. State
+    // is NOT persisted — the drawer always starts closed on load
+    // and on every navigation (htmx swap or full reload closes it).
+    window.Alpine.store("mobileDrawer", {
+      open: false,
+      close() {
+        this.open = false;
+      },
+    });
+
     // Kanban-column collapsed/expanded state. Each entry is a status
     // key (``planned`` / ``to-do`` / …) the user has chosen to fold
     // into a narrow vertical strip. Persisted as a JSON array so the

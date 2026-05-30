@@ -40,13 +40,29 @@ Pages extend this and override the `app_main` block.
   Alpine state (collapse / theme / selection) and Lucide-rendered
   icons survive across navigations.
   {% endcomment %}
-  <aside :class="$store.sidebar.open ? 'md:w-64' : 'md:w-14'"
+  {% comment %}
+  Responsive sidebar: dual-role element.
+   - Below ``md:`` (< 768 px): ``fixed`` slide-in drawer. Hidden off
+     the left edge by default (``-translate-x-full``); opens when
+     ``$store.mobileDrawer.open`` becomes true. Backdrop sibling
+     below dims the rest of the page; htmx-boosted nav inside the
+     aside closes the drawer via ``htmx:before-request``.
+   - At ``md:`` and above: ``relative`` in flow, width-animated
+     between ``md:w-14`` (rail) and ``md:w-64`` (full) — original
+     desktop behaviour preserved.
+  {% endcomment %}
+  <aside :class="[
+           $store.sidebar.open ? 'md:w-64' : 'md:w-14',
+           ($store.mobileDrawer && $store.mobileDrawer.open) && '!translate-x-0',
+         ]"
+         @keydown.escape.window="$store.mobileDrawer && $store.mobileDrawer.open && $store.mobileDrawer.close()"
+         @htmx:before-request="$store.mobileDrawer && $store.mobileDrawer.close()"
          hx-boost="true"
          hx-target="#app-content"
          hx-select="#app-content"
          hx-swap="outerHTML show:top"
          hx-push-url="true"
-         class="hidden md:flex md:flex-col shrink-0 bg-subtle border-r border-border transition-[width] duration-200">
+         class="fixed inset-y-0 left-0 z-40 w-64 -translate-x-full md:translate-x-0 flex flex-col shrink-0 bg-subtle border-r border-border transition-all duration-200 md:relative md:z-auto md:w-auto">
     {% comment %}
     Acta brand header. Collapses to just the "A" pill when the
     sidebar is in icon-rail mode so the row aligns vertically with
@@ -76,7 +92,7 @@ Pages extend this and override the `app_main` block.
       {# (Can't use the outer ``gap-2`` for this gap because the logo is      #}
       {# ``position:absolute`` — not a flex item — so flex gaps skip it.)     #}
       <a href="{% url 'web:dashboard' %}"
-         x-show="$store.sidebar.open" x-cloak
+         :class="!$store.sidebar.open && 'md:hidden'" x-cloak
          class="pl-[50px] text-lg font-semibold tracking-tight">Acta</a>
       {% comment %}
       No ``title``/``data-tooltip`` here — the trigger sits at the very
@@ -85,7 +101,7 @@ Pages extend this and override the `app_main` block.
       tab) is enough; ``aria-label`` keeps it accessible without a tip.
       {% endcomment %}
       <a href="{{ changelog_url }}" target="_blank" rel="noopener"
-         x-show="$store.sidebar.open" x-cloak
+         :class="!$store.sidebar.open && 'md:hidden'" x-cloak
          aria-label="{% trans 'Changelog' %}"
          class="font-mono text-[10px] uppercase tracking-wider text-placeholder-foreground hover:text-foreground transition">v{{ acta_version }}</a>
     </div>
@@ -95,46 +111,46 @@ Pages extend this and override the `app_main` block.
       <a href="{% url 'web:dashboard' %}"
          class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground">
         {% lucide "layout-dashboard" "w-4 h-4 shrink-0" %}
-        <span x-show="$store.sidebar.open" x-cloak>{% trans "Dashboard" %}</span>
-        <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "Dashboard" %}</span>
+        <span :class="!$store.sidebar.open && 'md:hidden'" x-cloak>{% trans "Dashboard" %}</span>
+        <span x-show="!$store.sidebar.open" x-cloak class="hidden md:block acta-rail-tip">{% trans "Dashboard" %}</span>
       </a>
       <a href="{% url 'web:inbox' %}"
          class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground">
         {% lucide "inbox" "w-4 h-4 shrink-0" %}
-        <span x-show="$store.sidebar.open" x-cloak>{% trans "Inbox" %}</span>
-        <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "Inbox" %}</span>
+        <span :class="!$store.sidebar.open && 'md:hidden'" x-cloak>{% trans "Inbox" %}</span>
+        <span x-show="!$store.sidebar.open" x-cloak class="hidden md:block acta-rail-tip">{% trans "Inbox" %}</span>
         {% include "web/_inbox_badge.html" %}
       </a>
       <a href="{% url 'web:my_activity' %}"
          class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground">
         {% lucide "history" "w-4 h-4 shrink-0" %}
-        <span x-show="$store.sidebar.open" x-cloak>{% trans "My activity" %}</span>
-        <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "My activity" %}</span>
+        <span :class="!$store.sidebar.open && 'md:hidden'" x-cloak>{% trans "My activity" %}</span>
+        <span x-show="!$store.sidebar.open" x-cloak class="hidden md:block acta-rail-tip">{% trans "My activity" %}</span>
       </a>
       <a href="{% url 'web:my_work' %}"
          class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground">
         {% lucide "briefcase" "w-4 h-4 shrink-0" %}
-        <span x-show="$store.sidebar.open" x-cloak>{% trans "My Work" %}</span>
-        <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "My Work" %}</span>
+        <span :class="!$store.sidebar.open && 'md:hidden'" x-cloak>{% trans "My Work" %}</span>
+        <span x-show="!$store.sidebar.open" x-cloak class="hidden md:block acta-rail-tip">{% trans "My Work" %}</span>
       </a>
       <a href="{% url 'web:all_tasks' %}"
          class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground">
         {% lucide "list-checks" "w-4 h-4 shrink-0" %}
-        <span x-show="$store.sidebar.open" x-cloak>{% trans "All Tasks" %}</span>
-        <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "All Tasks" %}</span>
+        <span :class="!$store.sidebar.open && 'md:hidden'" x-cloak>{% trans "All Tasks" %}</span>
+        <span x-show="!$store.sidebar.open" x-cloak class="hidden md:block acta-rail-tip">{% trans "All Tasks" %}</span>
       </a>
       <a href="{% url 'web:project_list' %}"
          class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground">
         {% lucide "folders" "w-4 h-4 shrink-0" %}
-        <span x-show="$store.sidebar.open" x-cloak>{% trans "Projects" %}</span>
-        <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "Projects" %}</span>
+        <span :class="!$store.sidebar.open && 'md:hidden'" x-cloak>{% trans "Projects" %}</span>
+        <span x-show="!$store.sidebar.open" x-cloak class="hidden md:block acta-rail-tip">{% trans "Projects" %}</span>
       </a>
       {% if nav_cycles_enabled %}
       <a href="{% url 'web:cycles_overview' %}"
          class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground">
         {% lucide "iteration-cw" "w-4 h-4 shrink-0" %}
-        <span x-show="$store.sidebar.open" x-cloak>{% trans "Cycles" %}</span>
-        <span x-show="!$store.sidebar.open" x-cloak class="acta-rail-tip">{% trans "Cycles" %}</span>
+        <span :class="!$store.sidebar.open && 'md:hidden'" x-cloak>{% trans "Cycles" %}</span>
+        <span x-show="!$store.sidebar.open" x-cloak class="hidden md:block acta-rail-tip">{% trans "Cycles" %}</span>
       </a>
       {% endif %}
       {% endwith %}
@@ -169,12 +185,12 @@ Pages extend this and override the `app_main` block.
          @click.outside="wsOpen = false"
          @keydown.escape.window="wsOpen = false">
       <button type="button" @click="wsOpen = !wsOpen"
-              :class="!$store.sidebar.open && 'justify-center'"
+              :class="!$store.sidebar.open && 'md:justify-center'"
               aria-label="{% trans 'Switch workspace' %}"
               class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted transition text-left overflow-hidden whitespace-nowrap">
         <span class="shrink-0 w-6 h-6 rounded-md bg-brand-600 text-white grid place-items-center text-xs font-semibold">{{ active_workspace.name|first|upper }}</span>
-        <span x-show="$store.sidebar.open" x-cloak class="flex-1 min-w-0 truncate text-sm font-medium text-foreground">{{ active_workspace.name }}</span>
-        <span x-show="$store.sidebar.open" x-cloak class="shrink-0 text-placeholder-foreground">{% lucide "chevrons-up-down" "w-3.5 h-3.5" %}</span>
+        <span :class="!$store.sidebar.open && 'md:hidden'" x-cloak class="flex-1 min-w-0 truncate text-sm font-medium text-foreground">{{ active_workspace.name }}</span>
+        <span :class="!$store.sidebar.open && 'md:hidden'" x-cloak class="shrink-0 text-placeholder-foreground">{% lucide "chevrons-up-down" "w-3.5 h-3.5" %}</span>
       </button>
 
       {% comment %}
@@ -228,6 +244,19 @@ Pages extend this and override the `app_main` block.
   </aside>
 
   {% comment %}
+  Mobile drawer backdrop. ``md:hidden`` keeps it off desktop entirely
+  (where the sidebar sits in flow); below ``md:`` it dims the page
+  behind the slide-in aside above and dismisses the drawer on click.
+  ``z-30`` < aside's ``z-40`` so the aside sits on top.
+  {% endcomment %}
+  <div x-show="$store.mobileDrawer && $store.mobileDrawer.open"
+       x-cloak
+       @click="$store.mobileDrawer.close()"
+       x-transition.opacity.duration.150ms
+       class="md:hidden fixed inset-0 z-30 bg-black/40"
+       aria-hidden="true"></div>
+
+  {% comment %}
   Main column = topbar + main content. The whole column is the
   HTMX-boost swap target for sidebar / topbar navigation links — see
   ``hx-boost`` on the ``<aside>`` further up. Swapping just this
@@ -244,11 +273,24 @@ Pages extend this and override the `app_main` block.
     {# ---------- Top bar ---------- #}
     <header class="relative h-14 shrink-0 flex items-center px-4 md:px-6 bg-background/70 backdrop-blur z-20 gap-3">
       {% comment %}
-      Hamburger toggle for the left sidebar. Stays in the topbar
-      regardless of sidebar state so the user can re-open it from a
-      collapsed layout. Icon swaps between ``panel-left-close`` (open
-      → click to close) and ``panel-left-open`` (closed → click to
-      open) for affordance.
+      Mobile-only hamburger. Visible below ``md:`` (where the desktop
+      hamburger is hidden) and opens the slide-in drawer aside —
+      see ``$store.mobileDrawer``. Uses the standard "menu" icon to
+      distinguish from the desktop sidebar toggle which uses the
+      panel-left chevron.
+      {% endcomment %}
+      <button type="button"
+              @click="$store.mobileDrawer.open = true"
+              aria-label="{% trans 'Open navigation' %}"
+              class="md:hidden grid place-items-center p-1.5 rounded-md text-subtle-foreground hover:bg-muted hover:text-foreground transition shrink-0">
+        {% lucide "menu" "w-4 h-4" %}
+      </button>
+      {% comment %}
+      Desktop sidebar toggle. Stays in the topbar regardless of
+      sidebar state so the user can re-open it from a collapsed
+      layout. Icon swaps between ``panel-left-close`` (open → click
+      to close) and ``panel-left-open`` (closed → click to open)
+      for affordance.
       {% endcomment %}
       <button type="button"
               @click="$store.sidebar.toggle()"
@@ -257,11 +299,26 @@ Pages extend this and override the `app_main` block.
         <span x-show="$store.sidebar.open">{% lucide "panel-left-close" "w-4 h-4" %}</span>
         <span x-show="!$store.sidebar.open" x-cloak>{% lucide "panel-left-open" "w-4 h-4" %}</span>
       </button>
-      <div class="flex items-center gap-3 min-w-0 flex-1">
+      {% comment %}
+      Topbar left — page heading + breadcrumb-like context. ``min-w-0``
+      lets flex shrink it below content size; ``overflow-hidden`` plus
+      ``whitespace-nowrap`` on the wrapper means a long page title in
+      a child ``h1`` truncates at the right edge instead of wrapping
+      onto a second line and breaking the ``h-14`` topbar height.
+      Per-page heading templates don't need to add ``truncate``.
+      {% endcomment %}
+      <div class="flex items-center gap-3 min-w-0 flex-1 overflow-hidden whitespace-nowrap">
         {% block topbar_left %}{% endblock %}
       </div>
 
-      <div class="flex items-center shrink-0">
+      {% comment %}
+      Topbar middle — view tabs (Backlog / Overview / Kanban / Table /
+      Timeline) on All Tasks + project detail. Hidden below ``sm:``
+      because 5 tabs × ~80 px don't fit alongside hamburger + title +
+      action buttons on a 393 px iPhone. Mobile users switch view via
+      the page-level UI or by re-opening the page from the nav.
+      {% endcomment %}
+      <div class="hidden sm:flex items-center shrink-0">
         {% block topbar_mid %}{% endblock %}
       </div>
 
@@ -310,7 +367,7 @@ Pages extend this and override the `app_main` block.
                     ? '{% trans 'Switch to midnight mode' %}'
                     : '{% trans 'Switch to light mode' %}'"
                 data-tooltip-pos="below"
-                class="grid place-items-center p-1.5 rounded-md text-placeholder-foreground hover:bg-muted hover:text-foreground">
+                class="hidden sm:grid place-items-center p-1.5 rounded-md text-placeholder-foreground hover:bg-muted hover:text-foreground">
           <span x-show="$store.theme.current === 'light'">{% lucide "sun" "w-4 h-4" %}</span>
           <span x-show="$store.theme.current === 'dark'" x-cloak>{% lucide "moon" "w-4 h-4" %}</span>
           <span x-show="$store.theme.current === 'midnight'" x-cloak>{% lucide "moon-star" "w-4 h-4" %}</span>
@@ -321,7 +378,7 @@ Pages extend this and override the `app_main` block.
           <button @click="open = !open"
                   class="flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-muted">
             {% include "web/_user_avatar.html" with user=user class="w-7 h-7" text_class="text-xs" %}
-            <span class="text-sm">{{ user.display_name }}</span>
+            <span class="hidden sm:inline text-sm">{{ user.display_name }}</span>
           </button>
           <div x-show="open" @click.outside="open = false" x-cloak
                class="absolute right-0 mt-2 w-44 bg-card border border-border rounded-md shadow-lg overflow-hidden">
