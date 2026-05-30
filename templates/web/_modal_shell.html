@@ -8,7 +8,7 @@ Children extend this template and fill in the blocks:
     {% extends "web/_modal_shell.html" %}
 
     {% block root_attrs %}id="my-modal" x-data="{ open: true, close() { … } }"{% endblock %}
-    {% block panel_class %}max-w-md{% endblock %}
+    {% block panel_class %}sm:max-w-md{% endblock %}
     {% block title %}{% trans 'My Modal' %}{% endblock %}
     {% block body %}<div class="p-4">…</div>{% endblock %}
 
@@ -27,7 +27,7 @@ there. Empty by default.
      @click.self="close()"
      @keydown.escape.window="$event.preventDefault(); close()"
      {% block root_attrs %}{% endblock %}>
-  <div class="acta-modal-panel {% block panel_class %}max-w-md{% endblock %}"
+  <div class="acta-modal-panel {% block panel_class %}sm:max-w-md{% endblock %}"
        {% block panel_attrs %}{% endblock %}>
     <header class="relative flex items-center justify-between px-4 py-3 border-b border-border {% block header_class %}{% endblock %}">
       <div class="flex items-center gap-3 min-w-0 flex-1">

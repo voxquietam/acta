@@ -1682,23 +1682,36 @@ select:-webkit-autofill {
     /* A plain dark scrim — no ``backdrop-filter: blur()``. The blur looked
        nice but recomposites on every repaint over it, which janks cursor
        movement / editor typing inside the modal on weaker GPUs. The 55%
-       black scrim alone gives enough focus separation. */
-    @apply fixed inset-0 z-50 flex items-start justify-center pt-16 px-4 bg-black/55;
+       black scrim alone gives enough focus separation.
+       Mobile: edge-to-edge layout (``items-stretch``, no scrim padding) so
+       the panel can fill the viewport. ``sm:`` restores the floating-card
+       layout with the original 4rem top inset + 1rem side gutter. */
+    @apply fixed inset-0 z-50 flex items-stretch justify-center bg-black/55
+           sm:items-start sm:pt-16 sm:px-4;
   }
   .acta-modal-panel {
-    @apply w-full bg-card border border-border rounded-xl flex flex-col;
-    /* Layered shadow per ``comp-modal-scrim``: a long-throw drop for the
-       lift off the scrim, a tighter close-shadow for the edge, and a
-       barely-visible inset highlight so the top edge catches a hint of
-       light against the dark backdrop. */
-    box-shadow:
-      0 24px 48px -12px rgb(0 0 0 / 0.7),
-      0 8px 16px -8px rgb(0 0 0 / 0.5),
-      inset 0 0 0 1px rgb(255 255 255 / 0.03);
+    /* Mobile: full-bleed surface — no border / radius / shadow because
+       there is no scrim margin to lift off. ``sm:`` restores the lifted
+       card chrome so the modal reads as a floating panel again. */
+    @apply w-full bg-card flex flex-col
+           sm:border sm:border-border sm:rounded-xl;
     /* No ``overflow-hidden`` on the panel: tooltips and dropdowns from
        header buttons need to escape above the top edge. The inner
        scroll container (modal body) carries its own ``overflow-y-auto``
        which keeps scrolling content clipped. */
+  }
+  @media (min-width: 640px) {
+    .acta-modal-panel {
+      /* Layered shadow per ``comp-modal-scrim``: a long-throw drop for the
+         lift off the scrim, a tighter close-shadow for the edge, and a
+         barely-visible inset highlight so the top edge catches a hint of
+         light against the dark backdrop. Desktop-only — on mobile the panel
+         spans the full viewport so there is no scrim to lift off. */
+      box-shadow:
+        0 24px 48px -12px rgb(0 0 0 / 0.7),
+        0 8px 16px -8px rgb(0 0 0 / 0.5),
+        inset 0 0 0 1px rgb(255 255 255 / 0.03);
+    }
   }
 
   /* Button primitives — design-system tokens from
