@@ -11,9 +11,12 @@ Type-icon colour + glyph are keyed off ``n.kind`` (6 + priority kinds).
      hx-post="{% url 'web:notification_open' pk=n.pk %}"
      hx-target="#inbox-preview"
      hx-swap="innerHTML"
-     class="group/nrow relative flex items-start gap-3 px-4 py-3 border-b border-border cursor-pointer transition hover:bg-muted/30">
+     class="group/nrow relative flex items-start gap-3 px-3 md:px-4 py-3 border-b border-border cursor-pointer transition hover:bg-muted/30">
 
-  <label class="pt-1 shrink-0 cursor-pointer opacity-0 group-hover/nrow:opacity-100 has-[:checked]:opacity-100 transition" @click.stop>
+  {# Bulk-select checkbox — desktop only; touch has no hover-reveal anyway, #}
+  {# and dropping its w-3.5 + gap-3 footprint saves ~26 px of left gutter   #}
+  {# next to the avatar on a 393 px phone.                                  #}
+  <label class="hidden md:block pt-1 shrink-0 cursor-pointer opacity-0 group-hover/nrow:opacity-100 has-[:checked]:opacity-100 transition" @click.stop>
     <span class="relative block w-3.5 h-3.5">
       <input type="checkbox" name="ids" value="{{ n.pk }}"
              class="peer appearance-none absolute inset-0 w-full h-full rounded border border-border-strong bg-muted checked:bg-brand-600 checked:border-brand-500 cursor-pointer transition">
@@ -56,13 +59,16 @@ Type-icon colour + glyph are keyed off ``n.kind`` (6 + priority kinds).
   <div class="flex flex-col items-end gap-1.5 shrink-0 pt-0.5">
     <span class="font-mono text-[10px] text-placeholder-foreground whitespace-nowrap">{{ n.created_at|timesince }}</span>
     <div class="flex items-center gap-1.5">
+      {# Inline mark-read / archive — desktop hover-reveal. Hidden on mobile #}
+      {# (touch has no hover; opening the row marks-read automatically and  #}
+      {# bulk archive lives in the inbox bulk bar).                         #}
       <button type="button" @click.stop
               hx-post="{% url 'web:notification_read' pk=n.pk %}"
               hx-vals='{"read": "{% if n.is_read %}0{% else %}1{% endif %}"}'
               hx-target="#notification-{{ n.pk }}" hx-swap="none"
               data-tooltip="{% if n.is_read %}{% trans 'Mark unread' %}{% else %}{% trans 'Mark read' %}{% endif %}"
               data-tooltip-pos="below-left"
-              class="opacity-0 group-hover/nrow:opacity-100 text-placeholder-foreground hover:text-foreground transition">
+              class="hidden md:inline-flex opacity-0 group-hover/nrow:opacity-100 text-placeholder-foreground hover:text-foreground transition">
         {% lucide "check" "w-3.5 h-3.5" %}
       </button>
       <button type="button" @click.stop
@@ -70,7 +76,7 @@ Type-icon colour + glyph are keyed off ``n.kind`` (6 + priority kinds).
               hx-target="#notification-{{ n.pk }}" hx-swap="outerHTML"
               data-tooltip="{% trans 'Archive' %}"
               data-tooltip-pos="below-left"
-              class="opacity-0 group-hover/nrow:opacity-100 text-placeholder-foreground hover:text-rose-400 transition">
+              class="hidden md:inline-flex opacity-0 group-hover/nrow:opacity-100 text-placeholder-foreground hover:text-rose-400 transition">
         {% lucide "archive" "w-3.5 h-3.5" %}
       </button>
       {% if not n.is_read %}<span class="w-2 h-2 rounded-full bg-brand-500"></span>{% endif %}
