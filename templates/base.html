@@ -237,7 +237,11 @@
   bumping.
   {% endcomment %}
   <script src="{% static 'vendor/sortable.min.js' %}"></script>
-  <script src="{% static 'js/acta.js' %}"></script>
+  {# Minified IIFE bundle built by ``npm run build:js:acta`` (terser). #}
+  {# Source: ``static/js/acta.js`` (3,331 LOC, ~145 KB unminified);    #}
+  {# output ~54 KB. Bundle split into core + timeline + kanban lazy    #}
+  {# chunks is deferred — see handoff memory for the plan.             #}
+  <script src="{% static 'js/acta.min.js' %}"></script>
   {% comment %}
   Description editor bundle — TipTap + extensions + tippy compiled
   from ``static_src/js/description_editor.js`` via esbuild. Built with

@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "description": "Acta frontend bundle — only used to compile the description editor (TipTap). Most of the app stays on CDN (HTMX, Alpine, Tailwind via Play CDN). See docs/decisions/0014-frontend-architecture.md for the rationale.",
   "scripts": {
-    "build:js": "esbuild static_src/js/description_editor.js --bundle --format=iife --minify --target=es2020 --outfile=static/js/description_editor.bundle.js --log-level=info && esbuild static_src/js/reactions.js --bundle --format=iife --minify --target=es2020 --outfile=static/js/reactions.bundle.js --log-level=info",
+    "build:js": "esbuild static_src/js/description_editor.js --bundle --format=iife --minify --target=es2020 --outfile=static/js/description_editor.bundle.js --log-level=info && esbuild static_src/js/reactions.js --bundle --format=iife --minify --target=es2020 --outfile=static/js/reactions.bundle.js --log-level=info && npm run build:js:acta",
+    "build:js:acta": "terser static/js/acta.js --compress --mangle --ecma 2020 -o static/js/acta.min.js",
     "watch:js": "esbuild static_src/js/description_editor.js --bundle --format=iife --target=es2020 --outfile=static/js/description_editor.bundle.js --watch --log-level=info",
     "build:css": "tailwindcss -i static_src/css/main.css -o static/css/main.bundle.css --minify && tailwindcss -c tailwind.prose.config.js -i static_src/css/prose.css -o static/css/prose.bundle.css --minify",
     "build:css:main": "tailwindcss -i static_src/css/main.css -o static/css/main.bundle.css --minify",
@@ -20,6 +21,7 @@
     "jsdom": "^25.0.1",
     "lucide-static": "^0.469.0",
     "tailwindcss": "^3.4.17",
+    "terser": "^5.48.0",
     "vitest": "^2.1.8"
   },
   "dependencies": {
