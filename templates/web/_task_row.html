@@ -85,7 +85,7 @@ status dot · slug + priority chevron · title (flex-1) · size · labels
       <span class="font-mono text-[10px] text-placeholder-foreground ml-0.5">+{{ labels|length|add:"-3" }}</span>
       {% endif %}
     </div>
-    <div class="group/labels hidden md:flex items-center max-w-[240px] min-w-0 pl-1.5 overflow-hidden">
+    <div class="group/labels hidden md:flex items-center max-w-[240px] min-w-0 pl-1.5 pr-2 overflow-hidden">
       {% for label in labels|slice:":3" %}
       <span class="acta-label-pill -ml-2 first:ml-0 cursor-pointer
                    group-hover/labels:ml-1 group-hover/labels:first:ml-0 transition-[margin] duration-200
