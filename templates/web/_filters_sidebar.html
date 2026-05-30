@@ -41,7 +41,7 @@ Section visibility flags from the view:
 * ``filter_hide_status``   — drop Status (kanban groups by it).
 {% endcomment %}
 
-<aside x-data="{
+<div x-data="{
          counts: { search:0, status:0, priority:0, project:0, label:0, cycle:0, size:0, date:0, toggles:0 },
          {# Mirrored backlog toggle — when off, the Status filter hides #}
          {# ``planned`` / ``ready`` chips (those rows are already      #}
@@ -91,9 +91,32 @@ Section visibility flags from the view:
            }
          },
        }"
-       @keydown.escape.window="$store.filters.closePopover()"
-       class="acta-flt-aside-v2 mt-6 lg:mt-0 shrink-0 lg:-mr-8 lg:-mb-6"
-       :data-mode="$store.filters.mode">
+       @keydown.escape.window="$store.filters.closePopover(); $store.filters.setMobileOpen(false);">
+
+  {# Mobile bottom-sheet backdrop — only renders <lg: when the sheet is up. #}
+  <div class="acta-flt-mobile-backdrop lg:hidden"
+       x-show="$store.filters.mobileOpen"
+       @click="$store.filters.setMobileOpen(false)"
+       x-transition.opacity.duration.150ms
+       x-cloak></div>
+
+  {# Floating "Filters" trigger — mobile-only. Total-active badge mirrors  #}
+  {# the rail's per-section indicators so the active filter count survives #}
+  {# the rail being hidden on small viewports.                             #}
+  <button type="button"
+          class="acta-flt-fab lg:hidden"
+          x-show="!$store.filters.mobileOpen"
+          @click="$store.filters.setMobileOpen(true)"
+          aria-label="{% trans 'Open filters' %}"
+          x-cloak>
+    {% lucide "filter" "w-4 h-4" %}
+    {% trans "Filters" %}
+    <span class="badge" x-show="totalActive > 0" x-text="totalActive" x-cloak></span>
+  </button>
+
+  <aside class="acta-flt-aside-v2 mt-6 lg:mt-0 shrink-0 lg:-mr-8 lg:-mb-6"
+       :data-mode="$store.filters.mode"
+       :data-mobile-open="$store.filters.mobileOpen ? 'true' : 'false'">
 
   <form id="filter-form"
         method="get"
@@ -108,9 +131,12 @@ Section visibility flags from the view:
     {% endfor %}
 
     {# ========================================================== #}
-    {# Rail (48px). Always rendered, hidden when expanded.         #}
+    {# Rail (48px). Always rendered, hidden when expanded or when  #}
+    {# the mobile sheet is up (the sheet renders the full panel).  #}
     {# ========================================================== #}
-    <div class="acta-flt-rail shrink-0" x-show="$store.filters.mode === 'rail'" x-cloak>
+    <div class="acta-flt-rail shrink-0"
+         x-show="$store.filters.mode === 'rail' && !$store.filters.mobileOpen"
+         x-cloak>
 
       <button type="button" class="acta-flt-rail-btn" data-tooltip-pos="left"
               title="{% trans 'Expand filters' %}"
@@ -229,13 +255,17 @@ Section visibility flags from the view:
     <div class="acta-flt-content"
          :data-mode="$store.filters.mode"
          :data-open="$store.filters.openSection || ''"
-         :style="$store.filters.mode === 'rail' ? `top: ${$store.filters.openTop}px` : ''"
-         x-show="$store.filters.mode === 'expanded' || ($store.filters.mode === 'rail' && $store.filters.openSection)"
-         @click.outside="$store.filters.closePopover()"
+         :style="$store.filters.mode === 'rail' && !$store.filters.mobileOpen ? `top: ${$store.filters.openTop}px` : ''"
+         x-show="$store.filters.mode === 'expanded' || ($store.filters.mode === 'rail' && $store.filters.openSection) || $store.filters.mobileOpen"
+         @click.outside="if (!$store.filters.mobileOpen) $store.filters.closePopover()"
          x-cloak>
 
-      {# ----------- Expanded header ----------- #}
-      <div class="acta-flt-expanded-h" x-show="$store.filters.mode === 'expanded'">
+      {# ----------- Expanded / mobile-sheet header ----------- #}
+      {# Visible in expanded desktop mode AND when the mobile sheet is up. #}
+      {# The trailing toggle button swaps role: "Collapse to rail" on      #}
+      {# desktop, "Close" (X) on mobile.                                   #}
+      <div class="acta-flt-expanded-h"
+           x-show="$store.filters.mode === 'expanded' || $store.filters.mobileOpen">
         {% lucide "filter" "w-4 h-4 text-brand-400" %}
         <h3 class="text-foreground font-semibold text-[13px]">{% trans "Filters" %}</h3>
         {% include "web/_filter_count_badges.html" with variant="expanded" %}
@@ -251,19 +281,30 @@ Section visibility flags from the view:
           {% lucide "filter-x" "w-3 h-3" %}
           {% trans "Reset all" %}
         </button>
+        {# Desktop: collapse-to-rail. Hidden when the mobile sheet is up. #}
         <button type="button"
                 class="text-placeholder-foreground hover:text-foreground w-7 h-7 grid place-items-center rounded hover:bg-muted"
                 title="{% trans 'Collapse to rail' %}"
+                x-show="!$store.filters.mobileOpen"
                 @click="$store.filters.setMode('rail')">
           {% lucide "panel-left-close" "w-4 h-4" %}
+        </button>
+        {# Mobile: close the bottom sheet. #}
+        <button type="button"
+                class="text-placeholder-foreground hover:text-foreground w-7 h-7 grid place-items-center rounded hover:bg-muted"
+                aria-label="{% trans 'Close filters' %}"
+                x-show="$store.filters.mobileOpen"
+                @click="$store.filters.setMobileOpen(false)">
+          {% lucide "x" "w-4 h-4" %}
         </button>
       </div>
 
       {# Popover close button — pinned to the top-right; section's own #}
-      {# header inside provides the (translated) section name.          #}
+      {# header inside provides the (translated) section name. Hidden  #}
+      {# in the mobile sheet — the sheet has its own X in the header.  #}
       <button type="button"
               class="absolute top-2 right-2 text-placeholder-foreground hover:text-foreground z-10"
-              x-show="$store.filters.mode === 'rail'"
+              x-show="$store.filters.mode === 'rail' && !$store.filters.mobileOpen"
               @click="$store.filters.closePopover()">
         {% lucide "x" "w-3.5 h-3.5" %}
       </button>
@@ -663,4 +704,5 @@ Section visibility flags from the view:
       </div>
     </div>{# /.acta-flt-content #}
   </form>
-</aside>
+  </aside>
+</div>{# /.x-data root wrap (aside + mobile sheet siblings) #}

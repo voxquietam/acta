@@ -887,6 +887,83 @@ input:checked + .acta-flt-tg::after {
   width: 580px;
 }
 
+/* Below ``lg:`` the rail / popover / expanded layout doesn't fit a 393px
+   phone, so the aside is hidden by default and a floating "Filters"
+   button (``.acta-flt-fab``) opens it as a slide-up bottom-sheet via the
+   ``data-mobile-open`` attribute. The form's submit-on-change still drives
+   filtering — only the chrome changes. */
+@media (max-width: 1023px) {
+  .acta-flt-aside-v2:not([data-mobile-open="true"]) {
+    display: none;
+  }
+  .acta-flt-aside-v2[data-mobile-open="true"] {
+    position: fixed;
+    inset: 3.5rem 0 0 0;            /* below the 56px topbar */
+    width: 100%;
+    z-index: 50;
+    background: rgb(var(--background));
+    border-top: 1px solid rgb(var(--border));
+    box-shadow: 0 -12px 32px -8px rgb(0 0 0 / 0.6);
+    overflow-y: auto;
+    margin: 0;                       /* nukes mt-6 / -mr-8 / -mb-6 from utility classes */
+  }
+  /* In the sheet, hide the rail and let the content fill the panel. */
+  .acta-flt-aside-v2[data-mobile-open="true"] .acta-flt-rail {
+    display: none;
+  }
+  .acta-flt-aside-v2[data-mobile-open="true"] .acta-flt-content {
+    position: static;
+    width: 100%;
+    max-height: none;
+    border-radius: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  /* In rail data-mode we'd hide every section except the open one; force
+     all sections visible in the mobile sheet regardless of stored mode. */
+  .acta-flt-aside-v2[data-mobile-open="true"] .acta-flt-content [data-section] {
+    display: block !important;
+  }
+  /* Single-column stack inside the sheet — the 2-col expanded grid is too
+     wide for 393px. */
+  .acta-flt-aside-v2[data-mobile-open="true"] .acta-flt-content-b {
+    display: flex !important;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem;
+  }
+}
+
+/* Floating "Filters" button — sits bottom-right above the page on mobile.
+   Hidden at ``lg:`` and above (the rail handles it). The active-count
+   indicator inside is wired via ``totalActive`` in the aside's x-data. */
+@layer components {
+  .acta-flt-fab {
+    @apply fixed right-4 bottom-4 z-40 inline-flex items-center gap-1.5
+           px-4 py-2.5 rounded-full bg-brand-600 hover:bg-brand-500
+           text-white text-[13px] font-medium transition;
+    box-shadow: 0 12px 32px -8px rgb(0 0 0 / 0.6), 0 4px 12px -4px rgb(0 0 0 / 0.4);
+  }
+  .acta-flt-fab .badge {
+    @apply min-w-[18px] h-[18px] px-[5px] rounded-full bg-white/20
+           text-[11px] leading-[18px] text-center font-mono tabular-nums;
+  }
+}
+
+/* Backdrop shown behind the mobile filter sheet. */
+.acta-flt-mobile-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 49;
+  background: rgb(0 0 0 / 0.55);
+}
+
+/* Lock page scroll while the sheet is up. Set on <body> by the store. */
+body.acta-flt-mobile-locked {
+  overflow: hidden;
+}
+
 /* 48px rail. Content-height (``align-self: start``) so the form's
    ``items-stretch`` doesn't blow it up to viewport height. Right-side
    corners drop their radius because the rail sits flush against the

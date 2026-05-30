@@ -3169,6 +3169,11 @@
       mode: localStorage.getItem("acta:filters-mode") || "rail",
       openSection: null,
       openTop: 0,
+      // Mobile bottom-sheet state. Below ``lg:`` the rail / popover layout
+      // doesn't fit, so the whole filter aside is hidden and a floating
+      // "Filters" button opens it as a slide-up sheet. Ephemeral — no
+      // persistence, no localStorage; closes on backdrop / Esc / submit.
+      mobileOpen: false,
       _syncHtmlClass() {
         const html = document.documentElement;
         html.classList.toggle("acta-filters-open", this.open);
@@ -3218,6 +3223,15 @@
       },
       closePopover() {
         this.openSection = null;
+      },
+      setMobileOpen(value) {
+        this.mobileOpen = !!value;
+        // While the sheet is up, lock body scroll so users don't push
+        // through to the page underneath while scrolling chip lists.
+        document.body.classList.toggle("acta-flt-mobile-locked", this.mobileOpen);
+      },
+      toggleMobileOpen() {
+        this.setMobileOpen(!this.mobileOpen);
       },
     });
 
