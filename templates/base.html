@@ -204,11 +204,16 @@
   {% block body %}{% endblock %}
 
   {% comment %}
-  sortable.js for the kanban board. Loaded in the shell (not the swapped
-  board partial) so ``window.Sortable`` survives SPA navigation; acta.js
-  re-binds the columns on every settle. See ``initKanbanDnD``.
+  sortable.js for the kanban board. Self-hosted under ``static/vendor/``
+  to remove the last jsdelivr CDN round-trip from the critical path
+  (Lighthouse attributed 734 ms to ``cdn.jsdelivr.net`` before this).
+  Loaded in the shell (not the swapped board partial) so
+  ``window.Sortable`` survives SPA navigation; acta.js re-binds the
+  columns on every settle. See ``initKanbanDnD``. Pinned to 1.15.2 —
+  re-download from jsdelivr into ``static/vendor/sortable.min.js`` when
+  bumping.
   {% endcomment %}
-  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+  <script src="{% static 'vendor/sortable.min.js' %}"></script>
   <script src="{% static 'js/acta.js' %}"></script>
   {% comment %}
   Description editor bundle — TipTap + extensions + tippy compiled
