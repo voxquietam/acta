@@ -27,12 +27,7 @@ status dot · slug + priority chevron · title (flex-1) · size · labels
   <span class="font-mono text-[11px] text-placeholder-foreground shrink-0 inline-flex items-center gap-1">
     {{ task.slug }}
     {% if task.priority %}
-    <span class="cursor-pointer hover:ring-1 hover:ring-offset-1 hover:ring-offset-card rounded transition
-      {% if task.priority == 1 %}text-red-400 hover:ring-red-400/40
-      {% elif task.priority == 2 %}text-orange-400 hover:ring-orange-400/40
-      {% elif task.priority == 3 %}text-amber-400 hover:ring-amber-400/40
-      {% elif task.priority == 4 %}text-[#a5b4d9] hover:ring-[#a5b4d9]/40
-      {% endif %}"
+    <span class="cursor-pointer hover:ring-1 hover:ring-offset-1 hover:ring-offset-card rounded transition {{ task.priority|priority_text_classes }}"
       title="{% trans 'Filter by priority' %}: {{ priority_labels|get_item:task.priority }}"
       @click.prevent.stop="window.acta.toggleFilter('priority', '{{ task.priority }}')">{% include "web/projects/_priority_icon.html" with priority=task.priority %}</span>
     {% endif %}

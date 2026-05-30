@@ -3327,5 +3327,31 @@
         }
       },
     });
+
+    // Single-source labels-cluster hover popover, declared once and
+    // reused by every table row that renders a label dot cluster
+    // (``_table_row.html``). Wave 4 §F4 — replaces the 19-line inline
+    // ``x-data="{...}"`` that ballooned ``?panel=table`` by ~110 KB
+    // raw on a 260-task workspace. The popover uses ``position: fixed``
+    // so cell overflow clipping isn't a concern; placement flips
+    // BELOW when the cluster sits near the viewport top (first rows of
+    // the table) so the popover doesn't clip past the sticky header.
+    window.Alpine.data("labelsCluster", () => ({
+      open: false,
+      coords: { top: 0, left: 0, placement: "above" },
+      show() {
+        const r = this.$refs.cluster.getBoundingClientRect();
+        const above = r.top > 120;
+        this.coords = {
+          top: above ? r.top - 8 : r.bottom + 8,
+          left: r.left + r.width / 2,
+          placement: above ? "above" : "below",
+        };
+        this.open = true;
+      },
+      hide() {
+        this.open = false;
+      },
+    }));
   });
 })();

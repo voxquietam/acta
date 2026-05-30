@@ -131,6 +131,92 @@ def status_dot_classes(status_key) -> str:
     return _STATUS_DOT_CLASSES.get(status_key, "bg-zinc-700 hover:ring-zinc-700/40")
 
 
+_STATUS_BADGE_CLASSES = {
+    "planned": "bg-muted text-subtle-foreground hover:ring-zinc-500/40",
+    "ready": "bg-cyan-100 dark:bg-cyan-900 text-cyan-700 dark:text-cyan-300 hover:ring-cyan-500/40",
+    "to-do": "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:ring-blue-500/40",
+    "in-progress": "bg-violet-100 dark:bg-violet-900 text-violet-700 dark:text-violet-300 hover:ring-violet-500/40",
+    "in-review": "bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 hover:ring-amber-500/40",
+    "done": "bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 hover:ring-emerald-500/40",
+    "cancelled": "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-500 line-through hover:ring-zinc-500/40",
+}
+
+
+@register.filter(name="status_badge_classes")
+def status_badge_classes(status_key) -> str:
+    """Return badge background + text classes for a status key.
+
+    Single source of truth for the table-row status badge — collapses a
+    7-branch ``{% if %}`` block previously inlined in
+    ``_table_row.html`` (Wave 4 §F1, follow-up to PR-1's
+    ``status_dot_classes``). The dict lookup is O(1) per row.
+
+    Args:
+        status_key: ``Task.status`` value (``planned``, ``in-progress``…).
+
+    Returns:
+        A class string ready for ``class="… {{ task.status|status_badge_classes }}"``.
+        Falls back to empty for unknown statuses (matches the previous
+        no-default branch — the cell stays unstyled).
+    """
+    return _STATUS_BADGE_CLASSES.get(status_key, "")
+
+
+_STATUS_SORT_RANK = {
+    "planned": "0",
+    "ready": "1",
+    "to-do": "2",
+    "in-progress": "3",
+    "in-review": "4",
+    "done": "5",
+}
+
+
+@register.filter(name="status_sort_rank")
+def status_sort_rank(status_key) -> str:
+    """Return the numeric sort rank for a status key as a string.
+
+    Used by ``data-sort-status="…"`` on table rows so the client-side
+    sort handler can compare without parsing the badge label. Collapses
+    the 7-branch inline ``{% if %}`` previously inlined in
+    ``_table_row.html`` (Wave 4 §F3). ``cancelled`` and any unknown
+    status sink to ``99`` so they land last regardless of direction.
+
+    Args:
+        status_key: ``Task.status`` value.
+
+    Returns:
+        ``"0"`` … ``"5"`` for known statuses, ``"99"`` otherwise.
+    """
+    return _STATUS_SORT_RANK.get(status_key, "99")
+
+
+_PRIORITY_TEXT_CLASSES = {
+    1: "text-red-400 hover:ring-red-400/40",
+    2: "text-orange-400 hover:ring-orange-400/40",
+    3: "text-amber-400 hover:ring-amber-400/40",
+    4: "text-[#a5b4d9] hover:ring-[#a5b4d9]/40",
+}
+
+
+@register.filter(name="priority_text_classes")
+def priority_text_classes(priority) -> str:
+    """Return ``text-<colour>-400 hover:ring-<colour>-400/40`` for a priority.
+
+    Single source of truth for the priority chevron palette. Collapses
+    the 5-branch ``{% if %}`` block previously inlined in
+    ``_table_row.html`` and ``_task_row.html`` (Wave 4 §F2). ``None`` /
+    ``0`` (no priority) falls back to ``text-zinc-600``.
+
+    Args:
+        priority: Integer 1..4 or ``None`` / ``0`` for no priority.
+
+    Returns:
+        A class string for the priority cell wrapper.
+    """
+    return _PRIORITY_TEXT_CLASSES.get(priority, "text-zinc-600 hover:ring-zinc-600/40")
+
+
 @register.simple_tag(takes_context=True)
 def task_filter_attrs(context, task):
     """Emit ``data-*`` attributes that drive client-side filtering.

@@ -16,7 +16,7 @@ in context.
     {% task_filter_attrs task %}
     data-sort-id="{{ task.project.slug_prefix }}-{{ task.number|stringformat:"010d" }}"
     data-sort-title="{{ task.title|lower }}"
-    data-sort-status="{% if task.status == 'planned' %}0{% elif task.status == 'ready' %}1{% elif task.status == 'to-do' %}2{% elif task.status == 'in-progress' %}3{% elif task.status == 'in-review' %}4{% elif task.status == 'done' %}5{% else %}99{% endif %}"
+    data-sort-status="{{ task.status|status_sort_rank }}"
     data-sort-priority="{% if task.priority %}{{ task.priority }}{% else %}99{% endif %}"
     data-sort-size="{% if task.size %}{{ task.size }}{% else %}{% endif %}"
     data-sort-assignee="{% if task.assignee %}{{ task.assignee.display_name|lower }}{% else %}{% endif %}"
@@ -35,12 +35,7 @@ in context.
   </td>
   <td class="px-2 py-2 font-mono text-xs whitespace-nowrap text-placeholder-foreground">
     <span class="inline-flex items-center gap-1">
-      <span class="cursor-pointer rounded transition hover:ring-1 hover:ring-offset-1 hover:ring-offset-card
-        {% if task.priority == 1 %}text-red-400 hover:ring-red-400/40
-        {% elif task.priority == 2 %}text-orange-400 hover:ring-orange-400/40
-        {% elif task.priority == 3 %}text-amber-400 hover:ring-amber-400/40
-        {% elif task.priority == 4 %}text-[#a5b4d9] hover:ring-[#a5b4d9]/40
-        {% else %}text-zinc-600 hover:ring-zinc-600/40{% endif %}"
+      <span class="cursor-pointer rounded transition hover:ring-1 hover:ring-offset-1 hover:ring-offset-card {{ task.priority|priority_text_classes }}"
             title="{% trans 'Filter by priority' %}: {{ priority_labels|get_item:task.priority|default:_('No priority') }}"
             @click.stop="window.acta.toggleFilter('priority', '{{ task.priority|default:0 }}')">{% include "web/projects/_priority_icon.html" with priority=task.priority size_class="w-3.5 h-3.5" none_icon="circle-dashed" %}</span>
       <a href="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
@@ -66,14 +61,7 @@ in context.
     </span>
   </td>
   <td class="px-3 py-2 whitespace-nowrap">
-    <span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded cursor-pointer transition hover:ring-1 hover:ring-offset-1 hover:ring-offset-card
-      {% if task.status == 'planned' %}bg-muted text-subtle-foreground hover:ring-zinc-500/40
-      {% elif task.status == 'ready' %}bg-cyan-100 dark:bg-cyan-900 text-cyan-700 dark:text-cyan-300 hover:ring-cyan-500/40
-      {% elif task.status == 'to-do' %}bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:ring-blue-500/40
-      {% elif task.status == 'in-progress' %}bg-violet-100 dark:bg-violet-900 text-violet-700 dark:text-violet-300 hover:ring-violet-500/40
-      {% elif task.status == 'in-review' %}bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 hover:ring-amber-500/40
-      {% elif task.status == 'done' %}bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 hover:ring-emerald-500/40
-      {% elif task.status == 'cancelled' %}bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-500 line-through hover:ring-zinc-500/40{% endif %}"
+    <span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded cursor-pointer transition hover:ring-1 hover:ring-offset-1 hover:ring-offset-card {{ task.status|status_badge_classes }}"
           title="{% trans 'Filter by status' %}: {{ status_labels|get_item:task.status|default:task.status }}"
           @click.stop="window.acta.toggleFilter('status', '{{ task.status }}')">
       {{ status_labels|get_item:task.status|default:task.status }}
@@ -102,26 +90,8 @@ in context.
     to ``x-teleport`` into ``<body>``, which would orphan stale copies
     in the DOM after every SSE row swap.
     {% endcomment %}
-    <div x-data="{
-           open: false,
-           coords: { top: 0, left: 0, placement: 'above' },
-           show() {
-             const r = this.$refs.cluster.getBoundingClientRect();
-             // Default to ABOVE the cluster; flip BELOW when the
-             // cluster sits near the viewport top (first few rows of
-             // the table) and a popover above would clip past the
-             // header.
-             const above = r.top > 120;
-             this.coords = {
-               top: above ? r.top - 8 : r.bottom + 8,
-               left: r.left + r.width / 2,
-               placement: above ? 'above' : 'below',
-             };
-             this.open = true;
-           },
-           hide() { this.open = false; }
-         }"
-         class="inline-flex">
+    {# x-data declared once in acta.js (``labelsCluster``); see Wave 4 §F4. #}
+    <div x-data="labelsCluster" class="inline-flex">
       <div x-ref="cluster"
            @mouseenter="show()"
            @mouseleave="hide()"
