@@ -1339,24 +1339,18 @@
       updateMissingCount();
     };
 
-    const rightCol = document.getElementById("tl-right");
-    const leftBody = document.getElementById("tl-left-body");
-    let syncLock = 0; // 0 none · 1 right is source · 2 left is source
-
-    rightCol.addEventListener("scroll", () => {
-      if (syncLock === 2) { syncLock = 0; return; }
-      syncLock = 1;
-      leftBody.scrollTop = rightCol.scrollTop;
-    }, { passive: true });
-    leftBody.addEventListener("scroll", () => {
-      if (syncLock === 1) { syncLock = 0; return; }
-      syncLock = 2;
-      rightCol.scrollTop = leftBody.scrollTop;
-    }, { passive: true });
+    // Single scroller (#tl-scroll) handles both axes; sticky left column +
+    // sticky date header are CSS-only. No JS scroll sync — eliminates the
+    // trackpad lag the previous two-pane setup couldn't dodge.
+    const scrollContainer = document.getElementById("tl-scroll");
+    const STICKY_LEFT_W = 260;
+    const todayScrollLeft = (dayW, frac) => {
+      const visibleGanttW = Math.max(0, scrollContainer.clientWidth - STICKY_LEFT_W);
+      return Math.max(0, diffDays(chartStart, today) * dayW - visibleGanttW * frac);
+    };
 
     document.getElementById("tl-today-btn").addEventListener("click", () => {
-      const w = DAY_W[zoom];
-      rightCol.scrollTo({ left: Math.max(0, diffDays(chartStart, today) * w - rightCol.clientWidth * 0.35), behavior: "smooth" });
+      scrollContainer.scrollTo({ left: todayScrollLeft(DAY_W[zoom], 0.35), behavior: "smooth" });
     });
 
     function render() {
@@ -1365,7 +1359,7 @@
       renderBars(dayW);
       renderTodayLine(dayW);
       requestAnimationFrame(() => {
-        rightCol.scrollLeft = Math.max(0, diffDays(chartStart, today) * dayW - rightCol.clientWidth * 0.4);
+        scrollContainer.scrollLeft = todayScrollLeft(dayW, 0.4);
       });
     }
 
@@ -1377,7 +1371,7 @@
     // so disconnect any observer a prior init left on it before attaching a
     // fresh one bound to the current render closure (else observers stack
     // and the callback points at detached elements).
-    const panel = rightCol.closest("[x-show]");
+    const panel = scrollContainer.closest("[x-show]");
     if (panel) {
       if (panel._tlObs) panel._tlObs.disconnect();
       panel._tlObs = new MutationObserver(() => {
