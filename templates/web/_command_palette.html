@@ -249,6 +249,12 @@ inside each row template.
           const r = await fetch(url, { headers: { Accept: "application/json" } });
           if (!r.ok) {
             this.sections = [];
+            // Server error (5xx) or unexpected status — surface to the user
+            // so they don't read the "No matches" hint as "your query
+            // matched nothing" when the search actually failed. 4xx is
+            // also bucketed here because the palette has no recovery path
+            // either way.
+            if (window.actaToast) window.actaToast("Search failed (" + r.status + "). Try again.", "error");
             return;
           }
           const data = await r.json();
@@ -256,6 +262,10 @@ inside each row template.
           this.cursor = 0;
         } catch (e) {
           this.sections = [];
+          // Network throw (offline, DNS, fetch abort that wasn't ours).
+          // Same reasoning as the !r.ok branch: distinguish empty results
+          // from a broken request.
+          if (window.actaToast) window.actaToast("Network error — search unavailable.", "error");
         } finally {
           this.loading = false;
           this.rebuildDisplayed();
