@@ -106,6 +106,24 @@
     [x-cloak] { display: none !important; }
   </style>
 
+  {% comment %}
+  Preload the latin Exo 2 variable woff2 so it has a shot at arriving
+  inside ``font-display: optional``'s tiny (~100 ms) acceptance window.
+  Without preload the @font-face rule is only discovered after the
+  bundle parses, the font fetch loses the race to ``optional`` every
+  time, and the first paint always renders in the system fallback.
+
+  ``crossorigin`` is mandatory on font preloads — without it the
+  browser fires a second, CORS-credentialed request when the actual
+  @font-face fires, defeating the purpose of the preload.
+
+  Cyrillic / italic faces are intentionally not preloaded: most paints
+  are latin upright, and ``unicode-range`` lets the browser pull the
+  cyrillic subset on demand if a Ukrainian glyph appears.
+  {% endcomment %}
+  <link rel="preload" as="font" type="font/woff2" crossorigin
+        href="{% static 'vendor/fonts/exo-2-latin-wght-normal.woff2' %}">
+
   {# Pre-compiled Tailwind stylesheet — replaces the Tailwind Play CDN.  #}
   {# Built from ``static_src/css/main.css`` (Tailwind base/components/   #}
   {# utilities + project-specific rules) via ``npm run build:css``.     #}
