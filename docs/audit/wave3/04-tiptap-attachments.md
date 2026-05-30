@@ -135,9 +135,18 @@ audit), move `Description Editor` (which is only loaded on pages with editors)
 to a separate lazy bundle. Current 508 KB is loaded on *every* page as a
 precaution (avoids a re-fetch on nav). Measure impact before splitting.
 
-**Emoji picker:** `emoji-picker-element` (^1.29.1) + `emoji-picker-element-data`
-(^1.8.0) are in dependencies but NOT imported in any JS file. **Finding F6:**
-Unused packages; remove from `package.json` in next build pass.
+**Emoji picker:** `emoji-picker-element` (^1.29.1) is imported by
+`static_src/js/reactions.js` (registers the `<emoji-picker>` web component) and
+used in `templates/web/_reaction_bar.html` for comment / task reactions — KEEP.
+`emoji-picker-element-data` (^1.8.0) was NOT imported anywhere (data is served
+from the vendored `static/vendor/emoji-data.json`); removed in commit (PR-6) on
+2026-05-30. Note: bundle delta = 0 KB because esbuild already tree-shook it.
+
+**Errata (2026-05-30):** the original write-up of Finding F6 below claimed both
+packages were unused and quoted "~50 KB" of savings. This was wrong on both
+counts — `emoji-picker-element` itself is live; the bundle never carried the
+`-data` package because esbuild tree-shaking already dropped it. PR-6 reduced to
+a one-line `package.json` cleanup with no runtime impact.
 
 ---
 
@@ -461,15 +470,23 @@ code-split (Option B) only if the 200 KB+ savings is critical.
 
 ## 8. Findings F1–F9
 
-### F1: Emoji picker packages unused
+### F1: Emoji picker packages unused — REVISED 2026-05-30
+
+**Status:** Partially shipped (PR-6, commit pending).
 
 **File:** `package.json` lines 36–37.
 
-**Issue:** `emoji-picker-element` and `emoji-picker-element-data` are listed in
-dependencies but not imported in any `.js` file.
+**Original (wrong) claim:** "`emoji-picker-element` and `emoji-picker-element-data`
+are listed in dependencies but not imported in any `.js` file."
 
-**Impact:** ~50 KB added to node_modules; not bundled (esbuild would drop them
-due to tree-shaking), but clutters `package-lock.json` and CI cache.
+**Reality:** `emoji-picker-element` IS imported — `static_src/js/reactions.js:14`
+runs `import "emoji-picker-element"` which registers the `<emoji-picker>` custom
+element used by `templates/web/_reaction_bar.html` (comment + task reactions).
+Only `emoji-picker-element-data` was unused; its data role is served by the
+vendored `static/vendor/emoji-data.json` instead. PR-6 removed only `-data`.
+
+**Impact:** Bundle delta = 0 KB (esbuild already tree-shook the unused `-data`).
+Lockfile shrinks by one entry; CI cache marginally smaller. No runtime change.
 
 **Action:** Remove from `package.json` in next release. Wave 3.5.
 

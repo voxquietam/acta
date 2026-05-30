@@ -121,12 +121,20 @@ Minimum-viable a11y for the two heaviest interactive surfaces.
 Estimated: **2 h**. Defers the full a11y pass to Wave 4 but unblocks
 keyboard-only users on the two most-used interactive surfaces.
 
-### PR-6 — Remove emoji-picker package + audit deps `[I:1 / E:1 / R:1]`
+### PR-6 — Remove emoji-picker package + audit deps `[I:0 / E:0 / R:0]` — SHIPPED 2026-05-30
 
-D5 F1: `package.json` carries emoji-picker packages no code
-imports. Drop them; re-build TipTap bundle.
+D5 F1 partially shipped. Original claim ("both emoji packages unused, −50 KB
+on `description_editor.bundle.js`") was wrong on both counts:
 
-Estimated: **30 min**. Δ ≈ **−50 KB** on `description_editor.bundle.js`.
+- `emoji-picker-element` IS imported (`static_src/js/reactions.js:14`) and
+  powers the comment / task reaction bar `<emoji-picker>`. KEPT.
+- `emoji-picker-element-data` was truly unused (data is served from vendored
+  `static/vendor/emoji-data.json`). REMOVED.
+- Bundle delta = 0 KB. esbuild tree-shaking already dropped `-data` from the
+  TipTap bundle, so removing it from `package.json` had no runtime impact —
+  only the lockfile and CI cache shrink slightly.
+
+See errata in `04-tiptap-attachments.md` (F1 revised).
 
 ### PR-7 — Image alt-text editing `[I:2 / E:2 / R:1]`
 
