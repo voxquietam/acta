@@ -130,6 +130,11 @@ extract-icons: ## rebuild apps/web/lucide_icons.json from node_modules/lucide-st
 	$(NODE_RUN) node -e "process.exit(0)" >/dev/null  # ensure docker is warm
 	python3 scripts/extract_lucide.py
 
+build-sprite: ## rebuild static/sprites/lucide.svg from referenced icons
+	python3 scripts/build_lucide_sprite.py
+
+.PHONY: build-sprite
+
 # ---- CI-equivalent shortcuts ---------------------------------------
 # One-command analogues of what a CI runner would do. Cheaper than
 # spinning up Woodpecker / GitHub Actions for a self-hosted single-

@@ -41,11 +41,11 @@ inside each row template.
   (no FOUC, no extra fetch) and matches everything else in the palette.
   {% endcomment %}
   <div class="hidden" data-acta-icon-lib>
-    <span data-icon="check-circle-2">{% lucide "check-circle-2" "w-4 h-4" %}</span>
-    <span data-icon="play-circle">{% lucide "play-circle" "w-4 h-4" %}</span>
+    <span data-icon="circle-check-big">{% lucide "circle-check-big" "w-4 h-4" %}</span>
+    <span data-icon="circle-play">{% lucide "circle-play" "w-4 h-4" %}</span>
     <span data-icon="eye">{% lucide "eye" "w-4 h-4" %}</span>
     <span data-icon="circle-dot">{% lucide "circle-dot" "w-4 h-4" %}</span>
-    <span data-icon="x-circle">{% lucide "x-circle" "w-4 h-4" %}</span>
+    <span data-icon="circle-x">{% lucide "circle-x" "w-4 h-4" %}</span>
     <span data-icon="link">{% lucide "link" "w-4 h-4" %}</span>
     <span data-icon="external-link">{% lucide "external-link" "w-4 h-4" %}</span>
     <span data-icon="history">{% lucide "history" "w-4 h-4" %}</span>
@@ -283,7 +283,7 @@ inside each row template.
         const items = [
           {
             label: "{% trans 'Mark as In Progress' %} (" + t.slug + ")",
-            icon_html: iconHtml("play-circle"),
+            icon_html: iconHtml("circle-play"),
             action: "set_status",
             payload: { slugPrefix: t.slugPrefix, number: t.number, status: "in-progress" },
           },
@@ -295,7 +295,7 @@ inside each row template.
           },
           {
             label: "{% trans 'Mark as Done' %} (" + t.slug + ")",
-            icon_html: iconHtml("check-circle-2"),
+            icon_html: iconHtml("circle-check-big"),
             action: "set_status",
             payload: { slugPrefix: t.slugPrefix, number: t.number, status: "done" },
           },
@@ -307,7 +307,7 @@ inside each row template.
           },
           {
             label: "{% trans 'Mark as Cancelled' %} (" + t.slug + ")",
-            icon_html: iconHtml("x-circle"),
+            icon_html: iconHtml("circle-x"),
             action: "set_status",
             payload: { slugPrefix: t.slugPrefix, number: t.number, status: "cancelled" },
           },
