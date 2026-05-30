@@ -129,7 +129,13 @@ MIDDLEWARE = [
     # reflected user-controlled string sharing a response with a secret —
     # Acta never echoes raw user input alongside CSRF tokens, so the risk
     # is theoretical for this app.
-    "django.middleware.gzip.GZipMiddleware",
+    #
+    # ``GZipSkipSseMiddleware`` is a subclass that leaves
+    # ``text/event-stream`` responses uncompressed — gzip's 32 KB window
+    # was buffering individual SSE events, so peer kanban updates only
+    # arrived on the next big payload (or page reload). The HTML / CSS /
+    # JS compression behaviour is unchanged.
+    "apps.web.middleware.GZipSkipSseMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",

@@ -1,4 +1,42 @@
-"""Development-only middleware for the ``web`` app."""
+"""Custom middleware for the ``web`` app."""
+
+from django.middleware.gzip import GZipMiddleware
+
+
+class GZipSkipSseMiddleware(GZipMiddleware):
+    """``GZipMiddleware`` that leaves ``text/event-stream`` responses alone.
+
+    The stock ``GZipMiddleware`` wraps streaming responses with
+    ``compress_sequence``, which routes every yielded chunk through a
+    ``GzipFile`` writer. Gzip needs ~32 KB of input before its window
+    flushes, so individual SSE events (typically a few hundred bytes
+    each) sit in gzip's internal buffer and never reach the browser
+    until enough later data accumulates — visible to the user as "SSE
+    looks open but events only arrive on the next reload."
+
+    We catch the SSE content type up-front (the response object reaches
+    middleware with its headers already set by the view) and return it
+    untouched. Every other response flows through gzip as before.
+
+    Wire this in place of ``django.middleware.gzip.GZipMiddleware`` at
+    the top of ``MIDDLEWARE``.
+    """
+
+    def process_response(self, request, response):
+        """Skip gzip for SSE; delegate everything else to the parent.
+
+        Args:
+            request: Current :class:`HttpRequest`.
+            response: Response produced downstream.
+
+        Returns:
+            The response unchanged when its ``Content-Type`` starts with
+            ``text/event-stream``, otherwise the gzipped version from
+            :meth:`GZipMiddleware.process_response`.
+        """
+        if response.get("Content-Type", "").startswith("text/event-stream"):
+            return response
+        return super().process_response(request, response)
 
 
 class NoBrowserCacheMiddleware:
