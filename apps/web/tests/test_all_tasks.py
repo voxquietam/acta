@@ -576,6 +576,32 @@ class TestShowBacklogCookie:
 
 
 @pytest.mark.django_db
+class TestListAxisHeightHint:
+    """Active axis div carries an SSR-computed ``min-height``.
+
+    Lighthouse otherwise records a CLS shift on the All Tasks list view
+    as the HTML parser yields and the axis section finalises. The view
+    reserves the upper-bound height via inline ``style="min-height: Npx"``
+    on ``[data-list-axis]`` so the browser allocates the right space on
+    first paint. See ``apps/web/views.py::_compute_axis_height_px``.
+    """
+
+    def test_active_axis_div_carries_min_height(self, client):
+        ws = WorkspaceFactory()
+        project = ProjectFactory(workspace=ws)
+        for i in range(7):
+            TaskFactory(project=project, title=f"row {i}", status=Task.STATUS_TODO)
+        client.force_login(ws.owner)
+        body = client.get(reverse("web:all_tasks") + "?view=list&axis=status").content.decode()
+        match = re.search(r'style="min-height:\s*(\d+)px"\s+data-list-axis="status"', body)
+        assert match is not None, "active status axis div is missing the SSR min-height hint"
+        # Upper bound: 7 rows * 56 + N sections * 52 + 16 — must be > 0 and a sane page-tall number.
+        reserved = int(match.group(1))
+        assert reserved >= 7 * 56, "reservation should cover every row"
+        assert reserved < 50_000, "reservation should not balloon for tiny test datasets"
+
+
+@pytest.mark.django_db
 class TestShowBacklogKanbanPartial:
     def test_kanban_htmx_partial_includes_backlog(self, client):
         ws = WorkspaceFactory()

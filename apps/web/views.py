@@ -297,6 +297,36 @@ def _list_axis_options(option_keys, active_key):
     return [{"key": key, "label": _LIST_AXIS_LABELS[key], "active": key == active_key} for key in option_keys]
 
 
+def _compute_axis_height_px(sections):
+    """Upper-bound rendered height of an axis section bundle in pixels.
+
+    Emitted as an inline ``min-height`` on the active axis div so the
+    browser reserves the correct space on first paint instead of growing
+    the div from zero as the parser yields and rows finalise. Lighthouse
+    otherwise records the growth as a CLS shift on
+    ``/tasks/?view=list&axis=*`` (see
+    ``[[project-todo-cls-root-fix]]``).
+
+    Constants are conservative upper bounds — the real DOM fits inside the
+    reservation, so no shift after first paint. Numbers from measuring the
+    rendered list view in DevTools: ``_task_row.html`` ≈ 56 px (py-3 +
+    text-sm + border), ``_list_axis_section.html`` header ≈ 40 px, gap
+    between sections ``space-y-3`` ≈ 12 px, container ``pb-4`` ≈ 16 px.
+
+    Args:
+        sections: Iterable of ``{"key", "label", "tone", "tasks"}`` dicts
+            from :func:`apps.web.grouping.group_tasks`.
+
+    Returns:
+        Reserved pixel height; ``0`` for an empty section list.
+    """
+    if not sections:
+        return 0
+    n_rows = sum(len(s.get("tasks", ())) for s in sections)
+    n_sections = len(sections)
+    return n_rows * 56 + n_sections * 52 + 16
+
+
 def _resolve_view_mode(request, *, default, allow_overview=False, allow_backlog=False):
     """Resolve view_mode in the canonical order.
 
@@ -644,6 +674,7 @@ class AllTasksView(LoginRequiredMixin, ListView):
             "list_axis": list_axis,
             "list_axis_options": _list_axis_options(list_axis_keys, list_axis),
             "list_sections_by_axis": list_sections_by_axis,
+            "list_axis_height_px": _compute_axis_height_px(list_sections_by_axis[list_axis]),
             "list_lazy_axes": True,
         }
 
@@ -795,6 +826,7 @@ class MyWorkView(LoginRequiredMixin, TemplateView):
             "priority": group_tasks(tasks, "priority", request_user=self.request.user),
             "project": group_tasks(tasks, "project", request_user=self.request.user),
         }
+        ctx["list_axis_height_px"] = _compute_axis_height_px(ctx["list_sections_by_axis"].get(list_axis, []))
         # Personal WIP: flag the statuses where the current user holds more
         # than their per-person workspace limit, so the status-axis section
         # headers can warn (e.g. "!! 4/2 over WIP" next to In progress).
@@ -1699,12 +1731,14 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         """List-view grouping ctx — used by ``?panel=list`` and cold-load list view."""
         list_axis_keys = _with_cycle_axis(("deadline", "status", "priority", "assignee"), project.workspace)
         list_axis = _resolve_list_axis(self.request, default="status", options=list_axis_keys)
+        list_sections_by_axis = {
+            key: group_tasks(table_tasks, key, request_user=self.request.user) for key in list_axis_keys
+        }
         return {
             "list_axis": list_axis,
             "list_axis_options": _list_axis_options(list_axis_keys, list_axis),
-            "list_sections_by_axis": {
-                key: group_tasks(table_tasks, key, request_user=self.request.user) for key in list_axis_keys
-            },
+            "list_sections_by_axis": list_sections_by_axis,
+            "list_axis_height_px": _compute_axis_height_px(list_sections_by_axis.get(list_axis, [])),
         }
 
     def get_template_names(self):

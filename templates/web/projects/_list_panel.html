@@ -66,7 +66,15 @@ This shaves ~80% off the cold-load payload on the All Tasks list view
     </div>
   </div>
   {% elif axis_key == list_axis %}
-  <div x-show="activeAxis === '{{ axis_key }}'" data-list-axis="{{ axis_key }}">
+  {% comment %}
+  ``min-height`` is the SSR layout hint that keeps Lighthouse from
+  recording a CLS shift as the parser yields and rows finalise. The
+  view computes the upper-bound height from row count × header count;
+  see ``apps/web/views.py::_compute_axis_height_px``.
+  {% endcomment %}
+  <div x-show="activeAxis === '{{ axis_key }}'"
+       style="min-height: {{ list_axis_height_px|default:0 }}px"
+       data-list-axis="{{ axis_key }}">
     {% include "web/projects/_list_axis_section.html" %}
   </div>
   {% else %}
