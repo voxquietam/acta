@@ -1407,14 +1407,25 @@
     }
 
     function patchDate(url, data, csrf) {
+      // Network errors reject (caught below). HTTP 4xx/5xx resolve normally
+      // with res.ok=false, so we toast both paths so the user gets feedback
+      // instead of silently "snapping back" deadline / start / end without
+      // explanation. Matches the kanban drop + promote chip behaviour.
       fetch(url, {
         method: "POST",
         headers: { "X-CSRFToken": csrf, "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams(data),
-      }).catch((err) => {
-        console.error("[timeline] patch failed:", err);
-        if (window.actaToast) window.actaToast("Network error — date not updated.", "error");
-      });
+      })
+        .then((res) => {
+          if (!res.ok) {
+            console.error("[timeline] patch failed:", res.status, res.statusText);
+            if (window.actaToast) window.actaToast("Date update failed — please retry.", "error");
+          }
+        })
+        .catch((err) => {
+          console.error("[timeline] patch failed:", err);
+          if (window.actaToast) window.actaToast("Network error — date not updated.", "error");
+        });
     }
 
     function renderTodayLine(dayW) {
