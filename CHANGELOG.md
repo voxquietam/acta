@@ -9,6 +9,20 @@ Automating this with `git-cliff` is deferred until `v1.0.0`.
 
 ## [Unreleased]
 
+## [0.5.1] — 2026-05-31
+
+Hot-fix to unbreak the production image build.
+
+### Fixed
+
+- **`tailwind.prose.config.js` missing from the Docker build context** —
+  `npm run build:css` chains two tailwindcss invocations (`main` +
+  `prose`), but the Dockerfile only `COPY`-ed `tailwind.config.js`.
+  Local `make build-css` worked because it bind-mounts the whole repo;
+  the in-image build failed with *"Specified config file
+  /build/tailwind.prose.config.js does not exist"*. Added the missing
+  `COPY tailwind.prose.config.js ./` line.
+
 ## [0.5.0] — 2026-05-31
 
 The headline release after `0.4.0`: a real workspace dashboard, archive
