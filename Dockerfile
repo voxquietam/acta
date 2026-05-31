@@ -14,8 +14,12 @@ RUN --mount=type=cache,target=/root/.npm \
     npm ci --no-audit --no-fund
 
 # Sources Tailwind's content scanner needs to find used classes.
-# Keep this list aligned with ``content:`` in tailwind.config.js.
+# Keep this list aligned with ``content:`` in tailwind.config.js. The
+# prose config is a sibling build that compiles the editor stylesheet
+# (``static/css/prose.bundle.css``); ``npm run build:css`` chains both
+# tailwindcss invocations so the image needs both configs to be present.
 COPY tailwind.config.js ./
+COPY tailwind.prose.config.js ./
 COPY static_src/ ./static_src/
 COPY templates/ ./templates/
 COPY apps/ ./apps/
