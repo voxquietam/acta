@@ -2418,6 +2418,29 @@
       }, 250);
     }
 
+    // Backlog panel has no in-place row-swap path — sections are
+    // status-grouped (planned / ready) and the promote chip moves a row
+    // out of the backlog entirely once it crosses into to-do. Refetch the
+    // whole panel on every status change so the section + counter stay in
+    // sync. Debounced like the list one so bursty SSE events coalesce.
+    let backlogPanelRefetchTimer = null;
+    function refreshBacklogPanel() {
+      if (!window.htmx) return;
+      if (backlogPanelRefetchTimer) clearTimeout(backlogPanelRefetchTimer);
+      backlogPanelRefetchTimer = setTimeout(() => {
+        document.querySelectorAll('[data-panel-slot="backlog"]').forEach((slot) => {
+          if (!slot.children.length) return; // panel not opened yet
+          const url = new URL(window.location.href);
+          url.searchParams.set("panel", "backlog");
+          window.htmx.ajax("GET", url.pathname + url.search, {
+            target: slot,
+            swap: "innerHTML",
+          });
+        });
+        backlogPanelRefetchTimer = null;
+      }, 250);
+    }
+
     function morphFromString(targetEl, html) {
       if (!targetEl || !html) return;
       const tpl = document.createElement("template");
@@ -2553,6 +2576,11 @@
       // or the payload didn't carry the list surface.
       const ok = applyRowHtmlList(d.target_id, d.row_html_list, d.section_keys_list);
       if (!ok) refreshListPanel();
+      // Backlog has no per-row swap path — refetch whenever a status
+      // change might have moved a row in / out of planned-ready. Cheap
+      // (one debounced HTMX call) and only fires when the panel is
+      // actually open (refreshBacklogPanel skips empty slots).
+      refreshBacklogPanel();
       // Kanban header substatus row (overdue / done-this-week / avatar
       // stack) reads visible cards' data-attrs, so it has to re-run after
       // the card replace pulls in fresh values. No-op when no kanban panel
@@ -2569,6 +2597,11 @@
       if (d.row_html_table) applyRowHtmlTable(d.target_id, d.row_html_table);
       const ok = applyRowHtmlList(d.target_id, d.row_html_list, d.section_keys_list);
       if (!ok) refreshListPanel();
+      // Backlog has no per-row swap path — a status change always shifts
+      // backlog membership (planned → ready, ready → to-do), so refetch
+      // the panel when it's open. ``refreshBacklogPanel`` no-ops on
+      // pages without an active backlog slot.
+      refreshBacklogPanel();
       // Both source and target kanban columns changed cardinality + maybe
       // avatar stack / overdue count. Recount + recompute walk every
       // column so one call covers both.
