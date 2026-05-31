@@ -33,6 +33,11 @@ def claim_invite_for_user(request, user, invite):
     concurrent tab can't consume the same invite twice. Shared by both
     the password and the social signup paths.
 
+    When the workspace policy has ``auto_add_to_all_projects`` set, also
+    enrolls the user into every existing project in that workspace so
+    they don't have to be picked into each board manually. New projects
+    created later do NOT auto-add — that's a project-level decision.
+
     Args:
         request: The current HttpRequest (its session marker is cleared).
         user: The freshly created user to grant membership to.
@@ -50,6 +55,10 @@ def claim_invite_for_user(request, user, invite):
             user=user,
             defaults={"role": invite.role},
         )
+        defaults = invite.workspace.member_defaults_config()
+        if defaults["auto_add_to_all_projects"]:
+            for project in invite.workspace.projects.all():
+                project.members.add(user)
     request.session.pop(INVITE_SESSION_KEY, None)
 
 

@@ -25,6 +25,7 @@ to the equally-colored status badge).
        document.addEventListener('scroll', onScroll, true);
      "
      @resize.window="if (open) open = false"
+     @acta:open-task-field.window="if ($event.detail.field === 'priority' && !open) toggle()"
      @keydown.window="
        if (!open) return;
        if (!'01234'.includes($event.key)) return;

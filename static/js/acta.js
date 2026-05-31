@@ -846,10 +846,60 @@
       },
       body: JSON.stringify({ status: newStatus }),
     })
-      .then((r) => {
+      .then(async (r) => {
         if (!r.ok) {
           rollback();
-          if (window.actaToast) window.actaToast(`Couldn't move card (${r.status}).`, "error");
+          // Pull the first server-supplied error message out of the DRF
+          // ValidationError envelope (``{"field": ["msg"]}`` or
+          // ``{"field": "msg"}``) so toasts read "Assignee is required for
+          // this transition" instead of a bare "400". When the rejection is
+          // the workspace required-on-transition policy, skip the toast and
+          // open the task modal instead so the user can fill the missing
+          // fields right there (inline pickers + description editor) and
+          // drag again — the toast on its own gave them no path forward.
+          let detail = "";
+          let missing = [];
+          try {
+            const data = await r.json();
+            // Pull the first user-facing message and the structured
+            // missing-field list the server adds for required-on-transition
+            // rejections (``{"status": ["msg"], "missing": ["assignee", ...]}``).
+            if (Array.isArray(data?.missing)) missing = data.missing;
+            for (const [k, v] of Object.entries(data || {})) {
+              if (k === "missing") continue;
+              if (Array.isArray(v) && v.length) { detail = String(v[0]); break; }
+              if (typeof v === "string" && v) { detail = v; break; }
+            }
+          } catch (_) { /* fall through to status code */ }
+          const isRequiredBlock = missing.length > 0 || /required for this transition/i.test(detail);
+          if (isRequiredBlock && card.dataset.taskUrl && window.htmx) {
+            // Open the task modal so the user can fix the gating field
+            // inline — and ping the picker for the first missing field
+            // so it pops open automatically after the modal settles.
+            window.htmx
+              .ajax("GET", card.dataset.taskUrl + "?modal=1", {
+                target: "#modal-root",
+                swap: "innerHTML",
+              })
+              .then(() => {
+                if (missing.length) {
+                  // Two ticks: one for the modal swap + Alpine init, one
+                  // extra to make sure the listener bindings have actually
+                  // attached before we dispatch.
+                  requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                      window.dispatchEvent(
+                        new CustomEvent("acta:open-task-field", { detail: { field: missing[0] } }),
+                      );
+                    });
+                  });
+                }
+              });
+            if (window.actaToast) window.actaToast(detail, "warning");
+          } else {
+            const msg = detail ? detail : `Couldn't move card (${r.status}).`;
+            if (window.actaToast) window.actaToast(msg, "error");
+          }
           return;
         }
         document.querySelectorAll(".kanban-column").forEach((c) => {

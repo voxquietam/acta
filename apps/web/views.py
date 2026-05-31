@@ -3035,10 +3035,19 @@ def set_task_status(request, slug_prefix, number):
     Returns:
         Rendered ``_status_cell.html`` with the updated task.
     """
+    from apps.tasks.transitions import format_missing_message, validate_status_transition
+
     task = _get_user_task_or_404(request.user, slug_prefix, number)
     new_status = request.POST.get("status", "")
     if new_status not in Task.STATUS_VALUES:
         return HttpResponseBadRequest("invalid status")
+    missing = validate_status_transition(task, new_status, task.project.workspace)
+    if missing:
+        response = HttpResponse(status=422)
+        response["HX-Trigger"] = json.dumps(
+            {"acta:toast": {"message": format_missing_message(missing), "level": "error"}},
+        )
+        return response
     with transaction.atomic():
         old = snapshot_task(task)
         task.status = new_status
@@ -4496,6 +4505,110 @@ def set_workspace_wip(request, slug):
             "web/workspaces/_settings_wip.html",
             _render_workspace_wip(workspace, viewer_is_admin=True),
             toast={"message": str(_("WIP limits saved.")), "level": "success"},
+        )
+    return redirect("web:workspace_settings", slug=workspace.slug)
+
+
+@login_required
+def export_workspace_members_csv(request, slug):
+    """Stream the workspace member roster as CSV.
+
+    Admin-only. One row per member with display name, username, email,
+    role and joined-at ISO timestamp. The CSV is streamed in one chunk —
+    workspaces are tiny (Acta caps at a few hundred members in practice),
+    so chunked iteration buys us nothing.
+    """
+    import csv
+    import io
+
+    workspace = _get_user_workspace_or_404(request.user, slug)
+    if not _user_is_workspace_admin(request.user, workspace):
+        return HttpResponseForbidden("admin only")
+    rows = (
+        WorkspaceMember.objects.filter(workspace=workspace)
+        .select_related("user")
+        .order_by("user__first_name", "user__last_name", "user__username")
+    )
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["display_name", "username", "email", "role", "joined_at"])
+    for membership in rows:
+        user = membership.user
+        writer.writerow(
+            [
+                user.display_name,
+                user.username,
+                user.email or "",
+                membership.role,
+                membership.joined_at.isoformat() if membership.joined_at else "",
+            ],
+        )
+    response = HttpResponse(buf.getvalue(), content_type="text/csv")
+    response["Content-Disposition"] = f'attachment; filename="{workspace.slug}-members.csv"'
+    return response
+
+
+@require_POST
+@login_required
+def set_workspace_member_defaults(request, slug):
+    """Save the member-defaults policy from the settings panel.
+
+    Admin-gated. Reads ``default_role`` (one of the role choices) and
+    ``auto_add_to_all_projects`` (checkbox). Unknown role values fall
+    through to "member" so a malformed POST never escalates a fresh
+    invitee to admin. Stored on ``Workspace.member_defaults``.
+    """
+    workspace = _get_user_workspace_or_404(request.user, slug)
+    if not _user_is_workspace_admin(request.user, workspace):
+        return HttpResponseForbidden("admin only")
+    role = request.POST.get("default_role") or WorkspaceMember.MEMBER
+    if role not in {WorkspaceMember.ADMIN, WorkspaceMember.MEMBER}:
+        role = WorkspaceMember.MEMBER
+    auto_add = request.POST.get("auto_add_to_all_projects") == "on"
+    workspace.member_defaults = {"default_role": role, "auto_add_to_all_projects": auto_add}
+    workspace.save(update_fields=["member_defaults"])
+    if request.headers.get("HX-Request"):
+        return _settings_panel_response(
+            request,
+            "web/workspaces/_settings_member_defaults.html",
+            _render_workspace_member_defaults(workspace, viewer_is_admin=True),
+            toast={"message": str(_("Member defaults saved.")), "level": "success"},
+        )
+    return redirect("web:workspace_settings", slug=workspace.slug)
+
+
+@require_POST
+@login_required
+def set_workspace_required_fields(request, slug):
+    """Save the required-on-transition policy from the settings panel.
+
+    Admin-gated. Reads ``required_<transition>_<field>`` checkboxes (e.g.
+    ``required_leave_todo_assignee=on``) and packs them into
+    ``Workspace.required_fields`` as the nested dict the
+    :meth:`Workspace.required_fields_config` helper expects. The set of
+    valid keys is the workspace's :attr:`REQUIRED_TRANSITIONS` map — any
+    other POST field is ignored, so a stray client checkbox can't write
+    arbitrary keys into the JSON column.
+    """
+    workspace = _get_user_workspace_or_404(request.user, slug)
+    if not _user_is_workspace_admin(request.user, workspace):
+        return HttpResponseForbidden("admin only")
+    config = {}
+    for transition, fields in Workspace.REQUIRED_TRANSITIONS.items():
+        section = {}
+        for field in fields:
+            if request.POST.get(f"required_{transition}_{field}") == "on":
+                section[field] = True
+        if section:
+            config[transition] = section
+    workspace.required_fields = config
+    workspace.save(update_fields=["required_fields"])
+    if request.headers.get("HX-Request"):
+        return _settings_panel_response(
+            request,
+            "web/workspaces/_settings_required.html",
+            _render_workspace_required(workspace, viewer_is_admin=True),
+            toast={"message": str(_("Required-on-transition saved.")), "level": "success"},
         )
     return redirect("web:workspace_settings", slug=workspace.slug)
 
@@ -6397,7 +6510,13 @@ def create_workspace_invite(request, slug):
     email = (request.POST.get("email") or "").strip()
     if not email or "@" not in email:
         return HttpResponseBadRequest(_("Email is required"))
-    role = request.POST.get("role") or WorkspaceMember.MEMBER
+    # Default role pulled from workspace policy when the invite form didn't
+    # ship one (e.g. quick-invite path); explicit POST role always wins.
+    posted_role = request.POST.get("role")
+    if posted_role:
+        role = posted_role
+    else:
+        role = workspace.member_defaults_config()["default_role"] or WorkspaceMember.MEMBER
     if role not in {WorkspaceMember.ADMIN, WorkspaceMember.MEMBER}:
         return HttpResponseBadRequest(_("Invalid role"))
     invite = WorkspaceInvite.generate(
@@ -6536,6 +6655,40 @@ def _render_workspace_wip(workspace, *, viewer_is_admin):
     }
 
 
+def _render_workspace_member_defaults(workspace, *, viewer_is_admin):
+    """Build the member-defaults panel context.
+
+    Returns the normalised config dict the template reads to pre-select
+    the radio + checkbox. Shared by the full settings page and the HTMX
+    save endpoint.
+    """
+    cfg = workspace.member_defaults_config()
+    return {
+        "workspace": workspace,
+        "viewer_is_admin": viewer_is_admin,
+        "member_default_role": cfg["default_role"] or WorkspaceMember.MEMBER,
+        "member_default_auto_add": cfg["auto_add_to_all_projects"],
+        "member_role_choices": [
+            (WorkspaceMember.MEMBER, _("Member")),
+            (WorkspaceMember.ADMIN, _("Admin")),
+        ],
+    }
+
+
+def _render_workspace_required(workspace, *, viewer_is_admin):
+    """Build the required-on-transition panel context.
+
+    Returns the normalised config dict the template iterates over to render
+    one toggle per (transition, field) cell. Shared by the full settings
+    page and the HTMX save endpoint so the card swaps in place identically.
+    """
+    return {
+        "workspace": workspace,
+        "viewer_is_admin": viewer_is_admin,
+        "required_config": workspace.required_fields_config(),
+    }
+
+
 def _render_workspace_cycles(workspace, *, viewer_is_admin):
     """Build the cadence panel context — config + live current/upcoming preview.
 
@@ -6599,6 +6752,8 @@ class WorkspaceSettingsView(LoginRequiredMixin, TemplateView):
         # re-running the membership lookup twice more.
         viewer_is_admin = ctx["viewer_is_admin"]
         ctx.update(_render_workspace_wip(workspace, viewer_is_admin=viewer_is_admin))
+        ctx.update(_render_workspace_required(workspace, viewer_is_admin=viewer_is_admin))
+        ctx.update(_render_workspace_member_defaults(workspace, viewer_is_admin=viewer_is_admin))
         ctx.update(_render_workspace_cycles(workspace, viewer_is_admin=viewer_is_admin))
         # Labels card — open to every member (no admin gate per the
         # 2026-05-28 UX decision); same context builder the CRUD endpoints

@@ -114,13 +114,35 @@ class TaskViewSet(viewsets.ModelViewSet):
         :func:`apps.tasks.events.emit_task_diff_events`. Each watched
         field that changed produces its own ``ActivityLog`` row.
 
+        Also gates status transitions on the workspace's required-fields
+        policy — kanban DnD lands here too, so without this check a card
+        could be dragged out of To do without an assignee even when the
+        admin had ticked the requirement.
+
         Args:
             serializer: The validated :class:`TaskSerializer` already
                 bound to an existing instance.
         """
+        from rest_framework import serializers as drf_serializers
+
+        from apps.tasks.transitions import format_missing_message, validate_status_transition
+
         instance = serializer.instance
         assert instance is not None, "perform_update is called with an instance-bound serializer"
         old_state = snapshot_task(instance)
+        new_status = serializer.validated_data.get("status")
+        if new_status and new_status != instance.status:
+            missing = validate_status_transition(instance, new_status, instance.project.workspace)
+            if missing:
+                # Carry the raw missing-field list in a second JSON key so
+                # the kanban DnD handler can open the right inline picker
+                # after re-opening the task modal (the user-facing string
+                # alone would force the client to regex-parse it back).
+                err = drf_serializers.ValidationError(
+                    {"status": format_missing_message(missing)},
+                )
+                err.detail["missing"] = missing
+                raise err
         task = serializer.save()
         emit_task_diff_events(old_state=old_state, task=task, actor=self.request.user)
 

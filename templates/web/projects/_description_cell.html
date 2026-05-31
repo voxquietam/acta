@@ -30,7 +30,13 @@ safety net for navigation-without-blur scenarios.
      data-mention-url="{% url 'web:mention_search' slug_prefix=task.project.slug_prefix %}"
      data-image-upload-url="{% url 'web:upload_task_inline_image' slug_prefix=task.project.slug_prefix number=task.number %}"
      data-baseline="{{ task.description|default:'' }}"
-     data-placeholder="{% trans 'Write a description…' %}">
+     data-placeholder="{% trans 'Write a description…' %}"
+     x-data
+     @acta:open-task-field.window="
+       if ($event.detail.field !== 'description') return;
+       $el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+       setTimeout(() => $el.querySelector('.ProseMirror')?.focus(), 200);
+     ">
   {% comment %}
   ``hx-swap="none"`` — the editor already holds the canonical text in
   the browser, so we don't ask the server for a fresh cell. The view

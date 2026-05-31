@@ -41,6 +41,7 @@ dropdown focused on member selection rather than mixing in a no-op
        document.addEventListener('scroll', onScroll, true);
      "
      @resize.window="if (open) open = false"
+     @acta:open-task-field.window="if ($event.detail.field === 'assignee' && !open) toggle()"
      class="inline-block group">
 
   <div class="flex items-center gap-1.5">

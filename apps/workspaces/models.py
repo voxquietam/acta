@@ -90,6 +90,28 @@ class Workspace(models.Model):
         ),
     )
 
+    required_fields = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            'Per-transition required-field policy as {"leave_todo": {"assignee": bool, '
+            '"priority": bool}, "enter_in_review": {"description": bool}}. Each true flag '
+            "blocks the transition with a toast until the field is set. Empty / missing "
+            "flags let the transition through (current default)"
+        ),
+    )
+
+    member_defaults = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            'Defaults applied to fresh invitees as {"default_role": "admin|member", '
+            '"auto_add_to_all_projects": bool}. ``default_role`` pre-selects the role '
+            "in the invite form; ``auto_add_to_all_projects`` adds the user to every "
+            "existing project on invite acceptance. Empty = no defaults applied"
+        ),
+    )
+
     CYCLE_DEFAULT_LENGTH_WEEKS = 2
     CYCLE_MAX_LENGTH_WEEKS = 8
 
@@ -116,6 +138,48 @@ class Workspace(models.Model):
             "start_date": start,
             "auto_rollover": bool(raw.get("auto_rollover")),
         }
+
+    # Which task fields must be set on each gated status transition.
+    # Keys are the transition labels the UI offers; values list field
+    # names. Kept here so view layer + admin form share a single source.
+    REQUIRED_TRANSITIONS = {
+        "leave_todo": ("assignee", "priority"),
+        "enter_in_review": ("description",),
+    }
+
+    def member_defaults_config(self):
+        """Return the normalised member-defaults dict for this workspace.
+
+        Returns:
+            ``{"default_role": str | None, "auto_add_to_all_projects": bool}``
+            with the stored role validated against the role choices (unknown
+            / missing values fall back to ``None`` so the invite form keeps
+            the platform default) and the toggle coerced to ``bool``.
+        """
+        raw = self.member_defaults or {}
+        role = raw.get("default_role")
+        if role not in {WorkspaceMember.ADMIN, WorkspaceMember.MEMBER}:
+            role = None
+        return {
+            "default_role": role,
+            "auto_add_to_all_projects": bool(raw.get("auto_add_to_all_projects")),
+        }
+
+    def required_fields_config(self):
+        """Return the normalised required-on-transition config.
+
+        Returns:
+            A nested dict ``{transition_key: {field_name: bool, ...}, ...}``
+            covering every transition in :attr:`REQUIRED_TRANSITIONS`. Unknown
+            keys / fields stored on the model are dropped; missing entries
+            default to ``False`` so the template can always read them.
+        """
+        raw = self.required_fields or {}
+        config = {}
+        for transition, fields in self.REQUIRED_TRANSITIONS.items():
+            stored = raw.get(transition) or {}
+            config[transition] = {field: bool(stored.get(field)) for field in fields}
+        return config
 
     def wip_config(self):
         """Return ``(mode, limits)`` from :attr:`wip_limits`, normalised.

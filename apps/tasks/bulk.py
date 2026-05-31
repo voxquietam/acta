@@ -518,6 +518,26 @@ def _run_bulk_update(*, user, ids: list[int], updates: dict[str, Any]) -> tuple[
                 },
             )
 
+    # Required-on-transition policy gate — applies before any writes so a
+    # blocked move doesn't leave a partial diff. Workspace policy is keyed
+    # off each task's own workspace, so per-task check rather than per-batch.
+    if "status" in updates:
+        from apps.tasks.transitions import format_missing_message, validate_status_transition
+
+        blocked = []
+        for t in pre_requested:
+            missing = validate_status_transition(t, updates["status"], t.project.workspace)
+            if missing:
+                blocked.append((t.id, missing))
+        if blocked:
+            first_id, first_missing = blocked[0]
+            raise serializers.ValidationError(
+                {
+                    "status": _("Required fields missing on %(n)d task(s); first: #%(id)s — %(msg)s")
+                    % {"n": len(blocked), "id": first_id, "msg": format_missing_message(first_missing)},
+                },
+            )
+
     target_project: Project | None = None
     if "project" in updates:
         target_project = _resolve_target_project(updates["project"], user)
