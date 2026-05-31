@@ -124,6 +124,7 @@ Section visibility flags from the view:
         hx-target="{{ filter_htmx_target }}"
         hx-swap="innerHTML"
         hx-push-url="true"
+        data-my-project-ids="{{ my_project_ids_csv }}"
         class="flex flex-row-reverse gap-2 items-stretch lg:h-full lg:max-h-full">
 
     {% for name, value in filter_preserved_pairs %}
@@ -702,6 +703,26 @@ Section visibility flags from the view:
           serialization. The visible checkbox stays disabled-when-archive
           for the visual lock.
           {% endcomment %}
+          {# "Show my projects" — ON by default narrows the queryset to       #}
+          {# projects the user is member of or leads; OFF widens to every     #}
+          {# project in the active workspace. Hidden 0 + checkbox 1 mirrors   #}
+          {# the rest of the sidebar toggles. Skipped on project detail       #}
+          {# (``filter_hide_project``) — the page already scopes to one       #}
+          {# project, so the toggle would just confuse.                       #}
+          {% if show_my_projects_toggle %}
+          <div x-data class="flex items-center gap-2">
+            <input type="hidden" name="show_my_projects" value="0">
+            <label class="cursor-pointer flex items-center gap-2 text-[12px] text-foreground"
+                   @acta:filter-reset.window="$el.querySelector('input[name=show_my_projects][value=\'1\']').checked = true">
+              <input type="checkbox" name="show_my_projects" value="1"
+                     {% if show_my_projects %}checked{% endif %}
+                     class="peer sr-only"
+                     onchange="this.form.requestSubmit()">
+              <span class="acta-flt-tg"></span>
+              {% trans "Show my projects" %}
+            </label>
+          </div>
+          {% endif %}
           {# On the Archive tab the toggle is visually locked (disabled +     #}
           {# muted) but its actual checked state is NOT touched — that's     #}
           {# the user's persisted preference for the other views. acta.js's  #}

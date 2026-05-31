@@ -34,8 +34,13 @@ class TestSetupScheduledJobs:
             "apps.common.scheduled.archive_stale_done_tasks",
             "apps.common.scheduled.gc_orphan_attachments",
             "apps.common.scheduled.notify_cycle_events",
+            # Telegram quiet-hours digest — minute cadence rather than daily.
+            "apps.common.scheduled.flush_telegram_quiet_digests",
         }
-        assert all(s.schedule_type == Schedule.DAILY for s in Schedule.objects.all())
+        daily = Schedule.objects.exclude(func="apps.common.scheduled.flush_telegram_quiet_digests")
+        assert all(s.schedule_type == Schedule.DAILY for s in daily)
+        minute = Schedule.objects.get(func="apps.common.scheduled.flush_telegram_quiet_digests")
+        assert minute.schedule_type == Schedule.MINUTES
         # re-running must not duplicate
         call_command("setup_scheduled_jobs")
-        assert Schedule.objects.count() == 3
+        assert Schedule.objects.count() == 4

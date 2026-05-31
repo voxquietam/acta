@@ -69,6 +69,8 @@ from apps.web.filters import (
     filter_sidebar_context,
     resolve_show_archived,
     resolve_show_backlog,
+    resolve_show_my_projects,
+    user_project_ids,
 )
 from apps.web.grouping import compute_list_section_keys, group_tasks
 from apps.web.nav import resolve_active_workspace, set_active_workspace
@@ -475,7 +477,7 @@ def _get_user_task_or_404(user, slug_prefix, number):
     )
 
 
-def _my_work_tasks(user, params, workspace):
+def _my_work_tasks(user, params, workspace, *, restrict_to_project_ids=None):
     """Resolve the My Work task queryset for ``user``.
 
     Scoped to ``workspace`` (the user's active workspace); ``None`` means
@@ -488,6 +490,10 @@ def _my_work_tasks(user, params, workspace):
     override the open/recently-done split (``apply_task_filters`` honours
     the selection). Grouping into sections is delegated to
     :func:`apps.web.grouping.group_tasks`.
+
+    ``restrict_to_project_ids`` opts My Work into the "only my projects"
+    scope when the sidebar toggle is in its default position; passing
+    ``None`` widens to every workspace project the user can already see.
     """
     if workspace is None:
         return []
@@ -500,6 +506,8 @@ def _my_work_tasks(user, params, workspace):
         .select_related("project__workspace", "assignee", "reporter", "parent__project")
         .prefetch_related("labels", "blocks", "blocked_by")
     )
+    if restrict_to_project_ids is not None:
+        base = base.filter(project_id__in=restrict_to_project_ids)
     base = apply_task_filters(base, params, request_user=user)
     return list(
         base.order_by(
@@ -564,6 +572,12 @@ class AllTasksView(LoginRequiredMixin, ListView):
         Returned in table order (``?order=`` querystring) — kanban
         ordering is computed in :meth:`get_context_data` from the same
         filtered set since both bodies render simultaneously.
+
+        Note: the "Show my projects" toggle is enforced **client-side**
+        only (acta.js ``rowMatches`` hides rows whose ``data-project-id``
+        isn't in the user's project set), same pattern as Show backlog /
+        Show archived. Server returns every workspace task so the client
+        can flip the toggle without a round-trip.
         """
         qs = _user_task_qs(self.request.user)
         active = resolve_active_workspace(self.request)
@@ -578,7 +592,10 @@ class AllTasksView(LoginRequiredMixin, ListView):
 
     def _backlog_tasks(self):
         """Planned + ready for the Backlog tab — independent of the
-        ``show_backlog`` toggle (which only hides them from the other views)."""
+        ``show_backlog`` toggle (which only hides them from the other views).
+
+        Server returns every workspace planned/ready task; the "Show my
+        projects" toggle hides non-member rows client-side."""
         active = resolve_active_workspace(self.request)
         if active is None:
             return []
@@ -590,7 +607,10 @@ class AllTasksView(LoginRequiredMixin, ListView):
         """Archived rows for the Archive tab — bypasses the ``show_archived``
         toggle (the whole point of the tab is to see them) but keeps the rest
         of the filter sidebar in play so the user can narrow the archive by
-        project / assignee / label etc."""
+        project / assignee / label etc.
+
+        Like the active task queryset, archive rows are not narrowed by
+        "Show my projects" server-side — client toggles it on/off."""
         active = resolve_active_workspace(self.request)
         if active is None:
             return []
@@ -805,6 +825,7 @@ class AllTasksView(LoginRequiredMixin, ListView):
         ctx["cycle_banner"] = _cycle_banner(self.request)
         sidebar_params = _params_with_archive_cookie(self.request)
         sidebar_params["show_backlog"] = resolve_show_backlog(self.request)
+        sidebar_params["show_my_projects"] = resolve_show_my_projects(self.request)
         ctx.update(
             filter_sidebar_context(
                 self.request,
@@ -854,6 +875,9 @@ class MyWorkView(LoginRequiredMixin, TemplateView):
         ctx = super().get_context_data(**kwargs)
         params = _params_with_archive_cookie(self.request)
         active = resolve_active_workspace(self.request)
+        # "Show my projects" toggle is client-side (acta.js rowMatches),
+        # so the server always returns every workspace task assigned to
+        # the user — the toggle hides foreign-project rows in the DOM.
         tasks = _my_work_tasks(self.request.user, params, active)
         ctx["has_any_tasks"] = bool(tasks)
         list_axis_keys = _with_cycle_axis(("deadline", "status", "priority", "project"), active)
@@ -904,6 +928,8 @@ class MyWorkView(LoginRequiredMixin, TemplateView):
             if active
             else []
         )
+        sidebar_params = params.copy()
+        sidebar_params["show_my_projects"] = resolve_show_my_projects(self.request)
         ctx.update(
             filter_sidebar_context(
                 self.request,
@@ -911,7 +937,7 @@ class MyWorkView(LoginRequiredMixin, TemplateView):
                 hide_assignee=True,
                 hide_project=True,
                 htmx_target="#my-work-content",
-                effective_params=params,
+                effective_params=sidebar_params,
             )
         )
         return ctx
@@ -1660,14 +1686,25 @@ class ProjectListView(LoginRequiredMixin, ListView):
         without an N+1.
         """
         active = resolve_active_workspace(self.request)
+        # Cache for ``get_context_data`` so the Mine/All counters don't
+        # re-query the project list to compute their own ids set.
+        self._active_workspace = active
         if active is None:
+            self._mine_project_ids = set()
             return Project.objects.none()
+        self._mine_project_ids = user_project_ids(self.request.user, active)
         latest = ProjectUpdate.objects.filter(project=OuterRef("pk")).order_by("-created_at").values("health")[:1]
         # Archived projects are hidden by default; ``?archived=1`` reveals
         # them (the "Show archived" toggle on the page).
         base = Project.objects.filter(workspace=active)
         if self.request.GET.get("archived") != "1":
             base = base.filter(archived=False)
+        # "Mine" tab is the default — narrow to projects the user is in.
+        # Project list defaults to the Mine tab — pass default="1" so
+        # a fresh visit shows the user's own boards (matches the chosen
+        # spec; All tab widens explicitly via ``?show_my_projects=0``).
+        if resolve_show_my_projects(self.request, default="1") == "1":
+            base = base.filter(pk__in=self._mine_project_ids)
         return (
             base.select_related("workspace", "lead")
             .prefetch_related("members")
@@ -1732,12 +1769,41 @@ class ProjectListView(LoginRequiredMixin, ListView):
         )
         ctx["stale_cutoff"] = timezone.now() - datetime.timedelta(days=3)
         ctx["health_labels"] = dict(ProjectUpdate.HEALTH_CHOICES)
-        # "Show archived" toggle state + how many archived projects exist
-        # (so the toggle only shows when there's something to reveal).
-        active = resolve_active_workspace(self.request)
+        # "Show archived" toggle state + Mine/All counters in ONE aggregate
+        # so the tab strip + archive toggle don't cost three extra queries.
+        active = getattr(self, "_active_workspace", None)
         ctx["show_archived"] = self.request.GET.get("archived") == "1"
-        ctx["archived_count"] = Project.objects.filter(workspace=active, archived=True).count() if active else 0
+        # Mine tab is active by default (matches get_queryset's default).
+        ctx["show_my_projects"] = resolve_show_my_projects(self.request, default="1") == "1"
+        if active:
+            mine_ids = getattr(self, "_mine_project_ids", set())
+            counts = Project.objects.filter(workspace=active).aggregate(
+                archived_count=Count("id", filter=Q(archived=True)),
+                projects_all_count=Count("id", filter=Q(archived=False)),
+                projects_mine_count=Count("id", filter=Q(archived=False, pk__in=mine_ids)),
+            )
+            ctx["archived_count"] = counts["archived_count"]
+            ctx["projects_all_count"] = counts["projects_all_count"]
+            ctx["projects_mine_count"] = counts["projects_mine_count"]
+        else:
+            ctx["archived_count"] = 0
+            ctx["projects_all_count"] = 0
+            ctx["projects_mine_count"] = 0
         return ctx
+
+    def render_to_response(self, context, **response_kwargs):
+        """Persist the Mine/All tab choice from the explicit URL param."""
+        response = super().render_to_response(context, **response_kwargs)
+        raw_list = self.request.GET.getlist("show_my_projects")
+        if raw_list:
+            value = "1" if "1" in raw_list else "0"
+            response.set_cookie(
+                "acta_show_my_projects",
+                value,
+                max_age=60 * 60 * 24 * 365,
+                samesite="Lax",
+            )
+        return response
 
 
 class ProjectDetailView(LoginRequiredMixin, DetailView):
@@ -2144,6 +2210,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
                 hide_assignee=True,
                 hide_project=True,
                 hide_status=(view_mode == "kanban"),
+                hide_my_projects_toggle=True,
                 show_backlog_toggle=True,
                 htmx_target="#project-view-panel",
                 extra_preserved={"view": view_mode},
@@ -2586,22 +2653,40 @@ def _group_events_by_task(events):
 
 
 def _workspace_members(task):
-    """Return the workspace's members ordered by username.
+    """Return the workspace's members ranked for the assignee picker.
 
-    Used by the assignee picker to populate its dropdown. Eager-loads
-    ``user`` so the template can render avatar + username without N+1.
+    Project members (the chip list on the overview) and the project lead
+    come first — same shape the user already understands as "who works
+    on this project" — followed by every other workspace member so a
+    cross-project assignment is still one click away. Each row carries
+    an ``is_project_member`` boolean the template uses to draw the
+    "Project / Workspace" section labels.
+
+    Returned as a list (not a queryset) because the project / lead lookup
+    needs a Python set membership check — Django ORM can't both
+    annotate the boolean AND keep the result distinct on the M2M join
+    without a subquery rewrite that doesn't earn its complexity here.
+    Eager-loads ``user`` so the template renders avatars / names without
+    N+1.
 
     Args:
         task: The :class:`Task` whose workspace's members to fetch.
 
     Returns:
-        A queryset of :class:`WorkspaceMember` rows.
+        A list of :class:`WorkspaceMember` rows ordered by
+        ``-is_project_member, user.username``.
     """
-    return (
-        WorkspaceMember.objects.filter(workspace=task.project.workspace)
-        .select_related("user")
-        .order_by("user__username")
+    project = task.project
+    project_user_ids = set(project.members.values_list("pk", flat=True))
+    if project.lead_id:
+        project_user_ids.add(project.lead_id)
+    rows = list(
+        WorkspaceMember.objects.filter(workspace=project.workspace).select_related("user").order_by("user__username"),
     )
+    for member in rows:
+        member.is_project_member = member.user_id in project_user_ids
+    rows.sort(key=lambda m: (not m.is_project_member, (m.user.username or "").lower()))
+    return rows
 
 
 def _workspace_projects(task):
@@ -4300,6 +4385,31 @@ def _get_user_project_or_404(user, slug_prefix):
             slug_prefix=slug_prefix,
             workspace__memberships__user=user,
         ).select_related("workspace", "lead"),
+    )
+
+
+@require_POST
+@login_required
+def set_project_notify_scope(request, slug_prefix):
+    """Toggle the project's ``notify_members_only`` flag.
+
+    Admin-only. Returns the same form back so the checkbox state reflects
+    the persisted value; HTMX swaps it in place. No toast — the change is
+    cheap, the checkbox itself is the affordance.
+    """
+    project = _get_user_project_or_404(request.user, slug_prefix)
+    if not _user_is_workspace_admin(request.user, project.workspace):
+        return HttpResponseForbidden("admin only")
+    new_value = request.POST.get("notify_members_only") == "on"
+    if project.notify_members_only != new_value:
+        project.notify_members_only = new_value
+        project.save(update_fields=["notify_members_only"])
+    return HttpResponse(
+        render_to_string(
+            "web/projects/_overview_notify_scope.html",
+            {"project": project},
+            request=request,
+        ),
     )
 
 
@@ -6995,6 +7105,12 @@ def _create_project_post(request):
             description=description,
             lead=lead,
         )
+        # Creator is the first member by default — otherwise the "Mine"
+        # tab would hide the project they just made (and so would the
+        # sidebar "My Projects" filter).
+        project.members.add(request.user)
+        if lead is not None and lead != request.user:
+            project.members.add(lead)
 
     # Boosted client-side nav (no full-page reload / loader): swap
     # ``#app-content`` to the new project and close the modal via

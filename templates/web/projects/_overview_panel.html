@@ -393,6 +393,10 @@ Members with role badges.
           <span class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-muted text-subtle-foreground">{{ members|length }}</span>
         </div>
         {% include "web/projects/_overview_members.html" %}
+
+        {% if viewer_is_workspace_admin %}
+        {% include "web/projects/_overview_notify_scope.html" %}
+        {% endif %}
       </section>
 
     </div>

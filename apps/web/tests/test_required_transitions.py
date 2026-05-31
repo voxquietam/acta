@@ -100,6 +100,17 @@ class TestValidator:
         # Already in to-do, "moving" to to-do — gate must not fire.
         assert validate_status_transition(task, Task.STATUS_TODO, ws) == []
 
+    @pytest.mark.parametrize("backward_status", [Task.STATUS_PLANNED, Task.STATUS_READY, Task.STATUS_CANCELLED])
+    def test_backward_grooming_skips_gate(self, setup, backward_status):
+        """Pushing a card back into backlog / cancelling it is grooming —
+        the leave_todo gate must NOT fire even with assignee/priority empty."""
+        _ws, project = setup
+        ws = self._ws_with_policy(leave_todo={"assignee": True, "priority": True})
+        project.workspace = ws
+        project.save(update_fields=["workspace"])
+        task = TaskFactory(project=project, status=Task.STATUS_TODO, assignee=None, priority=0)
+        assert validate_status_transition(task, backward_status, ws) == []
+
 
 @pytest.mark.django_db
 class TestDrfPatchPath:

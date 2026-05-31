@@ -19,14 +19,20 @@ _FIELD_LABELS = {
 }
 
 
+_FORWARD_FROM_TODO = (Task.STATUS_IN_PROGRESS, Task.STATUS_IN_REVIEW, Task.STATUS_DONE)
+
+
 def validate_status_transition(task, new_status, workspace):
     """Return missing-field names that block ``task`` from moving to ``new_status``.
 
-    Two gates fire:
+    Two gates fire — both directional, so grooming backwards (push a card
+    back into planned / ready / cancelled) is always allowed:
 
     * **leave_todo** — when the task is currently ``to-do`` and is moving
-      to anything else, every flagged field in
-      ``Workspace.REQUIRED_TRANSITIONS["leave_todo"]`` must be set.
+      **forward** (in-progress, in-review, done), every flagged field in
+      ``Workspace.REQUIRED_TRANSITIONS["leave_todo"]`` must be set. Going
+      back to planned / ready / cancelled is grooming, not work, and
+      skips the gate.
     * **enter_in_review** — when the task is moving into ``in-review``
       from any other status, every flagged field in
       ``Workspace.REQUIRED_TRANSITIONS["enter_in_review"]`` must be set.
@@ -44,7 +50,7 @@ def validate_status_transition(task, new_status, workspace):
     config = workspace.required_fields_config()
     missing = []
     old_status = task.status
-    if old_status == Task.STATUS_TODO and new_status != Task.STATUS_TODO:
+    if old_status == Task.STATUS_TODO and new_status in _FORWARD_FROM_TODO:
         for field in workspace.REQUIRED_TRANSITIONS["leave_todo"]:
             if config["leave_todo"].get(field) and not _field_filled(task, field):
                 missing.append(field)

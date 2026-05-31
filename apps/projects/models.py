@@ -96,6 +96,14 @@ class Project(models.Model):
         default=False,
         help_text="Archived projects are hidden by default but retain their tasks and history",
     )
+    notify_members_only = models.BooleanField(
+        default=False,
+        help_text=(
+            "When true, project status updates fan out only to ``members`` (plus the ``lead``) "
+            "instead of every workspace member. Off by default to preserve the existing "
+            "workspace-wide audience; admins can flip it on private boards"
+        ),
+    )
     created_at = models.DateTimeField(
         auto_now_add=True,
         help_text="When the project was created",

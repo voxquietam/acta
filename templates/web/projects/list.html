@@ -27,21 +27,54 @@
 {% block app_main %}
 <div class="space-y-4">
 
-  {% if archived_count or show_archived %}
-  <div class="flex justify-end">
+  {# Mine vs All segmented tab strip. ``show_my_projects`` ON (default) #}
+  {# = Mine tab active; OFF = All. Cookie persists so the next visit    #}
+  {# lands on the same tab.                                              #}
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <nav class="inline-flex items-center bg-card border border-border rounded-lg p-1 gap-0.5 text-sm">
+      <a href="{% url 'web:project_list' %}?show_my_projects=1{% if show_archived %}&archived=1{% endif %}"
+         hx-boost="true" hx-target="#app-content" hx-select="#app-content" hx-swap="outerHTML show:top" hx-push-url="true"
+         class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md transition
+                {% if show_my_projects %}bg-brand-500/15 text-brand-300 ring-1 ring-brand-500/30 ring-inset{% else %}text-subtle-foreground hover:text-foreground hover:bg-muted/50{% endif %}">
+        {% lucide "user" "w-3.5 h-3.5" %}{% trans "Mine" %}
+        <span class="font-mono text-[10px] px-1.5 rounded {% if show_my_projects %}bg-brand-500/20 text-brand-300{% else %}bg-muted text-subtle-foreground{% endif %}">{{ projects_mine_count }}</span>
+      </a>
+      <a href="?show_my_projects=0{% if show_archived %}&archived=1{% endif %}"
+         hx-boost="true" hx-target="#app-content" hx-select="#app-content" hx-swap="outerHTML show:top" hx-push-url="true"
+         class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md transition
+                {% if not show_my_projects %}bg-brand-500/15 text-brand-300 ring-1 ring-brand-500/30 ring-inset{% else %}text-subtle-foreground hover:text-foreground hover:bg-muted/50{% endif %}">
+        {% lucide "layout-grid" "w-3.5 h-3.5" %}{% trans "All" %}
+        <span class="font-mono text-[10px] px-1.5 rounded {% if not show_my_projects %}bg-brand-500/20 text-brand-300{% else %}bg-muted text-subtle-foreground{% endif %}">{{ projects_all_count }}</span>
+      </a>
+    </nav>
+
+    {% if archived_count or show_archived %}
     {% if show_archived %}
-    <a href="{% url 'web:project_list' %}"
+    <a href="?show_my_projects={% if show_my_projects %}1{% else %}0{% endif %}"
        hx-boost="true" hx-target="#app-content" hx-select="#app-content" hx-swap="outerHTML show:top" hx-push-url="true"
        class="inline-flex items-center gap-1.5 text-xs text-subtle-foreground hover:text-foreground transition">
       {% lucide "eye-off" "w-3.5 h-3.5" %}{% trans "Hide archived" %}
     </a>
     {% else %}
-    <a href="?archived=1"
+    <a href="?show_my_projects={% if show_my_projects %}1{% else %}0{% endif %}&archived=1"
        hx-boost="true" hx-target="#app-content" hx-select="#app-content" hx-swap="outerHTML show:top" hx-push-url="true"
        class="inline-flex items-center gap-1.5 text-xs text-subtle-foreground hover:text-foreground transition">
       {% lucide "archive" "w-3.5 h-3.5" %}{% trans "Show archived" %}
       <span class="text-placeholder-foreground">({{ archived_count }})</span>
     </a>
+    {% endif %}
+    {% endif %}
+  </div>
+
+  {% if not projects %}
+  <div class="text-center py-10 text-sm text-placeholder-foreground italic">
+    {% if show_my_projects %}
+    {% trans "You're not a member of any project yet. Switch to" %}
+    <a href="?show_my_projects=0" hx-boost="true" hx-target="#app-content" hx-select="#app-content" hx-swap="outerHTML show:top" hx-push-url="true"
+       class="text-brand-400 hover:text-brand-300">{% trans "All" %}</a>
+    {% trans "to browse the workspace." %}
+    {% else %}
+    {% trans "No projects in this workspace yet." %}
     {% endif %}
   </div>
   {% endif %}

@@ -492,6 +492,14 @@
     const viewMode = window.Alpine?.store?.("viewMode")?.current;
     const showArchived = viewMode === "archive" || fd.getAll("show_archived").includes("1");
     const showBacklog = fd.getAll("show_backlog").includes("1");
+    // "Show my projects" — client-side hide of rows whose project the
+    // user isn't a member of (or doesn't lead). ``my-project-ids`` is
+    // stamped on the form as a CSV by the server. Default ON: when the
+    // toggle isn't in the form at all (e.g. project detail) the flag
+    // stays false so nothing gets hidden.
+    const hasMyToggle = form.querySelector('input[name="show_my_projects"][type="checkbox"]') !== null;
+    const showMyProjects = hasMyToggle && fd.getAll("show_my_projects").includes("1");
+    const myProjectIds = new Set((form.dataset.myProjectIds || "").split(",").filter(Boolean));
     return {
       status: new Set(multi("status")),
       xstatus: new Set(multi("xstatus")),
@@ -511,6 +519,8 @@
       dateBefore: (fd.get("date_before") || "").toString().trim(),
       showArchived,
       showBacklog,
+      showMyProjects,
+      myProjectIds,
     };
   }
 
@@ -518,6 +528,12 @@
     const s = row.dataset.status || "";
     // Archived — hidden unless show_archived is on.
     if (!state.showArchived && row.dataset.archived === "1") return false;
+    // My projects — hide rows whose project the user isn't a member of
+    // (or doesn't lead). Default ON; the server stamps the user's
+    // project ids on ``#filter-form[data-my-project-ids]``.
+    if (state.showMyProjects && state.myProjectIds.size && !state.myProjectIds.has(row.dataset.projectId || "")) {
+      return false;
+    }
     // Backlog — planned / ready hidden unless show_backlog is on, except when
     // the status filter explicitly selects them (mirrors server _filter_backlog)
     // OR the row is on the Backlog tab, which always shows planned / ready
@@ -731,6 +747,14 @@
     const oneYear = 60 * 60 * 24 * 365;
     document.cookie = `acta_show_archived=${state.showArchived ? "1" : "0"}; path=/; max-age=${oneYear}; samesite=Lax`;
     document.cookie = `acta_show_backlog=${state.showBacklog ? "1" : "0"}; path=/; max-age=${oneYear}; samesite=Lax`;
+    // Show-my-projects only persists when the toggle exists on this
+    // page — pages without it (project detail) must not write the
+    // cookie because their FormData has no show_my_projects key and
+    // would mistakenly stamp "0".
+    const hasMyToggle = document.querySelector('#filter-form input[name="show_my_projects"][type="checkbox"]') !== null;
+    if (hasMyToggle) {
+      document.cookie = `acta_show_my_projects=${state.showMyProjects ? "1" : "0"}; path=/; max-age=${oneYear}; samesite=Lax`;
+    }
     // Mirror URL params so refresh / share carry the same filter
     // state — Django filter view re-renders identically on cold load.
     if (window.history && window.history.replaceState) {

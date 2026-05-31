@@ -63,6 +63,7 @@ from .views import (
     set_project_description,
     set_project_icon,
     set_project_lead,
+    set_project_notify_scope,
     set_task_assignee,
     set_task_cycle,
     set_task_description,
@@ -246,6 +247,11 @@ urlpatterns = [
         "projects/<str:slug_prefix>/archive/",
         set_project_archived,
         name="set_project_archived",
+    ),
+    path(
+        "projects/<str:slug_prefix>/notify-scope/",
+        set_project_notify_scope,
+        name="set_project_notify_scope",
     ),
     path(
         "projects/<str:slug_prefix>/delete/",

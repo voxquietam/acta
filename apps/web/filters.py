@@ -105,6 +105,51 @@ def resolve_show_backlog(request):
     return "1" if request.COOKIES.get("acta_show_backlog") == "1" else "0"
 
 
+def resolve_show_my_projects(request, *, default="0"):
+    """Resolve ``show_my_projects`` for this request.
+
+    ``"1"`` narrows to projects the user is member of or leads;
+    ``"0"`` widens to every project in the active workspace. Cookie
+    cascade mirrors the other ``show_*`` toggles.
+
+    Callers pass ``default`` because the two UIs that read this differ:
+
+    * Filter-sidebar toggle on All Tasks / My Work — default ``"0"``
+      (off): a fresh user sees everything that lives in the workspace
+      and opts into narrowing.
+    * Mine / All tab strip on ``/projects/`` — default ``"1"`` (Mine):
+      the page is project-management focused, so the relevant default
+      is the user's own boards.
+    """
+    raw_list = request.GET.getlist("show_my_projects")
+    if raw_list:
+        return "1" if "1" in raw_list else "0"
+    cookie = request.COOKIES.get("acta_show_my_projects")
+    if cookie is None:
+        return default
+    return "1" if cookie == "1" else "0"
+
+
+def user_project_ids(user, workspace=None):
+    """Return the set of project ids the user is member of or leads.
+
+    Owner / admin role is intentionally NOT a free pass here — "Mine"
+    must read as "boards I'm actually on", not "boards I can manage".
+    Admins still see every project in the workspace via the "All" tab;
+    the default "Mine" lens stays personal so leaving a project actually
+    removes it from the user's everyday view. Project creation
+    auto-adds the creator (and lead) to ``members`` so the project they
+    just made doesn't immediately vanish.
+
+    Scoped to ``workspace`` when given. Used by the view layer to narrow
+    task querysets and by the project list view to draw the "Mine" tab.
+    """
+    qs = Project.objects.filter(Q(members=user) | Q(lead=user))
+    if workspace is not None:
+        qs = qs.filter(workspace=workspace)
+    return set(qs.values_list("pk", flat=True))
+
+
 def _filter_backlog(qs, params, *, default_show_backlog):
     """Hide planned / ready (the not-started backlog) unless asked to show.
 
@@ -486,6 +531,7 @@ def filter_sidebar_context(
     hide_assignee=False,
     hide_project=False,
     hide_status=False,
+    hide_my_projects_toggle=False,
     show_backlog_toggle=False,
     preserved_params=None,
     extra_preserved=None,
@@ -619,6 +665,15 @@ def filter_sidebar_context(
     selected_assignees = set(params.getlist("assignee"))
     show_archived = "1" in params.getlist("show_archived")
     show_backlog = "1" in params.getlist("show_backlog")
+    # ``show_my_projects`` is OFF by default for the sidebar toggle — a
+    # missing param reads as "off" so the user sees every workspace
+    # task on a fresh visit and opts into narrowing.
+    show_my_projects = "1" in params.getlist("show_my_projects")
+    # The Show-my-projects toggle itself only renders on multi-project
+    # pages (All Tasks, My Work). Project detail passes
+    # ``hide_my_projects_toggle=True`` so the sidebar doesn't surface a
+    # control with nothing to filter.
+    show_my_projects_toggle = not hide_my_projects_toggle
 
     # Excluded sets: right-click on a chip toggles a value into one of
     # these. Renders with a red strikethrough state; backend
@@ -694,6 +749,17 @@ def filter_sidebar_context(
         "show_archived": show_archived,
         "show_backlog": show_backlog,
         "show_backlog_toggle": show_backlog_toggle,
+        "show_my_projects": show_my_projects,
+        "show_my_projects_toggle": show_my_projects_toggle,
+        # CSV of project ids the user is member / lead of in the active
+        # workspace. Stamped on the filter form's ``data-my-project-ids``
+        # attribute so the client-side rowMatches (acta.js) can hide rows
+        # whose ``data-project-id`` isn't in the set when the toggle is on.
+        "my_project_ids_csv": (
+            ",".join(str(pk) for pk in sorted(user_project_ids(request.user, resolve_active_workspace(request))))
+            if show_my_projects_toggle
+            else ""
+        ),
         "q": q,
         "date_field": date_field,
         "date_after": date_after,

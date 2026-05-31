@@ -101,6 +101,19 @@ dropdown focused on member selection rather than mixing in a no-op
 
     <div class="max-h-64 overflow-y-auto">
       {% for member in workspace_members %}
+      {# Section labels — fire only on the boundary so the dropdown reads as #}
+      {# two grouped lists without forcing the view layer to split them.     #}
+      {% ifchanged member.is_project_member %}
+        {% if member.is_project_member %}
+        <div class="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-placeholder-foreground font-medium">
+          {% trans "Project" %}
+        </div>
+        {% else %}
+        <div class="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-placeholder-foreground font-medium border-t border-border mt-1">
+          {% trans "Workspace" %}
+        </div>
+        {% endif %}
+      {% endifchanged %}
       <form hx-post="{% url 'web:set_task_assignee' slug_prefix=task.project.slug_prefix number=task.number %}"
             hx-target="#assignee-cell"
             hx-swap="outerHTML"

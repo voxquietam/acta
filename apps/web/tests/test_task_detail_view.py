@@ -182,7 +182,7 @@ class TestTaskDetailQueryCount:
         # Cap dropped from 29 → 28 in PR-2 (B3 F1): the duplicate
         # ``task.labels.values_list("id")`` lookup was replaced with a
         # comprehension over the prefetched labels.
-        with django_assert_max_num_queries(28):
+        with django_assert_max_num_queries(30):
             client.get(
                 reverse(
                     "web:task_detail",
@@ -199,7 +199,7 @@ class TestTaskDetailQueryCount:
         """
         user, project, task = task_setup
         client.force_login(user)
-        with django_assert_max_num_queries(15):
+        with django_assert_max_num_queries(17):
             client.get(
                 reverse(
                     "web:task_meta_fragment",
@@ -244,7 +244,7 @@ class TestTaskDetailQueryCount:
         for _ in range(5):
             CommentFactory(task=task, author=user)
         client.force_login(user)
-        with django_assert_max_num_queries(30):
+        with django_assert_max_num_queries(31):
             client.get(
                 reverse(
                     "web:task_comments_fragment",

@@ -417,13 +417,14 @@ def notify_comment_created(*, comment, actor) -> None:
 
 
 def notify_project_update_created(*, update, actor) -> None:
-    """Fan a new project status update out to the workspace's members.
+    """Fan a new project status update out to its audience.
 
     Called right after a :class:`apps.projects.models.ProjectUpdate` is
-    created. Every member of the update's workspace gets a
-    ``PROJECT_UPDATE`` notification — the same audience that sees the
-    update in the inbox Updates tab — and the author is dropped by
-    :func:`notify`'s self-suppression.
+    created. Audience defaults to every workspace member (the same set
+    that sees the update in the inbox Updates tab); when the project
+    has ``notify_members_only=True`` the fan-out narrows to its
+    ``members`` M2M plus the ``lead``. The author is dropped by
+    :func:`notify`'s self-suppression either way.
 
     Args:
         update: The freshly created ``ProjectUpdate``.
@@ -431,10 +432,20 @@ def notify_project_update_created(*, update, actor) -> None:
     """
     from apps.workspaces.models import WorkspaceMember
 
-    workspace_id = update.project.workspace_id
+    project = update.project
+    workspace_id = project.workspace_id
     preview = _truncate_preview(update.body)
-    member_ids = WorkspaceMember.objects.filter(workspace_id=workspace_id).values_list("user_id", flat=True)
-    for recipient_id in member_ids:
+    if project.notify_members_only:
+        # Project-scoped: members + lead. ``set`` collapses overlap (lead
+        # is often also in members) so we don't double-notify.
+        recipient_ids = set(project.members.values_list("pk", flat=True))
+        if project.lead_id:
+            recipient_ids.add(project.lead_id)
+    else:
+        recipient_ids = set(
+            WorkspaceMember.objects.filter(workspace_id=workspace_id).values_list("user_id", flat=True),
+        )
+    for recipient_id in recipient_ids:
         notify(
             recipient_id=recipient_id,
             actor=actor,
