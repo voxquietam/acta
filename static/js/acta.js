@@ -2177,61 +2177,6 @@
   // and activity rows (which use ``data-activity-for-task``).
   const KANBAN_CARD = (id) => `[data-kanban-card][data-task-id="${id}"]`;
 
-  // Workaround for an Alpine x-show drift on the column body after a card
-  // mutation. ``existing.replaceWith(fresh)`` (or insertBefore for a move)
-  // triggers Alpine's MutationObserver in the body subtree, which somehow
-  // sets the body's ``x-show="!$store.kanban.isCollapsed(...)"`` to
-  // display:block — even though ``$store.kanban.isCollapsed(key)`` still
-  // returns true. The body unhides, cards bleed through the narrow w-10
-  // collapsed strip. Root cause unknown (suspect a transient Alpine
-  // store-proxy state during mutation processing).
-  //
-  // Tried scheduling across sync + microtask + rAF — fixed priority but
-  // not due-date (the date-picker change path apparently lands later than
-  // any of those). Self-healing instead: park a MutationObserver on each
-  // column body that snaps display back to "none" whenever something tries
-  // to change the style attribute while the store still says collapsed.
-  // Per-body MO, fires only on attribute changes, no re-entry (idempotent
-  // writes don't re-fire), bounded cost.
-  // Track live snap observers so we can disconnect those whose body
-  // was swapped out by HTMX (board panel re-render replaces column
-  // bodies; the old `__actaSnapObs` reference dies with the node, but
-  // the observer itself keeps observing a detached DOM tree until we
-  // disconnect it explicitly).
-  const _snapObservers = new Map(); // body -> obs
-  function installCollapsedBodySnap(body) {
-    if (body.__actaSnapObs) return;
-    const store = window.Alpine && window.Alpine.store && window.Alpine.store("kanban");
-    if (!store || typeof store.isCollapsed !== "function") return;
-    const status = body.dataset.status;
-    if (!status) return;
-    const snap = () => {
-      if (store.isCollapsed(status) && body.style.display !== "none") {
-        body.style.display = "none";
-      }
-    };
-    snap();
-    const obs = new MutationObserver(snap);
-    obs.observe(body, { attributes: true, attributeFilter: ["style"] });
-    body.__actaSnapObs = obs;
-    _snapObservers.set(body, obs);
-  }
-  function pruneDetachedSnapObservers() {
-    for (const [body, obs] of _snapObservers) {
-      if (!body.isConnected) {
-        obs.disconnect();
-        _snapObservers.delete(body);
-      }
-    }
-  }
-  function snapCollapsedBodies() {
-    pruneDetachedSnapObservers();
-    document.querySelectorAll(".kanban-column[data-status]").forEach(installCollapsedBodySnap);
-  }
-  // Bind on cold load + after every HTMX settle (board panel re-renders
-  // replace the column bodies).
-  document.body.addEventListener("htmx:afterSettle", snapCollapsedBodies);
-
   function applyCardReplace(taskId, cardHtml) {
     if (!cardHtml) return;
     const existing = document.querySelector(KANBAN_CARD(taskId));
@@ -2248,18 +2193,17 @@
     // assignee, due, labels, etc.) on the same-tab actor. Status changes go
     // through ``applyCardMove`` below — same fix.
     if (window.htmx) window.htmx.process(fresh);
-    snapCollapsedBodies();
     renderIcons();
   }
   function applyCardMove(taskId, newStatus, cardHtml) {
     if (!cardHtml) return;
-    document.querySelectorAll(KANBAN_CARD(taskId)).forEach((el) => el.remove());
     const column = document.querySelector(`.kanban-column[data-status="${newStatus}"]`);
     if (!column) return;
     const tmp = document.createElement("div");
     tmp.innerHTML = cardHtml.trim();
     const fresh = tmp.firstElementChild;
     if (!fresh) return;
+    document.querySelectorAll(KANBAN_CARD(taskId)).forEach((el) => el.remove());
     // Server sorts each column by ``-priority, -updated_at`` (see
     // ProjectDetailView.get_context_data) — a freshly moved card has the
     // newest ``updated_at`` so on reload it lands at the top of its
@@ -2276,7 +2220,6 @@
     // Same as applyCardReplace: HTMX needs to scan the fresh element so
     // click-to-open-modal works on the moved card.
     if (window.htmx) window.htmx.process(fresh);
-    snapCollapsedBodies();
     renderIcons();
   }
   function applyCardRemove(taskId) {
@@ -3564,19 +3507,30 @@
     window.actaBulkDelete = () => bulkRequest("DELETE", {}, "Bulk delete failed");
     window.actaBulkArchive = () => window.actaBulkPatch({ archived: true });
 
+    // ``collapsed`` is a plain object keyed by status, not a ``Set``.
+    // Alpine 3's reactivity tracks plain-property reads + writes through
+    // its Proxy reliably; ``Set`` methods (``.has`` / ``.add`` / ``.delete``)
+    // are NOT reliably reactive — the same gotcha the ``selection`` store
+    // works around via ``_tick`` reference-swap below. With a Set, the
+    // column body's ``x-show="!$store.kanban.isCollapsed(...)"`` re-
+    // evaluated transiently with stale state after card SSE swaps,
+    // unhiding collapsed columns until the next event corrected it.
     window.Alpine.store("kanban", {
-      collapsed: new Set(collapsed),
+      collapsed: Object.fromEntries(collapsed.map((k) => [k, true])),
       isCollapsed(key) {
-        return this.collapsed.has(key);
+        return this.collapsed[key] === true;
       },
       toggle(key) {
-        if (this.collapsed.has(key)) {
-          this.collapsed.delete(key);
+        if (this.collapsed[key]) {
+          delete this.collapsed[key];
         } else {
-          this.collapsed.add(key);
+          this.collapsed[key] = true;
         }
         try {
-          localStorage.setItem("acta:kanban_collapsed", JSON.stringify([...this.collapsed]));
+          localStorage.setItem(
+            "acta:kanban_collapsed",
+            JSON.stringify(Object.keys(this.collapsed)),
+          );
         } catch (_) {
           /* localStorage full / disabled — preference is session-only */
         }
