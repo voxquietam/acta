@@ -253,8 +253,99 @@ listed here so the runbook covers the full picture:
 
 - **Project Updates digest** (ADR 0009) — weekly summary email.
 - **Inactive-workspace cleanup** — none planned yet.
-- **Backups** — Postgres `pg_dump` to off-host storage. Schedule and
-  retention TBD.
+- **Off-site backup sync** — local backups under `/var/backups/acta`
+  are produced today by `make backup-prerelease` (auto-called from
+  `make deploy`) and the cron-ready `make backup-daily`; an external
+  copy to off-host storage (R2 / second VM) is the next step. See
+  the Backups section below.
+
+## Backups
+
+`actaspace.com` runs a single Postgres + a single media volume on one
+VM. A precious-data instance with no replication needs two things from
+its backup pipeline: every deploy gets a pre-image to roll back to, and
+*something* takes a daily snapshot independent of when deploys happen.
+Both are wrapped in `scripts/backup.sh` and exposed as Make targets.
+
+### Layout
+
+```
+$ACTA_BACKUP_DIR (default /var/backups/acta)
+├── pre-deploy/                 -- created by `make deploy` (and ad-hoc)
+│   └── 20260531-180000-ac2657a/
+│       ├── db.dump             -- pg_dump custom format (pg_restore -j)
+│       ├── media.tar.zst       -- only when MODE=full (master deploys)
+│       └── manifest.json       -- git_sha / target_sha / migrations / sizes
+├── daily/                      -- created by `make backup-daily`
+│   └── 20260531-040000-ac2657a/   (db.dump + manifest only)
+└── restore-safety/             -- auto-created by `make restore`
+    └── …                       -- snapshot of state *before* a restore
+```
+
+Retention defaults: `pre-deploy/` keeps 14 bundles, `daily/` keeps 7,
+`restore-safety/` keeps 5. Each bundle is a single self-contained
+folder, so pruning is `rm -rf` on the oldest directory — no manifest
+bookkeeping. The script enforces retention per tag at the end of each
+run.
+
+`manifest.json` captures `git_sha` (current commit), `target_sha` (the
+commit the deploy is about to roll forward to, when called from
+`make deploy`), `applied_migrations` (the `[X]` entries from
+`showmigrations --plan`), the dump's bytes and the pg version. Use it
+to answer "which release does this snapshot match?" when picking a
+restore point.
+
+### Pre-deploy snapshot (automatic)
+
+`make deploy` calls `make backup-prerelease` *before* `git fetch` and
+*before* the new image rolls out:
+
+- `BRANCH=master` → MODE=full (DB + media), retention 14.
+- `BRANCH=dev` or anything else → MODE=db-only, retention 7. Dev
+  deploys are frequent and gating-only; media drift is rare and not
+  worth a 14× tarball cost.
+
+A failed backup aborts the deploy. To bypass in an emergency:
+`SKIP_BACKUP=1 make deploy` — leaves no rollback target, use only when
+the current state is already broken.
+
+### Daily snapshot (cron)
+
+Add to root's crontab on the prod VM (path-agnostic via absolute
+working dir):
+
+```cron
+0 4 * * *  cd /opt/acta && /usr/bin/make backup-daily >> /var/log/acta-backup.log 2>&1
+```
+
+DB-only; 04:00 UTC sits before working hours in Europe/Kyiv. If a daily
+ever fails, the next pre-deploy snapshot still covers most of the
+ground — but check the log.
+
+### Restore drill
+
+`make restore FROM=/var/backups/acta/pre-deploy/<bundle>` runs the
+restore script, which:
+
+1. Prints the manifest summary.
+2. Asks the operator to type `i-understand` (skip with
+   `--yes-i-am-sure` for non-interactive runs).
+3. Takes a *safety snapshot* of the live DB (and media, if the bundle
+   is full) into `restore-safety/`, so the restore itself is reversible.
+4. Stops `web` + `qcluster`, runs `pg_restore --clean --if-exists`,
+   replaces media volume contents (full mode only), restarts the
+   services.
+
+Drill this on a local copy of a recent prod bundle at least monthly:
+`scp prod:/var/backups/acta/pre-deploy/<bundle> ./drill/` →
+`make restore FROM=./drill/<bundle>` in the local stack. A backup you
+haven't restored isn't a backup.
+
+### Off-site (open)
+
+Local backups don't survive the VM dying. The current pipeline produces
+files an off-site sync job (rsync to a second host, rclone to R2) can
+pick up — the sync itself isn't wired yet. Tracked in TODOs.
 
 ## Per-release checklist
 

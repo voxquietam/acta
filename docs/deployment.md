@@ -89,27 +89,48 @@ normally.
 
 ## Rolling back
 
-If a deploy regresses something:
+Every `make deploy` writes a pre-deploy snapshot to
+`/var/backups/acta/pre-deploy/<ts>-<sha>/` before touching anything,
+so the rollback target is already on disk. The fastest path is to
+restore that bundle:
 
 ```bash
-# 1. Backup the DB first.
-docker compose exec -T db pg_dump -U acta acta \
-  > backup-$(date +%Y%m%d-%H%M%S).sql
+# 1. Find the snapshot taken just before the bad deploy. Each bundle
+#    directory's manifest.json records the git_sha the snapshot
+#    matches plus the target_sha the deploy was rolling toward.
+ls -lt /var/backups/acta/pre-deploy/ | head
 
-# 2. Roll any migration the bad release added back to the prior one
-#    (Django can't reverse without the code that knew how — do this
-#    before resetting).
-docker compose exec web python manage.py migrate <app> <prev_migration>
+# 2. Restore. Takes a safety snapshot of the current (broken) state
+#    first, stops web + qcluster, runs pg_restore, optionally replaces
+#    the media volume, restarts services.
+make restore FROM=/var/backups/acta/pre-deploy/<ts>-<sha>
 
-# 3. Hard-reset to the last good commit and rebuild.
+# 3. Point the code at the matching commit and rebuild so running
+#    code, schema, and media all line up again. The manifest in the
+#    bundle tells you which SHA to reset to.
 git reset --hard <previous-sha>
 docker compose up -d --build
 ```
 
+If the regression is small enough that the schema didn't change (no
+new migrations between the broken deploy and the previous good one),
+you can skip the DB restore and just reset the code. Check with
+`make show-pending-migrations` before deciding.
+
 ## Backups
 
-Right now manual: `pg_dump` as above before risky deploys. A cron-based
-off-site backup is on the TODO list.
+Local backups are automatic:
+
+- **Pre-deploy** — `make deploy` runs `make backup-prerelease` before
+  every fetch/reset. `BRANCH=master` snapshots DB + media (retention
+  14); any other branch snapshots DB only (retention 7). A failed
+  backup aborts the deploy.
+- **Daily** — install the cron line in `docs/operations.md` "Backups"
+  to schedule `make backup-daily` (DB only, retention 7) at 04:00 UTC.
+
+Bundles land under `$ACTA_BACKUP_DIR` (default `/var/backups/acta`).
+See `docs/operations.md` "Backups" for layout, manifest contents,
+restore drill procedure, and the still-open off-site sync task.
 
 ## Troubleshooting
 

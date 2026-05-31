@@ -13,7 +13,8 @@ NODE_RUN      := docker run --rm -v "$(PWD):/work" -w /work node:20-alpine
 
 .PHONY: help up down restart logs build rebuild ps shell dbshell migrate \
 	makemigrations createsuperuser test test-fast format lint pre-commit \
-	i18n-extract i18n-compile build-js watch-js install-js ci-check deploy
+	i18n-extract i18n-compile build-js watch-js install-js ci-check deploy \
+	backup-prerelease backup-daily restore show-pending-migrations
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -158,10 +159,56 @@ ci-check: ## lint + tests + frontend build + django check --deploy
 # idempotent and tolerant of force-pushes.
 BRANCH ?= master
 
-deploy: ## (on prod VM) fetch + reset to BRANCH (default master) + rebuild
+deploy: ## (on prod VM) backup, fetch + reset to BRANCH (default master), rebuild
+	@if [ -z "$$SKIP_BACKUP" ]; then \
+		if [ "$(BRANCH)" = "master" ]; then \
+			$(MAKE) backup-prerelease MODE=full KEEP=14 BRANCH=$(BRANCH); \
+		else \
+			$(MAKE) backup-prerelease MODE=db-only KEEP=7 BRANCH=$(BRANCH); \
+		fi; \
+	else \
+		echo "[deploy] SKIP_BACKUP set — pre-deploy backup skipped"; \
+	fi
 	git fetch --tags origin $(BRANCH)
 	git reset --hard origin/$(BRANCH)
 	$(COMPOSE) up -d --build
 	$(COMPOSE) exec -T web python manage.py setup_scheduled_jobs
 	$(COMPOSE) exec -T web python manage.py telegram_set_webhook || true
 	$(COMPOSE) ps
+
+# ---- Backups -------------------------------------------------------
+# Pre-deploy snapshots live under ``$$ACTA_BACKUP_DIR`` (default
+# ``/var/backups/acta``); see ``scripts/backup.sh`` for layout +
+# manifest contents and ``docs/operations.md`` for the restore drill.
+#
+# ``deploy`` calls ``backup-prerelease`` itself, with MODE=full for
+# master and MODE=db-only for any other branch. Run it manually before
+# any risky migration or one-off DB change. Override the defaults via:
+#   make backup-prerelease MODE=full KEEP=14
+#   make backup-prerelease MODE=db-only KEEP=7
+
+MODE ?= full
+KEEP ?= 14
+
+backup-prerelease: ## snapshot DB (+ media when MODE=full) into pre-deploy/
+	bash scripts/backup.sh \
+		--tag pre-deploy \
+		--mode $(MODE) \
+		--keep $(KEEP) \
+		--target-sha "$$(git rev-parse origin/$(BRANCH) 2>/dev/null || echo unknown)"
+
+backup-daily: ## cron-ready snapshot: DB only into daily/ (retention 7)
+	bash scripts/backup.sh --tag daily --mode db-only --keep 7
+
+restore: ## restore a backup bundle: ``make restore FROM=/path/to/<ts>-<sha>``
+	@test -n "$(FROM)" || { echo "usage: make restore FROM=<bundle-dir>"; exit 2; }
+	bash scripts/restore.sh "$(FROM)"
+
+show-pending-migrations: ## list migration files origin/$(BRANCH) introduces vs current HEAD
+	@git fetch origin $(BRANCH) >/dev/null 2>&1 || true
+	@diff_out="$$(git diff --name-only HEAD..origin/$(BRANCH) -- 'apps/*/migrations/*.py' | sort)"; \
+	if [ -z "$$diff_out" ]; then \
+		echo "(no migration changes between HEAD and origin/$(BRANCH))"; \
+	else \
+		echo "$$diff_out"; \
+	fi
