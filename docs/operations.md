@@ -267,6 +267,11 @@ its backup pipeline: every deploy gets a pre-image to roll back to, and
 *something* takes a daily snapshot independent of when deploys happen.
 Both are wrapped in `scripts/backup.sh` and exposed as Make targets.
 
+The linear step-by-step for cutting a release (including the first-time
+strap-in for this pipeline) lives in
+[`release-playbook.md`](release-playbook.md); this section documents
+the layout + restore mechanics the playbook leans on.
+
 ### Layout
 
 ```

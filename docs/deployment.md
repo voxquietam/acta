@@ -17,6 +17,11 @@ the operator runs by hand after pushing to `master`.
   `POSTGRES_PASSWORD`, `DJANGO_ALLOWED_HOSTS`,
   `DJANGO_CSRF_TRUSTED_ORIGINS`). `.env.example` is the template.
 
+For the full step-by-step of cutting a new release (version bump,
+tag, prod-side commands, smoke, rollback) see
+[`release-playbook.md`](release-playbook.md). This file documents the
+underlying mechanics; the playbook is the linear runbook.
+
 ## Day-to-day deploy
 
 After a push to `master`, on the prod VM:
