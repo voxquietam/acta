@@ -69,7 +69,7 @@ from apps.web.filters import (
     resolve_show_archived,
     resolve_show_backlog,
 )
-from apps.web.grouping import LIST_AXES, group_tasks
+from apps.web.grouping import compute_list_section_keys, group_tasks
 from apps.web.nav import resolve_active_workspace, set_active_workspace
 from apps.workspaces.models import Workspace, WorkspaceMember
 
@@ -5837,35 +5837,6 @@ def _render_task_row_html(task, request):
     )
 
 
-def _compute_list_section_keys(task, request):
-    """Return ``{axis: section_key}`` mapping ``task`` to its bucket per list axis.
-
-    Used to drive client-side row insertion in the list view: for each axis the
-    panel pre-renders, the JS handler looks up the matching ``[data-list-axis]``
-    wrapper and the ``[data-section-key]`` ``<section>`` within it. Reuses
-    :func:`apps.web.grouping.group_tasks` so the keying logic stays in one
-    place — pass a single-task list and pick the only non-empty bucket.
-
-    Args:
-        task: The freshly-created :class:`Task`.
-        request: HTTP request, used for the acting-user timezone in the
-            deadline axis.
-
-    Returns:
-        Dict ``{axis: key}`` covering every axis in :data:`LIST_AXES` where a
-        bucket exists for ``task``. ``key`` is always a string (matches the
-        ``data-section-key`` attribute the template emits).
-    """
-    keys = {}
-    for axis in LIST_AXES:
-        sections = group_tasks([task], axis, request_user=request.user)
-        for section in sections:
-            if section["tasks"]:
-                keys[axis] = str(section["key"])
-                break
-    return keys
-
-
 def _current_view_from_htmx(request):
     """Return ``(view, show_project)`` derived from htmx's ``HX-Current-URL``.
 
@@ -5925,7 +5896,7 @@ def _task_card_insert_response(request, task, *, linked, kanban_html):
         list_insert = {
             "task_id": task.id,
             "row_html": _render_task_row_html(task, request),
-            "section_keys": _compute_list_section_keys(task, request),
+            "section_keys": compute_list_section_keys(task, request_user=request.user),
         }
     elif view in {"timeline", "backlog"}:
         pass  # toast-only — see docstring

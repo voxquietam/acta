@@ -51,6 +51,38 @@ _PRIORITY_TONES = {
 }
 
 
+def compute_list_section_keys(task, *, request_user=None):
+    """Return ``{axis: section_key}`` mapping ``task`` to its bucket per list axis.
+
+    Used to drive client-side row insertion / move in the list view: for
+    each axis the panel pre-renders, the JS handler looks up the matching
+    ``[data-list-axis]`` wrapper and the ``[data-section-key]`` section
+    inside it. Reuses :func:`group_tasks` so the keying logic stays in
+    one place — pass a single-task list and pick the only non-empty
+    bucket per axis.
+
+    Args:
+        task: The :class:`Task` whose section keys to compute.
+        request_user: Acting user, forwarded to :func:`group_tasks`.
+            Currently unused for key computation (no axis personalises
+            its bucket key by viewer); kept for symmetry with the
+            grouping helpers so future axes can opt in.
+
+    Returns:
+        Dict ``{axis: key}`` covering every axis in :data:`LIST_AXES`
+        where a bucket exists for ``task``. ``key`` is always a string
+        (matches the ``data-section-key`` attribute the template emits).
+    """
+    keys: dict[str, str] = {}
+    for axis in LIST_AXES:
+        sections = group_tasks([task], axis, request_user=request_user)
+        for section in sections:
+            if section["tasks"]:
+                keys[axis] = str(section["key"])
+                break
+    return keys
+
+
 def group_tasks(tasks, axis, *, request_user=None, keep_empty=()):
     """Return ``[{"key", "label", "tone", "tasks"}]`` for ``axis``.
 

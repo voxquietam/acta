@@ -1,6 +1,7 @@
 """Diff-based activity events for :class:`Task` mutations."""
 
 import datetime as dt
+from unittest import mock
 from uuid import uuid4
 
 import pytest
@@ -9,9 +10,10 @@ from apps.accounts.tests.factories import UserFactory
 from apps.activity.models import ActivityLog
 from apps.labels.tests.factories import LabelFactory
 from apps.projects.tests.factories import ProjectFactory
-from apps.tasks.events import build_diff_events, emit_task_diff_events, snapshot_task
+from apps.tasks.events import broadcast_task_events, build_diff_events, emit_task_diff_events, snapshot_task
 from apps.tasks.models import Task
 from apps.tasks.tests.factories import TaskFactory
+from apps.web.grouping import LIST_AXES
 
 
 def _event_types(events):
@@ -258,3 +260,83 @@ class TestEmitTaskDiffEvents:
             ActivityLog.objects.filter(target_id=task.id).values_list("bulk_id", flat=True),
         )
         assert bids == {bid}
+
+
+@pytest.mark.django_db
+class TestBroadcastTaskEventsPayload:
+    """SSE broadcast payload shape — list view consumes ``section_keys_list``.
+
+    The client's ``applyRowHtmlList`` (static/js/acta.js) drops the heavy
+    5-axis panel refetch for status / update / delete events by anchoring
+    the row to the section identified by the payload's section keys. If
+    a payload loses the keys, every list peer falls back to a full panel
+    refetch (the ~2 s regression we're guarding against).
+    """
+
+    def _capture_payloads(self, events, tasks_by_id, actor):
+        """Run ``broadcast_task_events`` and collect the queued payloads.
+
+        Patches ``transaction.on_commit`` to run the callback inline so the
+        test stays inside the surrounding ``django_db`` transaction (which
+        never commits), and patches ``broadcast_event`` so we can read what
+        each event was queued with.
+        """
+        captured = []
+
+        def fake_broadcast(workspace_id, event_type, payload, actor_id):
+            captured.append((event_type, payload))
+
+        with (
+            mock.patch("apps.tasks.events.broadcast_event", side_effect=fake_broadcast),
+            mock.patch("django.db.transaction.on_commit", lambda fn: fn()),
+        ):
+            broadcast_task_events(events, tasks_by_id, actor)
+        return captured
+
+    def test_status_change_payload_carries_section_keys_list(self):
+        """A peer's status change must ship ``section_keys_list`` covering every list axis.
+
+        Missing keys would force the client to fall back to
+        ``refreshListPanel`` — the exact full-panel refetch path
+        ``project-todo-list-view-promote-chip-speed`` is trying to dodge.
+        """
+        task = TaskFactory(status=Task.STATUS_TODO)
+        old = snapshot_task(task)
+        task.status = Task.STATUS_IN_PROGRESS
+        task.save()
+        events = build_diff_events(old_state=old, task=task, actor=task.reporter)
+        captured = self._capture_payloads(events, {task.pk: task}, task.reporter)
+        status_payloads = [p for et, p in captured if et == "task.status_changed"]
+        assert len(status_payloads) == 1
+        payload = status_payloads[0]
+        assert "row_html_list" in payload
+        assert "section_keys_list" in payload
+        keys = payload["section_keys_list"]
+        # Every axis we render in the list panel needs a bucket so the
+        # client can anchor the row without falling back to a refetch.
+        for axis in LIST_AXES:
+            assert axis in keys, f"axis {axis!r} missing from section_keys_list"
+        # Status axis must reflect the new value, not the snapshot.
+        assert keys["status"] == "in-progress"
+
+    def test_delete_payload_omits_section_keys_list(self):
+        """Deletion events skip section keys (no task to render anywhere)."""
+        task = TaskFactory()
+        # Inject a synthetic deletion event with no task in ``tasks_by_id``
+        # — mirrors what the bulk delete path does.
+        from apps.activity.models import ActivityLog as AL
+
+        del_event = AL(
+            workspace_id=task.project.workspace_id,
+            project_id=task.project_id,
+            event_type="task.deleted",
+            target_type="task",
+            target_id=task.id,
+            actor=task.reporter,
+            payload={},
+        )
+        captured = self._capture_payloads([del_event], {}, task.reporter)
+        assert captured, "broadcast did not fire"
+        _et, payload = captured[0]
+        assert "row_html_list" not in payload
+        assert "section_keys_list" not in payload

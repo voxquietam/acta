@@ -329,6 +329,7 @@ def broadcast_task_events(events: list[ActivityLog], tasks_by_id: dict[int, Task
     card_html_by_task: dict[int, str] = {}
     row_table_html_by_task: dict[int, str] = {}
     row_list_html_by_task: dict[int, str] = {}
+    section_keys_list_by_task: dict[int, dict[str, str]] = {}
     priority_labels = dict(Task.PRIORITY_CHOICES)
     status_labels = Task.STATUS_LABELS
     today = _tz.localdate()
@@ -339,11 +340,21 @@ def broadcast_task_events(events: list[ActivityLog], tasks_by_id: dict[int, Task
         "show_project": True,
         "show_labels": True,
     }
+    # Lazy import: ``apps.web`` already depends on ``apps.tasks.events`` at
+    # module load (broadcast_task_events, snapshot_task), so resolve the
+    # other direction inside the function body to avoid a circular import.
+    from apps.web.grouping import compute_list_section_keys
+
     for task_id, task in tasks_by_id.items():
         ctx = {**common_ctx, "task": task}
         card_html_by_task[task_id] = render_to_string("web/projects/_task_card.html", ctx)
         row_table_html_by_task[task_id] = render_to_string("web/projects/_table_row.html", ctx)
         row_list_html_by_task[task_id] = render_to_string("web/_task_row.html", ctx)
+        # Section keys ride alongside ``row_html_list`` so the client can
+        # drop or re-anchor the row inside the matching ``[data-list-axis]
+        # section[data-section-key]`` without a panel refetch. See
+        # ``applyRowHtmlList`` in static/js/acta.js.
+        section_keys_list_by_task[task_id] = compute_list_section_keys(task)
     # Per-request context: MCP-driven writes carry a flag so the
     # browser's "ignore self" filter knows this came from a *different*
     # client (Claude Desktop, Cursor, curl) and not the local tab.
@@ -376,6 +387,9 @@ def broadcast_task_events(events: list[ActivityLog], tasks_by_id: dict[int, Task
         row_list_html = row_list_html_by_task.get(ev.target_id)
         if row_list_html:
             payload["row_html_list"] = row_list_html
+        section_keys_list = section_keys_list_by_task.get(ev.target_id)
+        if section_keys_list:
+            payload["section_keys_list"] = section_keys_list
         event_type = ev.event_type
         transaction.on_commit(
             lambda wid=workspace_id, et=event_type, p=payload, aid=actor_id: broadcast_event(wid, et, p, aid),

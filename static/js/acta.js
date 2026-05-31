@@ -8,7 +8,7 @@
 //   window.acta.csrfToken()                 cookie reader, fetch() helper
 //   window.acta.loadRecents()               command-palette "Recents" backing store
 //   window.acta.recordRecentTask(entry)     command-palette write side
-//   window.acta.promoteTask(slugPrefix, n, status)  status PATCH from inline list-view chip
+//   window.acta.promoteTask(slugPrefix, n, status, taskId)  status PATCH from inline list-view chip
 //   window.acta.exportQuery()               URL builder for CSV/JSON export buttons
 //   window.acta.removeFilter(name, value)   filter-strip chip ✕
 //   window.acta.toggleFilter(name, value)   filter-strip chip toggle
@@ -99,19 +99,19 @@
 
     // Quick-promote a backlog task one stage (planned → ready → to-do)
     // from any list row. Posts to the same ``set_task_status`` endpoint
-    // the status cell uses, then fires ``acta:task-changed`` so the
-    // page's list refetches and the task moves / leaves its section.
-    promoteTask(slugPrefix, number, status) {
+    // the status cell uses; the server's SSE broadcast carries
+    // ``row_html_list`` + ``section_keys_list`` so ``applyRowHtmlList``
+    // re-anchors the row in place. We opt this task's id into the self-
+    // event force-apply set so our own broadcast survives the self-
+    // filter (normally suppressed to avoid kanban double-flash on drag).
+    promoteTask(slugPrefix, number, status, taskId) {
       // ``fetch`` (not HTMX) — the global ``htmx:responseError`` toast
       // skips this path, so surface failures manually otherwise the
       // chip click is silent and the user can't tell whether the
       // server rejected or just hasn't applied yet.
-      //
-      // NB: the chip lives in ``_task_row.html`` (list view only). The
-      // ``acta:task-changed`` trigger below refetches the inner panel —
-      // unavoidably heavy on list view because the panel renders five
-      // axes × N rows. See [[project-todo-list-view-promote-chip-speed]]
-      // for the SSE-driven in-place row swap that would dodge it.
+      if (taskId && window.actaForceApplySelfEvent) {
+        window.actaForceApplySelfEvent(taskId);
+      }
       fetch(`/projects/${slugPrefix}/${number}/status/`, {
         method: "POST",
         headers: {
@@ -121,9 +121,7 @@
         body: "status=" + encodeURIComponent(status),
       })
         .then((r) => {
-          if (r.ok && window.htmx) {
-            window.htmx.trigger(document.body, "acta:task-changed");
-          } else if (!r.ok && window.actaToast) {
+          if (!r.ok && window.actaToast) {
             window.actaToast(`Couldn't promote task (${r.status}).`, "error");
           }
         })
@@ -2415,6 +2413,108 @@
         .forEach((tr) => morphFromString(tr, html));
     }
 
+    // List-view in-place row swap. Replaces the old "any mutation = full
+    // panel refetch" behaviour for the three common events (update,
+    // status, delete). The 5-axis list panel is the heaviest server-
+    // render surface on All Tasks, so dodging the refetch turns a ~2 s
+    // promote-chip click + every peer's mutation into an instant swap.
+    //
+    // For each rendered axis wrapper (lazy placeholders skipped — they
+    // load fresh on view-switch anyway), the task's ``<li>`` is located
+    // by ``a[data-task-id]``, the target section is read from the
+    // payload's ``section_keys_list[axis]`` map, and the row is either
+    // morphed in place (same section), removed + prepended into the
+    // target (cross-section move), or freshly prepended (was hidden by
+    // a filter and is now matching again).
+    //
+    // Returns ``true`` if every rendered axis was handled cleanly.
+    // Returns ``false`` when an axis has no DOM section matching the
+    // payload's key (e.g. a task moving into an assignee bucket whose
+    // section the page hadn't materialised yet) — caller falls back to
+    // ``refreshListPanel`` which re-renders the panel including any
+    // brand-new sections.
+    function applyRowHtmlList(taskId, rowHtml, sectionKeys) {
+      if (!rowHtml || !sectionKeys) return false;
+      const axisRoots = document.querySelectorAll(
+        "[data-list-axis]:not([data-axis-pending])",
+      );
+      if (!axisRoots.length) return true; // list view not rendered on this page
+      const touchedSections = new Set();
+      for (const axisRoot of axisRoots) {
+        const axisKey = axisRoot.dataset.listAxis;
+        const targetKey = sectionKeys[axisKey];
+        if (targetKey === undefined) return false;
+        const targetSection = axisRoot.querySelector(
+          `[data-list-section][data-section-key="${CSS.escape(targetKey)}"]`,
+        );
+        const existingAnchor = axisRoot.querySelector(`a[data-task-id="${taskId}"]`);
+        const existingLi = existingAnchor ? existingAnchor.closest("li") : null;
+        if (!targetSection) {
+          // Task should land in a section we haven't rendered yet (axes
+          // like assignee / project / cycle build sections on demand).
+          // Bail to a full refetch so the section appears.
+          return false;
+        }
+        const targetUl = targetSection.querySelector("ul");
+        if (!targetUl) return false;
+        if (existingLi && existingLi.parentElement === targetUl) {
+          // Same section — in-place content swap via idiomorph keeps
+          // Alpine bindings and avoids a flicker.
+          morphFromString(existingAnchor, rowHtml);
+          touchedSections.add(targetSection);
+        } else {
+          if (existingLi) {
+            const oldSection = existingLi.closest("[data-list-section]");
+            existingLi.remove();
+            if (oldSection) touchedSections.add(oldSection);
+          }
+          const li = document.createElement("li");
+          li.innerHTML = rowHtml;
+          targetUl.prepend(li);
+          if (window.htmx) window.htmx.process(li);
+          touchedSections.add(targetSection);
+        }
+      }
+      // Recompute per-section counts + hide drained sections — same
+      // logic as the filter-apply pass at line ~704.
+      for (const section of touchedSections) {
+        const ul = section.querySelector("ul");
+        const visible = ul ? ul.querySelectorAll("li").length : 0;
+        const counter = section.querySelector("[data-list-count]");
+        if (counter) counter.textContent = String(visible);
+        section.classList.toggle("hidden", visible === 0);
+      }
+      return true;
+    }
+
+    // Remove the row for ``taskId`` from every rendered list axis. Used
+    // by ``task.deleted`` so peer-deletes leave list view in sync
+    // without a panel refetch. Lazy axis placeholders are skipped (they
+    // re-fetch on switch). Drained sections hide themselves.
+    function applyRowRemoveList(taskId) {
+      const axisRoots = document.querySelectorAll(
+        "[data-list-axis]:not([data-axis-pending])",
+      );
+      if (!axisRoots.length) return;
+      const touchedSections = new Set();
+      for (const axisRoot of axisRoots) {
+        axisRoot.querySelectorAll(`a[data-task-id="${taskId}"]`).forEach((a) => {
+          const li = a.closest("li");
+          if (!li) return;
+          const section = li.closest("[data-list-section]");
+          li.remove();
+          if (section) touchedSections.add(section);
+        });
+      }
+      for (const section of touchedSections) {
+        const ul = section.querySelector("ul");
+        const visible = ul ? ul.querySelectorAll("li").length : 0;
+        const counter = section.querySelector("[data-list-count]");
+        if (counter) counter.textContent = String(visible);
+        section.classList.toggle("hidden", visible === 0);
+      }
+    }
+
     // Single dispatcher used by every per-task update event.
     function applyTaskUpdate(d) {
       if (d.card_html) {
@@ -2423,18 +2523,22 @@
       if (d.row_html_table) {
         applyRowHtmlTable(d.target_id, d.row_html_table);
       }
-      // List view rebuilds the whole panel — group membership and
-      // section counts re-compute together. Debounced.
-      refreshListPanel();
+      // List view: try in-place row swap; fall back to a full panel
+      // refetch if a target section is missing (new assignee bucket etc.)
+      // or the payload didn't carry the list surface.
+      const ok = applyRowHtmlList(d.target_id, d.row_html_list, d.section_keys_list);
+      if (!ok) refreshListPanel();
     }
 
     handle("task.status_changed", (d) => {
       // Status change is the one event that *moves* the kanban card
       // between columns — applyCardMove handles that; everything else
-      // (table / list) goes through the standard update dispatcher.
+      // (table / list) goes through the in-place row helpers, falling
+      // back to a panel refetch only when the list payload can't anchor.
       applyCardMove(d.target_id, d.to, d.card_html);
       if (d.row_html_table) applyRowHtmlTable(d.target_id, d.row_html_table);
-      refreshListPanel();
+      const ok = applyRowHtmlList(d.target_id, d.row_html_list, d.section_keys_list);
+      if (!ok) refreshListPanel();
     });
     handle("task.assigned", applyTaskUpdate);
     handle("task.priority_changed", applyTaskUpdate);
@@ -2478,7 +2582,7 @@
     handle("task.deleted", (d) => {
       applyCardRemove(d.target_id);
       document.querySelectorAll(`tr[data-task-id="${d.target_id}"]`).forEach((el) => el.remove());
-      refreshListPanel();
+      applyRowRemoveList(d.target_id);
     });
 
     // New task from another user — server's ``task.created`` broadcast

@@ -47,7 +47,7 @@ status dot · slug + priority chevron · title (flex-1) · size · labels
     the row's open-task navigation from firing. Hover-only affordance —
     hidden on mobile where touch can't preview hover, and the row is
     already compressed.{% endcomment %}
-    <span @click.prevent.stop="window.acta.promoteTask('{{ task.project.slug_prefix }}', {{ task.number }}, '{% if task.status == 'planned' %}ready{% else %}to-do{% endif %}')"
+    <span @click.prevent.stop="window.acta.promoteTask('{{ task.project.slug_prefix }}', {{ task.number }}, '{% if task.status == 'planned' %}ready{% else %}to-do{% endif %}', {{ task.id }})"
           class="hidden md:inline-flex opacity-0 group-hover:opacity-100 cursor-pointer items-center gap-1 px-1.5 py-0.5 rounded-md border border-border text-[11px] text-subtle-foreground hover:bg-muted hover:text-foreground transition"
           title="{% if task.status == 'planned' %}{% trans 'Promote to Ready' %}{% else %}{% trans 'Pull into To-do' %}{% endif %}">
       {% lucide "arrow-right" "w-3 h-3" %}{% if task.status == 'planned' %}{{ status_labels|get_item:"ready" }}{% else %}{{ status_labels|get_item:"to-do" }}{% endif %}
