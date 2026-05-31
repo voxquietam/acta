@@ -1194,6 +1194,7 @@ class InboxView(LoginRequiredMixin, TemplateView):
             if selected_update is not None:
                 _attach_update_reactions([selected_update], user.id)
                 _attach_update_thread_reactions(selected_update, user.id)
+                selected_update.can_modify = _can_modify_update(user, selected_update)
             ctx.update(
                 updates=updates,
                 selected_update=selected_update,
@@ -1402,6 +1403,7 @@ def inbox_update_preview(request, pk):
     )
     _attach_update_reactions([update], request.user.id)
     _attach_update_thread_reactions(update, request.user.id)
+    update.can_modify = _can_modify_update(request.user, update)
     return HttpResponse(
         render_to_string(
             "web/_inbox_update_preview.html",
@@ -4863,9 +4865,10 @@ def _render_overview_update_card(request, update):
 def update_edit_form(request, pk):
     """Render the in-place edit composer (health chips + TipTap) for an update.
 
-    Loaded via ``hx-get`` into the overview card's ``#update-edit-<pk>``
-    slot; the editor mounts on ``htmx:afterSwap``, pre-filled from the
-    update body.
+    Loaded via ``hx-get`` into the overview card's ``#update-body-<pk>``
+    slot, or into the inbox preview's ``#inbox-update-body`` slot when the
+    user clicks Edit on the Updates tab (``?source=inbox``). The editor
+    mounts on ``htmx:afterSwap``, pre-filled from the update body.
 
     Returns:
         Rendered ``_update_edit_form.html``, 403 if not permitted, or 404
@@ -4874,13 +4877,28 @@ def update_edit_form(request, pk):
     update = _get_user_update_or_404(request.user, pk)
     if not _can_modify_update(request.user, update):
         raise PermissionDenied()
+    ctx = {
+        "update": update,
+        "health_labels": dict(ProjectUpdate.HEALTH_CHOICES),
+    }
+    if request.GET.get("source") == "inbox":
+        # Inbox surface — Save replaces the preview body, Cancel restores it.
+        preview_url = reverse("web:inbox_update_preview", kwargs={"pk": update.id})
+        save_url = reverse("web:edit_project_update", kwargs={"pk": update.id})
+        ctx.update(
+            {
+                "post_url": f"{save_url}?source=inbox",
+                "submit_target": "#inbox-update-body",
+                "submit_swap": "innerHTML",
+                "cancel_url": preview_url,
+                "cancel_target": "#inbox-preview",
+                "cancel_swap": "innerHTML",
+            },
+        )
     return HttpResponse(
         render_to_string(
             "web/projects/_update_edit_form.html",
-            {
-                "update": update,
-                "health_labels": dict(ProjectUpdate.HEALTH_CHOICES),
-            },
+            ctx,
             request=request,
         ),
     )
@@ -4918,6 +4936,21 @@ def edit_project_update(request, pk):
     update.health = health
     update.body = body
     update.save(update_fields=["health", "body", "updated_at"])
+    if request.GET.get("source") == "inbox":
+        # Inbox surface — primary swap replaces the body slot; an OOB
+        # fragment refreshes the health pill in the header so a health
+        # change after save is reflected without a full preview reload.
+        _attach_update_reactions([update], request.user.id)
+        _attach_update_thread_reactions(update, request.user.id)
+        update.can_modify = True  # already gated by ``_can_modify_update`` above
+        body_html = render_to_string("web/_inbox_update_body.html", {"u": update}, request=request)
+        health_html = render_to_string(
+            "web/_health_pill.html",
+            {"health": update.health, "health_labels": dict(ProjectUpdate.HEALTH_CHOICES)},
+            request=request,
+        )
+        oob = f'<span id="inbox-update-health-pill" hx-swap-oob="innerHTML">{health_html}</span>'
+        return HttpResponse(body_html + oob)
     return HttpResponse(_render_overview_update_card(request, update))
 
 
@@ -4941,6 +4974,15 @@ def delete_project_update(request, pk):
         raise PermissionDenied()
     project = update.project
     update.delete()
+    if request.GET.get("source") == "inbox":
+        # Inbox surface — clear the preview pane and fire an event so the
+        # left-hand inbox list refetches (the deleted row disappears) and
+        # the unread badge recomputes.
+        response = HttpResponse(
+            render_to_string("web/_inbox_update_preview.html", {"selected_update": None}, request=request),
+        )
+        response["HX-Trigger"] = json.dumps({"acta:update-deleted": {"id": pk}})
+        return response
     latest = list(project.updates.select_related("author").order_by("-created_at")[:1])
     html = ""
     if latest:

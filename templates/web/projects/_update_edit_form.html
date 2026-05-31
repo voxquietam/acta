@@ -1,21 +1,35 @@
 {% load i18n %}
 {% comment %}
-In-place edit composer for one project update (overview card). Loaded via
-``hx-get`` into the card's ``#update-body-<id>`` region (innerHTML) so the
-TipTap editor mounts reliably on ``htmx:afterSwap`` and the card header
-(author / date / health) stays put — no collapse. Health chips default to
-the update's current health, pre-filled from the body.
+In-place edit composer for one project update. Loaded via ``hx-get`` into
+either an overview card's body region or an inbox preview pane — the
+TipTap editor mounts reliably on ``htmx:afterSwap`` and the surrounding
+header stays put. Health chips default to the update's current health,
+pre-filled from the body.
 
-Save posts to ``edit_project_update`` and replaces the whole card
-(``#overview-update-<id>`` outerHTML) with the refreshed render. Cancel
-re-fetches the unchanged card via ``update_card_fragment``. Expects
-``update`` + ``health_labels``.
+Targeting is parameterised so the same partial works on both surfaces:
+
+* ``post_url`` — POST endpoint (default ``edit_project_update`` overview).
+* ``submit_target`` — htmx target the save response replaces (default
+  ``#overview-update-<id>``).
+* ``submit_swap`` — htmx swap mode (default ``outerHTML``).
+* ``cancel_url`` — GET endpoint that re-renders the original surface so
+  Cancel restores it (default ``update_card_fragment``).
+* ``cancel_target`` / ``cancel_swap`` — defaults mirror submit ones.
+
+Expects ``update`` + ``health_labels``.
 {% endcomment %}
+{% url 'web:edit_project_update' pk=update.id as default_post_url %}
+{% url 'web:update_card_fragment' pk=update.id as default_cancel_url %}
 <form x-data="{ empty: false }"
       @editor:change="empty = $event.detail.empty"
-      hx-post="{% url 'web:edit_project_update' pk=update.id %}"
-      hx-target="#overview-update-{{ update.id }}"
-      hx-swap="outerHTML"
+      @submit="
+        const ed = $el.querySelector('[data-description-editor]')?._editor;
+        const out = $el.querySelector('[data-editor-output]');
+        if (ed && out) out.value = ed.storage.markdown.getMarkdown();
+      "
+      hx-post="{{ post_url|default:default_post_url }}"
+      hx-target="{{ submit_target|default:'#overview-update-' }}{% if not submit_target %}{{ update.id }}{% endif %}"
+      hx-swap="{{ submit_swap|default:'outerHTML' }}"
       class="space-y-2.5 pt-1">
   {% csrf_token %}
   {% include "web/projects/_health_chips.html" with selected=update.health %}
@@ -33,9 +47,9 @@ re-fetches the unchanged card via ``update_card_fragment``. Expects
   </div>
   <div class="flex items-center justify-end gap-2">
     <button type="button"
-            hx-get="{% url 'web:update_card_fragment' pk=update.id %}"
-            hx-target="#overview-update-{{ update.id }}"
-            hx-swap="outerHTML"
+            hx-get="{{ cancel_url|default:default_cancel_url }}"
+            hx-target="{{ cancel_target|default:'#overview-update-' }}{% if not cancel_target %}{{ update.id }}{% endif %}"
+            hx-swap="{{ cancel_swap|default:'outerHTML' }}"
             class="px-3 py-1.5 text-xs rounded-md text-subtle-foreground hover:text-foreground hover:bg-muted transition">
       {% trans "Cancel" %}
     </button>

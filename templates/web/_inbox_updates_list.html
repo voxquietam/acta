@@ -5,7 +5,11 @@ Inbox Updates tab — list of project status updates visible to the user
 (workspace members see all). Clicking a row loads its full body in the
 preview pane. Mirrors the notification list pane.
 {% endcomment %}
-<div id="inbox-updates-list" class="flex flex-col min-h-0 min-w-0">
+<div id="inbox-updates-list" class="flex flex-col min-h-0 min-w-0"
+     hx-get="{% url 'web:inbox' %}?tab=updates"
+     hx-trigger="acta:update-deleted from:body"
+     hx-target="this"
+     hx-swap="outerHTML">
   {% comment %}
   Filters — colour-coded single-select health chips only. The project
   filter lives in the shared strip at the top of the page (see

@@ -1,0 +1,13 @@
+{% load i18n %}
+{% load web_extras %}
+{% comment %}
+Body region of the inbox Updates preview pane. Extracted from
+``_inbox_update_preview.html`` so the Edit save path can re-render just
+this slot (the preview header — author/date/health/edit-delete — stays
+put across the swap). Expects ``u`` (the update).
+{% endcomment %}
+<div class="prose dark:prose-invert prose-sm max-w-none text-muted-foreground">{{ u.body|markdown }}</div>
+<div class="mt-3">
+  {% include "web/_reaction_bar.html" with target_type="update" target_id=u.id reactions=u.reaction_summary can_react=True %}
+</div>
+{% include "web/projects/_update_comments.html" with update=u %}
