@@ -47,17 +47,22 @@ status dot · slug + priority chevron · title (flex-1) · size · labels
   </span>
 
   <div class="flex items-center gap-2 shrink-0 text-xs">
-    {% if task.status == 'planned' or task.status == 'ready' %}
-    {% comment %}Quick-promote backlog rows one stage; ``@click.stop`` keeps
-    the row's open-task navigation from firing. Hover-only affordance —
-    hidden on mobile where touch can't preview hover, and the row is
-    already compressed.{% endcomment %}
-    <span @click.prevent.stop="window.acta.promoteTask('{{ task.project.slug_prefix }}', {{ task.number }}, '{% if task.status == 'planned' %}ready{% else %}to-do{% endif %}', {{ task.id }})"
+    {% comment %}Quick-promote chip — shifts the row one stage forward
+    along the linear flow (planned → ready → to-do → in-progress →
+    in-review → done). Always shown for the backlog statuses (planned /
+    ready) since that's the grooming surface; otherwise shown only when
+    the list view groups by status (``axis_key == 'status'``) — on other
+    axes "forward" doesn't have a single right target. ``@click.stop``
+    keeps the row's open-task navigation from firing.{% endcomment %}
+    {% with next=task.status|next_status %}
+    {% if next and task.status == 'planned' or next and task.status == 'ready' or next and axis_key == 'status' %}
+    <span @click.prevent.stop="window.acta.promoteTask('{{ task.project.slug_prefix }}', {{ task.number }}, '{{ next }}', {{ task.id }})"
           class="hidden md:inline-flex opacity-0 group-hover:opacity-100 cursor-pointer items-center gap-1 px-1.5 py-0.5 rounded-md border border-border text-[11px] text-subtle-foreground hover:bg-muted hover:text-foreground transition"
-          title="{% if task.status == 'planned' %}{% trans 'Promote to Ready' %}{% else %}{% trans 'Pull into To-do' %}{% endif %}">
-      {% lucide "arrow-right" "w-3 h-3" %}{% if task.status == 'planned' %}{{ status_labels|get_item:"ready" }}{% else %}{{ status_labels|get_item:"to-do" }}{% endif %}
+          title="{% blocktrans with label=status_labels|get_item:next %}Promote to {{ label }}{% endblocktrans %}">
+      {% lucide "arrow-right" "w-3 h-3" %}{{ status_labels|get_item:next }}
     </span>
     {% endif %}
+    {% endwith %}
     {% if task.size %}
     <span class="hidden md:inline-flex text-subtle-foreground font-mono items-center gap-1 cursor-pointer rounded transition hover:ring-1 hover:ring-offset-1 hover:ring-offset-card hover:ring-zinc-500/40"
           title="{% trans 'Filter by size' %}: {{ task.size }}"

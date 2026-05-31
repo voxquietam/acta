@@ -117,12 +117,44 @@
         headers: {
           "X-CSRFToken": getCookie("csrftoken"),
           "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "application/json",
         },
         body: "status=" + encodeURIComponent(status),
       })
-        .then((r) => {
-          if (!r.ok && window.actaToast) {
-            window.actaToast(`Couldn't promote task (${r.status}).`, "error");
+        .then(async (r) => {
+          if (r.ok) return;
+          // Required-on-transition rejection arrives as 422 with
+          // ``{detail, missing}`` JSON — open the task modal and pop the
+          // first missing field's picker so the user can fix it inline
+          // instead of staring at a toast. Same flow the kanban DnD uses
+          // (see ``handleKanbanDrop``).
+          let missing = [];
+          let detail = "";
+          try {
+            const data = await r.json();
+            if (Array.isArray(data?.missing)) missing = data.missing;
+            if (typeof data?.detail === "string") detail = data.detail;
+          } catch (_) { /* non-JSON body */ }
+          if (missing.length && window.htmx) {
+            window.htmx
+              .ajax("GET", `/projects/${slugPrefix}/${number}/?modal=1`, {
+                target: "#modal-root",
+                swap: "innerHTML",
+              })
+              .then(() => {
+                requestAnimationFrame(() => {
+                  requestAnimationFrame(() => {
+                    window.dispatchEvent(
+                      new CustomEvent("acta:open-task-field", { detail: { field: missing[0] } }),
+                    );
+                  });
+                });
+              });
+            if (window.actaToast) window.actaToast(detail || "Fill required fields to promote.", "warning");
+            return;
+          }
+          if (window.actaToast) {
+            window.actaToast(detail || `Couldn't promote task (${r.status}).`, "error");
           }
         })
         .catch(() => {

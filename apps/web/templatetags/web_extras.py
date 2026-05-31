@@ -131,6 +131,27 @@ def status_dot_classes(status_key) -> str:
     return _STATUS_DOT_CLASSES.get(status_key, "bg-zinc-700 hover:ring-zinc-700/40")
 
 
+_NEXT_STATUS = {
+    "planned": "ready",
+    "ready": "to-do",
+    "to-do": "in-progress",
+    "in-progress": "in-review",
+    "in-review": "done",
+}
+
+
+@register.filter(name="next_status")
+def next_status(status_key) -> str:
+    """Return the next forward status in the linear flow, or ``""``.
+
+    Drives the row-level promote chip. ``done`` and ``cancelled`` are
+    terminal — the filter returns an empty string and the template skips
+    the chip render. Cycle / cancellation paths are handled elsewhere
+    (status picker dropdown), not by the inline chip.
+    """
+    return _NEXT_STATUS.get(status_key, "")
+
+
 _STATUS_BADGE_CLASSES = {
     "planned": "bg-muted text-subtle-foreground hover:ring-zinc-500/40",
     "ready": "bg-cyan-100 dark:bg-cyan-900 text-cyan-700 dark:text-cyan-300 hover:ring-cyan-500/40",

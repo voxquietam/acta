@@ -3128,9 +3128,20 @@ def set_task_status(request, slug_prefix, number):
         return HttpResponseBadRequest("invalid status")
     missing = validate_status_transition(task, new_status, task.project.workspace)
     if missing:
-        response = HttpResponse(status=422)
+        message = format_missing_message(missing)
+        # JSON body carries the machine-readable ``missing`` list so the
+        # promote-chip / DnD client paths can open the task modal and pop
+        # the right inline picker — same shape the DRF rejection has so
+        # both surfaces share one client handler. The HX-Trigger toast
+        # stays for HTMX-driven callers (status picker dropdown) where
+        # the modal-open flow doesn't apply.
+        response = HttpResponse(
+            json.dumps({"detail": message, "missing": missing}),
+            status=422,
+            content_type="application/json",
+        )
         response["HX-Trigger"] = json.dumps(
-            {"acta:toast": {"message": format_missing_message(missing), "level": "error"}},
+            {"acta:toast": {"message": message, "level": "error"}},
         )
         return response
     with transaction.atomic():
