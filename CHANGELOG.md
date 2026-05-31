@@ -9,25 +9,73 @@ Automating this with `git-cliff` is deferred until `v1.0.0`.
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-05-31
+
+The headline release after `0.4.0`: a real workspace dashboard, archive
++ delete for projects and workspaces, Kaneo data import in prod, mobile
+viewport support, a Wave-1/2/3/4 audit-driven perf push, a pre-deploy
+backup pipeline, and a long tail of follow-ups around task-list filters,
+project membership, and notifications.
+
+### ⚠ Breaking / migrations
+
+Run migrations after deploying — this release adds rows across many
+apps. Existing data is preserved.
+
+- `notifications` (new app) + `reactions` (new app) + `cycles.0002`,
+  `tasks.0008..0012`, `projects.0004..0007`, `workspaces.0006..0008`,
+  `labels.0003..0004`, `accounts.0008`, `telegram.0001..0005` —
+  Django's `migrate` applies them all in dependency order.
+- `Task.end_date` / `Task.completed_at` (already in `0.4.0` migration
+  set, repeated here because the timeline + completion-date filters in
+  this release rely on the backfill having run).
+
 ### Added
 
-- **Archive / delete a project** from the project Overview header (owner /
-  admin only). Archive is a soft hide — the project drops out of the
-  sidebar and the active project list (revealed via "Show archived" on the
-  Projects page, with an Unarchive control on its overview). Delete is a
-  hard cascade behind a typed-slug confirmation modal; irreversible.
 - **Workspace dashboard** at `/` (was a stub): live KPI tiles (created /
   done / in-flight / active people with sparklines + "why" hints),
   attention alerts, cross-project status pipeline, an 8-week cumulative
   flow chart, per-project velocity with forecast, distribution panels,
   a workload matrix + sortable leaderboard, hygiene cards, and a
   7×24 activity heatmap. Range switch (7/14/30/90d) swaps the body via
-  HTMX. Realizes ADR 0016 from the design-system mock. Charts via
+  HTMX. Realises ADR 0016 from the design-system mock. Charts via
   Chart.js; data from a single N+1-safe context builder
   (`apps/web/dashboard.py`).
+- **Archive / delete a project** from the project Overview header (owner /
+  admin only). Archive is a soft hide — the project drops out of the
+  sidebar and the active project list (revealed via "Show archived" on the
+  Projects page, with an Unarchive control on its overview). Delete is a
+  hard cascade behind a typed-slug confirmation modal; irreversible.
+- **Archive view tab** on every task list (Table / List / Timeline /
+  Kanban / Backlog) with a locked archived-only filter and muted row
+  marker. Switches scope without leaving the page; archived rows stay
+  out of the default lists. See ADR 0004 follow-up.
 - **Task-list filter shortcuts** (also power the dashboard links):
   `due=overdue` / `due=soon` / `due=none`, `label=none`, `desc=none`.
   See ADR 0019.
+- **Favourite tasks** — toggle a star on any task; favourites appear
+  nested in the sidebar (or as a dedicated "Issues" list when there
+  are many). Per-user state, syncs over SSE.
+- **Telegram quiet-hours digest** — per-user quiet-hours window;
+  notifications produced during the window queue silently and flush
+  as a single digest when the window ends. Per-kind muting too.
+- **Project Updates polish** — inbox preview gets edit + delete
+  actions, opt-in project-stats snapshot embedded in the update, with
+  deep links into the matching filtered task list.
+- **Project membership** wired through the UI: assignee picker ranks
+  members first, sidebar "Show my projects" toggle, per-project
+  `notify_members_only` flag, workspace `auto_add_to_all_projects`
+  for invitees.
+- **Promote chip** — quick "advance status" pill in list view +
+  inline status-axis promotion; gated promotes (missing required
+  fields) open the task modal with the relevant picker focused.
+- **Required-on-transition** workspace policy — block forward
+  transitions out of `to-do` unless assignee / priority / description
+  are filled; surfaced uniformly on kanban DnD, promote chip, and
+  DRF PATCH. Companion `member_defaults` and members CSV export.
+- **Mobile viewport support** (Wave 4) — slide-in nav drawer below
+  `md:`, full-screen modals below `sm:`, bottom-sheet filter drawer,
+  full-screen inbox detail, compact list rows on mobile.
 
 ### Changed
 
@@ -48,6 +96,16 @@ Automating this with `git-cliff` is deferred until `v1.0.0`.
 - **Transfer ownership / delete workspace** (owner only, ADR 0010) in the
   Danger zone. Transfer hands the workspace to another member and demotes the
   old owner to admin; delete is a hard cascade behind a typed-slug confirm.
+- **Filter sidebar** redesigned with icon rail + 2-column layout,
+  client-side toggle persistence (cookies), badge counts via Alpine,
+  pinned full-row height.
+- **Kanban board** — header recount + substatus updates now arrive via
+  peer SSE (no manual refetch); Alpine `x-show` drift fixed by
+  swapping `Set` for a plain object selection store.
+- **List view** — in-place row swap on task mutation; backlog panel
+  refetches whole-panel on `task.status_changed` / `task.updated`.
+- **Label grouping** rolled out — Type / Area / Layer groups with
+  seeding + management UI; Cmd+K palette over labels and tasks.
 
 ### Fixed
 
@@ -62,14 +120,41 @@ Automating this with `git-cliff` is deferred until `v1.0.0`.
 - **Modal tooltips flip below their trigger** — an upward tooltip on a
   control just under the modal header was clipped by the panel's top
   edge; modal tooltips now render downward.
+- **Kanban flutter** on task creation — HTMX OOB insertion + ID-based
+  selectors + view-aware create paths (kanban / table / list + SSE).
+- **Sidebar nav jitter** — Alpine race on hydration; logo drift; live
+  filter counts.
+
+### Performance
+
+- **List payload** −80 % (3.74 MB → 0.746 MB on 260 tasks) via panel
+  splitting + per-axis lazy fetch (Wave 1 audit).
+- **Self-hosted htmx / sse** and Tailwind / Lucide rebuilds: Performance
+  score +41, Total Blocking Time −1080 ms, fonts +32 %, `acta.js`
+  148 → 54 KB, sprite −129 KB.
+- **TipTap lazy-load** — −169 KB gzip on non-editor pages.
+- **SSE sync fix** — `GZipSkipSseMiddleware` stops `GZipMiddleware`
+  buffering tiny SSE events in gzip's 32 KB window.
 
 ### Infrastructure
 
+- **Pre-deploy backup pipeline** — `make deploy` now runs
+  `make backup-prerelease` before any `git fetch` / `reset`.
+  `BRANCH=master` snapshots DB + media (retention 14);
+  `BRANCH=dev` snapshots DB only (retention 7). Bundles include a
+  manifest (`git_sha`, `target_sha`, applied migrations, sizes) and
+  are written under `$ACTA_BACKUP_DIR` (default `/var/backups/acta`).
+  `make backup-daily` is cron-ready for a daily DB-only snapshot.
+  `make restore FROM=<bundle>` restores a bundle, taking a safety
+  snapshot first. See `docs/operations.md` "Backups" and
+  `docs/deployment.md` "Rolling back".
 - **Telegram message templates auto-seed on deploy** — a new
   `seed_telegram_templates` management command (run from the entrypoint)
   fills the default body for any notification kind missing a row, so a
   fresh DB no longer starts with an empty admin template list. Idempotent;
-  `--overwrite` resets edited rows. See docs/operations.md §5.
+  `--overwrite` resets edited rows. See `docs/operations.md` §5.
+- **Kaneo import** applied to prod 2026-05-29 (18 projects / 260 tasks
+  / 315 labels / 16 users into the `ksu24` workspace).
 
 ## [0.4.0] — 2026-05-27
 
