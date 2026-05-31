@@ -32,6 +32,7 @@ to ``#overview-updates-list``). Expects ``update`` + ``health_labels``.
     <div class="prose prose-sm dark:prose-invert max-w-none text-[12.5px] leading-relaxed text-muted-foreground">
       {{ update.body|markdown }}
     </div>
+    {% include "web/projects/_update_stats_block.html" with stats=update.stats project=update.project %}
     <div class="mt-2.5">
       {% include "web/_reaction_bar.html" with target_type="update" target_id=update.id reactions=update.reaction_summary can_react=True %}
     </div>

@@ -230,6 +230,17 @@ class ProjectUpdate(models.Model):
     body = models.TextField(
         help_text="Update body in Markdown",
     )
+    stats = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            "Frozen task-counter snapshot when the author opted into "
+            "'Include stats since last update' at compose time. Empty dict "
+            "when the toggle was off. Shape: ``{since, until, closed, "
+            "in_progress, in_review, planned, ready}``; the snapshot stays "
+            "correct even after underlying tasks change or are deleted"
+        ),
+    )
     created_at = models.DateTimeField(
         auto_now_add=True,
         help_text="When the update was posted",

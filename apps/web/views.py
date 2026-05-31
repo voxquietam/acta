@@ -4752,6 +4752,8 @@ def post_project_update(request, slug_prefix):
         Rendered ``_overview_update_card.html`` for the new update, or
         400 when ``health`` is invalid or ``body`` is empty.
     """
+    from apps.projects.stats import compute_update_stats, resolve_stats_window_start
+
     project = _get_user_project_or_404(request.user, slug_prefix)
     health = (request.POST.get("health") or "").strip()
     if health not in {key for key, _ in ProjectUpdate.HEALTH_CHOICES}:
@@ -4759,11 +4761,18 @@ def post_project_update(request, slug_prefix):
     body = (request.POST.get("body") or "").strip()
     if not body:
         return HttpResponseBadRequest("body required")
+    # Snapshot the project counters BEFORE creating the new update — the
+    # window starts at the previous update's ``created_at``, and creating
+    # this update first would make the window collapse to zero seconds.
+    stats = {}
+    if request.POST.get("include_stats") == "on":
+        stats = compute_update_stats(project, since=resolve_stats_window_start(project))
     update = ProjectUpdate.objects.create(
         project=project,
         author=request.user,
         health=health,
         body=body,
+        stats=stats,
     )
     notify_project_update_created(update=update, actor=request.user)
     update.reaction_summary = []

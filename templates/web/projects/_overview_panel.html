@@ -323,11 +323,20 @@ Members with role badges.
               {% trans "Paste or drop an image to embed it · double-click an image to preview" %}
             </p>
           </div>
-          <div class="flex items-center justify-end gap-2">
-            <button type="button" @click="composing = false"
-                    class="px-3 py-1.5 text-xs rounded-md text-subtle-foreground hover:text-foreground hover:bg-muted transition">{% trans "Cancel" %}</button>
-            <button type="submit" :disabled="empty"
-                    class="px-3 py-1.5 text-xs rounded-md bg-brand-600 text-white hover:bg-brand-500 disabled:opacity-40 disabled:cursor-not-allowed">{% trans "Post update" %}</button>
+          <div class="flex items-center justify-between gap-3">
+            {# Opt-in counter snapshot — freezes closed/in-progress/in-review/    #}
+            {# planned/ready since the previous update on submit, so the card     #}
+            {# carries the project shape at that moment for posterity.            #}
+            <label class="inline-flex items-center gap-2 text-[11px] text-subtle-foreground cursor-pointer select-none">
+              <input type="checkbox" name="include_stats" class="h-3.5 w-3.5 rounded border-border-strong bg-muted text-brand-500 focus:ring-brand-500">
+              {% trans "Include stats since last update" %}
+            </label>
+            <div class="flex items-center gap-2">
+              <button type="button" @click="composing = false"
+                      class="px-3 py-1.5 text-xs rounded-md text-subtle-foreground hover:text-foreground hover:bg-muted transition">{% trans "Cancel" %}</button>
+              <button type="submit" :disabled="empty"
+                      class="px-3 py-1.5 text-xs rounded-md bg-brand-600 text-white hover:bg-brand-500 disabled:opacity-40 disabled:cursor-not-allowed">{% trans "Post update" %}</button>
+            </div>
           </div>
         </form>
 
