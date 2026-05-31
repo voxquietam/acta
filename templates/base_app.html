@@ -325,18 +325,15 @@ Pages extend this and override the `app_main` block.
       </div>
 
       {% comment %}
-      ``shrink-0`` (not ``flex-1``) so the right cluster's natural content
-      width is preserved — when both left and right were ``flex-1`` on a
-      393 px phone, available space was split equally and the right's
-      content (search + plus + avatar, ~130 px) was wider than its allotted
-      half. With ``justify-end`` the overflow leaked LEFT into the gap
-      between topbar_mid and topbar_right, visually crashing the search
-      icon into the view-picker dropdown trigger.
-      Left keeps its ``flex-1 min-w-0 overflow-hidden`` so the page title
-      truncates instead. Headers gap-3 now reads as a real 12 px between
-      the mid and right clusters.
+      Below md: ``shrink-0`` keeps the right cluster at content width so
+      it doesn't compete with topbar_left's ``flex-1`` (otherwise on a
+      393 px phone the right's natural ~130 px overflowed its half and
+      crashed the search icon into the view-picker dropdown — fix in
+      aa9d23f). At md:+ we restore ``flex-1 justify-end`` so left and
+      right both expand symmetrically and push topbar_mid (the view
+      tabs) to the visual centre of the header on desktop.
       {% endcomment %}
-      <div class="flex items-center gap-3 shrink-0">
+      <div class="flex items-center gap-3 shrink-0 md:flex-1 md:justify-end md:shrink">
         {% block topbar_right_prepend %}{% endblock %}
         {% comment %}
         Global command palette opener (Cmd/Ctrl+K). Dispatches the
