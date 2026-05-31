@@ -59,6 +59,7 @@ This shaves ~80% off the cold-load payload on the All Tasks list view
        data-list-axis="{{ axis_key }}" data-axis-pending
        hx-get="?panel=list&amp;axis_only={{ axis_key }}"
        hx-trigger="acta:load-axis"
+       hx-target="this"
        hx-swap="innerHTML"
        hx-indicator="this">
     <div class="grid place-items-center text-center py-12 text-placeholder-foreground text-xs">
