@@ -687,15 +687,38 @@ Section visibility flags from the view:
             </label>
           </div>
           {% endif %}
-          <div class="flex items-center gap-2">
+          {% comment %}
+          On the Archive tab the toggle is pinned ON and disabled — the
+          whole point of the view is to see archived rows, so letting the
+          user flip the toggle off would just blank the panel.
+
+          The lock has to be reactive to ``$store.viewMode.current``
+          because client-side tab switches don't re-render the sidebar
+          (only the panel slot swaps + a ``pushState``). The hidden input
+          tracks the same store: ``disabled`` inputs are dropped from
+          ``FormData`` and acta.js's ``readFilterState`` reads
+          ``show_archived`` straight from there, so we mirror the pinned
+          ``1`` through the hidden field that always survives
+          serialization. The visible checkbox stays disabled-when-archive
+          for the visual lock.
+          {% endcomment %}
+          {# On the Archive tab the toggle is visually locked (disabled +     #}
+          {# muted) but its actual checked state is NOT touched — that's     #}
+          {# the user's persisted preference for the other views. acta.js's  #}
+          {# ``readFilterState`` overrides ``showArchived=true`` on archive  #}
+          {# view without writing it back to the checkbox, so switching back #}
+          {# to List / Kanban honours whatever the user had set before.      #}
+          <div class="flex items-center gap-2"
+               x-data="{ get archiveLocked() { return this.$store.viewMode?.current === 'archive'; } }">
             <input type="hidden" name="show_archived" value="0">
-            <label class="cursor-pointer flex items-center gap-2 text-[12px] text-foreground"
-                   x-data
+            <label class="flex items-center gap-2 text-[12px] text-foreground"
+                   :class="archiveLocked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'"
                    @acta:filter-reset.window="$el.querySelector('input[name=show_archived][value=\'1\']').checked = false">
               <input type="checkbox" name="show_archived" value="1"
                      {% if show_archived %}checked{% endif %}
+                     :disabled="archiveLocked"
                      class="peer sr-only"
-                     onchange="this.form.requestSubmit()">
+                     onchange="if (!this.disabled) this.form.requestSubmit()">
               <span class="acta-flt-tg"></span>
               {% trans "Show archived" %}
             </label>

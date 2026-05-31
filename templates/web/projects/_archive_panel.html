@@ -1,0 +1,67 @@
+{% load i18n %}
+{% load lucide %}
+{% load web_extras %}
+{% comment %}
+Archive browser body. Lists archived tasks (``archived_at IS NOT NULL``)
+grouped by the month they were archived, most recent first. Each row
+reuses ``_task_row.html`` so the modal-open / filter handlers stay
+identical to every other surface; an inline unarchive control sits on
+the right and posts to ``archive_task`` with ``unarchive=1``, then fires
+``acta:task-changed`` so the parent ``#project-view-panel`` refetches
+and the row leaves the archive section the moment it returns to active.
+{% endcomment %}
+<div class="flex-1 min-h-0 overflow-y-auto px-1 py-2 space-y-5">
+  {% if archive_total %}
+    <div class="flex items-center gap-2 px-3 mb-1 text-[11px] text-placeholder-foreground">
+      {% lucide "archive" "w-3.5 h-3.5" %}
+      <span>{% blocktrans count n=archive_total %}{{ n }} archived task{% plural %}{{ n }} archived tasks{% endblocktrans %}</span>
+    </div>
+    {% for section in archive_sections %}
+    <section data-archive-section>
+      <div class="flex items-center gap-2 px-3 mb-1.5">
+        <h3 class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{{ section.label }}</h3>
+        <span class="font-mono text-[10px] text-placeholder-foreground">{{ section.tasks|length }}</span>
+      </div>
+      <ul class="bg-card border border-border rounded-lg divide-y divide-border overflow-hidden">
+        {% for task in section.tasks %}
+        <li class="group flex items-stretch hover:bg-muted/40">
+          <div class="flex-1 min-w-0">
+            {% include "web/_task_row.html" %}
+          </div>
+          {% comment %}Right strip: archived-age hint + hover-revealed unarchive
+          button. ``hx-target="closest [data-archive-section]"`` would clip the
+          response — keep it on the panel so a single SSE event repaints the
+          archive list correctly when the row leaves.{% endcomment %}
+          <div class="shrink-0 flex items-center gap-2 pr-3">
+            <span class="text-[10px] text-placeholder-foreground tabular-nums"
+                  title="{% blocktrans count days=task.archived_age_days %}Archived {{ days }} day ago{% plural %}Archived {{ days }} days ago{% endblocktrans %}">
+              {{ task.archived_age_days }}d
+            </span>
+            <form hx-post="{% url 'web:archive_task' slug_prefix=task.project.slug_prefix number=task.number %}"
+                  hx-trigger="submit"
+                  hx-swap="none"
+                  class="opacity-0 group-hover:opacity-100 transition">
+              {% csrf_token %}
+              <input type="hidden" name="unarchive" value="1">
+              <button type="submit"
+                      class="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md border border-border text-subtle-foreground hover:bg-muted hover:text-foreground transition"
+                      aria-label="{% trans 'Unarchive task' %}"
+                      data-tooltip="{% trans 'Unarchive' %}">
+                {% lucide "archive-restore" "w-3 h-3" %}{% trans "Unarchive" %}
+              </button>
+            </form>
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endfor %}
+  {% else %}
+    <div class="flex-1 grid place-items-center text-center py-16">
+      <div class="space-y-2">
+        {% lucide "archive" "w-8 h-8 mx-auto text-placeholder-foreground" %}
+        <p class="text-sm text-placeholder-foreground">{% trans "Archive is empty — no tasks have been archived yet." %}</p>
+      </div>
+    </div>
+  {% endif %}
+</div>

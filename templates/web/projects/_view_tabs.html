@@ -50,6 +50,7 @@ visible with a ``lock`` glyph.
               table: '{% trans 'Table' %}',
               list: '{% trans 'List' %}',
               timeline: '{% trans 'Timeline' %}',
+              archive: '{% trans 'Archive' %}',
             })[$store.viewMode.current] || '{% trans 'View' %}'"></span>
       {% lucide "chevron-down" "w-3.5 h-3.5 text-placeholder-foreground" %}
     </button>
@@ -83,6 +84,13 @@ visible with a ``lock`` glyph.
               class="w-full inline-flex items-center gap-2 px-2.5 py-1.5 rounded-md text-sm transition">
         {% lucide "list" "w-3.5 h-3.5" %}{% trans "List" %}
       </button>
+      {% if allow_archive %}
+      <button type="button" @click="pick('archive')" role="menuitem"
+              :class="$store.viewMode.current === 'archive' ? 'bg-brand-500/15 text-brand-300' : 'text-subtle-foreground hover:bg-muted/50 hover:text-foreground'"
+              class="w-full inline-flex items-center gap-2 px-2.5 py-1.5 rounded-md text-sm transition">
+        {% lucide "archive" "w-3.5 h-3.5" %}{% trans "Archive" %}
+      </button>
+      {% endif %}
     </div>
   </div>
 
@@ -200,4 +208,27 @@ visible with a ``lock`` glyph.
     {% trans "Timeline" %}
   </a>
   </nav>
+
+  {% comment %}
+  Archive tab — mirrors the Backlog pill on the opposite end of the bar
+  so the two "off-the-day-to-day" surfaces read as endpoints (intake on
+  the left, retirement on the right).
+  {% endcomment %}
+  {% if allow_archive %}
+  <a href="?view=archive"
+     @click.prevent="
+       $store.viewMode.set('archive');
+       const u = new URL(window.location);
+       u.searchParams.set('view', 'archive');
+       u.searchParams.delete('axis');
+       history.pushState({}, '', u);
+     "
+     :class="$store.viewMode.current === 'archive'
+       ? 'bg-brand-500/15 text-brand-300 ring-1 ring-brand-500/30 ring-inset border-transparent'
+       : 'bg-card text-subtle-foreground hover:text-foreground hover:bg-muted/50'"
+     class="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg border border-border transition text-sm">
+    {% lucide "archive" "w-3.5 h-3.5" %}
+    {% trans "Archive" %}
+  </a>
+  {% endif %}
 </div>

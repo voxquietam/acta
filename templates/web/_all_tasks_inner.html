@@ -20,8 +20,11 @@ column and the kanban cards still identify their project via the slug.
 {% include "web/_filter_count_badges.html" with variant="collapsed" oob=True %}
 {% include "web/_filter_count_badges.html" with variant="expanded" oob=True %}
 {% endif %}
-{% if tasks %}
-{% include "web/projects/_view_panel.html" with allow_backlog=True %}
+{# Backlog and Archive carry their own empty-state copy ("Backlog is empty" / #}
+{# "Archive is empty"), so the global "no tasks match filters" placeholder    #}
+{# should only fire on the active-task views (kanban / table / list / etc.).  #}
+{% if tasks or view_mode == "backlog" or view_mode == "archive" %}
+{% include "web/projects/_view_panel.html" with allow_backlog=True allow_archive=True %}
 {% else %}
 <div class="flex-1 min-h-0 grid place-items-center text-center">
   <div>

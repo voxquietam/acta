@@ -5,6 +5,7 @@ rendered Django templates; HTMX handles inline updates from the same
 endpoints (or from `/api/v1/...` for JSON-only consumers).
 """
 
+import collections
 import datetime
 from functools import cached_property
 import json
@@ -92,7 +93,7 @@ _MY_WORK_ACTIVE_STATUSES = [
 ]
 
 
-_VIEW_MODES = {"overview", "kanban", "table", "list", "timeline", "backlog"}
+_VIEW_MODES = {"overview", "kanban", "table", "list", "timeline", "backlog", "archive"}
 
 
 def _is_htmx_partial(request):
@@ -226,6 +227,51 @@ def _cycle_banner(request):
 _BACKLOG_STALE_DAYS = 90
 
 
+def _archive_context(tasks, *, today):
+    """Build the Archive context: archived tasks grouped by month.
+
+    Pulls archived rows out of the page's pre-filtered list (no extra
+    query), sorts most-recent-first, and slices them into month buckets
+    so the user reads "May 2026 / Apr 2026 / …". Each task is annotated
+    with ``archived_age_days`` for the row chrome.
+
+    Args:
+        tasks: Pre-filtered list (typically the workspace / project
+            scope) carrying both archived and active rows.
+        today: ``date`` anchor for age calculation.
+
+    Returns:
+        Context dict with ``archive_sections`` (list of
+        ``{"label", "tasks"}``), ``archive_total``, plus the label dicts
+        ``_task_row.html`` reads on the lazy ``?panel=archive`` path
+        where the full context isn't otherwise built.
+    """
+    archived = [task for task in tasks if task.archived_at is not None]
+    archived.sort(key=lambda task: task.archived_at, reverse=True)
+    for task in archived:
+        task.archived_age_days = (today - timezone.localtime(task.archived_at).date()).days
+    buckets = collections.OrderedDict()
+    for task in archived:
+        local = timezone.localtime(task.archived_at)
+        key = (local.year, local.month)
+        buckets.setdefault(key, []).append(task)
+    sections = [
+        {
+            "key": f"{year:04d}-{month:02d}",
+            "label": datetime.date(year, month, 1).strftime("%B %Y"),
+            "tasks": rows,
+        }
+        for (year, month), rows in buckets.items()
+    ]
+    return {
+        "archive_sections": sections,
+        "archive_total": len(archived),
+        "status_labels": Task.STATUS_LABELS,
+        "priority_labels": dict(Task.PRIORITY_CHOICES),
+        "today": today,
+    }
+
+
 def _backlog_context(tasks, *, today):
     """Build the Backlog grooming context: planned + ready tasks.
 
@@ -297,7 +343,7 @@ def _list_axis_options(option_keys, active_key):
     return [{"key": key, "label": _LIST_AXIS_LABELS[key], "active": key == active_key} for key in option_keys]
 
 
-def _resolve_view_mode(request, *, default, allow_overview=False, allow_backlog=False):
+def _resolve_view_mode(request, *, default, allow_overview=False, allow_backlog=False, allow_archive=False):
     """Resolve view_mode in the canonical order.
 
     Order: ``?view=`` querystring → ``acta_view_mode`` cookie → page
@@ -314,16 +360,20 @@ def _resolve_view_mode(request, *, default, allow_overview=False, allow_backlog=
             single project to show an overview of.
         allow_backlog: When True ``"backlog"`` is a valid value
             (project detail's grooming tab). All Tasks rejects it.
+        allow_archive: When True ``"archive"`` is a valid value
+            (the read-only browser for archived tasks).
 
     Returns:
         One of ``"overview"`` / ``"kanban"`` / ``"table"`` / ``"list"`` /
-        ``"timeline"`` / ``"backlog"``.
+        ``"timeline"`` / ``"backlog"`` / ``"archive"``.
     """
     allowed = {"kanban", "table", "list", "timeline"}
     if allow_overview:
         allowed.add("overview")
     if allow_backlog:
         allowed.add("backlog")
+    if allow_archive:
+        allowed.add("archive")
     view_mode = request.GET.get("view")
     if view_mode in allowed:
         return view_mode
@@ -502,6 +552,8 @@ class AllTasksView(LoginRequiredMixin, ListView):
             return ["web/projects/_timeline.html"]
         if self.request.GET.get("panel") == "backlog":
             return ["web/projects/_backlog_panel.html"]
+        if self.request.GET.get("panel") == "archive":
+            return ["web/projects/_archive_panel.html"]
         if _is_htmx_partial(self.request):
             return ["web/_all_tasks_inner.html"]
         return ["web/all_tasks.html"]
@@ -532,6 +584,21 @@ class AllTasksView(LoginRequiredMixin, ListView):
             return []
         qs = _user_task_qs(self.request.user).filter(project__workspace=active)
         params = _params_with_archive_cookie(self.request)
+        return list(apply_task_filters(qs, params, request_user=self.request.user))
+
+    def _archive_tasks(self):
+        """Archived rows for the Archive tab — bypasses the ``show_archived``
+        toggle (the whole point of the tab is to see them) but keeps the rest
+        of the filter sidebar in play so the user can narrow the archive by
+        project / assignee / label etc."""
+        active = resolve_active_workspace(self.request)
+        if active is None:
+            return []
+        qs = _user_task_qs(self.request.user).filter(project__workspace=active, archived_at__isnull=False)
+        params = self.request.GET.copy()
+        # ``apply_task_filters`` would otherwise hide them again under the
+        # default ``show_archived=False``; force the toggle on for this view.
+        params["show_archived"] = "1"
         return list(apply_task_filters(qs, params, request_user=self.request.user))
 
     def render_to_response(self, context, **response_kwargs):
@@ -653,7 +720,7 @@ class AllTasksView(LoginRequiredMixin, ListView):
         Assignee lives in the top strip, not in the sidebar.
         """
         ctx = super().get_context_data(**kwargs)
-        view_mode = _resolve_view_mode(self.request, default="table", allow_backlog=True)
+        view_mode = _resolve_view_mode(self.request, default="table", allow_backlog=True, allow_archive=True)
         ctx["view_mode"] = view_mode
         ctx["view_panel_target"] = "#task-list-wrapper"
         ctx["show_project"] = True
@@ -699,6 +766,11 @@ class AllTasksView(LoginRequiredMixin, ListView):
             ctx.update(_backlog_context(self._backlog_tasks(), today=ctx["today"]))
             return ctx
 
+        # ``?panel=archive`` — lazy fetch of just the archived-rows body.
+        if self.request.GET.get("panel") == "archive":
+            ctx.update(_archive_context(self._archive_tasks(), today=ctx["today"]))
+            return ctx
+
         # ``?panel=table`` — lazy fetch of just the table body. ``table_tasks``
         # + ``show_labels`` are already in ``ctx`` above; nothing else needed.
         if self.request.GET.get("panel") == "table":
@@ -728,6 +800,8 @@ class AllTasksView(LoginRequiredMixin, ListView):
             ctx.update(self._list_axes_ctx(table_tasks))
         elif view_mode == "backlog":
             ctx.update(_backlog_context(self._backlog_tasks(), today=ctx["today"]))
+        elif view_mode == "archive":
+            ctx.update(_archive_context(self._archive_tasks(), today=ctx["today"]))
         ctx["cycle_banner"] = _cycle_banner(self.request)
         sidebar_params = _params_with_archive_cookie(self.request)
         sidebar_params["show_backlog"] = resolve_show_backlog(self.request)
@@ -1707,6 +1781,23 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             },
         }
 
+    def _archive_tasks(self, project):
+        """Archived rows for the Archive tab on the project page.
+
+        Bypasses the ``show_archived`` toggle (the whole point of the tab is
+        to see them) but keeps the rest of the filter sidebar in play. The
+        project scope is already enforced by the caller; here we just narrow
+        to rows with ``archived_at`` set.
+        """
+        qs = (
+            Task.objects.filter(project=project, archived_at__isnull=False)
+            .select_related("assignee", "reporter", "parent", "project__workspace")
+            .prefetch_related("labels")
+        )
+        params = self.request.GET.copy()
+        params["show_archived"] = "1"
+        return list(apply_task_filters(qs, params, request_user=self.request.user))
+
     def get_template_names(self):
         """Full page on cold load; only the panel fragment for HTMX swaps.
 
@@ -1727,6 +1818,8 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             return ["web/projects/_timeline.html"]
         if self.request.GET.get("panel") == "backlog":
             return ["web/projects/_backlog_panel.html"]
+        if self.request.GET.get("panel") == "archive":
+            return ["web/projects/_archive_panel.html"]
         if _is_htmx_partial(self.request):
             return ["web/projects/_view_panel_wrapper.html"]
         return ["web/projects/detail.html"]
@@ -1825,7 +1918,13 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         from apps.common.markdown import render_markdown
 
         ctx = super().get_context_data(**kwargs)
-        view_mode = _resolve_view_mode(self.request, default="kanban", allow_overview=True, allow_backlog=True)
+        view_mode = _resolve_view_mode(
+            self.request,
+            default="kanban",
+            allow_overview=True,
+            allow_backlog=True,
+            allow_archive=True,
+        )
         ctx["view_mode"] = view_mode
         # Common per-task display dicts — needed by both the full page
         # and the lazy ``?panel=list`` fragment (``_task_row.html`` uses
@@ -1998,6 +2097,9 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         if panel == "backlog":
             ctx.update(_backlog_context(list(base), today=today))
             return ctx
+        if panel == "archive":
+            ctx.update(_archive_context(self._archive_tasks(project), today=today))
+            return ctx
         if table_only:
             ctx["tasks"] = table_tasks
             ctx["show_labels"] = True
@@ -2023,6 +2125,8 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
                 ctx.update(_timeline_context(table_tasks, today))
             elif view_mode == "backlog":
                 ctx.update(_backlog_context(list(base), today=today))
+            elif view_mode == "archive":
+                ctx.update(_archive_context(self._archive_tasks(project), today=today))
 
         ctx["cycle_banner"] = _cycle_banner(self.request)
 
@@ -4925,7 +5029,7 @@ def archive_task(request, slug_prefix, number):
         task.archived_at = None if unarchive else timezone.now()
         task.save(update_fields=["archived_at", "updated_at"])
         emit_task_diff_events(old_state=old_state, task=task, actor=request.user)
-    return _inline_edit_response(
+    response = _inline_edit_response(
         request,
         task,
         "web/projects/_task_meta.html",
@@ -4936,6 +5040,12 @@ def archive_task(request, slug_prefix, number):
             **task_picker_context(task),
         },
     )
+    # Fire ``acta:task-changed`` so the Archive / All Tasks / project view
+    # panels (whose root carries ``hx-trigger="acta:task-changed from:body"``)
+    # refetch their inner — the row needs to disappear from the archive list
+    # the moment it returns to active, or appear in it when archived.
+    response["HX-Trigger"] = "acta:task-changed"
+    return response
 
 
 @require_POST

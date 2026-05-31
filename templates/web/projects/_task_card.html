@@ -28,7 +28,7 @@ handler in ``_kanban.html`` restores it for middle / Ctrl+click.
    {% open_task_modal_attrs task %}
    {% task_filter_attrs task %}
    class="relative block bg-card border border-border rounded-lg p-2.5 overflow-hidden hover:border-border-strong transition group cursor-grab active:cursor-grabbing
-     {% if task.status == 'done' %}opacity-90{% endif %}">
+     {% if task.archived_at %}opacity-70{% elif task.status == 'done' %}opacity-90{% endif %}">
 
   {% comment %}
   Aging WIP: a left-edge bar grows in alarm as a card sits in its column.
@@ -60,6 +60,11 @@ handler in ``_kanban.html`` restores it for middle / Ctrl+click.
 
   <div class="flex items-center gap-1.5 text-[11px] text-placeholder-foreground min-w-0">
     <span class="font-mono">{{ task.slug }}</span>
+    {% if task.archived_at %}
+    {# Archive marker — matches the row variant; pairs with the card's     #}
+    {# opacity-70 so an archived card reads as muted at a glance.          #}
+    <span class="text-placeholder-foreground" title="{% trans 'Archived' %}">{% lucide "archive" "w-3 h-3" %}</span>
+    {% endif %}
     {% if task.priority %}
     <span class="inline-flex items-center
       {% if task.priority == 1 %}text-red-400

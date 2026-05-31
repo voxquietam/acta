@@ -94,4 +94,17 @@ no extra HTTP requests fire on tab change. Tabs themselves live in
   </div>
   {% endif %}
 
+  {% comment %}
+  Archive browser tab — gated on ``allow_archive``. Same lazy-load pattern
+  via ``?panel=archive`` so the cold load skips the archive query when
+  the user lands on another tab.
+  {% endcomment %}
+  {% if allow_archive %}
+  <div x-show="$store.viewMode.current === 'archive'"
+       {% if view_mode != 'archive' %}style="display:none"{% endif %}
+       data-panel-slot="archive" class="flex-1 min-h-0 flex flex-col">
+    {% if view_mode == "archive" %}{% include "web/projects/_archive_panel.html" %}{% endif %}
+  </div>
+  {% endif %}
+
 </div>

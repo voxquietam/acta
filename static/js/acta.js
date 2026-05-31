@@ -485,7 +485,12 @@
     const multi = (name) => fd.getAll(name).map((v) => String(v));
     // ``show_archived`` / ``show_backlog`` each carry a hidden ``0`` + the
     // checkbox ``1`` when on — "trailing 1 wins", same as the server parse.
-    const showArchived = fd.getAll("show_archived").includes("1");
+    //
+    // Archive view forces ``showArchived=true`` for the duration of the tab
+    // without touching the form state — the toggle stays whatever the user
+    // had set, so switching back to List / Kanban honours their preference.
+    const viewMode = window.Alpine?.store?.("viewMode")?.current;
+    const showArchived = viewMode === "archive" || fd.getAll("show_archived").includes("1");
     const showBacklog = fd.getAll("show_backlog").includes("1");
     return {
       status: new Set(multi("status")),
@@ -3391,7 +3396,7 @@
     // view toggle in ``_view_panel.html`` calls ``set(...)`` so the
     // sidebar (Status section in particular) re-evaluates without
     // waiting for a full page reload.
-    const VIEW_MODES = new Set(["overview", "kanban", "table", "list", "timeline", "backlog"]);
+    const VIEW_MODES = new Set(["overview", "kanban", "table", "list", "timeline", "backlog", "archive"]);
     function readViewModeCookie() {
       const m = document.cookie.match(/(?:^|;\s*)acta_view_mode=([^;]+)/);
       const value = m ? m[1] : "";
@@ -3414,6 +3419,13 @@
         // then switches to that tab and sees nothing. Retrigger the load
         // for any still-empty slot now that they're looking at it.
         if (window.actaLoadPanels) window.actaLoadPanels();
+        // The "Show archived" toggle is pinned ON in archive mode and
+        // reverts to the user's choice outside it — both transitions
+        // change ``show_archived`` in the form, so re-run the client-side
+        // filter pass on the next tick (Alpine binds the new value first).
+        if (window.actaApplyFilters) {
+          queueMicrotask(window.actaApplyFilters);
+        }
       },
       // Re-read the server-set cookie after every HTMX boost. The
       // sidebar persists across navigations, so this store survives —
