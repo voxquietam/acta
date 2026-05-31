@@ -18,6 +18,14 @@ _JOBS = [
     ("notify cycle events", "apps.common.scheduled.notify_cycle_events", (6, 0)),
 ]
 
+# Minute-cadence schedules (django-q ``MINUTES`` cycle). Used for the
+# Telegram quiet-hours digest: it has to fire close to when a user's
+# window closes, so a daily slot doesn't fit. ``minutes`` is the
+# period between runs.
+_MINUTE_JOBS = [
+    ("flush telegram quiet digests", "apps.common.scheduled.flush_telegram_quiet_digests", 5),
+]
+
 
 class Command(BaseCommand):
     help = "Create the daily Django-Q schedules for recurring jobs (idempotent)."
@@ -42,3 +50,17 @@ class Command(BaseCommand):
             )
             verb = "created" if created else "exists"
             self.stdout.write(f"{verb}: {name} (daily ~{hour:02d}:{minute:02d})")
+
+        for name, func, minutes in _MINUTE_JOBS:
+            _schedule, created = Schedule.objects.get_or_create(
+                name=name,
+                defaults={
+                    "func": func,
+                    "schedule_type": Schedule.MINUTES,
+                    "minutes": minutes,
+                    "repeats": -1,
+                    "next_run": now + datetime.timedelta(minutes=minutes),
+                },
+            )
+            verb = "created" if created else "exists"
+            self.stdout.write(f"{verb}: {name} (every {minutes} min)")

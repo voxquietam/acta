@@ -36,6 +36,26 @@ class TelegramAccount(models.Model):
         blank=True,
         help_text="Notification kinds (Notification.Kind values) NOT delivered here; empty = all kinds sent",
     )
+    quiet_hours_enabled = models.BooleanField(
+        default=False,
+        help_text=(
+            "When on, notifications fired inside the start/end window are queued instead of "
+            "delivered live; one consolidated digest goes out the first scheduler tick after "
+            "the window closes"
+        ),
+    )
+    quiet_hours_start = models.TimeField(
+        null=True,
+        blank=True,
+        help_text="Local time the quiet window opens (e.g. 18:00). Server TZ for MVP; per-user TZ deferred",
+    )
+    quiet_hours_end = models.TimeField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Local time the quiet window closes (e.g. 08:00). When end < start the window wraps " "past midnight"
+        ),
+    )
     linked_at = models.DateTimeField(
         auto_now_add=True,
         help_text="When the account was linked",
@@ -49,6 +69,67 @@ class TelegramAccount(models.Model):
         """Return the linked user and Telegram handle."""
         handle = f"@{self.username}" if self.username else self.chat_id
         return f"{self.user} ↔ {handle}"
+
+
+class TelegramQueuedNotification(models.Model):
+    """A notification deferred by quiet hours, awaiting the next digest.
+
+    Created by ``notify_via_telegram`` when the recipient's window is open;
+    drained by the ``flush_telegram_quiet_digests`` scheduler job that
+    runs the first tick after the window closes. Body is rendered + frozen
+    at queue time so the digest reflects what the user would have seen
+    live — later edits to the source notification don't rewrite history.
+    """
+
+    account = models.ForeignKey(
+        TelegramAccount,
+        on_delete=models.CASCADE,
+        related_name="queued_notifications",
+        help_text="Account whose quiet hours queued this row",
+    )
+    kind = models.CharField(
+        max_length=20,
+        help_text="Notification kind (Notification.Kind value); kept for (task_id, kind) dedupe",
+    )
+    task_id = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Source task id when the notification was task-scoped; null otherwise. Same-task "
+            "chatter is de-duplicated by (task_id, kind), keeping the latest"
+        ),
+    )
+    body = models.TextField(
+        help_text="Rendered Telegram message body frozen at queue time (HTML, bot's parse_mode)",
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When the row was queued; also drives chronological order in the digest",
+    )
+    delivered_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the digest including this row went out; null while still pending",
+    )
+
+    class Meta:
+        verbose_name = _("Telegram queued notification")
+        verbose_name_plural = _("Telegram queued notifications")
+        ordering = [
+            "created_at",
+        ]
+        indexes = [
+            models.Index(
+                fields=[
+                    "account",
+                    "delivered_at",
+                ],
+            ),
+        ]
+
+    def __str__(self) -> str:
+        """Return the account and queue timestamp for admin readability."""
+        return f"{self.account} · queued {self.created_at:%Y-%m-%d %H:%M}"
 
 
 class TelegramMessageTemplate(models.Model):

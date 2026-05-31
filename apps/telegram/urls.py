@@ -1,6 +1,13 @@
 from django.urls import path
 
-from .views import telegram_disconnect, telegram_status, telegram_toggle, telegram_toggle_kind, telegram_webhook
+from .views import (
+    telegram_disconnect,
+    telegram_set_quiet_hours,
+    telegram_status,
+    telegram_toggle,
+    telegram_toggle_kind,
+    telegram_webhook,
+)
 
 app_name = "telegram"
 
@@ -10,4 +17,5 @@ urlpatterns = [
     path("disconnect/", telegram_disconnect, name="disconnect"),
     path("toggle/", telegram_toggle, name="toggle"),
     path("toggle-kind/", telegram_toggle_kind, name="toggle_kind"),
+    path("set-quiet-hours/", telegram_set_quiet_hours, name="set_quiet_hours"),
 ]

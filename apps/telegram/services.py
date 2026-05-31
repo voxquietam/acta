@@ -24,7 +24,7 @@ from django.utils.html import escape
 from django.utils.translation import gettext as _
 
 from . import client
-from .models import TelegramAccount, TelegramLinkToken, TelegramMessageTemplate
+from .models import TelegramAccount, TelegramLinkToken, TelegramMessageTemplate, TelegramQueuedNotification
 
 _PLACEHOLDER_RE = re.compile(r"\{(\w+)\}")
 
@@ -506,14 +506,57 @@ def _format_notification(notification) -> str:
     return "\n".join(lines)
 
 
+def is_in_quiet_hours(start: datetime.time | None, end: datetime.time | None, now_time: datetime.time) -> bool:
+    """Return whether ``now_time`` falls inside the quiet window ``[start, end)``.
+
+    Handles the wrap-past-midnight case (``end < start`` — e.g. 18:00 → 08:00)
+    and the zero-width edge (``start == end`` is never silent). Callers
+    decide whether to evaluate at all — typically gated by
+    ``account.quiet_hours_enabled`` and both endpoints being set.
+
+    Args:
+        start: Local time the window opens.
+        end: Local time the window closes.
+        now_time: Local time to test.
+
+    Returns:
+        ``True`` when ``now_time`` is inside the window, ``False`` otherwise
+        (or when ``start`` / ``end`` is ``None``, or they coincide).
+    """
+    if start is None or end is None or start == end:
+        return False
+    if start < end:
+        return start <= now_time < end
+    # Wrap past midnight: window is (now >= start) OR (now < end).
+    return now_time >= start or now_time < end
+
+
+def _account_in_quiet_hours(account, now=None) -> bool:
+    """Convenience wrapper that consults the account's stored window."""
+    if not account.quiet_hours_enabled:
+        return False
+    local_time = timezone.localtime(now).time()
+    return is_in_quiet_hours(account.quiet_hours_start, account.quiet_hours_end, local_time)
+
+
 def notify_via_telegram(notification) -> bool:
     """Deliver a notification to the recipient's Telegram, if linked + enabled.
 
     Best-effort and silent when the recipient has no linked chat or has
     muted the kind. Announcements are force-delivered: members can't mute
     them and there's no sender opt-out — only unlinking / disabling Telegram
-    stops them. Renders the message in the recipient's language. Returns
-    whether a message was sent.
+    stops them. Renders the message in the recipient's language.
+
+    Quiet hours: when the recipient's window is open the rendered body is
+    queued on :class:`TelegramQueuedNotification` and the function returns
+    ``True`` (delivery is deferred, not skipped); the
+    ``flush_telegram_quiet_digests`` scheduler drains the queue into a
+    single batched DM the first tick after the window closes.
+
+    Returns:
+        Whether the message was sent live OR queued for digest. ``False``
+        only when the recipient isn't reachable (no account, account
+        disabled, or the kind is muted).
     """
     from apps.notifications.models import Notification
 
@@ -527,4 +570,12 @@ def notify_via_telegram(notification) -> bool:
     lang = getattr(account.user, "language", "") or settings.LANGUAGE_CODE
     with translation.override(lang):
         text = _format_notification(notification)
+    if _account_in_quiet_hours(account):
+        TelegramQueuedNotification.objects.create(
+            account=account,
+            kind=notification.kind,
+            task_id=notification.task_id,
+            body=text,
+        )
+        return True
     return client.send_message(account.chat_id, text)

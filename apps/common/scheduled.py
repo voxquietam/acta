@@ -22,3 +22,8 @@ def gc_orphan_attachments() -> None:
 def notify_cycle_events() -> None:
     """Fan out cycle start / ending-soon notifications for the day."""
     call_command("notify_cycle_events")
+
+
+def flush_telegram_quiet_digests() -> None:
+    """Send a batched digest to each account whose quiet window just closed."""
+    call_command("flush_telegram_quiet_digests")
