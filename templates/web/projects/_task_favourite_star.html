@@ -1,0 +1,35 @@
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+Star toggle for a task — mirror of ``_project_favourite_star.html``.
+Expects ``task`` + ``is_favourite`` (bool) in context. Submits to
+``toggle_task_favourite``; response includes this same partial (icon
+flips in place) plus an OOB swap of the sidebar nav so the starred /
+unstarred entry appears or disappears live.
+
+``hx-swap-oob`` is rendered ONLY in the toggle response (``oob`` flag),
+never on the page-rendered star. As a static attribute it would be
+processed during a boosted ``#app-content`` swap and — finding no
+existing target on the page we're navigating *to* — htmx would drop the
+element, so the star vanished until a full reload.
+{% endcomment %}
+<form id="task-favourite-{{ task.slug }}"
+      hx-post="{% url 'web:toggle_task_favourite' slug_prefix=task.project.slug_prefix number=task.number %}"
+      hx-target="#task-favourite-{{ task.slug }}"
+      hx-swap="outerHTML"
+      {% if oob %}hx-swap-oob="outerHTML:#task-favourite-{{ task.slug }}"{% endif %}
+      class="inline-flex">
+  {% csrf_token %}
+  <button type="submit"
+          aria-label="{% if is_favourite %}{% trans 'Unstar task' %}{% else %}{% trans 'Star task' %}{% endif %}"
+          data-tooltip="{% if is_favourite %}{% trans 'Unstar' %}{% else %}{% trans 'Star' %}{% endif %}"
+          {% if tooltip_pos %}data-tooltip-pos="{{ tooltip_pos }}"{% endif %}
+          class="p-1 rounded-md hover:bg-muted transition
+                 {% if is_favourite %}text-amber-400{% else %}text-placeholder-foreground hover:text-foreground{% endif %}">
+    {% if is_favourite %}
+      {% lucide "star" "w-4 h-4 fill-current" %}
+    {% else %}
+      {% lucide "star" "w-4 h-4" %}
+    {% endif %}
+  </button>
+</form>

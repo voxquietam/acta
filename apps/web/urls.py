@@ -93,6 +93,7 @@ from .views import (
     toggle_project_favourite,
     toggle_project_member,
     toggle_reaction_view,
+    toggle_task_favourite,
     toggle_task_label,
     transfer_workspace_ownership,
     update_card_fragment,
@@ -313,6 +314,11 @@ urlpatterns = [
         "projects/<str:slug_prefix>/favourite/",
         toggle_project_favourite,
         name="toggle_project_favourite",
+    ),
+    path(
+        "projects/<str:slug_prefix>/<int:number>/favourite/",
+        toggle_task_favourite,
+        name="toggle_task_favourite",
     ),
     path(
         "workspace/switch/<int:workspace_id>/",

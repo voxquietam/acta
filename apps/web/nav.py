@@ -7,14 +7,21 @@ under the workspace they belong to. When the user has no favourites,
 templates show an empty-state CTA instead of every project — the rail
 stays clean for users who pin a handful of active threads.
 
+Starred tasks (``User.favourite_tasks``) ride alongside: each task whose
+project is itself starred renders as a nested row under that project;
+tasks whose project isn't starred surface in a separate "Issues"
+section beneath the project list.
+
 Used by:
 * ``workspace_nav`` context processor (every authenticated page).
-* ``toggle_project_favourite`` view for the OOB sidebar refresh.
+* ``toggle_project_favourite`` / ``toggle_task_favourite`` views for the
+  OOB sidebar refresh.
 """
 
 from django.db.models import Prefetch
 
 from apps.projects.models import Project
+from apps.tasks.models import Task
 from apps.workspaces.models import Workspace
 
 _ACTIVE_WS_CACHE = "_acta_active_workspace"
@@ -116,4 +123,27 @@ def get_nav_workspaces(user):
         )
         .order_by("name")
         .distinct(),
+    )
+
+
+def get_workspace_favourite_tasks(user, workspace):
+    """Return the user's starred tasks within ``workspace``.
+
+    Returns:
+        ``list[Task]`` ordered by project name then number, with
+        ``project`` joined so the template can render project context
+        without a per-row lookup. Archived tasks are excluded from the
+        rail (they live in the Archive tab, not the favourites list).
+        Returns an empty list when ``workspace`` is ``None``.
+    """
+    if workspace is None:
+        return []
+    return list(
+        Task.objects.filter(
+            favourited_by_users=user,
+            project__workspace=workspace,
+            archived_at__isnull=True,
+        )
+        .select_related("project")
+        .order_by("project__name", "number"),
     )

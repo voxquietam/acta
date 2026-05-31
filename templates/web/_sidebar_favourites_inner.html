@@ -1,40 +1,102 @@
 {% load i18n %}
 {% load lucide %}
+{% load web_extras %}
 {% comment %}
 Inner content of the sidebar favourites list — the ACTIVE workspace's
-starred projects (or an empty-state CTA). Favourites are scoped to the
-active workspace now that the switcher picks one; the workspace name is
-shown by the switcher above, so no per-workspace group header here.
+starred projects, with starred tasks slotted in:
+
+* Tasks whose project is starred render as nested rows beneath that
+  project (clickable folder/chevron expand-collapse, state persisted
+  in localStorage so the expansion survives navigation).
+* Tasks whose project ISN'T starred surface in a separate "Issues"
+  section below the project list.
 
 Shared by ``base_app.html`` (initial render) and
 ``_sidebar_favourites_oob.html`` (the OOB swap after a star toggle) so
 the two never drift. Expects ``active_workspace`` (carrying
-``.favourite_projects``) and ``nav_has_favourites`` — both injected by
-the ``workspace_nav`` context processor.
+``.favourite_projects``), ``nav_has_favourites``,
+``nav_favourite_tasks_by_project``, ``nav_favourite_tasks_orphan`` —
+all injected by the ``workspace_nav`` context processor.
 {% endcomment %}
 {% if active_workspace and active_workspace.favourite_projects %}
 <ul class="space-y-0.5">
   {% for project in active_workspace.favourite_projects %}
-  <li>
-    <a href="{% url 'web:project_detail' slug_prefix=project.slug_prefix %}"
-       data-nav-prefix
-       class="acta-rail-link group relative flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground">
-      <span class="shrink-0 {{ project.icon_color_class }}" data-project-icon-for="{{ project.slug_prefix }}">
-        {% lucide project.icon|default:"folder" "w-3.5 h-3.5" %}
-      </span>
-      <span :class="!$store.sidebar.open && 'md:hidden'" x-cloak class="font-mono text-xs text-subtle-foreground">{{ project.slug_prefix }}</span>
-      <span :class="!$store.sidebar.open && 'md:hidden'" x-cloak class="truncate">{{ project.name }}</span>
-      <span x-show="!$store.sidebar.open" x-cloak class="hidden md:block acta-rail-tip">{{ project.slug_prefix }} · {{ project.name }}</span>
-    </a>
+  {% with nested_tasks=nav_favourite_tasks_by_project|get_item:project.id %}
+  <li{% if nested_tasks %} x-data="{ open: true }"{% endif %}>
+    <div class="group flex items-center gap-1">
+      {% if nested_tasks %}
+      {# Chevron toggles the nested task list; only renders when there's #}
+      {# something to expand so projects without starred tasks stay flat. #}
+      <button type="button"
+              @click="open = !open"
+              :aria-expanded="open ? 'true' : 'false'"
+              aria-label="{% trans 'Toggle starred tasks' %}"
+              :class="!$store.sidebar.open && 'md:hidden'"
+              x-cloak
+              class="p-0.5 rounded text-placeholder-foreground hover:bg-muted hover:text-foreground transition">
+        <span :class="open && 'rotate-90'" class="inline-block transition-transform">
+          {% lucide "chevron-right" "w-3 h-3" %}
+        </span>
+      </button>
+      {% endif %}
+      <a href="{% url 'web:project_detail' slug_prefix=project.slug_prefix %}"
+         data-nav-prefix
+         class="acta-rail-link relative flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground flex-1 min-w-0">
+        <span class="shrink-0 {{ project.icon_color_class }}" data-project-icon-for="{{ project.slug_prefix }}">
+          {% lucide project.icon|default:"folder" "w-3.5 h-3.5" %}
+        </span>
+        <span :class="!$store.sidebar.open && 'md:hidden'" x-cloak class="font-mono text-xs text-subtle-foreground">{{ project.slug_prefix }}</span>
+        <span :class="!$store.sidebar.open && 'md:hidden'" x-cloak class="truncate">{{ project.name }}</span>
+        <span x-show="!$store.sidebar.open" x-cloak class="hidden md:block acta-rail-tip">{{ project.slug_prefix }} · {{ project.name }}</span>
+      </a>
+    </div>
+    {% if nested_tasks %}
+    <ul x-show="open" x-cloak :class="!$store.sidebar.open && 'md:hidden'"
+        class="ml-5 mt-0.5 space-y-0.5 border-l border-border pl-2">
+      {% for task in nested_tasks %}
+      <li>
+        <a href="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
+           data-nav-prefix
+           class="acta-rail-link flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-muted hover:text-foreground text-subtle-foreground text-xs">
+          <span class="font-mono text-[10px] text-placeholder-foreground shrink-0">{{ task.slug }}</span>
+          <span class="truncate">{{ task.title }}</span>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
   </li>
+  {% endwith %}
   {% endfor %}
 </ul>
 {% endif %}
 
-{% if not nav_has_favourites %}
+{% if nav_favourite_tasks_orphan %}
+{# "Issues" section: starred tasks whose project itself isn't starred. #}
+{# Standalone bucket so users who star ad-hoc tickets across projects   #}
+{# don't have to also star the parent project to find them in the rail. #}
+<div :class="!$store.sidebar.open && 'md:hidden'" x-cloak
+     class="mt-3 pt-2 border-t border-border space-y-0.5">
+  <p class="px-2 text-[10px] uppercase tracking-wider text-placeholder-foreground font-medium">{% trans "Issues" %}</p>
+  <ul class="space-y-0.5">
+    {% for task in nav_favourite_tasks_orphan %}
+    <li>
+      <a href="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
+         data-nav-prefix
+         class="acta-rail-link flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-muted hover:text-foreground text-subtle-foreground text-xs">
+        <span class="font-mono text-[10px] text-placeholder-foreground shrink-0">{{ task.slug }}</span>
+        <span class="truncate">{{ task.title }}</span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{% if not nav_has_favourites and not nav_favourite_tasks_orphan %}
 <div :class="!$store.sidebar.open && 'md:hidden'" x-cloak
      class="px-2 py-3 text-xs text-placeholder-foreground italic flex items-start gap-2">
   {% lucide "star" "w-3.5 h-3.5 mt-0.5 shrink-0" %}
-  <span>{% trans "Star a project from the Projects page to pin it here." %}</span>
+  <span>{% trans "Star a project from the Projects page — or a task from its detail view — to pin it here." %}</span>
 </div>
 {% endif %}

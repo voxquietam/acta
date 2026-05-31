@@ -2130,6 +2130,7 @@ class TaskDetailView(LoginRequiredMixin, DetailView):
         ctx["timeline"] = _sort_timeline(ctx["comments"], non_comment_activity)
         ctx["status_labels"] = Task.STATUS_LABELS
         ctx["priority_labels"] = dict(Task.PRIORITY_CHOICES)
+        ctx["is_favourite_task"] = self.request.user.favourite_tasks.filter(pk=task.pk).exists()
         ctx.update(task_picker_context(task))
         return ctx
 
@@ -4049,6 +4050,39 @@ def toggle_project_favourite(request, slug_prefix):
     # The favourites OOB reads ``active_workspace`` / ``nav_has_favourites``
     # straight from the ``workspace_nav`` context processor (request passed),
     # so it re-renders the active workspace's freshly-updated favourites.
+    sidebar_oob = render_to_string(
+        "web/_sidebar_favourites_oob.html",
+        {},
+        request=request,
+    )
+    return HttpResponse(star_html + sidebar_oob)
+
+
+@require_POST
+@login_required
+def toggle_task_favourite(request, slug_prefix, number):
+    """Star / unstar a task from the user's favourites.
+
+    Mirror of ``toggle_project_favourite``: same pattern, scoped to a
+    single task. Response is the freshly-rendered star button (icon
+    flips in place via outerHTML OOB) plus an OOB swap of the sidebar
+    favourites list so the new entry appears / disappears live in the
+    rail (nested under its project, or in the Issues section when the
+    project itself isn't starred).
+    """
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    user = request.user
+    if user.favourite_tasks.filter(pk=task.pk).exists():
+        user.favourite_tasks.remove(task)
+        is_favourite = False
+    else:
+        user.favourite_tasks.add(task)
+        is_favourite = True
+    star_html = render_to_string(
+        "web/projects/_task_favourite_star.html",
+        {"task": task, "is_favourite": is_favourite, "oob": True},
+        request=request,
+    )
     sidebar_oob = render_to_string(
         "web/_sidebar_favourites_oob.html",
         {},

@@ -51,6 +51,16 @@ class User(AbstractUser):
             "list page renders a toggle star on every card to maintain the set"
         ),
     )
+    favourite_tasks = models.ManyToManyField(
+        "tasks.Task",
+        blank=True,
+        related_name="favourited_by_users",
+        help_text=(
+            "Tasks this user has starred for quick access. The sidebar nav surfaces them "
+            "either nested under their (starred) project or in a separate Issues section "
+            "when the project itself isn't starred. Task detail page exposes the toggle"
+        ),
+    )
     active_workspace = models.ForeignKey(
         "workspaces.Workspace",
         on_delete=models.SET_NULL,
