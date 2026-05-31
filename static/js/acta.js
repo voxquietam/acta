@@ -949,7 +949,10 @@
       if (counter) counter.textContent = String(visible);
     });
   }
-  document.body.addEventListener("acta:task-created", recountKanbanColumns);
+  document.body.addEventListener("acta:task-created", () => {
+    recountKanbanColumns();
+    recomputeKanbanSubstatus();
+  });
 
   // Cross-view freshness: any newly created task only inserts into the
   // *active* view (kanban gets a card via HX-Retarget, table gets a row
@@ -2471,6 +2474,11 @@
       // or the payload didn't carry the list surface.
       const ok = applyRowHtmlList(d.target_id, d.row_html_list, d.section_keys_list);
       if (!ok) refreshListPanel();
+      // Kanban header substatus row (overdue / done-this-week / avatar
+      // stack) reads visible cards' data-attrs, so it has to re-run after
+      // the card replace pulls in fresh values. No-op when no kanban panel
+      // is rendered.
+      recomputeKanbanSubstatus();
     }
 
     handle("task.status_changed", (d) => {
@@ -2482,6 +2490,11 @@
       if (d.row_html_table) applyRowHtmlTable(d.target_id, d.row_html_table);
       const ok = applyRowHtmlList(d.target_id, d.row_html_list, d.section_keys_list);
       if (!ok) refreshListPanel();
+      // Both source and target kanban columns changed cardinality + maybe
+      // avatar stack / overdue count. Recount + recompute walk every
+      // column so one call covers both.
+      recountKanbanColumns();
+      recomputeKanbanSubstatus();
     });
     handle("task.assigned", applyTaskUpdate);
     handle("task.priority_changed", applyTaskUpdate);
@@ -2526,6 +2539,10 @@
       applyCardRemove(d.target_id);
       document.querySelectorAll(`tr[data-task-id="${d.target_id}"]`).forEach((el) => el.remove());
       applyRowRemoveList(d.target_id);
+      // Card gone → source column count drops, substatus row may need to
+      // drop an avatar / overdue tick.
+      recountKanbanColumns();
+      recomputeKanbanSubstatus();
     });
 
     // New task from another user — server's ``task.created`` broadcast
