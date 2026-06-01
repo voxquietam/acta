@@ -703,17 +703,18 @@ Section visibility flags from the view:
           serialization. The visible checkbox stays disabled-when-archive
           for the visual lock.
           {% endcomment %}
-          {# "Show my projects" — ON by default narrows the queryset to       #}
-          {# projects the user is member of or leads; OFF widens to every     #}
-          {# project in the active workspace. Hidden 0 + checkbox 1 mirrors   #}
-          {# the rest of the sidebar toggles. Skipped on project detail       #}
-          {# (``filter_hide_project``) — the page already scopes to one       #}
-          {# project, so the toggle would just confuse.                       #}
+          {# "Show my projects" — OFF by default shows every project in the   #}
+          {# active workspace; ON narrows to projects the user is member of   #}
+          {# or leads. Hidden 0 + checkbox 1 mirrors the rest of the sidebar  #}
+          {# toggles. Skipped on project detail (``filter_hide_project``) —   #}
+          {# the page already scopes to one project, so the toggle would     #}
+          {# just confuse. Reset clears the checkbox (OFF), matching the     #}
+          {# server-side default in ``resolve_show_my_projects``.             #}
           {% if show_my_projects_toggle %}
           <div x-data class="flex items-center gap-2">
             <input type="hidden" name="show_my_projects" value="0">
             <label class="cursor-pointer flex items-center gap-2 text-[12px] text-foreground"
-                   @acta:filter-reset.window="$el.querySelector('input[name=show_my_projects][value=\'1\']').checked = true">
+                   @acta:filter-reset.window="$el.querySelector('input[name=show_my_projects][value=\'1\']').checked = false">
               <input type="checkbox" name="show_my_projects" value="1"
                      {% if show_my_projects %}checked{% endif %}
                      class="peer sr-only"
