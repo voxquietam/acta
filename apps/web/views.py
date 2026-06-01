@@ -6295,21 +6295,38 @@ def _current_view_from_htmx(request):
     """Return ``(view, show_project)`` derived from htmx's ``HX-Current-URL``.
 
     htmx sends ``HX-Current-URL`` with every request so the server knows the
-    URL the click came from. We parse ``?view=`` to know which surface the
-    new card needs to land on, and use the path to decide ``show_project``
-    (AllTasks needs the project column, project-scoped pages don't).
+    URL the click came from. The active surface is the lazy-loaded *panel*
+    (``?panel=``), which wins over ``?view=``: the backlog / timeline tab can
+    render with ``?view=table`` set, but its insert target (``#task-table-body``)
+    only exists on the real table panel — keying off ``view`` there retargets a
+    DOM node that isn't on screen, so the swap never settles and the modal-close
+    + loader-clear triggers (which ride ``HX-Trigger-After-Settle``) silently
+    drop, hanging the create modal with the bar spinning. ``panel`` reflects
+    what's actually rendered; fall back to ``view`` only when it's absent. The
+    path decides ``show_project`` (AllTasks needs the project column, project-
+    scoped pages don't).
     """
     current_url = (request.headers.get("HX-Current-URL") or "").strip()
     if not current_url:
-        return "kanban", True
+        return "none", True
     try:
         parsed = urlparse(current_url)
     except ValueError:
-        return "kanban", True
-    qs = parse_qs(parsed.query)
-    view = (qs.get("view") or ["kanban"])[0]
+        return "none", True
     show_project = not parsed.path.startswith("/projects/")
-    return view, show_project
+    # Insert targets (kanban columns, table body, list axes) only exist on
+    # the board pages: All Tasks (``/tasks/``) and a project detail
+    # (``/projects/<slug>/``). On the dashboard, inbox, settings, etc. there
+    # is no card to insert into — return the ``"none"`` surface so the create
+    # response stays toast-only and the modal-close trigger never rides a swap
+    # that can't settle (which would silently drop it and hang the modal).
+    board_path = parsed.path.startswith("/tasks/") or parsed.path.startswith("/projects/")
+    if not board_path:
+        return "none", show_project
+    qs = parse_qs(parsed.query)
+    panel = (qs.get("panel") or [""])[0]
+    surface = panel or (qs.get("view") or ["kanban"])[0]
+    return surface, show_project
 
 
 def _task_card_insert_response(request, task, *, linked, kanban_html):
@@ -6352,12 +6369,17 @@ def _task_card_insert_response(request, task, *, linked, kanban_html):
             "row_html": _render_task_row_html(task, request),
             "section_keys": compute_list_section_keys(task, request_user=request.user),
         }
-    elif view in {"timeline", "backlog"}:
-        pass  # toast-only — see docstring
-    else:
+    elif view == "kanban":
         body = kanban_html
         retarget = f"#kanban-col-{task.status}"
         reswap = "beforeend"
+    else:
+        # timeline / backlog / "none" (dashboard, inbox, …) / anything we
+        # can't confidently place: toast-only. Retargeting a surface that
+        # isn't on screen leaves the swap unable to settle, which drops the
+        # ``HX-Trigger-After-Settle`` modal-close and hangs the modal — see
+        # ``_current_view_from_htmx``.
+        pass
     toast = {
         "message": str(_("Created %(slug)s") % {"slug": task.slug}),
         "level": "success",

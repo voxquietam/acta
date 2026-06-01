@@ -184,8 +184,9 @@ class TestCreateTaskGet:
             {"project": project.slug_prefix, "labels": str(label.id)},
         )
         body = resp.content.decode()
-        # Alpine ``x-data`` carries the on-state for that label.
-        assert "on: true" in body
+        # The dropdown picker seeds its Alpine ``selected`` array with the
+        # pre-checked label id (chips + ✓ derive from it).
+        assert f"selected: ['{label.id}']" in body
 
 
 @pytest.mark.django_db
@@ -204,6 +205,7 @@ class TestCreateTaskPost:
         resp = client.post(
             reverse("web:create_task"),
             data={"project": project.slug_prefix, "title": "First task"},
+            HTTP_HX_CURRENT_URL="http://localhost:8001/tasks/?view=kanban",
         )
         assert resp.status_code == 200
         # ``open_after_create`` defaults off → no full-page HX-Redirect;
@@ -292,6 +294,55 @@ class TestCreateTaskPost:
         assert resp.status_code == 204
         trigger = json.loads(resp.headers.get("HX-Trigger", "{}"))
         assert "acta:list-insert-row" not in trigger
+        assert "acta:task-created" in trigger
+
+    def test_backlog_panel_with_table_view_is_toast_only(self, client, setup):
+        """``?view=table&panel=backlog`` must NOT retarget the table body.
+
+        Regression: the backlog tab can render as a table (``?view=table``),
+        but ``#task-table-body`` only exists on the real table panel — not
+        inside the backlog panel. Keying the insert off ``view`` there
+        retargets a DOM node that isn't on screen, so the swap never settles
+        and the modal-close trigger (which rides ``HX-Trigger-After-Settle``)
+        silently drops, hanging the modal with the loader spinning. The
+        active *panel* must win: backlog → toast-only 204, modal-close on the
+        immediate ``HX-Trigger``.
+        """
+        _ws, project, user = setup
+        client.force_login(user)
+        resp = client.post(
+            reverse("web:create_task"),
+            data={"project": project.slug_prefix, "title": "Backlog task"},
+            HTTP_HX_CURRENT_URL="http://localhost:8001/tasks/?view=table&panel=backlog",
+        )
+        assert resp.status_code == 204
+        assert "HX-Retarget" not in resp.headers
+        assert "HX-Trigger-After-Settle" not in resp.headers
+        trigger = json.loads(resp.headers.get("HX-Trigger", "{}"))
+        assert "acta:task-created" in trigger
+
+    def test_non_board_page_is_toast_only(self, client, setup):
+        """Creating from the dashboard (or any non-board page) is toast-only.
+
+        Regression: the dashboard / inbox / settings have no kanban column,
+        table body, or list axis to insert into. Defaulting to a kanban
+        retarget there points the swap at ``#kanban-col-…`` which isn't on
+        screen, so it never settles, the modal-close trigger (on
+        ``HX-Trigger-After-Settle``) drops, and the modal hangs with the
+        loader spinning. Non-board pages must be toast-only: 204, modal-close
+        on the immediate ``HX-Trigger``, no retarget.
+        """
+        _ws, project, user = setup
+        client.force_login(user)
+        resp = client.post(
+            reverse("web:create_task"),
+            data={"project": project.slug_prefix, "title": "Dashboard task"},
+            HTTP_HX_CURRENT_URL="http://localhost:8001/",
+        )
+        assert resp.status_code == 204
+        assert "HX-Retarget" not in resp.headers
+        assert "HX-Trigger-After-Settle" not in resp.headers
+        trigger = json.loads(resp.headers.get("HX-Trigger", "{}"))
         assert "acta:task-created" in trigger
 
     def test_open_after_create_navigates_boosted(self, client, setup):
@@ -550,6 +601,7 @@ class TestCreateTaskLinkRelated:
         resp = client.post(
             reverse("web:create_task"),
             data={"project": project.slug_prefix, "title": "Spun off", "link_related": origin.slug},
+            HTTP_HX_CURRENT_URL="http://localhost:8001/tasks/?view=kanban",
         )
         assert resp.status_code in (200, 204)
         new = Task.objects.get(project=project, title="Spun off")
@@ -557,6 +609,7 @@ class TestCreateTaskLinkRelated:
         assert origin in new.related.all()
         assert new in origin.related.all()
         # Fires the extra trigger so the origin's links panel refetches live.
+        # On a board surface (kanban) the swap settles, so it rides after-settle.
         assert "acta:link-changed" in resp.headers.get("HX-Trigger-After-Settle", "")
 
     def test_unlinked_create_omits_link_trigger(self, client, setup):
@@ -565,6 +618,7 @@ class TestCreateTaskLinkRelated:
         resp = client.post(
             reverse("web:create_task"),
             data={"project": project.slug_prefix, "title": "Plain"},
+            HTTP_HX_CURRENT_URL="http://localhost:8001/tasks/?view=kanban",
         )
         assert "acta:task-created" in resp.headers.get("HX-Trigger-After-Settle", "")
 

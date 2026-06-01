@@ -255,13 +255,40 @@
   // flicker the bar on and off — it stays until the last in-flight one
   // settles.
   let __progressCount = 0;
+  let __progressWatchdog = null;
+  // Hard ceiling on how long the bar may stay visible. If a ``progressEnd``
+  // is ever missed (a fetch that never settles, a superseded request, an
+  // error path that skips ``.finally``), the bar would otherwise spin
+  // forever — observed on prod as "create task → loader hangs" with the
+  // server already idle. The watchdog force-clears the bar and warns so a
+  // dropped counter degrades to a stale-but-usable page, never a silent
+  // infinite spinner. (Won't fire if the main thread is genuinely blocked —
+  // that's a different bug — but covers the ref-count-leak case.)
+  const __PROGRESS_MAX_MS = 15000;
   function progressStart() {
     __progressCount += 1;
     if (__progressCount === 1) document.documentElement.dataset.actaLoading = "1";
+    if (__progressWatchdog) clearTimeout(__progressWatchdog);
+    __progressWatchdog = setTimeout(() => {
+      __progressWatchdog = null;
+      if (__progressCount !== 0) {
+        __progressCount = 0;
+        delete document.documentElement.dataset.actaLoading;
+        if (window.actaToast) {
+          window.actaToast("Still loading — the page may be out of date, try refreshing.", "warning");
+        }
+      }
+    }, __PROGRESS_MAX_MS);
   }
   function progressEnd() {
     if (__progressCount > 0) __progressCount -= 1;
-    if (__progressCount === 0) delete document.documentElement.dataset.actaLoading;
+    if (__progressCount === 0) {
+      delete document.documentElement.dataset.actaLoading;
+      if (__progressWatchdog) {
+        clearTimeout(__progressWatchdog);
+        __progressWatchdog = null;
+      }
+    }
   }
 
   function loadPanel(key) {
