@@ -34,7 +34,7 @@ x-data="{
 @acta:task-created.window="close()"
 {% endblock %}
 
-{% block panel_class %}sm:max-w-2xl{% endblock %}
+{% block panel_class %}sm:max-w-2xl sm:max-h-[85vh]{% endblock %}
 
 {% block panel_attrs %}x-init="$nextTick(() => $refs.title?.focus())"{% endblock %}
 
@@ -75,11 +75,14 @@ x-data="{
 </footer>
 {% else %}
 <form hx-post="{% url 'web:create_task' %}"
-      hx-swap="none">
+      hx-swap="none"
+      class="flex flex-col flex-1 min-h-0">
   {% csrf_token %}
   <input type="hidden" name="open_after_create" :value="openAfter ? '1' : '0'">
 
-  <div class="p-4 space-y-3">
+  {# Scrollable body — keeps the footer pinned when long descriptions or  #}
+  {# tall label lists push the field stack past the panel's ``max-h``.   #}
+  <div class="p-4 space-y-3 flex-1 overflow-y-auto min-h-0">
     {# Project picker — change triggers a refresh of the modal. #}
     <div>
       <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Project" %}</label>
@@ -243,7 +246,7 @@ x-data="{
     {% endif %}
   </div>
 
-  <footer class="flex items-center justify-between gap-2 px-4 py-3 border-t border-border bg-subtle/60">
+  <footer class="flex items-center justify-between gap-2 px-4 py-3 border-t border-border bg-subtle/60 shrink-0">
     <label class="inline-flex items-center gap-2 text-xs text-subtle-foreground cursor-pointer select-none">
       <input type="checkbox" :checked="openAfter" @change="toggleOpenAfter()"
              class="acta-checkbox">
