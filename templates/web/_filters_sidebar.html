@@ -42,7 +42,7 @@ Section visibility flags from the view:
 {% endcomment %}
 
 <div x-data="{
-         counts: { search:0, status:0, priority:0, project:0, label:0, cycle:0, size:0, date:0, toggles:0 },
+         counts: { search:0, status:0, priority:0, project:0, label:0, cycle:0, size:0, date:0, toggles:0, assignee:0 },
          {# Mirrored backlog toggle — when off, the Status filter hides #}
          {# ``planned`` / ``ready`` chips (those rows are already      #}
          {# excluded from the visible board, so filtering by them is a #}
@@ -51,7 +51,8 @@ Section visibility flags from the view:
          get totalActive() {
            return this.counts.search + this.counts.status + this.counts.priority
                 + this.counts.project + this.counts.label + this.counts.cycle
-                + this.counts.size + this.counts.date + this.counts.toggles;
+                + this.counts.size + this.counts.date + this.counts.toggles
+                + this.counts.assignee;
          },
          refreshCounts() {
            const form = document.getElementById('filter-form');
@@ -67,6 +68,7 @@ Section visibility flags from the view:
            this.counts.date     = ((fd.get('date_after') || '') + (fd.get('date_before') || '')).trim() ? 1 : 0;
            this.counts.toggles  = (fd.getAll('show_backlog').slice(-1)[0] === '1' ? 1 : 0)
                                 + (fd.getAll('show_archived').slice(-1)[0] === '1' ? 1 : 0);
+           this.counts.assignee = fd.getAll('assignee').length + fd.getAll('xassignee').length;
            this.showBacklog     = fd.getAll('show_backlog').slice(-1)[0] === '1';
          },
          init() {
