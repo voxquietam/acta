@@ -399,6 +399,27 @@ def _params_with_archive_cookie(request):
     return params
 
 
+def _params_with_all_tasks_cookies(request):
+    """All Tasks variant: also merges the ``show_backlog`` cookie.
+
+    All Tasks gates planned/ready server-side (``default_show_backlog
+    =False`` in ``apply_task_filters``), so the user's Show-backlog
+    toggle must reach the server. ``acta.js`` deliberately keeps
+    ``show_backlog`` out of the URL (the toggle is client-side; see
+    the ``replaceState`` comment in ``applyClientFilters``), so the
+    cookie is the only channel — merge it into ``params`` here.
+
+    Other pages (Project detail, My Work) leave planned/ready in the
+    queryset by default and rely on ``rowMatches`` for client-side
+    hiding, so they keep using :func:`_params_with_archive_cookie`
+    untouched.
+    """
+    params = _params_with_archive_cookie(request)
+    if "show_backlog" not in params:
+        params["show_backlog"] = resolve_show_backlog(request)
+    return params
+
+
 def _persist_archive_cookie(response, params):
     """Stamp ``acta_show_archived`` on ``response`` to remember the
     current toggle state for the next request.
@@ -582,11 +603,13 @@ class AllTasksView(LoginRequiredMixin, ListView):
         qs = _user_task_qs(self.request.user)
         active = resolve_active_workspace(self.request)
         qs = qs.filter(project__workspace=active) if active else qs.none()
-        params = _params_with_archive_cookie(self.request)
-        # The not-started backlog (planned / ready) is ALWAYS rendered into the
-        # DOM; the "Show backlog" toggle hides/shows it client-side (instant),
-        # like "Show archived" — see acta.js ``rowMatches`` + kanban column
-        # hiding. So no server-side backlog filtering here.
+        params = _params_with_all_tasks_cookies(self.request)
+        # Server gates planned/ready behind the Show-backlog toggle so the
+        # client doesn't ship rows it would only turn around and hide via
+        # ``rowMatches`` (the asymmetry was visible as ~13 rows flickering on
+        # every chip change). ``default_show_backlog=False`` plus the cookie
+        # merge in ``_params_with_all_tasks_cookies`` keeps server + client
+        # in lockstep with whatever the user last toggled.
         qs = apply_task_filters(qs, params, request_user=self.request.user, default_show_backlog=False)
         return apply_task_ordering(qs, params)
 
