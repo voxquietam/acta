@@ -1816,6 +1816,35 @@ select:-webkit-autofill {
     }
   }
 
+  /* Top-of-viewport progress bar — YouTube / Vercel-style indeterminate
+     loader, shown while ``schedulePanelRefresh`` (or any future caller)
+     has at least one fetch in flight. acta.js toggles
+     ``<html data-acta-loading="1">`` based on a request counter; CSS
+     does the rest. ``brand-500`` sweeps left-to-right on a clear track
+     so it stays visible over both light and dark surfaces without
+     dimming the page content beneath. */
+  html[data-acta-loading="1"]::before {
+    content: "";
+    position: fixed;
+    inset: 0 0 auto 0;
+    height: 2px;
+    z-index: 100;
+    pointer-events: none;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      theme(colors.brand.500) 50%,
+      transparent 100%
+    );
+    background-size: 40% 100%;
+    background-repeat: no-repeat;
+    animation: acta-progress-sweep 1.1s linear infinite;
+  }
+  @keyframes acta-progress-sweep {
+    0%   { background-position: -40% 0; }
+    100% { background-position: 140% 0; }
+  }
+
   /* Button primitives — design-system tokens from
      ``acta-design-system/preview/comp-buttons.html``. The signature
      "lighter on hover" move (brand-600 → brand-500) lives in

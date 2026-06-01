@@ -248,6 +248,22 @@
   // (``viewMode.set`` → ``actaLoadPanels``) and again whenever filter
   // chips change (``schedulePanelRefresh`` invalidates the cached slots
   // so the next switch refetches with the new URL).
+  // Reference-counted top-of-viewport progress bar. Any call that takes
+  // long enough to feel slow (panel refetch, lazy panel first-load) wraps
+  // its fetch in ``progressStart()`` / ``progressEnd()``; the CSS keys off
+  // ``<html data-acta-loading="1">`` so multiple parallel calls don't
+  // flicker the bar on and off — it stays until the last in-flight one
+  // settles.
+  let __progressCount = 0;
+  function progressStart() {
+    __progressCount += 1;
+    if (__progressCount === 1) document.documentElement.dataset.actaLoading = "1";
+  }
+  function progressEnd() {
+    if (__progressCount > 0) __progressCount -= 1;
+    if (__progressCount === 0) delete document.documentElement.dataset.actaLoading;
+  }
+
   function loadPanel(key) {
     if (!key || !window.htmx) return;
     const slot = document.querySelector(`[data-panel-slot="${key}"]`);
@@ -257,6 +273,7 @@
     const url = new URL(window.location.href);
     url.searchParams.set("panel", key);
     slot.dataset.panelLoading = "true";
+    progressStart();
     Promise.resolve(
       window.htmx.ajax("GET", url.pathname + url.search, {
         target: slot,
@@ -264,6 +281,7 @@
       }),
     ).finally(() => {
       slot.dataset.panelLoading = "false";
+      progressEnd();
     });
   }
   // Exposed for ``viewMode.set`` to call when the user lands on a tab
@@ -300,7 +318,7 @@
           const url = new URL(window.location.href);
           url.searchParams.set("panel", key);
           slot.dataset.panelLoading = "true";
-          window.__actaSkipNextFilterPass = true;
+          progressStart();
           fetch(url.pathname + url.search, {
             headers: { "HX-Request": "true" },
             credentials: "same-origin",
@@ -312,9 +330,18 @@
               slot.replaceChildren(...tmpl.content.childNodes);
               if (window.htmx) window.htmx.process(slot);
               if (window.renderIcons) window.renderIcons();
+              // ``fetch`` doesn't go through HTMX, so the global
+              // ``htmx:afterSettle`` filter pass never fires after our
+              // swap. Re-run it explicitly so column hides / section
+              // counts / list bucketing stay in sync with current
+              // sidebar state (matters when e.g. ``show_backlog`` is
+              // off — server returned no planned/ready rows but the
+              // kanban template still drew the empty columns).
+              if (window.actaApplyFilters) window.actaApplyFilters();
             })
             .finally(() => {
               slot.dataset.panelLoading = "false";
+              progressEnd();
             });
         } else {
           // Drop stale content; next view-switch will re-lazy-load.
@@ -841,6 +868,20 @@
       if (beforeSearch !== newSearch && window.actaSchedulePanelRefresh) {
         window.actaSchedulePanelRefresh();
       }
+      // ``show_backlog`` is the sidebar toggle that decides whether the
+      // server-rendered queryset includes planned / ready. It's
+      // deliberately kept out of the URL mirror (see the ``keys`` array
+      // above) so the cookie is the only signal — but the cookie write
+      // happened seconds ago and ``schedulePanelRefresh`` keys off URL
+      // diff, which missed it. Track the last value explicitly so
+      // flipping the toggle ON refetches the active panel and the user
+      // sees the freshly-included backlog rows without a page reload.
+      if (window.__actaLastShowBacklog !== undefined
+          && window.__actaLastShowBacklog !== state.showBacklog
+          && window.actaSchedulePanelRefresh) {
+        window.actaSchedulePanelRefresh();
+      }
+      window.__actaLastShowBacklog = state.showBacklog;
     }
     // Timeline view keeps a two-pane layout the generic row loop already
     // hid (both left + gantt rows carry the filter attrs). Let it
@@ -1768,6 +1809,19 @@
     }
   }
   bindFilterForm();
+  // Cold-load: server renders every kanban column + every chip-matched
+  // row, so the page starts in a state that matches "all toggles cleared".
+  // If the user's persisted state (cookie ``show_backlog`` / ``show_archived``
+  // / show-my-projects) differs, applyClientFilters needs to run once to
+  // hide the planned/ready columns, archived rows, etc. ``htmx:afterSettle``
+  // only fires after an HTMX swap, so without this initial call the toggle
+  // state visibly mismatches the DOM until the user triggers any HTMX
+  // request.
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => applyClientFilters());
+  } else {
+    applyClientFilters();
+  }
   document.body.addEventListener("htmx:afterSettle", () => {
     // Re-bind in case the form was swapped (panel re-render) and
     // re-apply filters so freshly server-rendered rows pick up the
@@ -1776,10 +1830,15 @@
     // chips, so a second pass would only waste reflow time (and was
     // visibly flickering one stale row during the gap).
     bindFilterForm();
-    if (window.__actaSkipNextFilterPass) {
-      window.__actaSkipNextFilterPass = false;
-      return;
-    }
+    // Always re-run the client filter pass after a swap. An earlier
+    // ``__actaSkipNextFilterPass`` flag tried to skip this when our own
+    // ``schedulePanelRefresh`` was the trigger (the server response was
+    // already chip-filtered), but skipping also dropped the
+    // column-hide / section-hide bookkeeping that doesn't depend on
+    // chips — toggling ``show_backlog`` off left the now-empty
+    // planned/ready kanban columns visible because the post-swap pass
+    // never ran. The 30ish ms it takes on a 1500-row board is worth
+    // the consistency.
     applyClientFilters();
   });
   // Reset button broadcasts ``acta:filter-reset`` — chips reset
