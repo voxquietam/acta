@@ -1029,8 +1029,10 @@ TOOLS: list[Tool] = [
         description=(
             "Create a label in a workspace the user belongs to. "
             "Required: ``workspace`` (slug), ``name``. Optional: ``color`` "
-            "(hex string like ``#10b981``; defaults to neutral grey). "
-            "Returns ``{id, name, color, workspace_slug}``."
+            "(hex string like ``#10b981``; defaults to neutral grey), ``group`` "
+            "(name or id of an existing label group in the same workspace — "
+            "create it first with ``acta_label_group_create``). "
+            "Returns ``{id, name, color, workspace_slug, group_name}``."
         ),
         inputSchema={
             "type": "object",
@@ -1038,6 +1040,7 @@ TOOLS: list[Tool] = [
                 "workspace": {"type": "string"},
                 "name": {"type": "string"},
                 "color": {"type": "string", "description": "Hex colour, e.g. '#10b981'."},
+                "group": {"type": ["string", "integer"], "description": "Existing label-group name or id."},
             },
             "required": ["workspace", "name"],
             "additionalProperties": False,
@@ -1046,9 +1049,9 @@ TOOLS: list[Tool] = [
     Tool(
         name="acta_label_update",
         description=(
-            "Rename / recolor a label. Required: ``id``. Optional: "
-            "``name``, ``color`` — at least one is needed. Returns the "
-            "updated label."
+            "Rename / recolor / (re)group a label. Required: ``id``. Optional: "
+            "``name``, ``color``, ``group`` (existing group name/id, or ``null`` "
+            "to ungroup) — at least one is needed. Returns the updated label."
         ),
         inputSchema={
             "type": "object",
@@ -1056,6 +1059,10 @@ TOOLS: list[Tool] = [
                 "id": {"type": "integer"},
                 "name": {"type": "string"},
                 "color": {"type": "string"},
+                "group": {
+                    "type": ["string", "integer", "null"],
+                    "description": "Existing label-group name or id; null to ungroup.",
+                },
             },
             "required": ["id"],
             "additionalProperties": False,
@@ -1291,6 +1298,57 @@ TOOLS: list[Tool] = [
             "additionalProperties": False,
         },
     ),
+    Tool(
+        name="acta_project_create",
+        description=(
+            "Create a project in a workspace (workspace admin/owner only). "
+            "Required: ``workspace`` (slug), ``name``, ``slug_prefix`` (2–6 "
+            "uppercase Latin letters — immutable in practice; prefixes every "
+            "task slug, e.g. UI-12). Optional: ``description`` (Markdown), "
+            "``icon`` (curated Lucide name), ``icon_color`` (curated palette "
+            "key), ``lead_username`` (a workspace member), ``member_usernames`` "
+            "(list of workspace members). Returns the created project payload."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "workspace": {"type": "string", "description": "Workspace slug."},
+                "name": {"type": "string"},
+                "slug_prefix": {"type": "string", "description": "2–6 uppercase Latin letters, e.g. UI."},
+                "description": {"type": "string", "description": "Markdown body."},
+                "icon": {"type": "string", "description": "Curated Lucide icon name."},
+                "icon_color": {"type": "string", "description": "Curated palette key, e.g. 'violet'."},
+                "lead_username": {"type": "string"},
+                "member_usernames": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["workspace", "name", "slug_prefix"],
+            "additionalProperties": False,
+        },
+    ),
+    Tool(
+        name="acta_label_group_create",
+        description=(
+            "Create a label group in a workspace (workspace admin/owner only). "
+            "Groups categorise labels in pickers (e.g. 'Type', 'Area'). Required: "
+            "``workspace`` (slug), ``name``. Optional: ``description``, "
+            "``is_exclusive`` (bool — a task may carry at most one label from an "
+            "exclusive group, e.g. 'Type'). Idempotent on (workspace, name). Then "
+            "pass the group name to ``acta_label_create``/``acta_label_update`` via "
+            "their ``group`` argument. Returns ``{id, name, workspace_slug, "
+            "is_exclusive, created}``."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "workspace": {"type": "string", "description": "Workspace slug."},
+                "name": {"type": "string"},
+                "description": {"type": "string"},
+                "is_exclusive": {"type": "boolean"},
+            },
+            "required": ["workspace", "name"],
+            "additionalProperties": False,
+        },
+    ),
 ]
 
 
@@ -1310,14 +1368,37 @@ def _serialize_label(label) -> dict[str, Any]:
         "name": label.name,
         "color": label.color,
         "workspace_slug": label.workspace.slug,
+        "group_name": label.group.name if label.group_id else None,
     }
+
+
+def _resolve_label_group(workspace, value):
+    """Resolve a label-group reference (name or numeric id) within ``workspace``.
+
+    Returns the matching :class:`~apps.labels.models.LabelGroup`. Raises
+    ``ValueError`` when it doesn't exist — groups carry semantics
+    (``is_exclusive``) so they're created explicitly via
+    ``acta_label_group_create``, never auto-minted here.
+    """
+    from apps.labels.models import LabelGroup
+
+    try:
+        if isinstance(value, int) or (isinstance(value, str) and value.strip().isdigit()):
+            return LabelGroup.objects.get(id=int(value), workspace=workspace)
+        return LabelGroup.objects.get(name=str(value).strip(), workspace=workspace)
+    except LabelGroup.DoesNotExist:
+        raise ValueError(
+            f"Label group {value!r} not found in this workspace — create it first with acta_label_group_create."
+        )
 
 
 def label_create(user: User, arguments: dict[str, Any]) -> Any:
     """Create a label in a workspace the user belongs to.
 
     Required: ``workspace`` (slug), ``name``. Optional: ``color`` (hex
-    string like ``#10b981`` — defaults to a neutral grey if omitted).
+    string like ``#10b981`` — defaults to a neutral grey if omitted),
+    ``group`` (name or id of an existing :class:`LabelGroup` in the same
+    workspace — create it first with ``acta_label_group_create``).
     """
     from apps.labels.models import Label
 
@@ -1328,12 +1409,17 @@ def label_create(user: User, arguments: dict[str, Any]) -> Any:
         raise ValueError("Arguments 'workspace' (slug) and 'name' are required.")
     workspace = _resolve_workspace(user, ws_slug)
     color = (args.get("color") or "").strip() or "#9ca3af"
-    label = Label.objects.create(workspace=workspace, name=name, color=color)
+    group = _resolve_label_group(workspace, args["group"]) if args.get("group") else None
+    label = Label.objects.create(workspace=workspace, name=name, color=color, group=group)
     return _serialize_label(label)
 
 
 def label_update(user: User, arguments: dict[str, Any]) -> Any:
-    """Rename / recolor an existing label."""
+    """Rename / recolor / (re)group an existing label.
+
+    Optional ``group`` assigns the label to a group (name or id in the same
+    workspace); pass ``null`` to ungroup it.
+    """
     from apps.labels.models import Label
 
     args = arguments or {}
@@ -1341,7 +1427,7 @@ def label_update(user: User, arguments: dict[str, Any]) -> Any:
     if not label_id:
         raise ValueError("Argument 'id' is required.")
     try:
-        label = Label.objects.select_related("workspace").get(
+        label = Label.objects.select_related("workspace", "group").get(
             id=label_id,
             workspace_id__in=user_workspace_ids(user),
         )
@@ -1358,6 +1444,11 @@ def label_update(user: User, arguments: dict[str, Any]) -> Any:
     if "color" in args:
         label.color = (args["color"] or "").strip() or label.color
         updates.append("color")
+    if "group" in args:
+        gv = args["group"]
+        clears = gv is None or (isinstance(gv, str) and gv.strip().lower() in ("", "null", "none"))
+        label.group = None if clears else _resolve_label_group(label.workspace, gv)
+        updates.append("group")
     if updates:
         label.save(update_fields=updates)
     return _serialize_label(label)
@@ -1386,6 +1477,115 @@ def label_delete(user: User, arguments: dict[str, Any]) -> Any:
     return {"deleted_id": snapshot["id"], "name": snapshot["name"], "workspace_slug": snapshot["workspace_slug"]}
 
 
+def label_group_create(user: User, arguments: dict[str, Any]) -> Any:
+    """Create a label group in a workspace the user administers.
+
+    Required: ``workspace`` (slug), ``name``. Optional: ``description``,
+    ``is_exclusive`` (bool — at most one label from this group per task, e.g.
+    a "Type" group). Workspace admin/owner only. Idempotent on
+    ``(workspace, name)`` — re-creating an existing group returns it.
+    Returns ``{id, name, workspace_slug, is_exclusive, created}``.
+    """
+    from apps.labels.models import LabelGroup
+
+    args = arguments or {}
+    ws_slug = args.get("workspace")
+    name = (args.get("name") or "").strip()
+    if not ws_slug or not name:
+        raise ValueError("Arguments 'workspace' (slug) and 'name' are required.")
+    workspace = _resolve_workspace(user, ws_slug)
+    if not is_workspace_admin(user, workspace):
+        raise ValueError("Only workspace admins can create label groups.")
+    group, created = LabelGroup.objects.get_or_create(
+        workspace=workspace,
+        name=name,
+        defaults={
+            "description": (args.get("description") or ""),
+            "is_exclusive": bool(args.get("is_exclusive")),
+        },
+    )
+    return {
+        "id": group.id,
+        "name": group.name,
+        "workspace_slug": workspace.slug,
+        "is_exclusive": group.is_exclusive,
+        "created": created,
+    }
+
+
+def project_create(user: User, arguments: dict[str, Any]) -> Any:
+    """Create a project in a workspace the user administers.
+
+    Required: ``workspace`` (slug), ``name``, ``slug_prefix`` (2–6 uppercase
+    Latin letters; immutable in practice — it prefixes every task slug, e.g.
+    ``UI-12``). Optional: ``description`` (Markdown), ``icon`` (curated Lucide
+    name), ``icon_color`` (curated palette key), ``lead_username`` (a workspace
+    member), ``member_usernames`` (list of workspace members). Workspace
+    admin/owner only. Returns the created project payload.
+    """
+    from django.core.exceptions import ValidationError
+
+    from apps.projects.icons import is_curated, is_curated_color
+    from apps.projects.models import Project
+
+    args = arguments or {}
+    ws_slug = args.get("workspace")
+    name = (args.get("name") or "").strip()
+    slug_prefix = (args.get("slug_prefix") or "").strip()
+    if not ws_slug or not name or not slug_prefix:
+        raise ValueError("Arguments 'workspace' (slug), 'name', and 'slug_prefix' are required.")
+    workspace = _resolve_workspace(user, ws_slug)
+    if not is_workspace_admin(user, workspace):
+        raise ValueError("Only workspace admins can create projects.")
+
+    project = Project(workspace=workspace, name=name, slug_prefix=slug_prefix)
+    if args.get("description"):
+        project.description = args["description"]
+    if args.get("icon"):
+        icon = args["icon"].strip()
+        if icon and not is_curated(icon):
+            raise ValueError(f"Icon {icon!r} is not in the curated Lucide set.")
+        project.icon = icon
+    if args.get("icon_color"):
+        color = args["icon_color"].strip()
+        if color and not is_curated_color(color):
+            raise ValueError(f"Icon color {color!r} is not in the curated palette.")
+        project.icon_color = color
+
+    lead_username = args.get("lead_username")
+    if lead_username:
+        lead = resolve_user_by_username(lead_username)
+        if not workspace.members.filter(pk=lead.pk).exists():
+            raise ValueError("Lead must be a member of the project's workspace.")
+        project.lead = lead
+
+    try:
+        project.full_clean()
+    except ValidationError as exc:
+        raise ValueError(f"Project validation failed: {exc.message_dict}")
+    project.save()
+
+    member_names = args.get("member_usernames") or []
+    if member_names:
+        members = [resolve_user_by_username(u) for u in member_names]
+        outsiders = [m.username for m in members if not workspace.members.filter(pk=m.pk).exists()]
+        if outsiders:
+            raise ValueError(f"Not members of this workspace: {outsiders}")
+        project.members.set(members)
+
+    return {
+        "id": project.id,
+        "slug_prefix": project.slug_prefix,
+        "name": project.name,
+        "description": project.description or "",
+        "icon": project.icon or "",
+        "icon_color": project.icon_color or "",
+        "workspace_slug": workspace.slug,
+        "lead_username": project.lead.username if project.lead_id else None,
+        "archived": project.archived,
+    }
+
+
 CALLABLES: dict[str, Callable[[User, dict[str, Any]], Any]] = {
     "acta_task_create": task_create,
     "acta_task_update": task_update,
@@ -1405,6 +1605,8 @@ CALLABLES: dict[str, Callable[[User, dict[str, Any]], Any]] = {
     "acta_comment_delete": comment_delete,
     "acta_project_update": project_update,
     "acta_project_post_update": project_post_update,
+    "acta_project_create": project_create,
+    "acta_label_group_create": label_group_create,
 }
 
 

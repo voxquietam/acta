@@ -733,3 +733,92 @@ class TestCommentDelete:
         with pytest.raises(ValueError, match="author or a workspace admin"):
             CALLABLES["acta_comment_delete"](other, {"id": comment.id})
         assert Comment.objects.filter(id=comment.id).exists()
+
+
+@pytest.mark.django_db
+class TestProjectCreate:
+    def test_admin_creates_project(self):
+        user = UserFactory()
+        ws = WorkspaceFactory(owner=user)  # owner = admin-equivalent member
+        result = CALLABLES["acta_project_create"](
+            user,
+            {"workspace": ws.slug, "name": "Interface", "slug_prefix": "UI", "description": "UI work"},
+        )
+        assert result["slug_prefix"] == "UI"
+        assert result["description"] == "UI work"
+        from apps.projects.models import Project
+
+        assert Project.objects.filter(workspace=ws, slug_prefix="UI", name="Interface").exists()
+
+    def test_non_admin_member_cannot_create(self):
+        user = UserFactory()
+        ws = WorkspaceFactory()
+        WorkspaceMember.objects.create(user=user, workspace=ws)  # plain member
+        with pytest.raises(ValueError, match="Only workspace admins"):
+            CALLABLES["acta_project_create"](user, {"workspace": ws.slug, "name": "X", "slug_prefix": "XX"})
+
+    def test_invalid_slug_prefix_rejected(self):
+        user = UserFactory()
+        ws = WorkspaceFactory(owner=user)
+        with pytest.raises(ValueError, match="validation failed"):
+            CALLABLES["acta_project_create"](user, {"workspace": ws.slug, "name": "Bad", "slug_prefix": "lower"})
+
+    def test_lead_must_be_workspace_member(self):
+        user = UserFactory()
+        ws = WorkspaceFactory(owner=user)
+        outsider = UserFactory()
+        with pytest.raises(ValueError, match="must be a member"):
+            CALLABLES["acta_project_create"](
+                user,
+                {"workspace": ws.slug, "name": "P", "slug_prefix": "PP", "lead_username": outsider.username},
+            )
+
+
+@pytest.mark.django_db
+class TestLabelGroups:
+    def test_admin_creates_group_and_label_joins_it(self):
+        # NOTE: fresh workspaces auto-seed Type/Area/Layer groups, so use a
+        # name that isn't seeded to exercise the create (created=True) path.
+        user = UserFactory()
+        ws = WorkspaceFactory(owner=user)
+        grp = CALLABLES["acta_label_group_create"](
+            user, {"workspace": ws.slug, "name": "Severity", "is_exclusive": True}
+        )
+        assert grp["is_exclusive"] is True
+        assert grp["created"] is True
+        label = CALLABLES["acta_label_create"](
+            user, {"workspace": ws.slug, "name": "blocker", "color": "#ef4444", "group": "Severity"}
+        )
+        assert label["group_name"] == "Severity"
+
+    def test_group_create_is_idempotent(self):
+        user = UserFactory()
+        ws = WorkspaceFactory(owner=user)
+        first = CALLABLES["acta_label_group_create"](user, {"workspace": ws.slug, "name": "Severity"})
+        assert first["created"] is True
+        again = CALLABLES["acta_label_group_create"](user, {"workspace": ws.slug, "name": "Severity"})
+        assert again["created"] is False
+
+    def test_non_admin_cannot_create_group(self):
+        user = UserFactory()
+        ws = WorkspaceFactory()
+        WorkspaceMember.objects.create(user=user, workspace=ws)
+        with pytest.raises(ValueError, match="Only workspace admins"):
+            CALLABLES["acta_label_group_create"](user, {"workspace": ws.slug, "name": "Type"})
+
+    def test_label_create_with_unknown_group_errors(self):
+        user = UserFactory()
+        ws = WorkspaceFactory(owner=user)
+        with pytest.raises(ValueError, match="not found in this workspace"):
+            CALLABLES["acta_label_create"](user, {"workspace": ws.slug, "name": "bug", "group": "Nope"})
+
+    def test_label_update_regroups_and_ungroups(self):
+        user = UserFactory()
+        ws = WorkspaceFactory(owner=user)
+        CALLABLES["acta_label_group_create"](user, {"workspace": ws.slug, "name": "Type"})
+        label = CALLABLES["acta_label_create"](user, {"workspace": ws.slug, "name": "perf"})
+        assert label["group_name"] is None
+        regrouped = CALLABLES["acta_label_update"](user, {"id": label["id"], "group": "Type"})
+        assert regrouped["group_name"] == "Type"
+        cleared = CALLABLES["acta_label_update"](user, {"id": label["id"], "group": None})
+        assert cleared["group_name"] is None

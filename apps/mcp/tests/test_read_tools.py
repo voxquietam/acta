@@ -672,3 +672,34 @@ class TestProjectUpdatesList:
         foreign = ProjectFactory(slug_prefix="ZZZ")
         with pytest.raises(ValueError, match="not found or not accessible"):
             CALLABLES["acta_project_updates_list"](user, {"project": foreign.slug_prefix})
+
+
+@pytest.mark.django_db
+class TestLabelGroupsList:
+    def test_lists_groups_with_label_count(self):
+        # Fresh workspaces auto-seed Type/Area/Layer; use distinct names here.
+        from apps.labels.models import Label, LabelGroup
+
+        user = UserFactory()
+        ws = WorkspaceFactory()
+        WorkspaceMember.objects.create(user=user, workspace=ws)
+        grp = LabelGroup.objects.create(workspace=ws, name="Severity", is_exclusive=True)
+        Label.objects.create(workspace=ws, name="bug", color="#ef4444", group=grp)
+        Label.objects.create(workspace=ws, name="feature", color="#8b5cf6", group=grp)
+        LabelGroup.objects.create(workspace=ws, name="Phase")  # empty group
+
+        result = CALLABLES["acta_label_groups_list"](user, {"workspace": ws.slug})
+        by_name = {g["name"]: g for g in result}
+        assert by_name["Severity"]["label_count"] == 2
+        assert by_name["Severity"]["is_exclusive"] is True
+        assert by_name["Phase"]["label_count"] == 0
+
+    def test_scoped_to_user_workspaces(self):
+        from apps.labels.models import LabelGroup
+
+        user = UserFactory()
+        WorkspaceMember.objects.create(user=user, workspace=WorkspaceFactory())
+        foreign_ws = WorkspaceFactory()
+        LabelGroup.objects.create(workspace=foreign_ws, name="Hidden")
+        result = CALLABLES["acta_label_groups_list"](user, {})
+        assert all(g["name"] != "Hidden" for g in result)

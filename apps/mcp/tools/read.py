@@ -746,6 +746,22 @@ TOOLS: list[Tool] = [
         },
     ),
     Tool(
+        name="acta_label_groups_list",
+        description=(
+            "List label groups the user can see. Optional ``workspace`` slug to "
+            "scope to one workspace. Returns ``[{id, name, description, "
+            "is_exclusive, workspace_slug, label_count}, …]`` sorted by workspace "
+            "name then group name. Pair with ``acta_label_group_create`` (write)."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "workspace": {"type": "string", "description": "Workspace slug to scope to."},
+            },
+            "additionalProperties": False,
+        },
+    ),
+    Tool(
         name="acta_tasks_list",
         description=(
             "List Acta tasks the user can access, with optional filters. "
@@ -816,6 +832,34 @@ def labels_list(user: User, arguments: dict[str, Any]) -> Any:
     ]
 
 
+def label_groups_list(user: User, arguments: dict[str, Any]) -> Any:
+    """List label groups the user can see (across or within one workspace)."""
+    from django.db.models import Count
+
+    from apps.labels.models import LabelGroup
+
+    args = arguments or {}
+    qs = (
+        LabelGroup.objects.filter(workspace_id__in=user_workspace_ids(user))
+        .select_related("workspace")
+        .annotate(label_count=Count("labels"))
+    )
+    ws = args.get("workspace")
+    if ws:
+        qs = qs.filter(workspace__slug=ws)
+    return [
+        {
+            "id": g.id,
+            "name": g.name,
+            "description": g.description,
+            "is_exclusive": g.is_exclusive,
+            "workspace_slug": g.workspace.slug,
+            "label_count": g.label_count,
+        }
+        for g in qs.order_by("workspace__name", "name")
+    ]
+
+
 CALLABLES: dict[str, Callable[[User, dict[str, Any]], Any]] = {
     "acta_workspaces_list": workspaces_list,
     "acta_projects_list": projects_list,
@@ -827,6 +871,7 @@ CALLABLES: dict[str, Callable[[User, dict[str, Any]], Any]] = {
     "acta_activity_list": activity_list,
     "acta_comments_list": comments_list,
     "acta_labels_list": labels_list,
+    "acta_label_groups_list": label_groups_list,
 }
 
 
