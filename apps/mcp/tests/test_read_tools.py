@@ -592,3 +592,83 @@ class TestQueryCounts:
 
         assert len(ctx_small.captured_queries) == len(ctx_large.captured_queries)
         assert len(ctx_large.captured_queries) <= 4
+
+
+@pytest.mark.django_db
+class TestProjectGet:
+    def test_returns_description_members_and_counts(self):
+        user = UserFactory()
+        ws = WorkspaceFactory()
+        WorkspaceMember.objects.create(user=user, workspace=ws)
+        member = UserFactory()
+        WorkspaceMember.objects.create(user=member, workspace=ws)
+        project = ProjectFactory(
+            workspace=ws,
+            slug_prefix="ACTA",
+            name="Acta",
+            description="The tracker",
+        )
+        project.members.set([user, member])
+        TaskFactory(project=project, reporter=user, status=Task.STATUS_IN_PROGRESS)
+        TaskFactory(project=project, reporter=user, status=Task.STATUS_DONE)
+        TaskFactory(project=project, reporter=user, status=Task.STATUS_CANCELLED)
+
+        result = CALLABLES["acta_project_get"](user, {"slug_prefix": "ACTA"})
+        assert result["description"] == "The tracker"
+        assert result["task_counts"] == {"total": 3, "open": 1, "done": 1, "cancelled": 1}
+        assert {m["username"] for m in result["members"]} == {user.username, member.username}
+
+    def test_foreign_project_raises(self):
+        user = UserFactory()
+        WorkspaceMember.objects.create(user=user, workspace=WorkspaceFactory())
+        foreign = ProjectFactory(slug_prefix="ZZZ")
+        with pytest.raises(ValueError, match="not found or not accessible"):
+            CALLABLES["acta_project_get"](user, {"slug_prefix": foreign.slug_prefix})
+
+
+@pytest.mark.django_db
+class TestWorkspaceMembersList:
+    def test_lists_members_ordered_by_role(self):
+        ws = WorkspaceFactory()  # factory seeds owner membership
+        owner = ws.owner
+        admin = UserFactory(first_name="Adam")
+        WorkspaceMember.objects.create(user=admin, workspace=ws, role=WorkspaceMember.ADMIN)
+        member = UserFactory(first_name="Mary")
+        WorkspaceMember.objects.create(user=member, workspace=ws, role=WorkspaceMember.MEMBER)
+
+        result = CALLABLES["acta_workspace_members_list"](owner, {"workspace": ws.slug})
+        roles = [row["role"] for row in result]
+        assert roles == [WorkspaceMember.OWNER, WorkspaceMember.ADMIN, WorkspaceMember.MEMBER]
+        assert {row["username"] for row in result} == {owner.username, admin.username, member.username}
+
+    def test_non_member_cannot_list(self):
+        ws = WorkspaceFactory()
+        outsider = UserFactory()
+        WorkspaceMember.objects.create(user=outsider, workspace=WorkspaceFactory())
+        with pytest.raises(ValueError, match="not found or not accessible"):
+            CALLABLES["acta_workspace_members_list"](outsider, {"workspace": ws.slug})
+
+
+@pytest.mark.django_db
+class TestProjectUpdatesList:
+    def test_returns_posts_newest_first(self):
+        from apps.projects.models import ProjectUpdate
+
+        user = UserFactory()
+        ws = WorkspaceFactory()
+        WorkspaceMember.objects.create(user=user, workspace=ws)
+        project = ProjectFactory(workspace=ws, slug_prefix="ACTA")
+        ProjectUpdate.objects.create(project=project, author=user, health=ProjectUpdate.ON_TRACK, body="first")
+        ProjectUpdate.objects.create(project=project, author=user, health=ProjectUpdate.AT_RISK, body="second")
+
+        result = CALLABLES["acta_project_updates_list"](user, {"project": "ACTA"})
+        assert [row["body"] for row in result] == ["second", "first"]
+        assert result[0]["health"] == ProjectUpdate.AT_RISK
+        assert result[0]["author_username"] == user.username
+
+    def test_foreign_project_raises(self):
+        user = UserFactory()
+        WorkspaceMember.objects.create(user=user, workspace=WorkspaceFactory())
+        foreign = ProjectFactory(slug_prefix="ZZZ")
+        with pytest.raises(ValueError, match="not found or not accessible"):
+            CALLABLES["acta_project_updates_list"](user, {"project": foreign.slug_prefix})

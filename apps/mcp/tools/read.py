@@ -14,7 +14,7 @@ from typing import Any, Callable
 from mcp.types import Tool
 
 from apps.accounts.models import User
-from apps.mcp.tools._shared import user_workspace_ids
+from apps.mcp.tools._shared import resolve_workspace, user_workspace_ids
 from apps.tasks.models import Task
 
 
@@ -46,12 +46,154 @@ def projects_list(user: User, arguments: dict[str, Any]) -> Any:
             "id": p.id,
             "slug_prefix": p.slug_prefix,
             "name": p.name,
+            "description": p.description or "",
             "workspace_slug": p.workspace.slug,
             "workspace_name": p.workspace.name,
             "lead_username": p.lead.username if p.lead_id else None,
             "archived": p.archived,
         }
         for p in qs.order_by("workspace__name", "name")
+    ]
+
+
+def project_get(user: User, arguments: dict[str, Any]) -> Any:
+    """Return the full payload for one project: meta + members + task counts.
+
+    Complements ``acta_projects_list`` (which omits the description and
+    membership) for flows that need to read or reason about a single
+    project in depth — its Markdown description, lead, member roster, and
+    open/closed task tallies. Scoped to the user's workspaces.
+    """
+    from django.db.models import Count, Q
+
+    from apps.projects.models import Project
+    from apps.tasks.models import Task
+
+    slug_prefix = (arguments or {}).get("slug_prefix")
+    if not slug_prefix:
+        raise ValueError("Argument 'slug_prefix' is required (e.g. 'ACTA').")
+    try:
+        project = (
+            Project.objects.filter(workspace_id__in=user_workspace_ids(user))
+            .select_related("workspace", "lead")
+            .prefetch_related("members")
+            .get(slug_prefix=slug_prefix)
+        )
+    except Project.DoesNotExist:
+        raise ValueError(f"Project {slug_prefix!r} not found or not accessible to this user.")
+
+    counts = Task.objects.filter(project=project, archived_at__isnull=True).aggregate(
+        total=Count("id"),
+        done=Count("id", filter=Q(status=Task.STATUS_DONE)),
+        cancelled=Count("id", filter=Q(status=Task.STATUS_CANCELLED)),
+    )
+    open_count = counts["total"] - counts["done"] - counts["cancelled"]
+
+    return {
+        "id": project.id,
+        "slug_prefix": project.slug_prefix,
+        "name": project.name,
+        "description": project.description or "",
+        "icon": project.icon or "",
+        "icon_color": project.icon_color or "",
+        "workspace_slug": project.workspace.slug,
+        "workspace_name": project.workspace.name,
+        "lead_username": project.lead.username if project.lead_id else None,
+        "lead_display_name": project.lead.display_name if project.lead_id else None,
+        "archived": project.archived,
+        "notify_members_only": project.notify_members_only,
+        "created_at": project.created_at.isoformat(),
+        "members": [
+            {
+                "username": m.username,
+                "display_name": m.display_name,
+            }
+            for m in project.members.all()
+        ],
+        "task_counts": {
+            "total": counts["total"],
+            "open": open_count,
+            "done": counts["done"],
+            "cancelled": counts["cancelled"],
+        },
+    }
+
+
+def workspace_members_list(user: User, arguments: dict[str, Any]) -> Any:
+    """List the members of one workspace with their roles.
+
+    Closes the gap that forced assignee discovery to scrape distinct
+    usernames off task rows. Required: ``workspace`` (slug). Returns the
+    roster sorted lead-agnostic by role rank (owner, admin, member) then
+    display name — handy for ranking assignee pickers.
+    """
+    from apps.workspaces.models import WorkspaceMember
+
+    args = arguments or {}
+    workspace = resolve_workspace(user, args.get("workspace") or "")
+
+    role_rank = {
+        WorkspaceMember.OWNER: 0,
+        WorkspaceMember.ADMIN: 1,
+        WorkspaceMember.MEMBER: 2,
+    }
+    members = (
+        WorkspaceMember.objects.filter(workspace=workspace)
+        .select_related("user")
+        .order_by("role", "user__first_name", "user__username")
+    )
+    rows = [
+        {
+            "username": m.user.username,
+            "display_name": m.user.display_name,
+            "role": m.role,
+            "is_active": m.user.is_active,
+            "joined_at": m.joined_at.isoformat(),
+        }
+        for m in members
+    ]
+    rows.sort(key=lambda r: (role_rank.get(r["role"], 9), r["display_name"].lower()))
+    return rows
+
+
+def project_updates_list(user: User, arguments: dict[str, Any]) -> Any:
+    """List the Linear-style status updates posted on a project.
+
+    These are the ``ProjectUpdate`` posts (health signal + Markdown body
+    + optional frozen stats), distinct from the activity log. Required:
+    ``project`` (slug prefix). Optional ``limit`` (default 20, max 100).
+    """
+    from apps.projects.models import Project, ProjectUpdate
+
+    args = arguments or {}
+    project_prefix = args.get("project")
+    if not project_prefix:
+        raise ValueError("Argument 'project' is required (slug prefix, e.g. 'ACTA').")
+    if not Project.objects.filter(
+        slug_prefix=project_prefix,
+        workspace_id__in=user_workspace_ids(user),
+    ).exists():
+        raise ValueError(f"Project {project_prefix!r} not found or not accessible to this user.")
+
+    limit = min(int(args.get("limit", 20)), 100)
+    qs = (
+        ProjectUpdate.objects.filter(project__slug_prefix=project_prefix)
+        .select_related("author")
+        .order_by("-created_at")[:limit]
+    )
+    return [
+        {
+            "id": u.id,
+            "health": u.health,
+            "body": u.body,
+            "stats": u.stats or {},
+            "author_username": u.author.username if u.author_id else None,
+            "author_display_name": u.author.display_name if u.author_id else None,
+            "edited": u.was_edited,
+            "created_at": u.created_at.isoformat(),
+            "updated_at": u.updated_at.isoformat(),
+        }
+        for u in qs
     ]
 
 
@@ -412,8 +554,10 @@ TOOLS: list[Tool] = [
             "argument scopes to a single workspace by its slug; otherwise "
             "returns projects across every workspace the user belongs to. "
             "Set ``include_archived: true`` to include archived projects. "
-            "Returns ``[{id, slug_prefix, name, workspace_slug, workspace_name, lead_username, archived}, …]``. "
-            "``slug_prefix`` (e.g. ``ACTA``) is the identifier to pass into ``acta_tasks_list``."
+            "Returns ``[{id, slug_prefix, name, description, workspace_slug, workspace_name, "
+            "lead_username, archived}, …]``. ``slug_prefix`` (e.g. ``ACTA``) is the "
+            "identifier to pass into ``acta_tasks_list``. For the member roster + task "
+            "counts of a single project use ``acta_project_get``."
         ),
         inputSchema={
             "type": "object",
@@ -427,6 +571,68 @@ TOOLS: list[Tool] = [
                     "description": "Include archived projects in the result (defaults to false).",
                 },
             },
+            "additionalProperties": False,
+        },
+    ),
+    Tool(
+        name="acta_project_get",
+        description=(
+            "Return the FULL payload for one project — meta, Markdown description, "
+            "lead, member roster, and open/done/cancelled task counts. Use this when "
+            "``acta_projects_list`` (which omits description + members) isn't enough. "
+            "Required: ``slug_prefix`` (e.g. ``ACTA``). Returns ``{id, slug_prefix, "
+            "name, description, icon, icon_color, workspace_slug, workspace_name, "
+            "lead_username, lead_display_name, archived, notify_members_only, "
+            "created_at, members: [{username, display_name}], task_counts: "
+            "{total, open, done, cancelled}}``."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "slug_prefix": {"type": "string", "description": "Project slug prefix, e.g. 'ACTA'."},
+            },
+            "required": ["slug_prefix"],
+            "additionalProperties": False,
+        },
+    ),
+    Tool(
+        name="acta_workspace_members_list",
+        description=(
+            "List the members of one workspace with their roles. Use this to "
+            "discover who can be assigned tasks or to rank an assignee picker — "
+            "instead of scraping distinct usernames off task rows. Required: "
+            "``workspace`` (slug). Returns ``[{username, display_name, role "
+            "(owner/admin/member), is_active, joined_at}, …]`` ordered owner → "
+            "admin → member, then by display name."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "workspace": {"type": "string", "description": "Workspace slug."},
+            },
+            "required": ["workspace"],
+            "additionalProperties": False,
+        },
+    ),
+    Tool(
+        name="acta_project_updates_list",
+        description=(
+            "List the Linear-style status updates posted on a project (the "
+            "``ProjectUpdate`` posts — health signal + Markdown body + optional "
+            "frozen stats), NEWEST first. Distinct from ``acta_activity_list`` "
+            "(the audit log) — these are deliberate human-written status posts. "
+            "Required: ``project`` (slug prefix). Optional: ``limit`` (default 20, "
+            "max 100). Returns ``[{id, health (on_track/at_risk/off_track/"
+            "completed), body, stats, author_username, author_display_name, edited, "
+            "created_at, updated_at}, …]``. To post one, use ``acta_project_post_update``."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "project": {"type": "string", "description": "Project slug prefix (e.g. ACTA)."},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 100},
+            },
+            "required": ["project"],
             "additionalProperties": False,
         },
     ),
@@ -613,6 +819,9 @@ def labels_list(user: User, arguments: dict[str, Any]) -> Any:
 CALLABLES: dict[str, Callable[[User, dict[str, Any]], Any]] = {
     "acta_workspaces_list": workspaces_list,
     "acta_projects_list": projects_list,
+    "acta_project_get": project_get,
+    "acta_workspace_members_list": workspace_members_list,
+    "acta_project_updates_list": project_updates_list,
     "acta_tasks_list": tasks_list,
     "acta_task_get": task_get,
     "acta_activity_list": activity_list,

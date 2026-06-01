@@ -50,6 +50,38 @@ def resolve_user_by_username(username: str):
         raise ValueError(f"User {username!r} does not exist.")
 
 
+def resolve_workspace(user: User, slug: str):
+    """Look up a workspace by ``slug``, scoped to the user's memberships.
+
+    Raises ``ValueError`` (not 404) so the MCP layer surfaces it as a
+    readable tool-call error.
+    """
+    from apps.workspaces.models import Workspace
+
+    try:
+        return Workspace.objects.get(slug=slug, id__in=user_workspace_ids(user))
+    except Workspace.DoesNotExist:
+        raise ValueError(f"Workspace {slug!r} not found or not accessible to this user.")
+
+
+def is_workspace_admin(user: User, workspace) -> bool:
+    """Return ``True`` if ``user`` is an owner or admin of ``workspace``.
+
+    Mirrors the web's ``_user_is_workspace_admin`` gate so MCP-driven
+    writes obey the same role matrix (see docs/decisions/0010-permissions.md).
+    """
+    from apps.workspaces.models import WorkspaceMember
+
+    return WorkspaceMember.objects.filter(
+        user=user,
+        workspace=workspace,
+        role__in=[
+            WorkspaceMember.OWNER,
+            WorkspaceMember.ADMIN,
+        ],
+    ).exists()
+
+
 def resolve_task(user: User, slug: str):
     """Look up a Task by ``PREFIX-NUMBER`` slug, scoped to the user's workspaces."""
     try:

@@ -581,3 +581,155 @@ class TestTaskLink:
         blocks_slugs = [t["slug"] for t in payload["links"]["blocks"]]
         assert b.slug in blocks_slugs
         assert payload["is_blocked"] is False
+
+
+@pytest.fixture
+def admin_project_setup():
+    """A workspace whose ``user`` is an OWNER (admin-equivalent) member."""
+    user = UserFactory()
+    ws = WorkspaceFactory(owner=user)  # factory seeds the owner membership
+    project = ProjectFactory(workspace=ws, slug_prefix="ACTA")
+    return user, ws, project
+
+
+@pytest.mark.django_db
+class TestProjectUpdate:
+    def test_member_can_edit_description(self, project_setup):
+        user, _, project = project_setup
+        result = CALLABLES["acta_project_update"](user, {"slug_prefix": "ACTA", "description": "New body"})
+        assert result["description"] == "New body"
+        project.refresh_from_db()
+        assert project.description == "New body"
+
+    def test_non_admin_cannot_archive(self, project_setup):
+        user, _, _ = project_setup  # plain member, not admin/owner
+        with pytest.raises(ValueError, match="Only workspace admins"):
+            CALLABLES["acta_project_update"](user, {"slug_prefix": "ACTA", "archived": True})
+
+    def test_admin_can_archive_and_rename(self, admin_project_setup):
+        user, _, project = admin_project_setup
+        result = CALLABLES["acta_project_update"](
+            user,
+            {"slug_prefix": "ACTA", "archived": True, "name": "Renamed"},
+        )
+        assert result["archived"] is True
+        assert result["name"] == "Renamed"
+        project.refresh_from_db()
+        assert project.archived is True
+        assert project.name == "Renamed"
+
+    def test_lead_must_be_workspace_member(self, admin_project_setup):
+        user, ws, _ = admin_project_setup
+        outsider = UserFactory()
+        with pytest.raises(ValueError, match="must be a member"):
+            CALLABLES["acta_project_update"](user, {"slug_prefix": "ACTA", "lead_username": outsider.username})
+
+    def test_lead_can_be_cleared_with_null(self, admin_project_setup):
+        user, ws, project = admin_project_setup
+        project.lead = user
+        project.save(update_fields=["lead"])
+        result = CALLABLES["acta_project_update"](user, {"slug_prefix": "ACTA", "lead_username": None})
+        assert result["lead_username"] is None
+        project.refresh_from_db()
+        assert project.lead_id is None
+
+    def test_unknown_field_rejected(self, project_setup):
+        user, _, _ = project_setup
+        with pytest.raises(ValueError, match="Unknown field"):
+            CALLABLES["acta_project_update"](user, {"slug_prefix": "ACTA", "bogus": 1})
+
+    def test_empty_update_rejected(self, project_setup):
+        user, _, _ = project_setup
+        with pytest.raises(ValueError, match="Nothing to update"):
+            CALLABLES["acta_project_update"](user, {"slug_prefix": "ACTA"})
+
+
+@pytest.mark.django_db
+class TestProjectPostUpdate:
+    def test_posts_status_update(self, project_setup):
+        from apps.projects.models import ProjectUpdate
+
+        user, _, project = project_setup
+        result = CALLABLES["acta_project_post_update"](
+            user,
+            {"project": "ACTA", "health": "on_track", "body": "All good"},
+        )
+        assert result["health"] == "on_track"
+        assert result["body"] == "All good"
+        assert ProjectUpdate.objects.filter(project=project, body="All good", author=user).exists()
+
+    def test_invalid_health_rejected(self, project_setup):
+        user, _, _ = project_setup
+        with pytest.raises(ValueError, match="health"):
+            CALLABLES["acta_project_post_update"](user, {"project": "ACTA", "health": "great", "body": "x"})
+
+    def test_empty_body_rejected(self, project_setup):
+        user, _, _ = project_setup
+        with pytest.raises(ValueError, match="body"):
+            CALLABLES["acta_project_post_update"](user, {"project": "ACTA", "health": "on_track", "body": "  "})
+
+
+@pytest.mark.django_db
+class TestCommentUpdate:
+    def test_author_can_edit(self, project_setup):
+        from apps.activity.models import ActivityLog
+
+        user, _, project = project_setup
+        task = TaskFactory(project=project, reporter=user)
+        comment = Comment.objects.create(task=task, author=user, body="orig")
+        result = CALLABLES["acta_comment_update"](user, {"id": comment.id, "body": "edited"})
+        assert result["body"] == "edited"
+        comment.refresh_from_db()
+        assert comment.body == "edited"
+        assert ActivityLog.objects.filter(
+            event_type="comment.edited",
+            target_id=comment.id,
+            actor=user,
+        ).exists()
+
+    def test_non_author_member_cannot_edit(self, project_setup):
+        user, ws, project = project_setup
+        other = UserFactory()
+        WorkspaceMember.objects.create(user=other, workspace=ws)  # plain member
+        task = TaskFactory(project=project, reporter=user)
+        comment = Comment.objects.create(task=task, author=user, body="orig")
+        with pytest.raises(ValueError, match="author or a workspace admin"):
+            CALLABLES["acta_comment_update"](other, {"id": comment.id, "body": "hijack"})
+
+    def test_admin_can_edit_others_comment(self, admin_project_setup):
+        user, ws, project = admin_project_setup  # user is owner
+        author = UserFactory()
+        WorkspaceMember.objects.create(user=author, workspace=ws)
+        task = TaskFactory(project=project, reporter=author)
+        comment = Comment.objects.create(task=task, author=author, body="orig")
+        result = CALLABLES["acta_comment_update"](user, {"id": comment.id, "body": "moderated"})
+        assert result["body"] == "moderated"
+
+
+@pytest.mark.django_db
+class TestCommentDelete:
+    def test_author_can_delete(self, project_setup):
+        from apps.activity.models import ActivityLog
+
+        user, _, project = project_setup
+        task = TaskFactory(project=project, reporter=user)
+        comment = Comment.objects.create(task=task, author=user, body="bye")
+        cid = comment.id
+        result = CALLABLES["acta_comment_delete"](user, {"id": cid})
+        assert result["deleted_id"] == cid
+        assert not Comment.objects.filter(id=cid).exists()
+        assert ActivityLog.objects.filter(
+            event_type="comment.deleted",
+            target_id=cid,
+            actor=user,
+        ).exists()
+
+    def test_non_author_member_cannot_delete(self, project_setup):
+        user, ws, project = project_setup
+        other = UserFactory()
+        WorkspaceMember.objects.create(user=other, workspace=ws)
+        task = TaskFactory(project=project, reporter=user)
+        comment = Comment.objects.create(task=task, author=user, body="keep")
+        with pytest.raises(ValueError, match="author or a workspace admin"):
+            CALLABLES["acta_comment_delete"](other, {"id": comment.id})
+        assert Comment.objects.filter(id=comment.id).exists()

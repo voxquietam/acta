@@ -18,6 +18,7 @@ from mcp.types import Tool
 from apps.accounts.models import User
 from apps.mcp.tools._shared import (
     FakeRequest,
+    is_workspace_admin,
     resolve_project,
     resolve_task,
     resolve_user_by_username,
@@ -480,6 +481,227 @@ def comment_create(user: User, arguments: dict[str, Any]) -> Any:
         "body": comment.body,
         "created_at": comment.created_at.isoformat(),
     }
+
+
+def project_update(user: User, arguments: dict[str, Any]) -> Any:
+    """Edit a project's fields — description, icon, name, lead, archived, etc.
+
+    Field-level gating mirrors the web UI:
+        * ``description`` / ``icon`` / ``icon_color`` — any workspace member.
+        * ``name`` / ``lead_username`` / ``archived`` / ``notify_members_only``
+          — workspace admin or owner only.
+
+    Only fields present in ``arguments`` are written; everything else is
+    preserved. Pass ``lead_username`` as ``null`` to clear the lead.
+    Returns the updated project meta (same core shape as ``acta_project_get``).
+    """
+    from apps.projects.icons import is_curated, is_curated_color
+
+    args = arguments or {}
+    slug_prefix = args.get("slug_prefix")
+    if not slug_prefix:
+        raise ValueError("Argument 'slug_prefix' is required (e.g. 'ACTA').")
+    project = resolve_project(user, slug_prefix)
+
+    member_fields = {"description", "icon", "icon_color"}
+    admin_fields = {"name", "lead_username", "archived", "notify_members_only"}
+    present = set(args) - {"slug_prefix"}
+    unknown = present - member_fields - admin_fields
+    if unknown:
+        raise ValueError(f"Unknown field(s): {sorted(unknown)}.")
+    if not present:
+        raise ValueError("Nothing to update — supply at least one field.")
+    if present & admin_fields and not is_workspace_admin(user, project.workspace):
+        raise ValueError("Only workspace admins can change name / lead / archived / notify_members_only.")
+
+    update_fields: list[str] = []
+    if "name" in args:
+        name = (args["name"] or "").strip()
+        if not name:
+            raise ValueError("Project name must be non-empty.")
+        project.name = name
+        update_fields.append("name")
+    if "description" in args:
+        project.description = args["description"] or ""
+        update_fields.append("description")
+    if "icon" in args:
+        icon = (args["icon"] or "").strip()
+        if icon and not is_curated(icon):
+            raise ValueError(f"Icon {icon!r} is not in the curated Lucide set.")
+        project.icon = icon
+        update_fields.append("icon")
+    if "icon_color" in args:
+        color = (args["icon_color"] or "").strip()
+        if color and not is_curated_color(color):
+            raise ValueError(f"Icon color {color!r} is not in the curated palette.")
+        project.icon_color = color
+        update_fields.append("icon_color")
+    if "lead_username" in args:
+        lead_value = args["lead_username"]
+        if lead_value is None:
+            project.lead = None
+        else:
+            lead = resolve_user_by_username(lead_value)
+            if not project.workspace.members.filter(pk=lead.pk).exists():
+                raise ValueError("Lead must be a member of the project's workspace.")
+            project.lead = lead
+        update_fields.append("lead")
+    if "archived" in args:
+        project.archived = bool(args["archived"])
+        update_fields.append("archived")
+    if "notify_members_only" in args:
+        project.notify_members_only = bool(args["notify_members_only"])
+        update_fields.append("notify_members_only")
+
+    project.save(update_fields=update_fields)
+    return {
+        "id": project.id,
+        "slug_prefix": project.slug_prefix,
+        "name": project.name,
+        "description": project.description or "",
+        "icon": project.icon or "",
+        "icon_color": project.icon_color or "",
+        "workspace_slug": project.workspace.slug,
+        "lead_username": project.lead.username if project.lead_id else None,
+        "archived": project.archived,
+        "notify_members_only": project.notify_members_only,
+    }
+
+
+def project_post_update(user: User, arguments: dict[str, Any]) -> Any:
+    """Post a Linear-style status update (``ProjectUpdate``) on a project.
+
+    These are the human-written status posts surfaced on the project
+    overview's Updates tab — distinct from the auto-tracked activity log.
+    Required: ``project`` (slug prefix), ``health`` (on_track / at_risk /
+    off_track / completed), ``body`` (non-empty Markdown). Authored by the
+    calling user; fans out the same notifications the web composer does.
+    """
+    from apps.notifications.services import notify_project_update_created
+    from apps.projects.models import ProjectUpdate
+
+    args = arguments or {}
+    project_prefix = args.get("project")
+    health = (args.get("health") or "").strip()
+    body = (args.get("body") or "").strip()
+    if not project_prefix:
+        raise ValueError("Argument 'project' (slug prefix) is required.")
+    valid_health = {key for key, _ in ProjectUpdate.HEALTH_CHOICES}
+    if health not in valid_health:
+        raise ValueError(f"'health' must be one of: {sorted(valid_health)}.")
+    if not body:
+        raise ValueError("Argument 'body' (non-empty Markdown) is required.")
+    project = resolve_project(user, project_prefix)
+    update = ProjectUpdate.objects.create(
+        project=project,
+        author=user,
+        health=health,
+        body=body,
+    )
+    notify_project_update_created(update=update, actor=user)
+    return {
+        "id": update.id,
+        "project_slug_prefix": project.slug_prefix,
+        "health": update.health,
+        "body": update.body,
+        "author_username": user.username,
+        "created_at": update.created_at.isoformat(),
+    }
+
+
+def _resolve_task_comment(user: User, comment_id):
+    """Look up a task comment by id, scoped to the user's workspaces.
+
+    Task-scoped only (``task__isnull=False``) — project-update comments are
+    composed through the web, never this surface, so the write hooks that
+    walk ``comment.task.project`` stay safe. Raises ``ValueError`` if the
+    comment is missing or out of scope.
+    """
+    from apps.comments.models import Comment
+
+    try:
+        return Comment.objects.select_related("task__project__workspace", "author").get(
+            id=comment_id,
+            task__isnull=False,
+            task__project__workspace_id__in=user_workspace_ids(user),
+        )
+    except Comment.DoesNotExist:
+        raise ValueError(f"Comment id={comment_id} not found or not accessible to this user.")
+
+
+def comment_update(user: User, arguments: dict[str, Any]) -> Any:
+    """Edit a task comment's body. Author or workspace admin only.
+
+    Emits a ``comment.edited`` activity event with the calling user as
+    actor — matches the web's DRF comment edit. Required: ``id``, ``body``
+    (non-empty Markdown). Returns the updated comment.
+    """
+    from apps.activity.models import ActivityLog
+    from apps.activity.services import log_event
+
+    args = arguments or {}
+    comment_id = args.get("id")
+    body = (args.get("body") or "").strip()
+    if not comment_id:
+        raise ValueError("Argument 'id' is required.")
+    if not body:
+        raise ValueError("Argument 'body' (non-empty) is required.")
+    comment = _resolve_task_comment(user, comment_id)
+    if comment.author_id != user.id and not is_workspace_admin(user, comment.task.project.workspace):
+        raise ValueError("Only the comment author or a workspace admin can edit this comment.")
+    comment.body = body
+    comment.save(update_fields=["body", "updated_at"])
+    log_event(
+        workspace=comment.task.project.workspace,
+        project=comment.task.project,
+        actor=user,
+        event_type="comment.edited",
+        target_type=ActivityLog.TARGET_COMMENT,
+        target_id=comment.id,
+        payload={"task_id": comment.task_id},
+    )
+    return {
+        "id": comment.id,
+        "task_slug": comment.task.slug,
+        "author_username": comment.author.username if comment.author_id else None,
+        "body": comment.body,
+        "updated_at": comment.updated_at.isoformat(),
+    }
+
+
+def comment_delete(user: User, arguments: dict[str, Any]) -> Any:
+    """Delete a task comment. Author or workspace admin only.
+
+    Emits a ``comment.deleted`` activity event with the calling user as
+    actor. Irreversible — cascades to any replies. Required: ``id``.
+    Returns ``{deleted_id, task_slug}``.
+    """
+    from apps.activity.models import ActivityLog
+    from apps.activity.services import log_event
+
+    args = arguments or {}
+    comment_id = args.get("id")
+    if not comment_id:
+        raise ValueError("Argument 'id' is required.")
+    comment = _resolve_task_comment(user, comment_id)
+    if comment.author_id != user.id and not is_workspace_admin(user, comment.task.project.workspace):
+        raise ValueError("Only the comment author or a workspace admin can delete this comment.")
+    workspace = comment.task.project.workspace
+    project = comment.task.project
+    task_slug = comment.task.slug
+    task_id = comment.task_id
+    cid = comment.id
+    comment.delete()
+    log_event(
+        workspace=workspace,
+        project=project,
+        actor=user,
+        event_type="comment.deleted",
+        target_type=ActivityLog.TARGET_COMMENT,
+        target_id=cid or 0,
+        payload={"task_id": task_id},
+    )
+    return {"deleted_id": cid, "task_slug": task_slug}
 
 
 def task_delete(user: User, arguments: dict[str, Any]) -> Any:
@@ -980,6 +1202,95 @@ TOOLS: list[Tool] = [
             "additionalProperties": False,
         },
     ),
+    Tool(
+        name="acta_comment_update",
+        description=(
+            "Edit a task comment's body. Allowed only for the comment's author "
+            "or a workspace admin/owner. Emits a ``comment.edited`` activity "
+            "event. Required: ``id`` (comment id from ``acta_comments_list`` / "
+            "``acta_task_get``), ``body`` (non-empty Markdown). Returns "
+            "``{id, task_slug, author_username, body, updated_at}``."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "id": {"type": "integer", "description": "Comment id."},
+                "body": {"type": "string"},
+            },
+            "required": ["id", "body"],
+            "additionalProperties": False,
+        },
+    ),
+    Tool(
+        name="acta_comment_delete",
+        description=(
+            "Delete a task comment (irreversible — cascades to replies). Allowed "
+            "only for the comment's author or a workspace admin/owner. Emits a "
+            "``comment.deleted`` activity event. Required: ``id``. Returns "
+            "``{deleted_id, task_slug}``."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "id": {"type": "integer", "description": "Comment id."},
+            },
+            "required": ["id"],
+            "additionalProperties": False,
+        },
+    ),
+    Tool(
+        name="acta_project_update",
+        description=(
+            "Edit a project's metadata (NOT a status post — for that use "
+            "``acta_project_post_update``). Required: ``slug_prefix`` (e.g. ACTA). "
+            "Optional fields, written only when present: ``description`` (Markdown), "
+            "``icon`` (curated Lucide name), ``icon_color`` (curated palette key) — "
+            "editable by any workspace member; ``name``, ``lead_username`` (null to "
+            "clear; must be a workspace member), ``archived`` (bool), "
+            "``notify_members_only`` (bool) — workspace admin/owner only. Returns the "
+            "updated project meta."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "slug_prefix": {"type": "string", "description": "Project slug prefix, e.g. ACTA."},
+                "name": {"type": "string"},
+                "description": {"type": "string", "description": "Markdown body."},
+                "icon": {"type": "string", "description": "Curated Lucide icon name; empty clears."},
+                "icon_color": {"type": "string", "description": "Curated palette key, e.g. 'violet'; empty clears."},
+                "lead_username": {"type": ["string", "null"], "description": "Workspace member, or null to clear."},
+                "archived": {"type": "boolean"},
+                "notify_members_only": {"type": "boolean"},
+            },
+            "required": ["slug_prefix"],
+            "additionalProperties": False,
+        },
+    ),
+    Tool(
+        name="acta_project_post_update",
+        description=(
+            "Post a Linear-style status update on a project — the human-written "
+            "health post surfaced on the project overview's Updates tab (distinct "
+            "from the auto-tracked activity log; list them with "
+            "``acta_project_updates_list``). Required: ``project`` (slug prefix), "
+            "``health`` (on_track / at_risk / off_track / completed), ``body`` "
+            "(non-empty Markdown). Authored by the calling user. Returns "
+            "``{id, project_slug_prefix, health, body, author_username, created_at}``."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "project": {"type": "string", "description": "Project slug prefix (e.g. ACTA)."},
+                "health": {
+                    "type": "string",
+                    "enum": ["on_track", "at_risk", "off_track", "completed"],
+                },
+                "body": {"type": "string", "description": "Markdown body."},
+            },
+            "required": ["project", "health", "body"],
+            "additionalProperties": False,
+        },
+    ),
 ]
 
 
@@ -1090,6 +1401,10 @@ CALLABLES: dict[str, Callable[[User, dict[str, Any]], Any]] = {
     "acta_label_create": label_create,
     "acta_label_update": label_update,
     "acta_label_delete": label_delete,
+    "acta_comment_update": comment_update,
+    "acta_comment_delete": comment_delete,
+    "acta_project_update": project_update,
+    "acta_project_post_update": project_post_update,
 }
 
 
