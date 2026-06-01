@@ -2580,6 +2580,21 @@
             swap: "innerHTML",
           });
         });
+        // My Work renders its list straight inside ``[data-task-list-root]``
+        // with NO ``[data-panel-slot]`` wrapper, so the slot refetch above
+        // misses it: a status change that moves a task into a section not yet
+        // present in the list can't be placed by ``applyRowHtmlList`` and had
+        // no fallback here — the row only appeared after a manual reload.
+        // Refetch those slot-less roots too (All Tasks' root contains a slot,
+        // so it's skipped — no double refetch).
+        document.querySelectorAll("[data-task-list-root]").forEach((root) => {
+          if (root.querySelector("[data-panel-slot]")) return;
+          const url = new URL(window.location.href);
+          window.htmx.ajax("GET", url.pathname + url.search, {
+            target: root,
+            swap: "innerHTML",
+          });
+        });
         listPanelRefetchTimer = null;
       }, 250);
     }
