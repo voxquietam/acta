@@ -257,6 +257,12 @@ TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN") or ""
 TELEGRAM_BOT_USERNAME = os.environ.get("TELEGRAM_BOT_USERNAME") or ""
 TELEGRAM_WEBHOOK_SECRET = os.environ.get("TELEGRAM_WEBHOOK_SECRET") or ""
 
+# Optional override for the ``notify_deploy`` heads-up (the ``make deploy``
+# ~1-min warning). Empty (default) → the command fans the heads-up out to every
+# linked ``TelegramAccount`` (enabled=True). Set to a single chat id (ops group
+# or one person) to send only there instead.
+TELEGRAM_DEPLOY_CHAT_ID = os.environ.get("TELEGRAM_DEPLOY_CHAT_ID") or ""
+
 # Public changelog link (sidebar version kicker). Override for forks.
 CHANGELOG_URL = os.environ.get("ACTA_CHANGELOG_URL") or "https://github.com/voxquietam/acta/blob/master/CHANGELOG.md"
 

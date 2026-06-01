@@ -31,6 +31,7 @@ below.
 | `EMAIL_HOST` / `EMAIL_PORT` / `EMAIL_USE_TLS` / `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` / `DEFAULT_FROM_EMAIL` | sending **workspace invites** by email |
 | `ACTA_PUBLIC_BASE_URL=https://actaspace.com` | absolute links in invite emails + task links in Telegram |
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_BOT_USERNAME` / `TELEGRAM_WEBHOOK_SECRET` | the Telegram notification bot |
+| `TELEGRAM_DEPLOY_CHAT_ID` *(optional)* | narrows the pre-deploy heads-up to **one** chat; unset = broadcast to every linked account (see "Deploy heads-up") |
 
 "Sign in with Google" is **not** configured via env vars — the Client ID
 and Secret are stored in a `SocialApp` row in Django admin. See "One-time"
@@ -49,6 +50,23 @@ and Secret are stored in a `SocialApp` row in Django admin. See "One-time"
    (`telegram_set_webhook`, run on every deploy — see below); no manual step.
    To register by hand: `telegram_set_webhook --base-url https://actaspace.com`.
 8. Set up **Google OAuth** — create the `SocialApp` in `/admin/` (see "One-time" §6)
+
+### Deploy heads-up (automatic)
+
+`make deploy` (any branch) first broadcasts a caps **SYSTEM UPDATE
+INCOMING** Telegram message to every linked account (`TelegramAccount`,
+`enabled=True`), then waits before the disruptive rebuild — so the team can
+save in-flight drafts (submitted data survives a restart; unsaved TipTap
+text doesn't).
+
+- Wait window: `WAIT` minutes, **default 2**. Tune per run —
+  `make deploy WAIT=3` (risky migration) / `make deploy WAIT=1` (quiet
+  window). The message ETA is derived from the same var, so they never drift.
+- Target: defaults to **all linked accounts**. Set `TELEGRAM_DEPLOY_CHAT_ID`
+  to send to a single ops chat / person instead.
+- Best-effort: no bot token or nobody linked → it silently no-ops and the
+  deploy proceeds (it never blocks on Telegram). Implemented by the
+  `notify_deploy` management command.
 
 ### Recurring jobs
 

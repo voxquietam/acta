@@ -11,6 +11,12 @@ MANAGE        := $(EXEC) python manage.py
 
 NODE_RUN      := docker run --rm -v "$(PWD):/work" -w /work node:20-alpine
 
+# Minutes between the ``deploy`` Telegram heads-up and the disruptive
+# rebuild. Override per run: ``make deploy WAIT=3`` (risky migration) /
+# ``make deploy WAIT=1`` (quiet window). Fed to ``sleep <WAIT>m`` and the
+# heads-up ETA so the two never drift.
+WAIT          ?= 2
+
 .PHONY: help up down restart logs build rebuild ps shell dbshell migrate \
 	makemigrations createsuperuser test test-fast format lint pre-commit \
 	i18n-extract i18n-compile build-js watch-js install-js ci-check deploy \
@@ -160,6 +166,9 @@ ci-check: ## lint + tests + frontend build + django check --deploy
 BRANCH ?= master
 
 deploy: ## (on prod VM) backup, fetch + reset to BRANCH (default master), rebuild
+	@echo "[deploy] Telegram heads-up (branch $(BRANCH)) — restart in ~$(WAIT) min"
+	@$(COMPOSE) exec -T web python manage.py notify_deploy --branch "$(BRANCH)" --commit "$$(git rev-parse --short HEAD)" --eta "~$(WAIT) min" || true
+	@sleep $(WAIT)m
 	@if [ -z "$$SKIP_BACKUP" ]; then \
 		if [ "$(BRANCH)" = "master" ]; then \
 			$(MAKE) backup-prerelease MODE=full KEEP=14 BRANCH=$(BRANCH); \
