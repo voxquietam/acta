@@ -44,12 +44,19 @@ Both icons are hydrated by Lucide on page load and toggled via Alpine
 ``x-show`` so the SVGs stay in the DOM and don't need re-hydration.
 The favourite star sits ahead of them so the most affordance-y action
 (pin this task for quick sidebar access) is the leftmost in the row.
+
+The link uses Django ``{% url %}`` rather than ``window.location.href``
+because the topbar is reused inside the task-detail modal — the window
+URL stays on the parent page (e.g. ``/tasks/?assignee=me``) and copying
+that would share a filtered list, not the task itself. Pairing
+``window.location.origin`` with the server-rendered detail path gives a
+shareable absolute URL in both modal and full-page contexts.
 {% endcomment %}
 <div class="flex items-center gap-0.5 shrink-0">
   {% include "web/projects/_task_favourite_star.html" with task=task is_favourite=is_favourite_task tooltip_pos="above-right" %}
   <button type="button"
           x-data="{ copied: false }"
-          @click="navigator.clipboard.writeText(window.location.href).then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
+          @click="navigator.clipboard.writeText(window.location.origin + '{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}').then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
           :data-tooltip="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy task link' %}'"
           :aria-label="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy task link' %}'"
           data-tooltip-pos="above-right"
