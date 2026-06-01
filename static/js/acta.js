@@ -236,81 +236,94 @@
     },
   });
 
-  // Lazy-load alternate view bodies. Server renders only the active
-  // view (table / kanban / list) on initial response and leaves
-  // empty ``[data-panel-slot]`` placeholders for the rest. After the
-  // page settles we fire one ``htmx.ajax`` per empty slot with
-  // ``?panel=<key>``, which the server short-circuits to a single
-  // partial (much cheaper than rebuilding the whole page).
-  //
-  // The biggest win is on All Tasks where the list panel alone
-  // produces 5 axes × N rows of HTML; without this it doubles the
-  // first-paint time. Once loaded, switching tabs stays instant
-  // because all three panels live in the DOM.
-  function lazyLoadPanels(basePath) {
-    // Guard against a stale firing: the ``htmx:afterSettle`` listener
-    // schedules this on a 50ms delay, so a fast navigation can move us to
-    // another page before it runs. If ``basePath`` no longer matches the
-    // current URL, the slots on screen belong to a different page — skip,
-    // or we'd load (e.g.) ``/tasks/?panel=timeline`` into a project's slot.
-    if (basePath) {
-      try {
-        if (new URL(basePath, window.location.origin).pathname !== window.location.pathname) return;
-      } catch (_) {
-        return;
-      }
-    }
-    const slots = document.querySelectorAll("[data-panel-slot]");
-    slots.forEach((slot) => {
-      if (slot.children.length > 0) return; // already filled
-      if (slot.dataset.panelLoading === "true") return; // request in flight
-      const key = slot.dataset.panelSlot;
-      if (!key || !window.htmx) return;
-      // HTMX boost runs ``hx-push-url`` AFTER ``htmx:afterSettle``, so
-      // ``window.location.href`` is still the *previous* URL when this
-      // fires. Prefer the request path of the boost that just settled
-      // (passed in by the listener) and fall back to window.location
-      // for the cold-load case where there's no boost event.
-      const base = basePath
-        ? new URL(basePath, window.location.origin)
-        : new URL(window.location.href);
-      base.searchParams.set("panel", key);
-      slot.dataset.panelLoading = "true";
-      // Clear the in-flight flag once the request settles (success OR
-      // failure). On success the slot now has children so the
-      // ``children.length`` guard above skips it; on failure the slot is
-      // still empty and a later trigger (e.g. switching to that tab) can
-      // retry instead of being blocked by a stuck flag.
-      Promise.resolve(
-        window.htmx.ajax("GET", base.pathname + base.search, {
-          target: slot,
-          swap: "innerHTML",
-        }),
-      ).finally(() => {
-        slot.dataset.panelLoading = "false";
-      });
+  // Lazy-load a single panel body on demand. Server renders only the
+  // active view (table / kanban / list / backlog / archive / timeline)
+  // inline and leaves empty ``[data-panel-slot]`` placeholders for the
+  // rest. We do **not** prefetch the inactive panels in the background
+  // any more — on a populated workspace with chip filters in URL each
+  // panel's ``?panel=<key>`` lazy request walks the same queryset and
+  // can ship multi-MB of HTML; preloading six of them in parallel was
+  // burning cold-load time for views the user never looked at. Instead,
+  // each panel loads exactly when the user lands on its tab
+  // (``viewMode.set`` → ``actaLoadPanels``) and again whenever filter
+  // chips change (``schedulePanelRefresh`` invalidates the cached slots
+  // so the next switch refetches with the new URL).
+  function loadPanel(key) {
+    if (!key || !window.htmx) return;
+    const slot = document.querySelector(`[data-panel-slot="${key}"]`);
+    if (!slot) return;
+    if (slot.children.length > 0) return; // already filled
+    if (slot.dataset.panelLoading === "true") return; // request in flight
+    const url = new URL(window.location.href);
+    url.searchParams.set("panel", key);
+    slot.dataset.panelLoading = "true";
+    Promise.resolve(
+      window.htmx.ajax("GET", url.pathname + url.search, {
+        target: slot,
+        swap: "innerHTML",
+      }),
+    ).finally(() => {
+      slot.dataset.panelLoading = "false";
     });
   }
-  // Exposed so the view-mode switch can retrigger a lazy panel load when
-  // the user lands on a tab whose slot never filled (a slow / missed
-  // initial fetch left it empty).
-  window.actaLoadPanels = lazyLoadPanels;
-  // Run after initial paint settles, and after any HTMX swap that
-  // might bring back empty slots (filter form refresh swaps the
-  // whole panel wrapper). Fast-exit when the page has no slot at
-  // all — most settle events (inline edits, status pills, comment
-  // posts) hit pages without lazy panels, and the 50ms timer +
-  // URL parse inside is wasted work otherwise.
-  document.body.addEventListener("htmx:afterSettle", (evt) => {
-    if (!document.querySelector("[data-panel-slot]")) return;
-    const path = evt.detail && evt.detail.requestConfig && evt.detail.requestConfig.path;
-    setTimeout(() => lazyLoadPanels(path), 50);
-  });
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () => setTimeout(lazyLoadPanels, 50));
-  } else {
-    setTimeout(lazyLoadPanels, 50);
+  // Exposed for ``viewMode.set`` to call when the user lands on a tab
+  // whose slot is still empty.
+  window.actaLoadPanels = function () {
+    const active = window.Alpine && window.Alpine.store && window.Alpine.store("viewMode");
+    if (active && active.current) loadPanel(active.current);
+  };
+
+  // Chip-toggle handling. The sidebar / strip filter pass updates the
+  // URL via ``replaceState``; the rendered panels in the DOM still
+  // reflect the previous URL params and need to refetch. We bypass
+  // ``htmx.ajax`` for the active panel — its ``swap: "innerHTML"``
+  // pipeline clears the target then inserts the parsed fragment in
+  // separate microtasks, which let the browser paint a blank frame
+  // between them (visible as "one row briefly disappears then reappears"
+  // when chips change). Native ``replaceChildren`` swaps in one
+  // operation, so the panel stays populated until the new HTML lands.
+  // Inactive slots are emptied so the next view-switch re-lazy-loads.
+  // Debounced 50 ms so bursts of chip clicks coalesce into one request
+  // without adding visible single-click latency.
+  let panelRefreshTimer = null;
+  function schedulePanelRefresh() {
+    if (panelRefreshTimer) clearTimeout(panelRefreshTimer);
+    panelRefreshTimer = setTimeout(() => {
+      panelRefreshTimer = null;
+      const active = window.Alpine && window.Alpine.store && window.Alpine.store("viewMode");
+      const activeKey = active && active.current;
+      document.querySelectorAll("[data-panel-slot]").forEach((slot) => {
+        const key = slot.dataset.panelSlot;
+        if (!key) return;
+        if (key === activeKey) {
+          if (slot.dataset.panelLoading === "true") return;
+          const url = new URL(window.location.href);
+          url.searchParams.set("panel", key);
+          slot.dataset.panelLoading = "true";
+          window.__actaSkipNextFilterPass = true;
+          fetch(url.pathname + url.search, {
+            headers: { "HX-Request": "true" },
+            credentials: "same-origin",
+          })
+            .then((r) => r.text())
+            .then((html) => {
+              const tmpl = document.createElement("template");
+              tmpl.innerHTML = html;
+              slot.replaceChildren(...tmpl.content.childNodes);
+              if (window.htmx) window.htmx.process(slot);
+              if (window.renderIcons) window.renderIcons();
+            })
+            .finally(() => {
+              slot.dataset.panelLoading = "false";
+            });
+        } else {
+          // Drop stale content; next view-switch will re-lazy-load.
+          slot.innerHTML = "";
+        }
+      });
+    }, 50);
   }
+  window.actaSchedulePanelRefresh = schedulePanelRefresh;
 
   // Sidebar active-nav highlight. The sidebar element survives HTMX
   // boost navigation (only ``#app-content`` swaps), so Django's
@@ -815,7 +828,19 @@
         if (v) params.append(k, v.toString());
       }
       const qs = params.toString();
-      window.history.replaceState({}, "", window.location.pathname + (qs ? "?" + qs : ""));
+      const beforeSearch = window.location.search;
+      const newSearch = qs ? "?" + qs : "";
+      window.history.replaceState({}, "", window.location.pathname + newSearch);
+      // Server applies chip filters in ``apply_task_filters``, so any
+      // change to the chip-bearing querystring means the rendered panels
+      // are now stale. Refetch the active panel and invalidate the rest
+      // so the next view-switch re-lazy-loads with fresh params. Skipped
+      // when the URL didn't actually move (microtask passes triggered by
+      // an SSE row morph, for example, recompute display state without
+      // changing chip values).
+      if (beforeSearch !== newSearch && window.actaSchedulePanelRefresh) {
+        window.actaSchedulePanelRefresh();
+      }
     }
     // Timeline view keeps a two-pane layout the generic row loop already
     // hid (both left + gantt rows carry the filter attrs). Let it
@@ -1736,8 +1761,15 @@
   document.body.addEventListener("htmx:afterSettle", () => {
     // Re-bind in case the form was swapped (panel re-render) and
     // re-apply filters so freshly server-rendered rows pick up the
-    // current client state.
+    // current client state. Skipped when our own ``schedulePanelRefresh``
+    // just landed — the server response already applied the current
+    // chips, so a second pass would only waste reflow time (and was
+    // visibly flickering one stale row during the gap).
     bindFilterForm();
+    if (window.__actaSkipNextFilterPass) {
+      window.__actaSkipNextFilterPass = false;
+      return;
+    }
     applyClientFilters();
   });
   // Reset button broadcasts ``acta:filter-reset`` — chips reset

@@ -587,7 +587,7 @@ class AllTasksView(LoginRequiredMixin, ListView):
         # DOM; the "Show backlog" toggle hides/shows it client-side (instant),
         # like "Show archived" — see acta.js ``rowMatches`` + kanban column
         # hiding. So no server-side backlog filtering here.
-        qs = apply_task_filters(qs, params, request_user=self.request.user)
+        qs = apply_task_filters(qs, params, request_user=self.request.user, default_show_backlog=False)
         return apply_task_ordering(qs, params)
 
     def _backlog_tasks(self):
