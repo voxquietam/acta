@@ -85,13 +85,21 @@ _OPEN_STATUSES = [
     Task.STATUS_IN_REVIEW,
 ]
 
-# My Work surfaces active work only — the not-started backlog
-# (planned / ready) is groomed on the Backlog tab, not here, so it
-# doesn't drown the "what should I do now" list.
+# My Work foregrounds in-flight work — the "what should I do now" list.
 _MY_WORK_ACTIVE_STATUSES = [
     Task.STATUS_TODO,
     Task.STATUS_IN_PROGRESS,
     Task.STATUS_IN_REVIEW,
+]
+
+# The not-started backlog (planned / ready). Kept in the My Work queryset
+# but hidden in the DOM by default — the client-side ``rowMatches`` (acta.js)
+# drops planned/ready rows unless the Show-backlog toggle is on, mirroring
+# Project detail (see ``_params_with_all_tasks_cookies``). Excluding them
+# from the query instead would leave the toggle with nothing to reveal.
+_MY_WORK_BACKLOG_STATUSES = [
+    Task.STATUS_PLANNED,
+    Task.STATUS_READY,
 ]
 
 
@@ -507,9 +515,14 @@ def _my_work_tasks(user, params, workspace, *, restrict_to_project_ids=None):
     filter, which is implicit (``me``). Done tasks reach the queryset via
     the page-specific ``Q(status=DONE, updated_at>=cutoff)`` clause so the
     "Recently done" bucket stays populated without showing ancient done
-    rows. If the user picks specific statuses in the sidebar, those
-    override the open/recently-done split (``apply_task_filters`` honours
-    the selection). Grouping into sections is delegated to
+    rows. The not-started backlog (planned / ready) is kept in the
+    queryset too — hidden in the DOM by default and revealed by the
+    client-side Show-backlog toggle (``rowMatches`` in acta.js); a JSON
+    export folds the ``show_backlog`` cookie into ``params`` so
+    ``_filter_backlog`` can gate it server-side instead. If the user
+    picks specific statuses in the sidebar, those override the
+    open/recently-done split (``apply_task_filters`` honours the
+    selection). Grouping into sections is delegated to
     :func:`apps.web.grouping.group_tasks`.
 
     ``restrict_to_project_ids`` opts My Work into the "only my projects"
@@ -522,7 +535,8 @@ def _my_work_tasks(user, params, workspace, *, restrict_to_project_ids=None):
     base = (
         Task.objects.filter(assignee=user, project__workspace=workspace)
         .filter(
-            Q(status__in=_MY_WORK_ACTIVE_STATUSES) | Q(status=Task.STATUS_DONE, updated_at__gte=done_cutoff),
+            Q(status__in=_MY_WORK_ACTIVE_STATUSES + _MY_WORK_BACKLOG_STATUSES)
+            | Q(status=Task.STATUS_DONE, updated_at__gte=done_cutoff),
         )
         .select_related("project__workspace", "assignee", "reporter", "parent__project")
         .prefetch_related("labels", "blocks", "blocked_by")
@@ -961,6 +975,7 @@ class MyWorkView(LoginRequiredMixin, TemplateView):
                 hide_assignee=True,
                 hide_project=True,
                 show_backlog_toggle=True,
+                backlog_tab_aware=False,
                 htmx_target="#my-work-content",
                 effective_params=sidebar_params,
             )
@@ -7354,9 +7369,15 @@ def export_my_work_json(request):
 
     Reuses :func:`_my_work_tasks` so the export reflects the same
     recently-done window, assignee scope, and ordering as the page.
+
+    The page hides the backlog (planned / ready) client-side via the
+    Show-backlog toggle, but a JSON download has no client filter pass —
+    so we fold the ``show_backlog`` cookie into ``params`` here, letting
+    ``_filter_backlog`` gate planned/ready server-side and keep the export
+    matching what the user actually sees.
     """
     active = resolve_active_workspace(request)
-    params = _params_with_archive_cookie(request)
+    params = _params_with_all_tasks_cookies(request)
     tasks = _my_work_tasks(request.user, params, active)
     filename = f"acta-my-work-{timezone.now():%Y%m%d}.json"
     return _json_download(_export_tasks_payload(tasks, scope=active.name if active else None), filename)

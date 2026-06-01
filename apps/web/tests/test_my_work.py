@@ -103,6 +103,75 @@ class TestMyWorkScope:
 
 
 @pytest.mark.django_db
+class TestMyWorkBacklogToggle:
+    """The "Show backlog" toggle renders on My Work and is NOT gated by
+    the ``acta_view_mode`` cookie.
+
+    My Work has no view-mode tabs, so the toggle must always render —
+    otherwise a stale ``acta_view_mode=backlog`` cookie leaking in from
+    the All Tasks Backlog tab would silently hide it forever.
+    """
+
+    def test_toggle_context_flags(self, client, setup):
+        user, _ = setup
+        client.force_login(user)
+        resp = client.get(reverse("web:my_work"))
+        assert resp.context["show_backlog_toggle"] is True
+        assert resp.context["backlog_tab_aware"] is False
+
+    def test_toggle_not_gated_by_view_mode(self, client, setup):
+        """The rendered toggle carries no ``viewMode``-based ``x-show``."""
+        user, _ = setup
+        client.force_login(user)
+        body = client.get(reverse("web:my_work")).content.decode()
+        assert 'name="show_backlog"' in body
+        assert "$store.viewMode.current === 'backlog'" not in body
+
+    def test_toggle_renders_even_with_backlog_cookie(self, client, setup):
+        """A stale ``acta_view_mode=backlog`` cookie can't hide the toggle."""
+        user, _ = setup
+        client.force_login(user)
+        client.cookies["acta_view_mode"] = "backlog"
+        body = client.get(reverse("web:my_work")).content.decode()
+        assert 'name="show_backlog"' in body
+
+    def test_backlog_task_is_in_queryset(self, client, setup):
+        """Planned / ready tasks reach the page HTML so the client-side
+        Show-backlog toggle has something to reveal (hidden by default
+        via ``rowMatches``, not absent from the response)."""
+        user, project = setup
+        TaskFactory(project=project, reporter=user, assignee=user, status=Task.STATUS_PLANNED, title="Planned mine")
+        TaskFactory(project=project, reporter=user, assignee=user, status=Task.STATUS_READY, title="Ready mine")
+        client.force_login(user)
+        body = client.get(reverse("web:my_work")).content.decode()
+        assert "Planned mine" in body
+        assert "Ready mine" in body
+
+
+@pytest.mark.django_db
+class TestMyWorkExportBacklog:
+    """The JSON export has no client filter pass, so it gates the backlog
+    server-side off the ``acta_show_backlog`` cookie."""
+
+    def test_export_excludes_backlog_by_default(self, client, setup):
+        user, project = setup
+        TaskFactory(project=project, reporter=user, assignee=user, status=Task.STATUS_PLANNED, title="Planned mine")
+        TaskFactory(project=project, reporter=user, assignee=user, status=Task.STATUS_TODO, title="Todo mine")
+        client.force_login(user)
+        body = client.get(reverse("web:export_my_work_json")).content.decode()
+        assert "Todo mine" in body
+        assert "Planned mine" not in body
+
+    def test_export_includes_backlog_when_cookie_on(self, client, setup):
+        user, project = setup
+        TaskFactory(project=project, reporter=user, assignee=user, status=Task.STATUS_PLANNED, title="Planned mine")
+        client.force_login(user)
+        client.cookies["acta_show_backlog"] = "1"
+        body = client.get(reverse("web:export_my_work_json")).content.decode()
+        assert "Planned mine" in body
+
+
+@pytest.mark.django_db
 class TestMyWorkBucketing:
     """Tasks land in the right deadline-aware section."""
 

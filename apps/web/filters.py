@@ -533,6 +533,7 @@ def filter_sidebar_context(
     hide_status=False,
     hide_my_projects_toggle=False,
     show_backlog_toggle=False,
+    backlog_tab_aware=True,
     preserved_params=None,
     extra_preserved=None,
     effective_params=None,
@@ -553,6 +554,12 @@ def filter_sidebar_context(
             Sections the sidebar should not render (e.g. assignee on
             My Work, status on kanban view where columns already group
             by status).
+        backlog_tab_aware: Whether the page has a Backlog view-mode tab.
+            When ``True`` (All Tasks, project detail) the "Show backlog"
+            toggle hides itself while that tab is active, since it would
+            be redundant. Pages without view-mode tabs (My Work) pass
+            ``False`` so the toggle always renders, immune to a stale
+            ``acta_view_mode=backlog`` cookie.
         preserved_params: Names of querystring params to round-trip on
             filter submit by reading their current values from
             ``request.GET``.
@@ -749,6 +756,13 @@ def filter_sidebar_context(
         "show_archived": show_archived,
         "show_backlog": show_backlog,
         "show_backlog_toggle": show_backlog_toggle,
+        # Only pages that actually expose a Backlog view-mode tab (All Tasks,
+        # project detail) should let the ``acta_view_mode`` cookie hide the
+        # "Show backlog" toggle when that tab is active — the toggle is
+        # redundant there. Pages without view-mode tabs (My Work) must render
+        # the toggle unconditionally; otherwise a stale ``acta_view_mode=backlog``
+        # cookie leaking in from All Tasks would silently hide it forever.
+        "backlog_tab_aware": backlog_tab_aware,
         "show_my_projects": show_my_projects,
         "show_my_projects_toggle": show_my_projects_toggle,
         # CSV of project ids the user is member / lead of in the active

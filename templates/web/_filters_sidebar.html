@@ -675,8 +675,8 @@ Section visibility flags from the view:
         <div class="flex items-center justify-between gap-3 flex-wrap">
           {% if show_backlog_toggle %}
           <div x-data
-               x-show="!($store.viewMode && $store.viewMode.current === 'backlog')"
-               x-cloak
+               {% if backlog_tab_aware %}x-show="!($store.viewMode && $store.viewMode.current === 'backlog')"
+               x-cloak{% endif %}
                class="flex items-center gap-2">
             <input type="hidden" name="show_backlog" value="0">
             <label class="cursor-pointer flex items-center gap-2 text-[12px] text-foreground"
