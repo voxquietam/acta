@@ -1103,15 +1103,25 @@
     const active = window.Alpine && window.Alpine.store && window.Alpine.store("viewMode")
       ? window.Alpine.store("viewMode").current
       : null;
+    // Views for which ``_task_card_insert_response`` injects the new task
+    // inline (kanban card / table row / list row): leave the active slot
+    // alone, the create POST already updated it.
+    //
+    // Views it skips (backlog, timeline — see the docstring): the active
+    // panel is stale until we refetch it. Drop its children too so
+    // ``actaLoadPanels`` will lazy-load the fresh HTML below.
+    const ACTIVE_NEEDS_REFETCH = new Set(["backlog", "timeline"]);
     document.querySelectorAll("[data-panel-slot]").forEach((slot) => {
-      if (slot.dataset.panelSlot === active) return;
+      const key = slot.dataset.panelSlot;
+      if (key === active && !ACTIVE_NEEDS_REFETCH.has(key)) return;
       slot.innerHTML = "";
       slot.dataset.panelLoading = "false";
     });
     // Trigger an immediate background refetch so panels stay warm — a
     // user who switches tabs right after a create doesn't sit on a
-    // spinner. ``lazyLoadPanels`` is a no-op for slots that already have
-    // children, so this is safe to call eagerly.
+    // spinner. ``actaLoadPanels`` only loads the active slot now, and
+    // it's a no-op if the slot already has children, so this is safe
+    // to call eagerly.
     if (window.actaLoadPanels) window.actaLoadPanels();
   });
 
