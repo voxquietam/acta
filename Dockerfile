@@ -53,7 +53,10 @@ COPY . /app/
 # frontend stage. The committed copies in git stay as a fallback for
 # dev environments that skip the docker build.
 COPY --from=frontend /build/static/css/main.bundle.css /app/static/css/main.bundle.css
+COPY --from=frontend /build/static/css/prose.bundle.css /app/static/css/prose.bundle.css
 COPY --from=frontend /build/static/js/description_editor.bundle.js /app/static/js/description_editor.bundle.js
+COPY --from=frontend /build/static/js/reactions.bundle.js /app/static/js/reactions.bundle.js
+COPY --from=frontend /build/static/js/acta.min.js /app/static/js/acta.min.js
 
 RUN chmod +x /app/docker-entrypoint.sh
 
