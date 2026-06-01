@@ -13,18 +13,20 @@ Children extend this template and fill in the blocks:
     {% block body %}<div class="p-4">…</div>{% endblock %}
 
 Convention: the Alpine ``x-data`` on the root MUST expose a ``close()``
-method — backdrop click and Esc both call it. Per-modal close logic
-(clear modal-root, history.replaceState, dispatch event, …) lives
-inside that method. ``open`` is also part of the contract for modals
-that need fade-out transitions (task-detail uses it; bulk-archive
-toggles the whole element with ``x-show``).
+method — the header's "×" button and the ``Esc`` keydown both call it.
+Backdrop clicks do **not** close the modal (the user reported accidental
+dismissals while reaching for a chip outside the panel); the explicit X
++ Esc keep the close intentional. Per-modal close logic (clear
+modal-root, history.replaceState, dispatch event, …) lives inside that
+method. ``open`` is also part of the contract for modals that need
+fade-out transitions (task-detail uses it; bulk-archive toggles the
+whole element with ``x-show``).
 
 Header actions slot (``header_actions``) sits to the left of the
 close button — task-detail puts its "expand to fullscreen" button
 there. Empty by default.
 {% endcomment %}
 <div class="acta-modal-backdrop"
-     @click.self="close()"
      @keydown.escape.window="$event.preventDefault(); close()"
      {% block root_attrs %}{% endblock %}>
   <div class="acta-modal-panel {% block panel_class %}sm:max-w-md{% endblock %}"
