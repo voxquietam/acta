@@ -953,12 +953,14 @@ class MyWorkView(LoginRequiredMixin, TemplateView):
         )
         sidebar_params = params.copy()
         sidebar_params["show_my_projects"] = resolve_show_my_projects(self.request)
+        sidebar_params["show_backlog"] = resolve_show_backlog(self.request)
         ctx.update(
             filter_sidebar_context(
                 self.request,
                 available_projects=my_work_projects,
                 hide_assignee=True,
                 hide_project=True,
+                show_backlog_toggle=True,
                 htmx_target="#my-work-content",
                 effective_params=sidebar_params,
             )
