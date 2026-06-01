@@ -16,7 +16,6 @@ Telegram integration's fail-soft behaviour.
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
-from django.utils import timezone
 
 
 class Command(BaseCommand):
@@ -70,15 +69,18 @@ class Command(BaseCommand):
         self.stdout.write(f"notify_deploy: sent to {sent}/{len(chat_ids)} chat(s)")
 
     def _build_message(self, options) -> str:
-        """Compose the HTML heads-up body from the deploy context flags."""
+        """Compose the HTML heads-up body from the deploy context flags.
+
+        No timestamp line — Telegram already stamps the delivery time, and an
+        absolute server-clock value (UTC) only confused readers in other
+        zones. The actionable bit is the relative ETA.
+        """
         branch = options["branch"] or "?"
         commit = options["commit"]
         eta = options["eta"]
-        when = timezone.localtime().strftime("%Y-%m-%d %H:%M %Z")
         target = f"<code>{branch}</code>" + (f" @ <code>{commit}</code>" if commit else "")
         return (
             "⚠️ <b>SYSTEM UPDATE INCOMING</b> ⚠️\n"
             f"Acta restarts in <b>{eta}</b> — brief downtime, save your work.\n"
-            f"Branch: {target}\n"
-            f"<i>{when}</i>"
+            f"Branch: {target}"
         )
