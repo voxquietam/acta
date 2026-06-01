@@ -397,6 +397,19 @@ main {
   margin-bottom: 0.125em;
 }
 
+/* Tailwind Typography's ``.prose`` hard-caps content at
+   ``max-width: 65ch`` (~520px at ``prose-sm``). ``prose.bundle.css`` is
+   loaded AFTER ``main.bundle.css`` (deliberately non-blocking for perf),
+   so that cap wins the cascade over the equal-specificity ``.max-w-none``
+   utility the TipTap editor sets on ``.ProseMirror`` — silently
+   re-narrowing every editor (create-task modal, task detail, comments)
+   well short of its container and wrapping text early. Bumping the
+   specificity to ``.prose.max-w-none`` (0,2,0 > 0,1,0) makes the editor's
+   own ``max-w-none`` stick regardless of load order. */
+.prose.max-w-none {
+  max-width: none;
+}
+
 /* TipTap editor toolbar fades in only when the editor (or any of its
    own controls like the link-input or a toolbar button) holds focus.
    Reserves vertical space at all times so the page doesn't jump when
