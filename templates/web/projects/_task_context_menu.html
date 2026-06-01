@@ -166,26 +166,28 @@ picker. Expects ``task``, ``status_labels``, ``priority_labels``,
 
     <div class="-mx-1 my-1 border-t border-border"></div>
 
-    <template x-if="!confirmDelete">
-      <button type="button" @click="confirmDelete = true" class="group w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left hover:bg-rose-500/10 hover:text-rose-300 transition">
-        <span class="text-placeholder-foreground group-hover:text-rose-300 inline-flex shrink-0">{% lucide "trash-2" "w-3.5 h-3.5" %}</span>
-        <span class="flex-1">{% trans "Delete…" %}</span>
-        <span class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-muted border border-border text-placeholder-foreground">⌫</span>
-      </button>
-    </template>
-    <template x-if="confirmDelete">
-      <div class="flex items-center gap-2 px-2.5 py-1.5">
-        <span class="text-xs text-rose-400 flex-1">{% trans "Delete this task?" %}</span>
-        <form hx-post="{% url 'web:delete_task' slug_prefix=task.project.slug_prefix number=task.number %}"
-              hx-swap="none" class="contents"
-              @htmx:before-request="window.actaForceApplySelfEvent && window.actaForceApplySelfEvent({{ task.id }})"
-              @htmx:after-request="if ($event.detail.successful) document.body.dispatchEvent(new CustomEvent('acta:task-changed', { bubbles: true }))">
-          {% csrf_token %}
-          <button type="submit" class="text-xs font-medium text-rose-400 hover:text-rose-300">{% trans "Delete" %}</button>
-        </form>
-        <button type="button" @click="confirmDelete = false" class="text-xs text-placeholder-foreground hover:text-foreground">{% trans "No" %}</button>
-      </div>
-    </template>
+    {# ``x-show`` (not ``x-if``): the form must be in the DOM when htmx     #}
+    {# processes the freshly-fetched menu fragment, so its ``hx-post`` gets #}
+    {# wired. Under ``x-if`` the form is absent at process time and a click #}
+    {# falls back to a NATIVE submit → ``GET /tasks/?csrfmiddlewaretoken=`` #}
+    {# → full reload, task never deleted. (Status/priority forms work       #}
+    {# precisely because they live in always-present ``x-show`` panels.)    #}
+    <button type="button" x-show="!confirmDelete" @click="confirmDelete = true" class="group w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left hover:bg-rose-500/10 hover:text-rose-300 transition">
+      <span class="text-placeholder-foreground group-hover:text-rose-300 inline-flex shrink-0">{% lucide "trash-2" "w-3.5 h-3.5" %}</span>
+      <span class="flex-1">{% trans "Delete…" %}</span>
+      <span class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-muted border border-border text-placeholder-foreground">⌫</span>
+    </button>
+    <div x-show="confirmDelete" x-cloak class="flex items-center gap-2 px-2.5 py-1.5">
+      <span class="text-xs text-rose-400 flex-1">{% trans "Delete this task?" %}</span>
+      <form hx-post="{% url 'web:delete_task' slug_prefix=task.project.slug_prefix number=task.number %}"
+            hx-swap="none" class="contents"
+            @htmx:before-request="window.actaForceApplySelfEvent && window.actaForceApplySelfEvent({{ task.id }})"
+            @htmx:after-request="if ($event.detail.successful) document.body.dispatchEvent(new CustomEvent('acta:task-changed', { bubbles: true }))">
+        {% csrf_token %}
+        <button type="submit" class="text-xs font-medium text-rose-400 hover:text-rose-300">{% trans "Delete" %}</button>
+      </form>
+      <button type="button" @click="confirmDelete = false" class="text-xs text-placeholder-foreground hover:text-foreground">{% trans "No" %}</button>
+    </div>
   </div>
 
   {# ============ STATUS SUBMENU ============ #}
