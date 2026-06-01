@@ -58,3 +58,38 @@ the full-page layout for cases when those details matter.
   {% trans "Archived" %} · {{ task.archived_at|date:"M j, Y" }}
 </div>
 {% endif %}
+
+{% comment %}
+Permanent delete from the modal — destructive, behind an inline confirm.
+``actaForceApplySelfEvent`` opts the task's own ``task.deleted`` SSE event
+in so the list/board behind the modal drops the row live. On success we
+clear ``#modal-root`` (close the modal) BEFORE dispatching
+``acta:task-changed`` — otherwise the modal's own meta-refetch element
+(``task_meta_compact_fragment``, wired to ``acta:task-changed``) would
+re-fetch a task that no longer exists and 404. The list behind the modal
+catches the same event and refreshes.
+{% endcomment %}
+<div class="mt-3 pt-3 border-t border-border flex justify-end" x-data="{ confirmDelete: false }">
+  <template x-if="!confirmDelete">
+    <button type="button"
+            @click="confirmDelete = true"
+            class="inline-flex items-center gap-1.5 text-xs text-placeholder-foreground hover:text-rose-400 transition">
+      {% lucide "trash-2" "w-3.5 h-3.5" %}{% trans "Delete task" %}
+    </button>
+  </template>
+  <template x-if="confirmDelete">
+    <div class="inline-flex items-center gap-3">
+      <span class="text-xs text-rose-400">{% trans "Delete permanently?" %}</span>
+      <form hx-post="{% url 'web:delete_task' slug_prefix=task.project.slug_prefix number=task.number %}"
+            hx-swap="none" class="contents"
+            @htmx:before-request="window.actaForceApplySelfEvent && window.actaForceApplySelfEvent({{ task.id }})"
+            @htmx:after-request="if ($event.detail.successful) { const r = document.getElementById('modal-root'); if (r) r.innerHTML = ''; document.body.dispatchEvent(new CustomEvent('acta:task-changed', { bubbles: true })); }">
+        {% csrf_token %}
+        <button type="submit" class="text-xs font-medium text-rose-400 hover:text-rose-300">{% trans "Delete" %}</button>
+      </form>
+      <button type="button"
+              @click="confirmDelete = false"
+              class="text-xs text-placeholder-foreground hover:text-foreground">{% trans "No" %}</button>
+    </div>
+  </template>
+</div>

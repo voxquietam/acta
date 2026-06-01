@@ -178,6 +178,7 @@ picker. Expects ``task``, ``status_labels``, ``priority_labels``,
         <span class="text-xs text-rose-400 flex-1">{% trans "Delete this task?" %}</span>
         <form hx-post="{% url 'web:delete_task' slug_prefix=task.project.slug_prefix number=task.number %}"
               hx-swap="none" class="contents"
+              @htmx:before-request="window.actaForceApplySelfEvent && window.actaForceApplySelfEvent({{ task.id }})"
               @htmx:after-request="if ($event.detail.successful) document.body.dispatchEvent(new CustomEvent('acta:task-changed', { bubbles: true }))">
           {% csrf_token %}
           <button type="submit" class="text-xs font-medium text-rose-400 hover:text-rose-300">{% trans "Delete" %}</button>

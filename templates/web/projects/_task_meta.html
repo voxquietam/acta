@@ -119,6 +119,38 @@ Re-included by ``task_detail.html`` and rendered standalone by
       {% endif %}
     </form>
   </div>
+
+  {% comment %}
+  Permanent delete — destructive, so gated behind an inline confirm (same
+  pattern as the right-click context menu). ``actaForceApplySelfEvent`` opts
+  the task's own ``task.deleted`` SSE event in so any list/board the user has
+  open drops the row live. On the full page the task is gone, so we navigate
+  to the project board on success.
+  {% endcomment %}
+  <div class="pt-2 mt-2 border-t border-border" x-data="{ confirmDelete: false }">
+    <template x-if="!confirmDelete">
+      <button type="button"
+              @click="confirmDelete = true"
+              class="w-full flex items-center justify-center gap-1.5 text-xs text-placeholder-foreground hover:text-rose-400 py-1 rounded transition">
+        {% lucide "trash-2" "w-3.5 h-3.5" %}{% trans "Delete…" %}
+      </button>
+    </template>
+    <template x-if="confirmDelete">
+      <div class="flex items-center justify-center gap-3 py-1">
+        <span class="text-xs text-rose-400">{% trans "Delete permanently?" %}</span>
+        <form hx-post="{% url 'web:delete_task' slug_prefix=task.project.slug_prefix number=task.number %}"
+              hx-swap="none" class="contents"
+              @htmx:before-request="window.actaForceApplySelfEvent && window.actaForceApplySelfEvent({{ task.id }})"
+              @htmx:after-request="if ($event.detail.successful) window.location.assign('/projects/{{ task.project.slug_prefix }}/')">
+          {% csrf_token %}
+          <button type="submit" class="text-xs font-medium text-rose-400 hover:text-rose-300">{% trans "Delete" %}</button>
+        </form>
+        <button type="button"
+                @click="confirmDelete = false"
+                class="text-xs text-placeholder-foreground hover:text-foreground">{% trans "No" %}</button>
+      </div>
+    </template>
+  </div>
 </div>
 
 <div class="bg-card border border-border rounded-lg p-4 mt-4">
