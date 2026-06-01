@@ -261,14 +261,6 @@
       }
     }
     const slots = document.querySelectorAll("[data-panel-slot]");
-    window.__actaDbg && window.__actaDbg("lazyLoadPanels fired", {
-      basePath: basePath || null,
-      slots: Array.from(slots).map((s) => ({
-        key: s.dataset.panelSlot,
-        children: s.children.length,
-        loading: s.dataset.panelLoading,
-      })),
-    });
     slots.forEach((slot) => {
       if (slot.children.length > 0) return; // already filled
       if (slot.dataset.panelLoading === "true") return; // request in flight
@@ -289,10 +281,6 @@
       // ``children.length`` guard above skips it; on failure the slot is
       // still empty and a later trigger (e.g. switching to that tab) can
       // retry instead of being blocked by a stuck flag.
-      window.__actaDbg && window.__actaDbg("lazyLoadPanels → fetch", {
-        key,
-        url: base.pathname + base.search,
-      });
       Promise.resolve(
         window.htmx.ajax("GET", base.pathname + base.search, {
           target: slot,
@@ -300,10 +288,6 @@
         }),
       ).finally(() => {
         slot.dataset.panelLoading = "false";
-        window.__actaDbg && window.__actaDbg("lazyLoadPanels ← settled", {
-          key,
-          children: slot.children.length,
-        });
       });
     });
   }
@@ -393,44 +377,6 @@
       pageCache.delete(pageCache.keys().next().value);
     }
   }
-
-  // [acta-debug] Temporary cross-view-sync diagnostics. Toggle by setting
-  // ``window.__ACTA_DEBUG_SYNC = false`` in the console.
-  if (typeof window.__ACTA_DEBUG_SYNC === "undefined") window.__ACTA_DEBUG_SYNC = true;
-  window.__actaDbg = function (...args) {
-    if (window.__ACTA_DEBUG_SYNC) console.log("[acta-debug]", ...args);
-  };
-  // [acta-debug] MutationObserver on #modal-root — log every clear so we can
-  // see what closes the modal while the user is editing.
-  (function watchModalRoot() {
-    const start = () => {
-      const root = document.getElementById("modal-root");
-      if (!root) {
-        setTimeout(start, 200);
-        return;
-      }
-      let lastChildCount = root.children.length;
-      const obs = new MutationObserver((muts) => {
-        const now = root.children.length;
-        if (now !== lastChildCount) {
-          window.__actaDbg("modal-root mutation", {
-            from: lastChildCount,
-            to: now,
-            innerHTMLLen: root.innerHTML.length,
-            stack: new Error().stack.split("\n").slice(1, 6).join(" | "),
-          });
-          lastChildCount = now;
-        }
-      });
-      obs.observe(root, { childList: true, subtree: false, characterData: false });
-      window.__actaDbg("modal-root observer installed");
-    };
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", start);
-    } else {
-      start();
-    }
-  })();
 
   // ``htmx.swap`` runs the full afterSwap/afterSettle lifecycle, so lazy
   // panels, SSE binding, icon render and active-nav all re-run on restore.
@@ -2348,11 +2294,6 @@
   function applyCardReplace(taskId, cardHtml) {
     if (!cardHtml) return;
     const existing = document.querySelector(KANBAN_CARD(taskId));
-    window.__actaDbg && window.__actaDbg("applyCardReplace", {
-      taskId,
-      cardLen: cardHtml.length,
-      found: !!existing,
-    });
     if (!existing) return;
     const tmp = document.createElement("div");
     tmp.innerHTML = cardHtml.trim();
@@ -2449,19 +2390,6 @@
         } catch (_) {
           return;
         }
-        // [acta-debug] log every SSE event with surfaces it carries
-        window.__actaDbg && window.__actaDbg("SSE ←", {
-          event: eventName,
-          target_id: data.target_id,
-          actor_id: data.actor_id,
-          self: String(data.actor_id) === meId,
-          via_mcp: !!data.via_mcp,
-          has_card_html: !!data.card_html,
-          has_row_html_table: !!data.row_html_table,
-          has_row_html_list: !!data.row_html_list,
-          section_keys_list: data.section_keys_list,
-          changes: data.changes,
-        });
         // Any event means data changed somewhere — drop the page cache so a
         // Back/Forward to another page refetches instead of restoring a stale
         // snapshot. Done before the self-event filter on purpose: our own
@@ -2475,20 +2403,17 @@
         // also opts a task in (``actaForceApplySelfEvents``) because it
         // posts with ``hx-swap="none"`` — the HTTP response doesn't touch
         // the row, so the SSE swap is the only thing that updates it.
+        //
+        // The opt-in entry stays in the set until its TTL expires (see
+        // ``actaForceApplySelfEvent``) rather than being consumed on first
+        // match: multiple ``handle(...)`` wrappers exist for the same
+        // event type (one for board/row morph, one for task-detail panel
+        // refresh), and consuming on the first wrapper would drop the
+        // event for every subsequent listener — leaving open task-detail
+        // panels stale on a same-tab inline edit.
         if (String(data.actor_id) === meId && !data.via_mcp) {
           const tid = Number(data.target_id);
-          if (window.__actaForceApplySelf && window.__actaForceApplySelf.has(tid)) {
-            window.__actaForceApplySelf.delete(tid);
-            window.__actaDbg && window.__actaDbg("SSE self-event FORCE-APPLY", {
-              event: eventName,
-              target_id: tid,
-            });
-          } else {
-            window.__actaDbg && window.__actaDbg("SSE self-event DROPPED", {
-              event: eventName,
-              target_id: tid,
-              forceApplySet: window.__actaForceApplySelf ? Array.from(window.__actaForceApplySelf) : null,
-            });
+          if (!(window.__actaForceApplySelf && window.__actaForceApplySelf.has(tid))) {
             return;
           }
         }
@@ -2569,16 +2494,9 @@
 
     function applyRowHtmlTable(taskId, html) {
       if (!html) return;
-      const trs = document.querySelectorAll(`tr[data-task-id="${taskId}"]`);
-      window.__actaDbg && window.__actaDbg("applyRowHtmlTable", {
-        taskId,
-        htmlLen: html.length,
-        matched: trs.length,
-        tablePanelLoaded: !!document.querySelector('[data-panel-slot="table"]')
-          ? document.querySelector('[data-panel-slot="table"]').children.length
-          : "no-slot",
-      });
-      trs.forEach((tr) => morphFromString(tr, html));
+      document
+        .querySelectorAll(`tr[data-task-id="${taskId}"]`)
+        .forEach((tr) => morphFromString(tr, html));
     }
 
     // List-view in-place row swap. Replaces the old "any mutation = full
@@ -2602,22 +2520,10 @@
     // ``refreshListPanel`` which re-renders the panel including any
     // brand-new sections.
     function applyRowHtmlList(taskId, rowHtml, sectionKeys) {
-      if (!rowHtml || !sectionKeys) {
-        window.__actaDbg && window.__actaDbg("applyRowHtmlList SKIP no-payload", {
-          taskId,
-          hasHtml: !!rowHtml,
-          hasKeys: !!sectionKeys,
-        });
-        return false;
-      }
+      if (!rowHtml || !sectionKeys) return false;
       const axisRoots = document.querySelectorAll(
         "[data-list-axis]:not([data-axis-pending])",
       );
-      window.__actaDbg && window.__actaDbg("applyRowHtmlList", {
-        taskId,
-        axes: axisRoots.length,
-        sectionKeys,
-      });
       if (!axisRoots.length) return true; // list view not rendered on this page
       const touchedSections = new Set();
       for (const axisRoot of axisRoots) {
@@ -2663,6 +2569,15 @@
         const counter = section.querySelector("[data-list-count]");
         if (counter) counter.textContent = String(visible);
         section.classList.toggle("hidden", visible === 0);
+      }
+      // Re-run the client-side filter pass: idiomorph rewrites the row's
+      // ``data-*`` attrs and Alpine state, so any filter chip that was
+      // hiding this row now needs to re-evaluate against the fresh attrs.
+      // Without this, edits that should keep the row visible left it
+      // marked ``hidden`` from the previous chip state and the row
+      // silently disappeared from the list.
+      if (window.actaApplyFilters) {
+        queueMicrotask(window.actaApplyFilters);
       }
       return true;
     }
@@ -3307,10 +3222,6 @@
   window.actaForceApplySelfEvent = function (id) {
     const n = Number(id);
     window.__actaForceApplySelf.add(n);
-    window.__actaDbg && window.__actaDbg("forceApplySelfEvent opt-in", {
-      taskId: n,
-      setNow: Array.from(window.__actaForceApplySelf),
-    });
     // 30 s window — comfortably covers a slow activity-log fanout or a
     // queued Telegram callback that delays the SSE broadcast beyond the
     // raw HTTP round-trip. Was 4 s; observed in audit (docs/audit/05-nav-router.md
@@ -3649,10 +3560,6 @@
       current: readViewModeCookie(),
       set(value) {
         if (!VIEW_MODES.has(value)) return;
-        window.__actaDbg && window.__actaDbg("viewMode.set", {
-          from: this.current,
-          to: value,
-        });
         this.current = value;
         // Client-side tab toggles ``history.pushState`` instead of
         // hitting the server, so we mirror the cookie write the server
