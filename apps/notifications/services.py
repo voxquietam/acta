@@ -118,17 +118,49 @@ def notify(
 def _mirror_to_telegram(notification) -> None:
     """Fan a notification out to the recipient's Telegram chat, on commit.
 
-    Best-effort: the Telegram send (a network call) is deferred to
-    ``transaction.on_commit`` so a rolled-back transaction never DMs, and
-    the lazy import keeps notifications → telegram a runtime edge.
+    Hand-off to the django-q worker via :func:`django_q.tasks.async_task`
+    so the network round-trip to ``api.telegram.org`` (synchronous, up to
+    5 s per send in :mod:`apps.telegram.client`) never blocks the web
+    request that triggered it. Without this, a project-level write that
+    fans out to N recipients on a slow Telegram link stalled the HTTP
+    response for N × 5 s — the activity log committed instantly but the
+    browser sat with the loading spinner running until the last DM
+    settled.
+
+    Deferred to ``transaction.on_commit`` so a rolled-back transaction
+    never enqueues a phantom DM. The worker re-loads the notification
+    by id (avoids pickling stale model state) and runs the delivery
+    under its own DB connection.
     """
 
-    def _send():
-        from apps.telegram.services import notify_via_telegram
+    def _enqueue():
+        from django_q.tasks import async_task
 
-        notify_via_telegram(notification)
+        async_task(
+            "apps.notifications.services._deliver_telegram",
+            notification.id,
+        )
 
-    transaction.on_commit(_send)
+    transaction.on_commit(_enqueue)
+
+
+def _deliver_telegram(notification_id: int) -> None:
+    """django-q worker entry — re-loads + delivers a single notification.
+
+    Top-level (not a closure) so django-q can resolve the dotted path.
+    Best-effort: if the notification or its account has gone away
+    between enqueue and pickup (rare — workspace member removal, account
+    unlink), the lookup raises and the worker logs it; the web request
+    that scheduled the send has long since returned.
+    """
+    from apps.notifications.models import Notification
+    from apps.telegram.services import notify_via_telegram
+
+    try:
+        notification = Notification.objects.get(pk=notification_id)
+    except Notification.DoesNotExist:
+        return
+    notify_via_telegram(notification)
 
 
 def _unread_count(recipient_id: int) -> int:
