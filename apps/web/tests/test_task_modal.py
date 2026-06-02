@@ -299,6 +299,24 @@ class TestModalFragmentEndpoints:
 class TestOpenTaskModalAttrs:
     """``{% open_task_modal_attrs task %}`` template tag output."""
 
+    def test_subtask_and_linked_open_modal(self, client, setup):
+        """Subtasks + linked tasks on the detail page carry the
+        ``data-task-modal`` marker so a click opens the overlay instead of
+        navigating to the full page."""
+        user, project, task = setup
+        sub = TaskFactory(project=project, reporter=user, parent=task)
+        blocker = TaskFactory(project=project, reporter=user)
+        blocker.blocks.add(task)  # ``task`` is now blocked_by ``blocker``
+        client.force_login(user)
+        url = reverse(
+            "web:task_detail",
+            kwargs={"slug_prefix": project.slug_prefix, "number": task.number},
+        )
+        body = client.get(url).content.decode()
+        assert "data-task-modal" in body
+        assert sub.slug in body
+        assert blocker.slug in body
+
     def test_emits_modal_marker(self, setup):
         """The tag emits a single ``data-task-modal`` marker; the delegated
         acta.js listener (not per-element ``hx-*``) opens the modal."""

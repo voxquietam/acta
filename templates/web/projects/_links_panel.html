@@ -1,5 +1,6 @@
 {% load i18n %}
 {% load lucide %}
+{% load web_extras %}
 {% comment %}
 Task links panel — Blocked by / Blocks / Related, with add-picker and
 per-chip remove. Wrapped in #task-links so the add/remove endpoints
@@ -161,6 +162,7 @@ blocker that's still open (the thing actually blocking this task).
       <span class="w-2 h-2 rounded-full shrink-0
             {% if t.status == 'done' %}bg-emerald-500{% else %}bg-rose-500{% endif %}"></span>
       <a href="{% url 'web:task_detail' slug_prefix=t.project.slug_prefix number=t.number %}"
+         {% open_task_modal_attrs t %}
          class="font-mono text-placeholder-foreground hover:text-foreground shrink-0">{{ t.slug }}</a>
       <span class="truncate flex-1 {% if t.status == 'done' %}line-through text-placeholder-foreground{% else %}text-subtle-foreground{% endif %}">{{ t.title }}</span>
       <form hx-post="{% url 'web:remove_task_link' slug_prefix=task.project.slug_prefix number=task.number %}"
@@ -185,6 +187,7 @@ blocker that's still open (the thing actually blocking this task).
       <span class="w-2 h-2 rounded-full shrink-0
             {% if t.status == 'done' %}bg-emerald-500{% else %}bg-zinc-500{% endif %}"></span>
       <a href="{% url 'web:task_detail' slug_prefix=t.project.slug_prefix number=t.number %}"
+         {% open_task_modal_attrs t %}
          class="font-mono text-placeholder-foreground hover:text-foreground shrink-0">{{ t.slug }}</a>
       <span class="truncate flex-1 text-subtle-foreground">{{ t.title }}</span>
       <form hx-post="{% url 'web:remove_task_link' slug_prefix=task.project.slug_prefix number=task.number %}"
@@ -208,6 +211,7 @@ blocker that's still open (the thing actually blocking this task).
     <div class="group/link flex items-center gap-2 text-xs">
       <span class="w-2 h-2 rounded-full shrink-0 bg-zinc-500"></span>
       <a href="{% url 'web:task_detail' slug_prefix=t.project.slug_prefix number=t.number %}"
+         {% open_task_modal_attrs t %}
          class="font-mono text-placeholder-foreground hover:text-foreground shrink-0">{{ t.slug }}</a>
       <span class="truncate flex-1 text-subtle-foreground">{{ t.title }}</span>
       <form hx-post="{% url 'web:remove_task_link' slug_prefix=task.project.slug_prefix number=task.number %}"

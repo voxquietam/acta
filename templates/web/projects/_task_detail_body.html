@@ -63,6 +63,7 @@ end of the xl breakpoint (around 1280px).
         {% for sub in subtasks %}
         <li>
           <a href="{% url 'web:task_detail' slug_prefix=sub.project.slug_prefix number=sub.number %}"
+             {% open_task_modal_attrs sub %}
              class="flex items-center gap-2 px-2 py-1 rounded hover:bg-muted text-sm">
             <span class="font-mono text-xs text-placeholder-foreground">{{ sub.slug }}</span>
             <span class="flex-1 truncate {% if sub.status == 'done' or sub.status == 'cancelled' %}line-through text-placeholder-foreground{% endif %}">{{ sub.title }}</span>
