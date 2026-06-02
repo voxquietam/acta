@@ -35,7 +35,7 @@ in context.
   </td>
   <td class="px-2 py-2 font-mono text-xs whitespace-nowrap text-placeholder-foreground">
     <span class="inline-flex items-center gap-1">
-      <span class="cursor-pointer rounded transition hover:ring-1 hover:ring-offset-1 hover:ring-offset-card {{ task.priority|priority_text_classes }}"
+      <span class="acta-filter-chip {{ task.priority|priority_text_classes }}"
             title="{% trans 'Filter by priority' %}: {{ priority_labels|get_item:task.priority|default:_('No priority') }}"
             data-filter-name="priority" data-filter-value="{{ task.priority|default:0 }}">{% include "web/projects/_priority_icon.html" with priority=task.priority size_class="w-3.5 h-3.5" none_icon="circle-dashed" %}</span>
       <a href="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
@@ -65,7 +65,7 @@ in context.
     </span>
   </td>
   <td class="px-3 py-2 whitespace-nowrap">
-    <span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded cursor-pointer transition hover:ring-1 hover:ring-offset-1 hover:ring-offset-card {{ task.status|status_badge_classes }}"
+    <span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 acta-filter-chip {{ task.status|status_badge_classes }}"
           title="{% trans 'Filter by status' %}: {{ status_labels|get_item:task.status|default:task.status }}"
           data-filter-name="status" data-filter-value="{{ task.status }}">
       {{ status_labels|get_item:task.status|default:task.status }}
@@ -73,7 +73,7 @@ in context.
   </td>
   <td class="px-3 py-2 text-xs text-subtle-foreground whitespace-nowrap">
     {% if task.size %}
-    <span class="inline-flex items-center gap-1 cursor-pointer rounded transition hover:ring-1 hover:ring-offset-1 hover:ring-offset-card hover:ring-zinc-500/40"
+    <span class="inline-flex items-center gap-1 acta-filter-chip hover:ring-zinc-500/40"
           title="{% trans 'Filter by size' %}: {{ task.size }}"
           data-filter-name="size" data-filter-value="{{ task.size }}">
       {% lucide "gauge" "w-3 h-3" %}{{ task.size }}
@@ -103,7 +103,7 @@ in context.
            class="inline-flex items-center gap-1.5 whitespace-nowrap">
         {# No native ``title`` — Alpine popover above already names every label. #}
         {% for label in labels|slice:":3" %}
-        <span class="block w-2.5 h-2.5 rounded-full shrink-0 cursor-pointer transition hover:ring-2 hover:ring-offset-1 hover:ring-offset-card"
+        <span class="block w-2.5 h-2.5 rounded-full shrink-0 acta-filter-dot"
               style="background-color: {{ label.color }};"
               data-filter-name="label" data-filter-value="{{ label.id }}"></span>
         {% endfor %}
