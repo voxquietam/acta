@@ -645,6 +645,11 @@
     ) {
       return false;
     }
+    // Cancelled — terminal "won't do", hidden from default lists / table
+    // (ADR 0004, mirrors server ``_filter_status``) unless the Cancelled
+    // status chip explicitly selects it. Without this a status→cancelled
+    // SSE morph left the struck-through row visible until a reload.
+    if (s === "cancelled" && !state.status.has("cancelled")) return false;
     // Status
     if (state.status.size && !state.status.has(s)) return false;
     if (state.xstatus.size && state.xstatus.has(s)) return false;
@@ -2645,6 +2650,12 @@
       document.querySelectorAll(`tr[data-task-id="${taskId}"]`).forEach((tr) => {
         morphFromString(tr, reconcileTableRowCols(tr, html));
       });
+      // idiomorph rewrites the row's ``data-*`` (status / priority / …), so
+      // re-run the client filter pass: a row morphing into a now-hidden
+      // state (cancelled, or a chip that no longer matches) must drop out
+      // without waiting for a reload. The list path does the same after its
+      // swap; Table-only pages have no list axis to trigger it otherwise.
+      if (window.actaApplyFilters) queueMicrotask(window.actaApplyFilters);
     }
 
     // The SSE broadcast pre-renders the table row with the MAXIMAL column
