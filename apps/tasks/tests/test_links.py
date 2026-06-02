@@ -92,6 +92,32 @@ class TestAddLinkEndpoint:
         assert resp.status_code == 200
         assert b in a.related.all()
 
+    def test_add_multiple_targets(self, client, member_setup):
+        """Multi-select: one POST with several ``target`` slugs links all."""
+        _, user, project, a, b = member_setup
+        c = TaskFactory(project=project, title="Task C")
+        client.force_login(user)
+        resp = client.post(
+            reverse("web:add_task_link", args=[a.project.slug_prefix, a.number]),
+            data={"kind": "related", "target": [b.slug, c.slug]},
+        )
+        assert resp.status_code == 200
+        assert b in a.related.all()
+        assert c in a.related.all()
+
+    def test_batch_skips_invalid(self, client, member_setup):
+        """A batch links the valid targets and silently skips invalid ones
+        (here a self-link) instead of failing the whole request."""
+        _, user, _, a, b = member_setup
+        client.force_login(user)
+        resp = client.post(
+            reverse("web:add_task_link", args=[a.project.slug_prefix, a.number]),
+            data={"kind": "related", "target": [b.slug, a.slug]},
+        )
+        assert resp.status_code == 200
+        assert b in a.related.all()  # valid one landed
+        assert a not in a.related.all()  # self-link skipped
+
     def test_self_link_rejected(self, client, member_setup):
         _, user, _, a, _b = member_setup
         client.force_login(user)

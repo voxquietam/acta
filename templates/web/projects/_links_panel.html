@@ -17,6 +17,7 @@ blocker that's still open (the thing actually blocking this task).
        statusFilter: '',
        q: '',
        results: [],
+       selected: [],
        open: false,
        loading: false,
        coords: { top: 0, left: 0, width: 0 },
@@ -42,11 +43,17 @@ blocker that's still open (the thing actually blocking this task).
            this.loading = false;
          }
        },
-       pick(slug) {
-         this.$refs.targetField.value = slug;
+       toggle(slug) {
+         const i = this.selected.indexOf(slug);
+         if (i === -1) this.selected.push(slug); else this.selected.splice(i, 1);
+       },
+       addSelected() {
+         if (!this.selected.length) return;
          this.$refs.kindField.value = this.kind;
+         // The form's hidden ``target`` inputs are rendered per ``selected``
+         // slug (x-for), so requestSubmit serializes them all in one POST.
          this.$refs.addForm.requestSubmit();
-         this.q = ''; this.results = []; this.open = false; this.adding = false;
+         this.q = ''; this.results = []; this.selected = []; this.open = false; this.adding = false;
        }
      }">
 
@@ -58,7 +65,7 @@ blocker that's still open (the thing actually blocking this task).
       <span class="text-[11px] text-placeholder-foreground italic">{% trans "No links yet." %}</span>
       {% endif %}
     </div>
-    <button type="button" @click="adding = !adding; if (adding) $nextTick(() => $refs.searchInput.focus())"
+    <button type="button" @click="adding = !adding; if (adding) { $nextTick(() => $refs.searchInput.focus()) } else { selected = []; q = ''; results = []; open = false }"
             class="text-placeholder-foreground hover:text-foreground p-0.5 rounded"
             data-tooltip="{% trans 'Add link' %}">
       {% lucide "plus" "w-3.5 h-3.5" %}
@@ -96,8 +103,9 @@ blocker that's still open (the thing actually blocking this task).
            @click.outside="open = false"
            class="absolute z-30 mt-1 w-full max-h-56 overflow-y-auto bg-card border border-border rounded-lg shadow-lg">
         <template x-for="r in results" :key="r.slug">
-          <button type="button" @click="pick(r.slug)"
-                  class="w-full text-left flex items-center gap-2 px-2 py-1.5 text-xs hover:bg-muted transition">
+          <button type="button" @click.stop="toggle(r.slug)"
+                  :class="selected.includes(r.slug) ? 'bg-brand-500/10' : 'hover:bg-muted'"
+                  class="w-full text-left flex items-center gap-2 px-2 py-1.5 text-xs transition">
             <span class="w-1.5 h-1.5 rounded-full shrink-0"
                   :class="{
                     'bg-zinc-500': r.status === 'planned',
@@ -126,6 +134,7 @@ blocker that's still open (the thing actually blocking this task).
             <template x-if="!r.assignee">
               <span class="text-[10px] text-placeholder-foreground/60 shrink-0">—</span>
             </template>
+            <span x-show="selected.includes(r.slug)" class="shrink-0 text-brand-500">{% lucide "check" "w-3.5 h-3.5" %}</span>
           </button>
         </template>
       </div>
@@ -135,7 +144,14 @@ blocker that's still open (the thing actually blocking this task).
       </div>
     </div>
 
-    {# Hidden form actually submitted by pick() via HTMX #}
+    {# Commit the multi-select — one POST carrying a ``target`` per slug. #}
+    <button type="button" x-show="selected.length" x-cloak @click="addSelected()"
+            class="w-full bg-brand-600 hover:bg-brand-500 text-white text-xs px-2 py-1.5 rounded-md transition">
+      {% trans "Add" %} <span x-text="selected.length"></span>
+    </button>
+
+    {# Hidden form submitted by addSelected() via HTMX — one hidden        #}
+    {# ``target`` input per selected slug, so getlist("target") sees them all. #}
     <form x-ref="addForm"
           hx-post="{% url 'web:add_task_link' slug_prefix=task.project.slug_prefix number=task.number %}"
           hx-target="#task-links"
@@ -143,7 +159,9 @@ blocker that's still open (the thing actually blocking this task).
           class="hidden">
       {% csrf_token %}
       <input type="hidden" name="kind" x-ref="kindField">
-      <input type="hidden" name="target" x-ref="targetField">
+      <template x-for="s in selected" :key="s">
+        <input type="hidden" name="target" :value="s">
+      </template>
     </form>
   </div>
 

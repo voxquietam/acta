@@ -3875,49 +3875,75 @@ def mention_search(request, slug_prefix):
     return JsonResponse({"users": users, "tasks": tasks})
 
 
+def _apply_one_link(task, kind, target, actor):
+    """Apply one ``kind`` link from ``task`` to ``target`` + broadcast it.
+
+    Returns ``(True, None)`` on success or ``(False, error_message)`` when
+    the target is missing / self / cross-workspace / would create a direct
+    reciprocal block. Caller decides whether to surface the error (single
+    add) or skip it (batch add).
+    """
+    if target is None:
+        return False, "target not found"
+    if target.pk == task.pk:
+        return False, "a task cannot link to itself"
+    if target.project.workspace_id != task.project.workspace_id:
+        return False, "target is in a different workspace"
+    if kind == "related":
+        task.related.add(target)
+    elif kind == "blocks":
+        # Reject direct reciprocal: if target already blocks task, adding
+        # task-blocks-target makes a 2-cycle.
+        if task.blocked_by.filter(pk=target.pk).exists():
+            return False, "that would create a circular block"
+        task.blocks.add(target)
+    else:  # blocked_by — the reverse direction
+        if task.blocks.filter(pk=target.pk).exists():
+            return False, "that would create a circular block"
+        target.blocks.add(task)
+    broadcast_link_change(
+        task=task,
+        target=target,
+        event_type="task.link_added",
+        payload={"kind": kind, "target_slug": target.slug, "target_title": target.title},
+        actor=actor,
+    )
+    return True, None
+
+
 @require_POST
 @login_required
 def add_task_link(request, slug_prefix, number):
-    """Add a dependency / relation link from this task to another.
+    """Add one or more dependency / relation links from this task to others.
 
-    Form fields: ``kind`` (blocks / blocked_by / related) + ``target``
-    (a ``PREFIX-NUMBER`` slug). Validates the target is in the same
-    workspace, isn't the task itself, and — for blocks — doesn't create
-    a direct reciprocal block (A blocks B while B blocks A). Emits a
-    ``task.link_added`` activity event on both endpoints of the link.
+    Form fields: ``kind`` (blocks / blocked_by / related) + one or more
+    ``target`` slugs (the picker submits several for a multi-select add).
+    Each target is validated (same workspace, not self, no direct reciprocal
+    block) and emits a ``task.link_added`` event. A single invalid target
+    returns 400 with the reason (backwards compatible); in a batch the
+    invalid ones are skipped and the valid links still land.
     """
     task = _get_user_task_or_404(request.user, slug_prefix, number)
     kind = (request.POST.get("kind") or "").strip()
     if kind not in _LINK_KINDS:
         return HttpResponseBadRequest("invalid kind")
-    target = _resolve_link_target(request.user, request.POST.get("target"))
-    if target is None:
+    targets = [t for t in request.POST.getlist("target") if t and t.strip()]
+    if not targets:
         return HttpResponseBadRequest("target not found")
-    if target.pk == task.pk:
-        return HttpResponseBadRequest("a task cannot link to itself")
-    if target.project.workspace_id != task.project.workspace_id:
-        return HttpResponseBadRequest("target is in a different workspace")
 
     with transaction.atomic():
-        if kind == "related":
-            task.related.add(target)
-        elif kind == "blocks":
-            # Reject direct reciprocal: if target already blocks task,
-            # adding task-blocks-target makes a 2-cycle.
-            if task.blocked_by.filter(pk=target.pk).exists():
-                return HttpResponseBadRequest("that would create a circular block")
-            task.blocks.add(target)
-        else:  # blocked_by — the reverse direction
-            if task.blocks.filter(pk=target.pk).exists():
-                return HttpResponseBadRequest("that would create a circular block")
-            target.blocks.add(task)
-        broadcast_link_change(
-            task=task,
-            target=target,
-            event_type="task.link_added",
-            payload={"kind": kind, "target_slug": target.slug, "target_title": target.title},
-            actor=request.user,
-        )
+        if len(targets) == 1:
+            ok, error = _apply_one_link(
+                task,
+                kind,
+                _resolve_link_target(request.user, targets[0]),
+                request.user,
+            )
+            if not ok:
+                return HttpResponseBadRequest(error)
+        else:
+            for raw in targets:
+                _apply_one_link(task, kind, _resolve_link_target(request.user, raw), request.user)
     return _links_panel_response(request, task)
 
 
