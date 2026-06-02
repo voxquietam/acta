@@ -10,7 +10,7 @@ blocker that's still open (the thing actually blocking this task).
 <div id="task-links" class="bg-card border border-border rounded-lg p-4 mt-4 space-y-3"
      hx-get="{% url 'web:task_links_fragment' slug_prefix=task.project.slug_prefix number=task.number %}"
      hx-trigger="acta:link-changed from:body"
-     hx-swap="outerHTML"
+     hx-swap="morph:outerHTML"
      x-data="{
        adding: false,
        kind: 'related',
@@ -73,7 +73,8 @@ blocker that's still open (the thing actually blocking this task).
   </div>
 
   {# Add-link picker — autocomplete by slug+title, status chips filter. #}
-  <div x-show="adding" x-cloak class="space-y-2 pb-1">
+  <div x-show="adding" x-cloak class="space-y-2 pb-1"
+       @click.outside="selected.length ? addSelected() : (adding = false, open = false)">
     <select x-model="kind" class="acta-input text-xs">
       <option value="related">{% trans "Related to" %}</option>
       <option value="blocked_by">{% trans "Blocked by" %}</option>
@@ -100,8 +101,8 @@ blocker that's still open (the thing actually blocking this task).
              class="acta-input text-xs w-full">
       {# Results dropdown #}
       <div x-show="open && results.length" x-cloak
-           @click.outside="open = false"
-           class="absolute z-30 mt-1 w-full max-h-56 overflow-y-auto bg-card border border-border rounded-lg shadow-lg">
+           :style="`top: ${coords.top}px; left: ${coords.left}px; width: ${coords.width}px;`"
+           class="fixed z-40 max-h-56 overflow-y-auto bg-card border border-border rounded-lg shadow-lg">
         <template x-for="r in results" :key="r.slug">
           <button type="button" @click.stop="toggle(r.slug)"
                   :class="selected.includes(r.slug) ? 'bg-brand-500/10' : 'hover:bg-muted'"
@@ -139,23 +140,22 @@ blocker that's still open (the thing actually blocking this task).
         </template>
       </div>
       <div x-show="open && !results.length && !loading" x-cloak
-           class="absolute z-30 mt-1 w-full bg-card border border-border rounded-lg shadow-lg px-2 py-1.5 text-[11px] text-placeholder-foreground italic">
+           :style="`top: ${coords.top}px; left: ${coords.left}px; width: ${coords.width}px;`"
+           class="fixed z-40 bg-card border border-border rounded-lg shadow-lg px-2 py-1.5 text-[11px] text-placeholder-foreground italic">
         {% trans "No tasks match." %}
       </div>
     </div>
 
-    {# Commit the multi-select — one POST carrying a ``target`` per slug. #}
-    <button type="button" x-show="selected.length" x-cloak @click="addSelected()"
-            class="w-full bg-brand-600 hover:bg-brand-500 text-white text-xs px-2 py-1.5 rounded-md transition">
-      {% trans "Add" %} <span x-text="selected.length"></span>
-    </button>
+    {# No explicit "add" button: clicking outside the picker commits the    #}
+    {# current selection (``@click.outside`` on the picker container) — one #}
+    {# POST carrying a ``target`` per selected slug.                        #}
 
     {# Hidden form submitted by addSelected() via HTMX — one hidden        #}
     {# ``target`` input per selected slug, so getlist("target") sees them all. #}
     <form x-ref="addForm"
           hx-post="{% url 'web:add_task_link' slug_prefix=task.project.slug_prefix number=task.number %}"
           hx-target="#task-links"
-          hx-swap="outerHTML"
+          hx-swap="morph:outerHTML"
           class="hidden">
       {% csrf_token %}
       <input type="hidden" name="kind" x-ref="kindField">
@@ -184,7 +184,7 @@ blocker that's still open (the thing actually blocking this task).
          class="font-mono text-placeholder-foreground hover:text-foreground shrink-0">{{ t.slug }}</a>
       <span class="truncate flex-1 {% if t.status == 'done' %}line-through text-placeholder-foreground{% else %}text-subtle-foreground{% endif %}">{{ t.title }}</span>
       <form hx-post="{% url 'web:remove_task_link' slug_prefix=task.project.slug_prefix number=task.number %}"
-            hx-target="#task-links" hx-swap="outerHTML" class="shrink-0">
+            hx-target="#task-links" hx-swap="morph:outerHTML" class="shrink-0">
         {% csrf_token %}
         <input type="hidden" name="kind" value="blocked_by">
         <input type="hidden" name="target_id" value="{{ t.id }}">
@@ -209,7 +209,7 @@ blocker that's still open (the thing actually blocking this task).
          class="font-mono text-placeholder-foreground hover:text-foreground shrink-0">{{ t.slug }}</a>
       <span class="truncate flex-1 text-subtle-foreground">{{ t.title }}</span>
       <form hx-post="{% url 'web:remove_task_link' slug_prefix=task.project.slug_prefix number=task.number %}"
-            hx-target="#task-links" hx-swap="outerHTML" class="shrink-0">
+            hx-target="#task-links" hx-swap="morph:outerHTML" class="shrink-0">
         {% csrf_token %}
         <input type="hidden" name="kind" value="blocks">
         <input type="hidden" name="target_id" value="{{ t.id }}">
@@ -233,7 +233,7 @@ blocker that's still open (the thing actually blocking this task).
          class="font-mono text-placeholder-foreground hover:text-foreground shrink-0">{{ t.slug }}</a>
       <span class="truncate flex-1 text-subtle-foreground">{{ t.title }}</span>
       <form hx-post="{% url 'web:remove_task_link' slug_prefix=task.project.slug_prefix number=task.number %}"
-            hx-target="#task-links" hx-swap="outerHTML" class="shrink-0">
+            hx-target="#task-links" hx-swap="morph:outerHTML" class="shrink-0">
         {% csrf_token %}
         <input type="hidden" name="kind" value="related">
         <input type="hidden" name="target_id" value="{{ t.id }}">
