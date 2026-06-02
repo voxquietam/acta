@@ -3474,6 +3474,36 @@
     window.htmx.ajax("GET", href + "?modal=1", { target: "#modal-root", swap: "innerHTML" });
   });
 
+  // Click-to-filter on task rows/cards. Each filterable cell (status,
+  // priority, size, assignee, project, label dot, cycle) carries
+  // ``data-filter-name`` + ``data-filter-value`` instead of an inline
+  // Alpine ``@click`` — one delegated listener replaces ~7 per-row bindings
+  // (a real init cost on a few-hundred-row table). Scoped to elements
+  // INSIDE a ``[data-task-id]`` row so it never collides with the sidebar
+  // chips (which share the attr names but ``@click.stop`` their own clicks
+  // and live outside any task row).
+  //
+  // CAPTURE phase on purpose: the modal-open trigger lives on an ancestor
+  // (the kanban card / list-row link via ``open_task_modal_attrs``). The
+  // old inline ``@click.stop`` killed propagation at the cell; a bubble-phase
+  // document listener fires AFTER that ancestor's htmx handler, so the modal
+  // would open too. Capturing at the document lets us ``stopPropagation``
+  // before the event ever reaches the ancestor.
+  document.addEventListener(
+    "click",
+    (e) => {
+      if (e.button !== 0) return;
+      const cell = e.target.closest && e.target.closest("[data-filter-name][data-filter-value]");
+      if (!cell || !cell.closest("[data-task-id]")) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (window.acta && window.acta.toggleFilter) {
+        window.acta.toggleFilter(cell.dataset.filterName, cell.dataset.filterValue);
+      }
+    },
+    true,
+  );
+
   // Right-click context menu on task rows / cards. One global menu lives
   // in ``#context-menu-root``; the per-task fragment is fetched on demand
   // (server-rendered with every submenu pre-populated) and positioned at

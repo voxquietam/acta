@@ -212,6 +212,26 @@ class TestAssigneeFacetEndpoint:
 
 
 @pytest.mark.django_db
+class TestRowFilterDelegation:
+    """Filterable task-row cells carry ``data-filter-*`` for the delegated
+    click handler instead of inline Alpine ``@click`` bindings."""
+
+    def test_table_cells_carry_filter_data_attrs(self, client):
+        ws = WorkspaceFactory()
+        ws.owner.active_workspace = ws
+        ws.owner.save(update_fields=["active_workspace"])
+        p = ProjectFactory(workspace=ws)
+        TaskFactory(project=p, reporter=ws.owner, assignee=ws.owner, status=Task.STATUS_TODO)
+        client.force_login(ws.owner)
+        body = client.get(reverse("web:all_tasks")).content.decode()
+        assert 'data-filter-name="status"' in body
+        assert 'data-filter-name="priority"' in body
+        assert 'data-filter-name="assignee"' in body
+        # Inline Alpine filter handlers are gone from the rendered HTML.
+        assert "toggleFilter(" not in body
+
+
+@pytest.mark.django_db
 class TestAllTasksScope:
     """All Tasks is scoped to the user's active workspace."""
 

@@ -48,7 +48,7 @@ Optional context:
      class="{{ extra_class }} {{ sz }} rounded-full object-cover{% if clickable %} shrink-0 cursor-pointer transition hover:ring-2 hover:ring-offset-1 hover:ring-offset-card {{ rfc }}{% endif %}"
      {% if avatar_box_shadow %}style="{{ avatar_box_shadow }}"{% endif %}
      title="{% if clickable %}{% trans 'Filter by assignee' %}: {{ assignee.display_name }}{% else %}{{ assignee.display_name }}{% endif %}"
-     {% if clickable %}@click.prevent.stop="window.acta.toggleFilter('assignee', '{% if assignee == request_user %}me{% else %}{{ assignee.id }}{% endif %}')"{% endif %}
+     {% if clickable %}data-filter-name="assignee" data-filter-value="{% if assignee == request_user %}me{% else %}{{ assignee.id }}{% endif %}"{% endif %}
      {% if with_substatus_data %}data-task-assignee-avatar
      data-avatar-url="{% url 'accounts:serve_avatar' user_id=assignee.id %}?v={{ assignee.avatar_version }}&amp;size={{ ts }}"
      data-avatar-initial="{{ assignee.display_name|slice:':1'|upper }}"
@@ -58,7 +58,7 @@ Optional context:
 <span class="{{ extra_class }} {{ sz }} {{ tc }} rounded-full text-white grid place-items-center font-medium{% if clickable %} shrink-0 cursor-pointer transition hover:ring-2 hover:ring-offset-1 hover:ring-offset-card {{ rfc }}{% endif %}"
       style="background-color: {{ assignee.avatar_color }};{% if avatar_box_shadow %} {{ avatar_box_shadow }}{% endif %}"
       title="{% if clickable %}{% trans 'Filter by assignee' %}: {{ assignee.display_name }}{% else %}{{ assignee.display_name }}{% endif %}"
-      {% if clickable %}@click.prevent.stop="window.acta.toggleFilter('assignee', '{% if assignee == request_user %}me{% else %}{{ assignee.id }}{% endif %}')"{% endif %}
+      {% if clickable %}data-filter-name="assignee" data-filter-value="{% if assignee == request_user %}me{% else %}{{ assignee.id }}{% endif %}"{% endif %}
       {% if with_substatus_data %}data-task-assignee-avatar
       data-avatar-initial="{{ assignee.display_name|slice:':1'|upper }}"
       data-avatar-bg="{{ assignee.avatar_color }}"
@@ -68,7 +68,7 @@ Optional context:
 {% if clickable %}
 <span class="{{ extra_class }} {{ sz }} {{ ntc }} rounded-full border border-dashed border-border-strong grid place-items-center text-placeholder-foreground shrink-0 cursor-pointer transition hover:ring-2 hover:ring-offset-1 hover:ring-offset-card hover:ring-zinc-500/40"
       title="{% trans 'Filter by assignee' %}: {% trans 'Unassigned' %}"
-      @click.prevent.stop="window.acta.toggleFilter('assignee', 'unassigned')">?</span>
+      data-filter-name="assignee" data-filter-value="unassigned">?</span>
 {% else %}
 <span class="{{ extra_class }} {{ sz }} {{ ntc }} rounded-full border border-dashed border-border-strong grid place-items-center text-placeholder-foreground italic"
       title="{% trans 'Unassigned' %}">?</span>
