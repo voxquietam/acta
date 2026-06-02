@@ -471,43 +471,7 @@ Section visibility flags from the view:
                    placeholder="{% trans 'Search projects…' %}">
           </div>
           {% endif %}
-          <div class="acta-flt-scroller space-y-0.5 max-h-[180px] lg:max-h-none overflow-y-auto overflow-x-hidden pr-1 relative"
-               data-sticky-stack
-               x-data
-               @sticky-row-toggled.window="$nextTick(() => window.acta && window.acta.updateStickyStack && window.acta.updateStickyStack($el))">
-            {% for p in available_projects %}
-            <label class="cursor-pointer block"
-                   :class="q && !'{{ p.name|lower|escapejs }} {{ p.slug_prefix|lower|escapejs }}'.includes(q.toLowerCase()) ? 'hidden' : ''"
-                   x-data="{ state: '{% if p.id in excluded_projects %}excluded{% elif p.id in selected_projects %}included{% else %}none{% endif %}' }"
-                   :data-selected="state !== 'none'"
-                   data-sticky-row
-                   data-filter-name="project"
-                   data-filter-value="{{ p.id }}"
-                   @acta:filter-reset.window="state = 'none'; $dispatch('sticky-row-toggled')"
-                   @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $dispatch('sticky-row-toggled'); $nextTick(() => document.getElementById('filter-form').requestSubmit())">
-              <input type="checkbox"
-                     :name="state === 'excluded' ? 'xproject' : 'project'"
-                     value="{{ p.id }}"
-                     :checked="state !== 'none'"
-                     class="peer sr-only"
-                     @change.stop="state = $event.target.checked ? 'included' : 'none'; $dispatch('sticky-row-toggled'); $event.target.form.requestSubmit()">
-              <span class="acta-flt-row"
-                    :class="{ 'is-include': state === 'included', 'is-exclude': state === 'excluded' }">
-                <span class="check"
-                      x-show="state === 'included'">{% lucide "check" "w-2.5 h-2.5" %}</span>
-                <span class="check"
-                      x-show="state === 'excluded'">{% lucide "x" "w-2.5 h-2.5" %}</span>
-                <span class="check"
-                      x-show="state === 'none'"></span>
-                <span class="shrink-0 {{ p.icon_color_class }}">
-                  {% lucide p.icon|default:"folder" "w-3.5 h-3.5" %}
-                </span>
-                <span class="nm">{{ p.name }}</span>
-                <span class="n">{{ p.slug_prefix }}</span>
-              </span>
-            </label>
-            {% endfor %}
-          </div>
+          {% include "web/_filter_project_rows.html" %}
         </div>
         {% endif %}
 

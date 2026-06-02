@@ -330,51 +330,101 @@
   // Inactive slots are emptied so the next view-switch re-lazy-loads.
   // Debounced 50 ms so bursts of chip clicks coalesce into one request
   // without adding visible single-click latency.
+  // Apply a freshly-fetched ``#filter-project-rows`` fragment. Wholesale
+  // ``replaceChildren`` (NOT idiomorph): each row is its own Alpine
+  // component, and morphing brand-new row nodes in leaves them
+  // un-initialised — ``x-show`` stops hiding the extra check glyphs and the
+  // row sprouts 3 checkboxes. ``replaceChildren`` + an explicit
+  // ``initTree`` per fresh row guarantees Alpine wires each one (selection
+  // state comes from the server, so a fresh init is correct). The container
+  // stays mounted, so its own Alpine + the search input's focus survive.
+  function applyFacetRows(html) {
+    const target = document.getElementById("filter-project-rows");
+    if (!target || html == null) return;
+    const tmpl = document.createElement("template");
+    tmpl.innerHTML = html.trim();
+    const fresh = tmpl.content.firstElementChild; // the rows container
+    if (!fresh) return;
+    target.replaceChildren(...fresh.children);
+    if (window.Alpine && window.Alpine.initTree) {
+      Array.from(target.children).forEach((row) => window.Alpine.initTree(row));
+    }
+    if (window.htmx) window.htmx.process(target);
+    window.dispatchEvent(new CustomEvent("sticky-row-toggled"));
+  }
+
+  // Refresh the active panel AND the project facet rows as ONE coordinated
+  // update: both are fetched in parallel and applied together (Promise.all)
+  // so the task list and the filtered project list never paint at different
+  // times. Project facets are server-computed (count per project under the
+  // current filters, project axis excluded) so they need the round-trip;
+  // folding them into this fetch keeps them in lock-step with the panel.
+  // Debounced 50 ms so chip bursts coalesce into one round-trip.
   let panelRefreshTimer = null;
   function schedulePanelRefresh() {
     if (panelRefreshTimer) clearTimeout(panelRefreshTimer);
     panelRefreshTimer = setTimeout(() => {
       panelRefreshTimer = null;
-      const active = window.Alpine && window.Alpine.store && window.Alpine.store("viewMode");
-      const activeKey = active && active.current;
+      const store = window.Alpine && window.Alpine.store && window.Alpine.store("viewMode");
+      const activeKey = store && store.current;
+      // Resolve the active slot; bail entirely if it's mid-load so the
+      // panel and facets never apply out of step (the next change re-fires).
+      let activeSlot = null;
+      let loading = false;
       document.querySelectorAll("[data-panel-slot]").forEach((slot) => {
-        const key = slot.dataset.panelSlot;
-        if (!key) return;
-        if (key === activeKey) {
-          if (slot.dataset.panelLoading === "true") return;
-          const url = new URL(window.location.href);
-          url.searchParams.set("panel", key);
-          slot.dataset.panelLoading = "true";
-          progressStart();
-          fetch(url.pathname + url.search, {
-            headers: { "HX-Request": "true" },
-            credentials: "same-origin",
-          })
-            .then((r) => r.text())
-            .then((html) => {
-              const tmpl = document.createElement("template");
-              tmpl.innerHTML = html;
-              slot.replaceChildren(...tmpl.content.childNodes);
-              if (window.htmx) window.htmx.process(slot);
-              if (window.renderIcons) window.renderIcons();
-              // ``fetch`` doesn't go through HTMX, so the global
-              // ``htmx:afterSettle`` filter pass never fires after our
-              // swap. Re-run it explicitly so column hides / section
-              // counts / list bucketing stay in sync with current
-              // sidebar state (matters when e.g. ``show_backlog`` is
-              // off — server returned no planned/ready rows but the
-              // kanban template still drew the empty columns).
-              if (window.actaApplyFilters) window.actaApplyFilters();
-            })
-            .finally(() => {
-              slot.dataset.panelLoading = "false";
-              progressEnd();
-            });
+        if (!slot.dataset.panelSlot) return;
+        if (slot.dataset.panelSlot === activeKey) {
+          activeSlot = slot;
+          if (slot.dataset.panelLoading === "true") loading = true;
         } else {
-          // Drop stale content; next view-switch will re-lazy-load.
-          slot.innerHTML = "";
+          slot.innerHTML = ""; // drop stale; next view-switch re-lazy-loads
         }
       });
+      if (loading) return;
+
+      const search = new URL(window.location.href).search;
+      const facetRoot = document.getElementById("filter-project-rows");
+      const facetUrl = facetRoot && facetRoot.dataset.facetUrl;
+      const facetFetch = facetUrl
+        ? fetch(facetUrl + search, { headers: { "HX-Request": "true" }, credentials: "same-origin" })
+            .then((r) => r.text())
+            .catch(() => null)
+        : Promise.resolve(null);
+
+      let panelFetch = Promise.resolve(null);
+      if (activeSlot) {
+        const url = new URL(window.location.href);
+        url.searchParams.set("panel", activeSlot.dataset.panelSlot);
+        activeSlot.dataset.panelLoading = "true";
+        panelFetch = fetch(url.pathname + url.search, {
+          headers: { "HX-Request": "true" },
+          credentials: "same-origin",
+        })
+          .then((r) => r.text())
+          .catch(() => null);
+      }
+
+      progressStart();
+      Promise.all([panelFetch, facetFetch])
+        .then(([panelHtml, facetHtml]) => {
+          // Apply both in the same tick so they paint together.
+          if (activeSlot && panelHtml != null) {
+            const tmpl = document.createElement("template");
+            tmpl.innerHTML = panelHtml;
+            activeSlot.replaceChildren(...tmpl.content.childNodes);
+            if (window.htmx) window.htmx.process(activeSlot);
+          }
+          applyFacetRows(facetHtml);
+          if (window.renderIcons) window.renderIcons();
+          // ``fetch`` bypasses HTMX, so the global afterSettle filter pass
+          // never fires — re-run it so column hides / section counts / list
+          // bucketing track the current sidebar state.
+          if (window.actaApplyFilters) window.actaApplyFilters();
+        })
+        .finally(() => {
+          if (activeSlot) activeSlot.dataset.panelLoading = "false";
+          progressEnd();
+        });
     }, 50);
   }
   window.actaSchedulePanelRefresh = schedulePanelRefresh;
@@ -752,6 +802,27 @@
     visibleHide(document.getElementById("filter-count-expanded"));
   }
 
+  // Build the chip-filter querystring from the form, preserving non-filter
+  // params (sort / view / axis). ``show_backlog`` is deliberately NOT
+  // mirrored (it's a client-only toggle — see the cookie note below).
+  const FILTER_URL_KEYS = ["status", "xstatus", "priority", "xpriority", "assignee",
+    "xassignee", "project", "xproject", "label", "xlabel", "q", "show_archived"];
+  function buildFilterSearch(form) {
+    const params = new URLSearchParams(window.location.search);
+    FILTER_URL_KEYS.forEach((k) => params.delete(k));
+    const fd = new FormData(form);
+    for (const [k, v] of fd.entries()) {
+      if (!FILTER_URL_KEYS.includes(k)) continue;
+      if (k === "show_archived") {
+        if (v === "1") params.set(k, "1"); // hidden 0 + checkbox 1 → keep the 1
+        continue;
+      }
+      if (v) params.append(k, v.toString());
+    }
+    const qs = params.toString();
+    return qs ? "?" + qs : "";
+  }
+
   function applyClientFilters() {
     const form = document.getElementById("filter-form");
     if (!form) return;
@@ -760,7 +831,19 @@
     if (form.dataset.serverFilter === "true") return;
     const state = readFilterState(form);
     if (!state) return;
-    const rows = document.querySelectorAll("[data-task-id]");
+    // A chip-filter change round-trips to the server, which replaces the
+    // active panel with the correctly-filtered rows. Pre-hiding the
+    // non-matching rows here first makes the task list visibly blink (rows
+    // vanish, then the response re-renders) — the project facet rows avoid
+    // this by only swapping on the response. Mirror that: when a server
+    // refetch is imminent (the chip querystring is about to change), skip
+    // the per-row hide and let the panel swap apply it. Client-only toggles
+    // (show_backlog — not mirrored to the URL) still hide instantly, and the
+    // post-swap pass (same querystring → no refetch) hides the fresh rows.
+    const nextSearch = buildFilterSearch(form);
+    const serverWillRefetch =
+      !!(window.history && window.history.replaceState) && nextSearch !== window.location.search;
+    const rows = serverWillRefetch ? [] : document.querySelectorAll("[data-task-id]");
     let visible = 0;
     rows.forEach((row) => {
       // Skip elements that don't carry filter attrs (some
@@ -862,33 +945,14 @@
     // Mirror URL params so refresh / share carry the same filter
     // state — Django filter view re-renders identically on cold load.
     if (window.history && window.history.replaceState) {
-      const params = new URLSearchParams(window.location.search);
-      // Replace filter-related keys; preserve everything else (sort,
-      // view, axis).
-      // NB: ``show_backlog`` is deliberately NOT mirrored to the URL. Backlog
-      // is purely client-side (always server-rendered, hidden via rowMatches),
-      // and the lazy ``?panel=`` fetches build their URL from the current
-      // location — a mirrored ``show_backlog=0`` would make the server
-      // ``_filter_backlog`` drop planned/ready from a freshly-loaded panel, so
-      // toggling backlog on afterwards couldn't reveal them. The cookie
-      // (written above) persists the toggle for cold loads instead.
-      const keys = ["status", "xstatus", "priority", "xpriority", "assignee",
-        "xassignee", "project", "xproject",
-        "label", "xlabel", "q", "show_archived"];
-      keys.forEach((k) => params.delete(k));
-      const fd = new FormData(form);
-      for (const [k, v] of fd.entries()) {
-        if (!keys.includes(k)) continue;
-        if (k === "show_archived") {
-          // hidden ``0`` + checkbox ``1`` — keep only the trailing ``1``.
-          if (v === "1") params.set(k, "1");
-          continue;
-        }
-        if (v) params.append(k, v.toString());
-      }
-      const qs = params.toString();
+      // ``newSearch`` was computed up top (``buildFilterSearch``) and gated
+      // the pre-hide skip. ``show_backlog`` is deliberately NOT mirrored to
+      // the URL — it's a client-only toggle (the lazy ``?panel=`` fetches
+      // build their URL from the current location, and a mirrored
+      // ``show_backlog=0`` would make the server drop planned/ready from a
+      // freshly-loaded panel); the cookie above persists it instead.
       const beforeSearch = window.location.search;
-      const newSearch = qs ? "?" + qs : "";
+      const newSearch = nextSearch;
       window.history.replaceState({}, "", window.location.pathname + newSearch);
       // Server applies chip filters in ``apply_task_filters``, so any
       // change to the chip-bearing querystring means the rendered panels

@@ -7,7 +7,7 @@ the three views share one canonical implementation.
 """
 
 from django.contrib.auth import get_user_model
-from django.db.models import Case, F, IntegerField, Q, Value, When
+from django.db.models import Case, Count, F, IntegerField, Q, Value, When
 from django.db.models.functions import Lower
 from django.utils import timezone
 
@@ -53,6 +53,63 @@ def apply_task_filters(qs, params, *, request_user, default_show_done=True, defa
     qs = _filter_date_range(qs, params)
     qs = _filter_search(qs, params)
     return qs
+
+
+def project_facet_counts(base_qs, params, *, request_user):
+    """Tasks-per-project counts for the sidebar's project facet (SPIKE).
+
+    Standard faceted-search semantics: every active filter is applied
+    EXCEPT the project axis itself, so each project chip shows how many
+    tasks it would contribute under the current filters — switching the
+    project selection still surfaces non-zero options instead of every
+    other chip collapsing to 0. Resolves in one ``GROUP BY`` query.
+
+    Args:
+        base_qs: Task queryset already scoped to the page (e.g. the
+            active workspace). Visibility defaults (archived / backlog /
+            cancelled) come from ``apply_task_filters`` so the counts
+            match what the list actually shows.
+        params: ``request.GET``-like mapping (the same effective params
+            the sidebar renders from — cookies already merged in).
+        request_user: For the ``assignee=me`` shortcut.
+
+    Returns:
+        ``{project_id: count}``. Projects with no matching task are
+        absent; callers default a missing id to 0.
+    """
+    facet_params = params.copy()
+    for key in ("project", "xproject"):
+        if key in facet_params:
+            del facet_params[key]
+    rows = (
+        apply_task_filters(base_qs, facet_params, request_user=request_user)
+        .values("project_id")
+        .annotate(n=Count("id"))
+    )
+    return {row["project_id"]: row["n"] for row in rows}
+
+
+def visible_project_facets(available_projects, counts, *, selected_ids, excluded_ids):
+    """Filter + stamp project rows for the sidebar's project facet.
+
+    Keeps a project only when it has a non-zero count under the current
+    filters, OR it is explicitly selected / excluded (so the user can
+    always toggle an active project off even after a sibling filter zeroed
+    its count). Stamps ``facet_count`` on each surviving project. Shared by
+    the cold-load sidebar render and the live facet endpoint so both apply
+    the same hide-zeros rule.
+
+    Returns:
+        The filtered list of projects, each carrying ``facet_count``.
+    """
+    rows = []
+    for proj in available_projects:
+        count = counts.get(proj.id, 0)
+        if count == 0 and proj.id not in selected_ids and proj.id not in excluded_ids:
+            continue
+        proj.facet_count = count
+        rows.append(proj)
+    return rows
 
 
 def _filter_archived(qs, params):
@@ -534,6 +591,7 @@ def filter_sidebar_context(
     hide_my_projects_toggle=False,
     show_backlog_toggle=False,
     backlog_tab_aware=True,
+    project_facets=False,
     preserved_params=None,
     extra_preserved=None,
     effective_params=None,
@@ -732,6 +790,25 @@ def filter_sidebar_context(
         for value in params.getlist(key):
             preserved_pairs.append((key, value))
 
+    # Project facet: stamp each project chip with how many tasks it holds
+    # under the current filters (ignoring the project axis itself) and drop
+    # the chips that would be 0 — keeping only projects worth filtering by,
+    # plus any already selected/excluded. One extra GROUP BY query, gated
+    # behind ``project_facets``. The live endpoint re-renders the same rows
+    # partial on filter change (``web:filter_project_facets``).
+    if project_facets and active is not None:
+        counts = project_facet_counts(
+            Task.objects.filter(project__workspace=active),
+            params,
+            request_user=user,
+        )
+        available_projects = visible_project_facets(
+            available_projects,
+            counts,
+            selected_ids=selected_projects,
+            excluded_ids=excluded_projects,
+        )
+
     return {
         "filter_form_url": form_url or request.path,
         "filter_htmx_target": htmx_target or "#task-list-wrapper",
@@ -739,6 +816,7 @@ def filter_sidebar_context(
         "filter_hide_assignee": hide_assignee,
         "filter_hide_project": hide_project,
         "filter_hide_status": hide_status,
+        "project_facets": project_facets,
         "selected_statuses": selected_statuses,
         "selected_priorities": selected_priorities,
         "selected_sizes": selected_sizes,

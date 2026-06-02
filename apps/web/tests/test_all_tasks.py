@@ -105,6 +105,56 @@ def setup(db):
 
 
 @pytest.mark.django_db
+class TestProjectFacetEndpoint:
+    """``web:filter_project_facets`` — the live project-rows fragment: a
+    count per project under the current filters, zero-count projects
+    dropped (selected ones kept)."""
+
+    def _ws(self):
+        ws = WorkspaceFactory()
+        ws.owner.active_workspace = ws
+        ws.owner.save(update_fields=["active_workspace"])
+        return ws
+
+    def test_counts_and_hides_zero(self, client):
+        ws = self._ws()
+        p_with = ProjectFactory(workspace=ws, name="HasTasks")
+        ProjectFactory(workspace=ws, name="EmptyProj")
+        TaskFactory(project=p_with, reporter=ws.owner, assignee=ws.owner)
+        TaskFactory(project=p_with, reporter=ws.owner, assignee=ws.owner)
+        client.force_login(ws.owner)
+        body = client.get(reverse("web:filter_project_facets")).content.decode()
+        assert "HasTasks" in body
+        assert 'text-placeholder-foreground">2<' in body  # facet count rendered
+        assert "EmptyProj" not in body  # zero-count project dropped
+
+    def test_zero_kept_when_selected(self, client):
+        ws = self._ws()
+        p_zero = ProjectFactory(workspace=ws, name="EmptyButSelected")
+        client.force_login(ws.owner)
+        body = client.get(
+            reverse("web:filter_project_facets"),
+            {"project": p_zero.id},
+        ).content.decode()
+        assert "EmptyButSelected" in body  # selected project stays despite 0
+
+    def test_count_respects_other_axis_filter(self, client):
+        ws = self._ws()
+        p = ProjectFactory(workspace=ws, name="ProjA")
+        other = UserFactory()
+        WorkspaceMemberFactory(workspace=ws, user=other)
+        TaskFactory(project=p, reporter=ws.owner, assignee=ws.owner)
+        TaskFactory(project=p, reporter=ws.owner, assignee=other)
+        client.force_login(ws.owner)
+        body = client.get(
+            reverse("web:filter_project_facets"),
+            {"assignee": str(ws.owner.id)},
+        ).content.decode()
+        # Only the owner's one task counts under the assignee filter.
+        assert 'text-placeholder-foreground">1<' in body
+
+
+@pytest.mark.django_db
 class TestAllTasksScope:
     """All Tasks is scoped to the user's active workspace."""
 

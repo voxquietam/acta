@@ -1,0 +1,64 @@
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+Project filter rows for the sidebar — extracted so the facet endpoint
+(``web:filter_project_facets``) can re-render just this block and the
+client morphs it in on a filter change. ``q`` (project search) lives on
+the parent ``.acta-flt-sec`` scope, so it still resolves for rows added
+back by the morph. Row ``id`` lets Idiomorph match rows and preserve
+their Alpine ``state`` across morphs. With ``project_facets`` on, zero
+rows are already filtered out server-side (selected/excluded kept).
+{% endcomment %}
+<div id="filter-project-rows"
+     class="acta-flt-scroller space-y-0.5 max-h-[180px] lg:max-h-none overflow-y-auto overflow-x-hidden pr-1 relative"
+     {% if project_facets %}data-facet-url="{% url 'web:filter_project_facets' %}"{% endif %}
+     data-sticky-stack
+     x-data
+     @sticky-row-toggled.window="$nextTick(() => window.acta && window.acta.updateStickyStack && window.acta.updateStickyStack($el))">
+  {% for p in available_projects %}
+  <label class="cursor-pointer block"
+         id="filter-project-{{ p.id }}"
+         :class="q && !'{{ p.name|lower|escapejs }} {{ p.slug_prefix|lower|escapejs }}'.includes(q.toLowerCase()) ? 'hidden' : ''"
+         x-data="{
+           state: '{% if p.id in excluded_projects %}excluded{% elif p.id in selected_projects %}included{% else %}none{% endif %}',
+           toggle(ev) {
+             if (this.state === 'excluded') return;
+             const multi = ev.metaKey || ev.ctrlKey || ev.shiftKey;
+             const next = this.state === 'included' ? 'none' : 'included';
+             if (!multi && next === 'included') {
+               window.dispatchEvent(new CustomEvent('acta:project-single-pick', { detail: { source: this.$el } }));
+             }
+             this.state = next;
+             this.$dispatch('sticky-row-toggled');
+             this.$nextTick(() => document.getElementById('filter-form').requestSubmit());
+           }
+         }"
+         :data-selected="state !== 'none'"
+         data-sticky-row
+         data-filter-name="project"
+         data-filter-value="{{ p.id }}"
+         title="{% trans 'Click to pick (hold Cmd/Ctrl to add), right-click to exclude' %}"
+         @acta:filter-reset.window="state = 'none'; $dispatch('sticky-row-toggled')"
+         @acta:project-single-pick.window="if ($event.detail.source !== $el && state === 'included') state = 'none'"
+         @click.prevent.stop="toggle($event)"
+         @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $dispatch('sticky-row-toggled'); $nextTick(() => document.getElementById('filter-form').requestSubmit())">
+    <input type="checkbox"
+           :name="state === 'excluded' ? 'xproject' : 'project'"
+           value="{{ p.id }}"
+           :checked="state !== 'none'"
+           class="peer sr-only"
+           tabindex="-1">
+    <span class="acta-flt-row"
+          :class="{ 'is-include': state === 'included', 'is-exclude': state === 'excluded' }">
+      {# Count replaces the checkbox (single-select on click) — pinned to the #}
+      {# leftmost slot, fixed width so the folder icons + names line up. #}
+      {% if project_facets %}<span class="shrink-0 w-6 text-right tabular-nums text-[11px] text-placeholder-foreground">{{ p.facet_count }}</span>{% endif %}
+      <span class="shrink-0 {{ p.icon_color_class }}">
+        {% lucide p.icon|default:"folder" "w-3.5 h-3.5" %}
+      </span>
+      <span class="nm">{{ p.name }}</span>
+      <span class="n">{{ p.slug_prefix }}</span>
+    </span>
+  </label>
+  {% endfor %}
+</div>

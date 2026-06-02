@@ -67,10 +67,12 @@ from apps.web.filters import (
     apply_task_filters,
     apply_task_ordering,
     filter_sidebar_context,
+    project_facet_counts,
     resolve_show_archived,
     resolve_show_backlog,
     resolve_show_my_projects,
     user_project_ids,
+    visible_project_facets,
 )
 from apps.web.grouping import compute_list_section_keys, group_tasks
 from apps.web.nav import resolve_active_workspace, set_active_workspace
@@ -868,11 +870,58 @@ class AllTasksView(LoginRequiredMixin, ListView):
                 self.request,
                 hide_assignee=True,
                 show_backlog_toggle=True,
+                project_facets=True,
                 extra_preserved={"view": view_mode},
                 effective_params=sidebar_params,
             )
         )
         return ctx
+
+
+@login_required
+def filter_project_facets(request):
+    """Live project-facet rows for the filter sidebar (All Tasks scope).
+
+    Returns just the ``#filter-project-rows`` partial: the task count per
+    project under the current filters (the project axis itself excluded —
+    standard facet semantics), with zero-count projects dropped (selected /
+    excluded ones kept). The client fetches this on every filter change and
+    morphs it in, so the counts + visible project set stay live without a
+    full reload. One ``GROUP BY`` query (see ``project_facet_counts``).
+    """
+    active = resolve_active_workspace(request)
+    if active is None:
+        return HttpResponse("")
+    params = _params_with_all_tasks_cookies(request)
+    available_projects = list(
+        Project.objects.filter(workspace=active)
+        .select_related("workspace")
+        .order_by("workspace__name", "name")
+        .distinct(),
+    )
+    counts = project_facet_counts(
+        Task.objects.filter(project__workspace=active),
+        params,
+        request_user=request.user,
+    )
+    selected = {int(p) for p in params.getlist("project") if p.isdigit()}
+    excluded = {int(p) for p in params.getlist("xproject") if p.isdigit()}
+    available_projects = visible_project_facets(
+        available_projects,
+        counts,
+        selected_ids=selected,
+        excluded_ids=excluded,
+    )
+    return render(
+        request,
+        "web/_filter_project_rows.html",
+        {
+            "available_projects": available_projects,
+            "selected_projects": selected,
+            "excluded_projects": excluded,
+            "project_facets": True,
+        },
+    )
 
 
 class MyWorkView(LoginRequiredMixin, TemplateView):
