@@ -16,12 +16,12 @@ Two-column grid on xl+: description (1fr) and right rail (22rem).
 screens while leaving enough room for the 22rem rail at the narrow
 end of the xl breakpoint (around 1280px).
 {% endcomment %}
-<div class="xl:grid xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start"
+<div class="xl:grid xl:grid-cols-[minmax(0,1fr)_22rem] xl:gap-8 xl:items-start"
      data-workspace-sse="/events/workspace/{{ task.project.workspace.id }}"
      data-current-user-id="{{ request.user.id }}">
 
   <div class="min-w-0">
-   <div class="max-w-2xl mx-auto w-full space-y-6">
+   <div class="max-w-4xl mx-auto w-full space-y-6">
 
     {% comment %}
     Title + description wrappers carry their own ``hx-trigger="refresh"``
