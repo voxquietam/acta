@@ -2637,9 +2637,49 @@
 
     function applyRowHtmlTable(taskId, html) {
       if (!html) return;
-      document
-        .querySelectorAll(`tr[data-task-id="${taskId}"]`)
-        .forEach((tr) => morphFromString(tr, html));
+      document.querySelectorAll(`tr[data-task-id="${taskId}"]`).forEach((tr) => {
+        morphFromString(tr, reconcileTableRowCols(tr, html));
+      });
+    }
+
+    // The SSE broadcast pre-renders the table row with the MAXIMAL column
+    // set (``show_project`` + ``show_labels`` both on — see
+    // ``broadcast_task_events``), because one payload fans out to every
+    // page at once. But a project-detail table hides the Project column
+    // (you're already inside one project), so morphing the broadcast row
+    // straight in would inject an extra ``<td>`` the colgroup has no
+    // ``<col>`` for — table-fixed then spawns a phantom column and the
+    // last one balloons. Strip any optional ``data-col`` cell the
+    // destination row doesn't itself render before morphing.
+    function reconcileTableRowCols(targetTr, html) {
+      if (html.indexOf("data-col=") === -1) return html;
+      try {
+        const present = new Set(
+          Array.from(targetTr.querySelectorAll("td[data-col]")).map((td) => td.dataset.col),
+        );
+        // If the destination already carries every optional column the
+        // payload could have, there's nothing to strip — skip the parse.
+        if (present.has("project") && present.has("labels")) return html;
+        // Parse the row inside a real <table> so the <tr>/<td> survive
+        // (a detached <tbody>/<template> context is unreliable for bare
+        // table rows across engines).
+        const tbl = document.createElement("table");
+        tbl.innerHTML = "<tbody>" + html.trim() + "</tbody>";
+        const incoming = tbl.querySelector("tr");
+        if (!incoming) return html;
+        let stripped = false;
+        incoming.querySelectorAll("td[data-col]").forEach((td) => {
+          if (!present.has(td.dataset.col)) {
+            td.remove();
+            stripped = true;
+          }
+        });
+        return stripped ? incoming.outerHTML : html;
+      } catch (_) {
+        // A reconcile failure must never abort the morph — fall back to
+        // the raw payload (worst case the column-shift cosmetic returns).
+        return html;
+      }
     }
 
     // List-view in-place row swap. Replaces the old "any mutation = full

@@ -81,7 +81,7 @@ in context.
     {% else %}—{% endif %}
   </td>
   {% if show_labels %}
-  <td class="px-3 py-2">
+  <td data-col="labels" class="px-3 py-2">
     {# ``labels`` cached once — ``task.labels.all`` was evaluated 6× per row #}
     {# below; with the M2M prefetched, those were all in-memory passes but   #}
     {# still wasteful. One ``{% with %}`` collapses them into a single list. #}
@@ -147,7 +147,7 @@ in context.
     {% endif %}
   </td>
   {% if show_project %}
-  <td class="px-3 py-2 text-xs text-muted-foreground overflow-hidden">
+  <td data-col="project" class="px-3 py-2 text-xs text-muted-foreground overflow-hidden">
     <div class="flex items-center gap-1.5 min-w-0 cursor-pointer hover:text-foreground transition group/proj"
          title="{% trans 'Filter by project' %}: {{ task.project.workspace.name }} / {{ task.project.name }}"
          @click.stop="window.acta.toggleFilter('project', '{{ task.project.id }}')">
