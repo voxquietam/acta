@@ -2440,12 +2440,17 @@
   function applyCardMove(taskId, newStatus, cardHtml) {
     if (!cardHtml) return;
     const column = document.querySelector(`.kanban-column[data-status="${newStatus}"]`);
+    // Drop the stale card up front. When the new status has no column on
+    // the board — ``cancelled`` is terminal and hidden from the kanban
+    // (ADR 0004) — the card must simply LEAVE the board, so bail after the
+    // removal instead of before it (the old bug stranded the card in its
+    // previous column until a reload).
+    document.querySelectorAll(KANBAN_CARD(taskId)).forEach((el) => el.remove());
     if (!column) return;
     const tmp = document.createElement("div");
     tmp.innerHTML = cardHtml.trim();
     const fresh = tmp.firstElementChild;
     if (!fresh) return;
-    document.querySelectorAll(KANBAN_CARD(taskId)).forEach((el) => el.remove());
     // Server sorts each column by ``-priority, -updated_at`` (see
     // ProjectDetailView.get_context_data) — a freshly moved card has the
     // newest ``updated_at`` so on reload it lands at the top of its
