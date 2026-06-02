@@ -3474,6 +3474,24 @@
     window.htmx.ajax("GET", href + "?modal=1", { target: "#modal-root", swap: "innerHTML" });
   });
 
+  // Open a task in the modal overlay. Elements marked ``data-task-modal``
+  // (task-detail ``<a>`` links + kanban cards, via ``open_task_modal_attrs``)
+  // open ``?modal=1`` into ``#modal-root`` on a plain left-click — one
+  // delegated listener replaces four ``hx-*`` attributes per element. URL is
+  // the element's ``href`` (links) or ``data-task-url`` (cards). Modifier /
+  // middle clicks fall through to the native href / new-tab handler. The
+  // filter capture listener below already stops filter-cell clicks before
+  // they reach the card/link, so those never open the modal.
+  document.addEventListener("click", (e) => {
+    if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    const el = e.target.closest && e.target.closest("[data-task-modal]");
+    if (!el || !window.htmx) return;
+    const url = el.getAttribute("href") || el.dataset.taskUrl;
+    if (!url) return;
+    e.preventDefault();
+    window.htmx.ajax("GET", url + "?modal=1", { target: "#modal-root", swap: "innerHTML" });
+  });
+
   // Click-to-filter on task rows/cards. Each filterable cell (status,
   // priority, size, assignee, project, label dot, cycle) carries
   // ``data-filter-name`` + ``data-filter-value`` instead of an inline

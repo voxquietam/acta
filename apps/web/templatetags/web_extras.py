@@ -343,34 +343,29 @@ def project_star(project, favourite_ids):
 
 @register.simple_tag
 def open_task_modal_attrs(task):
-    """Emit ``hx-*`` attributes that open the task in a modal on click.
+    """Mark an element to open the task in a modal overlay on click.
 
-    Plain click → ``HX-Get`` the task URL with ``?modal=1`` and swap
-    the response into ``#modal-root``. Ctrl/Cmd/Shift/middle-click
-    fail the ``hx-trigger`` filter, so HTMX skips the request and the
-    surrounding element's own new-tab handler / ``href`` takes over.
+    Emits a single ``data-task-modal`` marker. The delegated listener in
+    acta.js reads the element's ``href`` (task-detail ``<a>`` links) or
+    ``data-task-url`` (kanban cards), appends ``?modal=1``, and swaps the
+    response into ``#modal-root`` on a plain left-click; Ctrl/Cmd/Shift/
+    middle-clicks fall through to the element's own href / new-tab handler.
 
-    No ``hx-push-url``: the modal is a pure overlay and intentionally
-    never touches the address bar (htmx history is off anyway — ADR 0024).
-    A shareable task URL comes from the modal's expand button or opening
-    the task in a new tab, not from the modal itself.
+    Replaces four ``hx-*`` attributes (~120 B) with one marker (~16 B) on
+    every row / card / link — see the ``data-task-modal`` handler. The
+    overlay never touches the address bar (htmx history off — ADR 0024); a
+    shareable URL comes from the modal's expand button or a new tab.
 
     Args:
-        task: A :class:`Task` instance (needs ``project.slug_prefix``
-            and ``number``).
+        task: A :class:`Task` instance. Kept for call-site clarity and
+            future use; the URL now comes from the element's own
+            href / data-task-url.
 
     Returns:
-        Safe HTML attribute string; drop into any ``<a>`` element that
-        links to the task detail page.
+        Safe ``data-task-modal`` marker string for any task-linking element.
     """
-    url = f"/projects/{task.project.slug_prefix}/{task.number}/"
-    attrs = (
-        f'hx-get="{url}?modal=1" '
-        f'hx-target="#modal-root" '
-        f'hx-swap="innerHTML" '
-        f'hx-trigger="click[!ctrlKey&amp;&amp;!metaKey&amp;&amp;!shiftKey]"'
-    )
-    return mark_safe(attrs)
+    del task  # URL now resolved client-side from href / data-task-url
+    return mark_safe("data-task-modal")
 
 
 @register.simple_tag

@@ -299,21 +299,14 @@ class TestModalFragmentEndpoints:
 class TestOpenTaskModalAttrs:
     """``{% open_task_modal_attrs task %}`` template tag output."""
 
-    def test_emits_all_htmx_attrs(self, setup):
+    def test_emits_modal_marker(self, setup):
+        """The tag emits a single ``data-task-modal`` marker; the delegated
+        acta.js listener (not per-element ``hx-*``) opens the modal."""
         _, _, task = setup
         out = Template("{% load web_extras %}{% open_task_modal_attrs task %}").render(
             Context({"task": task}),
         )
-        expected_url = f"/projects/{task.project.slug_prefix}/{task.number}/"
-        assert f'hx-get="{expected_url}?modal=1"' in out
-        assert 'hx-target="#modal-root"' in out
-        assert 'hx-swap="innerHTML"' in out
-        # No ``hx-push-url``: htmx history is off (ADR 0024); the address
-        # bar is pushed by the modal-root afterSettle handler in acta.js.
-        assert "hx-push-url" not in out
-        # ``&&`` is HTML-encoded so the attribute parses cleanly. HTMX
-        # decodes it before evaluating the trigger filter.
-        assert "hx-trigger=" in out
-        assert "ctrlKey" in out
-        assert "metaKey" in out
-        assert "shiftKey" in out
+        assert out.strip() == "data-task-modal"
+        # No per-element htmx attrs any more — one delegated listener covers all.
+        assert "hx-get" not in out
+        assert "hx-trigger" not in out
