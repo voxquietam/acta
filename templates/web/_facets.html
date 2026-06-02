@@ -1,0 +1,9 @@
+{% comment %}
+Combined live-facet payload for the filter sidebar. Each child is a
+self-identified container (``#filter-project-rows``, ``#assignee-strip-chips``,
+…) that the client (``applyFacets`` in acta.js) morphs into the matching
+element by id. Add a new facet axis by including its rows/chips partial here
+and giving its container a stable id — the client loop handles any number.
+{% endcomment %}
+{% if project_facets %}{% include "web/_filter_project_rows.html" %}{% endif %}
+{% if assignee_facets %}{% include "web/_assignee_chips.html" %}{% endif %}

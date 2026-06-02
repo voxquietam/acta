@@ -330,26 +330,29 @@
   // Inactive slots are emptied so the next view-switch re-lazy-loads.
   // Debounced 50 ms so bursts of chip clicks coalesce into one request
   // without adding visible single-click latency.
-  // Apply a freshly-fetched ``#filter-project-rows`` fragment. Wholesale
-  // ``replaceChildren`` (NOT idiomorph): each row is its own Alpine
-  // component, and morphing brand-new row nodes in leaves them
-  // un-initialised — ``x-show`` stops hiding the extra check glyphs and the
-  // row sprouts 3 checkboxes. ``replaceChildren`` + an explicit
-  // ``initTree`` per fresh row guarantees Alpine wires each one (selection
-  // state comes from the server, so a fresh init is correct). The container
-  // stays mounted, so its own Alpine + the search input's focus survive.
-  function applyFacetRows(html) {
-    const target = document.getElementById("filter-project-rows");
-    if (!target || html == null) return;
+  // Apply a freshly-fetched ``_facets.html`` payload. Each top-level element
+  // is a self-identified facet container (``#filter-project-rows``,
+  // ``#assignee-strip-chips``, …) — morph it into the matching DOM node by
+  // id. Wholesale ``replaceChildren`` (NOT idiomorph) + an explicit
+  // ``initTree`` per fresh child: each row/chip is its own Alpine component,
+  // and morphing brand-new nodes in leaves them un-initialised — ``x-show``
+  // stops hiding the extra check glyphs (rows sprout 3 checkboxes) and chip
+  // single-pick stops working. The container stays mounted, so its own Alpine
+  // + the project search input's focus survive.
+  function applyFacets(html) {
+    if (html == null) return;
     const tmpl = document.createElement("template");
     tmpl.innerHTML = html.trim();
-    const fresh = tmpl.content.firstElementChild; // the rows container
-    if (!fresh) return;
-    target.replaceChildren(...fresh.children);
-    if (window.Alpine && window.Alpine.initTree) {
-      Array.from(target.children).forEach((row) => window.Alpine.initTree(row));
-    }
-    if (window.htmx) window.htmx.process(target);
+    Array.from(tmpl.content.children).forEach((fresh) => {
+      if (!fresh.id) return;
+      const target = document.getElementById(fresh.id);
+      if (!target) return;
+      target.replaceChildren(...fresh.children);
+      if (window.Alpine && window.Alpine.initTree) {
+        Array.from(target.children).forEach((child) => window.Alpine.initTree(child));
+      }
+      if (window.htmx) window.htmx.process(target);
+    });
     window.dispatchEvent(new CustomEvent("sticky-row-toggled"));
   }
 
@@ -383,8 +386,8 @@
       if (loading) return;
 
       const search = new URL(window.location.href).search;
-      const facetRoot = document.getElementById("filter-project-rows");
-      const facetUrl = facetRoot && facetRoot.dataset.facetUrl;
+      const facetForm = document.getElementById("filter-form");
+      const facetUrl = facetForm && facetForm.dataset.facetUrl;
       const facetFetch = facetUrl
         ? fetch(facetUrl + search, { headers: { "HX-Request": "true" }, credentials: "same-origin" })
             .then((r) => r.text())
@@ -414,7 +417,7 @@
             activeSlot.replaceChildren(...tmpl.content.childNodes);
             if (window.htmx) window.htmx.process(activeSlot);
           }
-          applyFacetRows(facetHtml);
+          applyFacets(facetHtml);
           if (window.renderIcons) window.renderIcons();
           // ``fetch`` bypasses HTMX, so the global afterSettle filter pass
           // never fires — re-run it so column hides / section counts / list

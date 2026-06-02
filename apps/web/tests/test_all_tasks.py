@@ -106,7 +106,7 @@ def setup(db):
 
 @pytest.mark.django_db
 class TestProjectFacetEndpoint:
-    """``web:filter_project_facets`` — the live project-rows fragment: a
+    """``web:filter_facets`` — the live project-rows fragment: a
     count per project under the current filters, zero-count projects
     dropped (selected ones kept)."""
 
@@ -123,7 +123,7 @@ class TestProjectFacetEndpoint:
         TaskFactory(project=p_with, reporter=ws.owner, assignee=ws.owner)
         TaskFactory(project=p_with, reporter=ws.owner, assignee=ws.owner)
         client.force_login(ws.owner)
-        body = client.get(reverse("web:filter_project_facets")).content.decode()
+        body = client.get(reverse("web:filter_facets")).content.decode()
         assert "HasTasks" in body
         assert 'text-placeholder-foreground">2<' in body  # facet count rendered
         assert "EmptyProj" not in body  # zero-count project dropped
@@ -133,7 +133,7 @@ class TestProjectFacetEndpoint:
         p_zero = ProjectFactory(workspace=ws, name="EmptyButSelected")
         client.force_login(ws.owner)
         body = client.get(
-            reverse("web:filter_project_facets"),
+            reverse("web:filter_facets"),
             {"project": p_zero.id},
         ).content.decode()
         assert "EmptyButSelected" in body  # selected project stays despite 0
@@ -147,11 +147,68 @@ class TestProjectFacetEndpoint:
         TaskFactory(project=p, reporter=ws.owner, assignee=other)
         client.force_login(ws.owner)
         body = client.get(
-            reverse("web:filter_project_facets"),
+            reverse("web:filter_facets"),
             {"assignee": str(ws.owner.id)},
         ).content.decode()
         # Only the owner's one task counts under the assignee filter.
         assert 'text-placeholder-foreground">1<' in body
+
+
+@pytest.mark.django_db
+class TestAssigneeFacetEndpoint:
+    """``web:filter_facets`` assignee strip — a count badge per member,
+    zero-count members dropped (You / Unassigned always shown)."""
+
+    def _ws(self):
+        ws = WorkspaceFactory()
+        ws.owner.active_workspace = ws
+        ws.owner.save(update_fields=["active_workspace"])
+        return ws
+
+    def test_member_count_and_hide_zero(self, client):
+        ws = self._ws()
+        p = ProjectFactory(workspace=ws)
+        active = UserFactory(first_name="Activemember", username="activemember")
+        idle = UserFactory(first_name="Idlemember", username="idlemember")
+        WorkspaceMemberFactory(workspace=ws, user=active)
+        WorkspaceMemberFactory(workspace=ws, user=idle)
+        TaskFactory(project=p, reporter=ws.owner, assignee=active)
+        TaskFactory(project=p, reporter=ws.owner, assignee=active)
+        client.force_login(ws.owner)
+        body = client.get(reverse("web:filter_facets")).content.decode()
+        assert "Activemember" in body  # member with tasks shown
+        assert 'pr-1">2<' in body  # assignee count badge rendered
+        assert "Idlemember" not in body  # zero-task member dropped
+
+    def test_member_kept_when_selected(self, client):
+        ws = self._ws()
+        idle = UserFactory(first_name="Idlepicked", username="idlepicked")
+        WorkspaceMemberFactory(workspace=ws, user=idle)
+        client.force_login(ws.owner)
+        body = client.get(
+            reverse("web:filter_facets"),
+            {"assignee": str(idle.id)},
+        ).content.decode()
+        assert "Idlepicked" in body  # selected member stays despite 0
+
+    def test_query_count_bounded(self, client):
+        """The facet endpoint runs a small, roster-size-independent number
+        of queries — it must NOT drift back to the full sidebar context
+        (labels / cycles) it once reused."""
+        ws = self._ws()
+        for _ in range(5):
+            p = ProjectFactory(workspace=ws)
+            for _ in range(4):
+                TaskFactory(project=p, reporter=ws.owner, assignee=ws.owner)
+        for _ in range(6):
+            WorkspaceMemberFactory(workspace=ws, user=UserFactory())
+        client.force_login(ws.owner)
+        with CaptureQueriesContext(connection) as ctx:
+            client.get(reverse("web:filter_facets"))
+        # ~2 facet GROUP BYs + 1 project roster + ~3 assignee roster +
+        # auth/session/workspace plumbing = 13. Ceiling catches a regression
+        # back to the label/cycle-laden full sidebar context (~16+).
+        assert len(ctx.captured_queries) <= 14, len(ctx.captured_queries)
 
 
 @pytest.mark.django_db

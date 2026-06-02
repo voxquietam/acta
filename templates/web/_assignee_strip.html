@@ -1,22 +1,14 @@
 {% load i18n %}
 {% comment %}
-Page-top assignee strip — horizontal scrollable row of avatar
-chips, no sticky pinning. The native scrollbar is hidden; instead
-each edge shows a fade gradient + ``+N`` counter overlay when
-content is scrolled past it. Both overlays are absolutely
-positioned over the scroll container, so toggling visibility never
-shifts the layout. Each chip's checkbox is wired to ``#filter-form``
-via ``form=`` and submits through the existing HTMX pipeline.
+Page-top assignee strip — horizontal scrollable row of avatar chips, no
+sticky pinning. The native scrollbar is hidden; each edge shows a fade
+gradient + ``+N`` counter overlay when content is scrolled past it.
 
-Selection model: a plain click on a chip behaves as a **single
-pick** — every other chip resets to ``none`` before this one
-toggles on (see the ``acta:assignee-single-pick`` window event each
-chip listens for). Holding Cmd / Ctrl / Shift while clicking
-preserves the existing selection so the user can build a
-multi-assignee filter incrementally. Right-click is unchanged: it
-toggles into the excluded state. Switched from default-multi to
-default-single after multi-pick proved too easy to trigger by
-accident.
+The chips themselves live in ``_assignee_chips.html`` so the facet endpoint
+(``web:filter_facets``) can re-render just that block on a filter change and
+the client morphs it in. Selection model (single-click pick, Cmd/Ctrl to add,
+right-click to exclude) and the optional per-chip count badge are documented
+there.
 {% endcomment %}
 <div class="flex items-center gap-2 border-b border-border bg-background/70 backdrop-blur-md px-4 md:px-6 py-2 -mx-4 md:-mx-8 -mt-6 mb-4">
   <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground font-medium shrink-0">
@@ -25,201 +17,12 @@ accident.
 
   <div class="relative flex-1 min-w-0" data-strip-wrap>
     {% comment %}
-    Inner wrapper is ``w-max`` so the scroll-content extent equals the
-    sum of chip widths + gaps. The bare ``data-strip`` (overflow-x:
-    auto + scrollbar-none) was reporting ``scrollWidth`` ~280px wider
-    than the chips on some browsers (phantom space at the right edge),
-    which let the user scroll past the last chip into emptiness. With
-    the wrapper, ``scrollWidth`` tracks the wrapper's width exactly.
+    Inner wrapper is ``w-max`` so the scroll-content extent equals the sum of
+    chip widths + gaps (a bare ``data-strip`` over-reported ``scrollWidth`` on
+    some browsers, letting the user scroll past the last chip into emptiness).
     {% endcomment %}
     <div class="overflow-x-auto py-0.5 -my-0.5 scrollbar-none" data-strip>
-    <div class="flex gap-1 w-max">
-
-      {% comment %}
-      "You" chip — always the leftmost, always slightly highlighted
-      (brand-tinted background + brand-ring on avatar) even when not
-      selected, so the user spots their own bucket without scanning.
-      Filters under the special ``assignee=me`` token.
-      {% endcomment %}
-      {% if request.user.is_authenticated %}
-      <label x-data="{
-               state: '{% if 'me' in excluded_assignees %}excluded{% elif 'me' in selected_assignees %}included{% else %}none{% endif %}',
-               toggle(ev) {
-                 if (this.state === 'excluded') return;
-                 const multi = ev.metaKey || ev.ctrlKey || ev.shiftKey;
-                 const next = this.state === 'included' ? 'none' : 'included';
-                 if (!multi && next === 'included') {
-                   window.dispatchEvent(new CustomEvent('acta:assignee-single-pick', { detail: { source: this.$el } }));
-                 }
-                 this.state = next;
-                 this.$nextTick(() => document.getElementById('filter-form').requestSubmit());
-               }
-             }"
-             :class="{
-               'bg-brand-500/15': state === 'included',
-               'bg-rose-500/15 dark:bg-rose-500/15': state === 'excluded',
-             }"
-             class="strip-chip group inline-flex items-center gap-1.5 px-1 py-0.5 rounded-full cursor-pointer shrink-0 bg-muted/60 hover:bg-muted transition"
-             title="{{ request.user.display_name }} ({% trans 'you' %}) — {% trans 'click to pick (hold Cmd/Ctrl to add), right-click to exclude.' %}"
-             data-strip-chip
-             data-filter-name="assignee"
-             data-filter-value="me"
-             @acta:filter-reset.window="state = 'none'"
-             @acta:assignee-single-pick.window="if ($event.detail.source !== $el && state === 'included') state = 'none'"
-             @click.prevent.stop="toggle($event)"
-             @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $nextTick(() => document.getElementById('filter-form').requestSubmit())">
-        <input type="checkbox"
-               :name="state === 'excluded' ? 'xassignee' : 'assignee'"
-               value="me"
-               form="filter-form"
-               :checked="state !== 'none'"
-               class="sr-only"
-               tabindex="-1"
-               aria-hidden="true">
-        {% if request.user.avatar %}
-        <img src="{% url 'accounts:serve_avatar' user_id=request.user.id %}?v={{ request.user.avatar_version }}&amp;size=64" alt="{{ request.user.display_name }}"
-             class="w-6 h-6 rounded-full object-cover shrink-0 transition ring-1 ring-brand-400/60"
-             :class="{
-               'ring-2 ring-brand-400': state === 'included',
-               'ring-2 ring-rose-400': state === 'excluded',
-             }">
-        {% else %}
-        <span class="w-6 h-6 rounded-full text-white grid place-items-center font-medium text-[10px] shrink-0 transition ring-1 ring-brand-400/60"
-              style="background-color: {{ request.user.avatar_color }};"
-              :class="{
-                'ring-2 ring-brand-400': state === 'included',
-                'ring-2 ring-rose-400': state === 'excluded',
-              }">
-          {{ request.user.display_name|slice:":1"|upper }}
-        </span>
-        {% endif %}
-        <span class="text-xs whitespace-nowrap pr-1"
-              :class="state === 'excluded' ? 'text-rose-700 dark:text-rose-300 line-through' : 'text-foreground'">
-          {% trans "You" %}
-        </span>
-      </label>
-      {% endif %}
-
-      <label x-data="{
-               state: '{% if 'unassigned' in excluded_assignees %}excluded{% elif 'unassigned' in selected_assignees %}included{% else %}none{% endif %}',
-               toggle(ev) {
-                 if (this.state === 'excluded') return;
-                 const multi = ev.metaKey || ev.ctrlKey || ev.shiftKey;
-                 const next = this.state === 'included' ? 'none' : 'included';
-                 if (!multi && next === 'included') {
-                   window.dispatchEvent(new CustomEvent('acta:assignee-single-pick', { detail: { source: this.$el } }));
-                 }
-                 this.state = next;
-                 this.$nextTick(() => document.getElementById('filter-form').requestSubmit());
-               }
-             }"
-             :class="{
-               'bg-brand-500/15': state === 'included',
-               'bg-rose-500/15 dark:bg-rose-500/15': state === 'excluded',
-             }"
-             class="strip-chip group inline-flex items-center gap-1.5 px-1 py-0.5 rounded-full cursor-pointer shrink-0 hover:bg-muted/60 transition"
-             title="{% trans 'Click to pick (hold Cmd/Ctrl to add), right-click to exclude.' %}"
-             data-strip-chip
-             data-filter-name="assignee"
-             data-filter-value="unassigned"
-             @acta:filter-reset.window="state = 'none'"
-             @acta:assignee-single-pick.window="if ($event.detail.source !== $el && state === 'included') state = 'none'"
-             @click.prevent.stop="toggle($event)"
-             @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $nextTick(() => document.getElementById('filter-form').requestSubmit())">
-        <input type="checkbox"
-               :name="state === 'excluded' ? 'xassignee' : 'assignee'"
-               value="unassigned"
-               form="filter-form"
-               :checked="state !== 'none'"
-               class="sr-only"
-               tabindex="-1"
-               aria-hidden="true">
-        <span class="w-6 h-6 rounded-full border border-dashed border-border-strong grid place-items-center text-[10px] text-placeholder-foreground shrink-0 transition"
-              :class="{
-                'ring-2 ring-brand-400': state === 'included',
-                'ring-2 ring-rose-400': state === 'excluded',
-              }">?</span>
-        <span class="text-xs whitespace-nowrap pr-1"
-              :class="state === 'excluded' ? 'text-rose-700 dark:text-rose-300 line-through' : 'text-muted-foreground'">{% trans "Unassigned" %}</span>
-      </label>
-
-      {% for u in available_assignees %}
-      {% with sel=u.id|stringformat:"s" %}
-      <label x-data="{
-               state: '{% if sel in excluded_assignees %}excluded{% elif sel in selected_assignees %}included{% else %}none{% endif %}',
-               toggle(ev) {
-                 if (this.state === 'excluded') return;
-                 const multi = ev.metaKey || ev.ctrlKey || ev.shiftKey;
-                 const next = this.state === 'included' ? 'none' : 'included';
-                 if (!multi && next === 'included') {
-                   window.dispatchEvent(new CustomEvent('acta:assignee-single-pick', { detail: { source: this.$el } }));
-                 }
-                 this.state = next;
-                 this.$nextTick(() => document.getElementById('filter-form').requestSubmit());
-               }
-             }"
-             :class="{
-               'bg-brand-500/15': state === 'included',
-               'bg-rose-500/15 dark:bg-rose-500/15': state === 'excluded',
-             }"
-             class="strip-chip group inline-flex items-center gap-1.5 px-1 py-0.5 rounded-full cursor-pointer shrink-0 hover:bg-muted/60 transition{% if u.is_former %} opacity-70{% endif %}"
-             data-strip-chip
-             data-filter-name="assignee"
-             data-filter-value="{{ u.id }}"
-             title="{{ u.display_name }}{% if u.is_former %} ({% trans 'former member — still appears as assignee on legacy tasks' %}){% endif %} — {% trans 'click to pick (hold Cmd/Ctrl to add), right-click to exclude.' %}"
-             @acta:filter-reset.window="state = 'none'"
-             @acta:assignee-single-pick.window="if ($event.detail.source !== $el && state === 'included') state = 'none'"
-             @click.prevent.stop="toggle($event)"
-             @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $nextTick(() => document.getElementById('filter-form').requestSubmit())">
-        <input type="checkbox"
-               :name="state === 'excluded' ? 'xassignee' : 'assignee'"
-               value="{{ u.id }}"
-               form="filter-form"
-               :checked="state !== 'none'"
-               class="sr-only"
-               tabindex="-1"
-               aria-hidden="true">
-        {% comment %}
-        Former members get a dashed-border avatar (no fill colour) so
-        the strip visually flags them as "still has assignments but
-        not an active member of any shared workspace". Active members
-        keep the solid coloured avatar.
-        {% endcomment %}
-        {% if u.is_former %}
-        <span class="w-6 h-6 rounded-full border border-dashed border-border-strong grid place-items-center text-placeholder-foreground font-medium text-[10px] shrink-0 transition"
-              :class="{
-                'ring-2 ring-brand-400': state === 'included',
-                'ring-2 ring-rose-400': state === 'excluded',
-              }">
-          {{ u.display_name|slice:":1"|upper }}
-        </span>
-        {% else %}
-        {% if u.avatar %}
-        <img src="{% url 'accounts:serve_avatar' user_id=u.id %}?v={{ u.avatar_version }}&amp;size=64" alt="{{ u.display_name }}"
-             class="w-6 h-6 rounded-full object-cover shrink-0 transition"
-             :class="{
-               'ring-2 ring-brand-400': state === 'included',
-               'ring-2 ring-rose-400': state === 'excluded',
-             }">
-        {% else %}
-        <span class="w-6 h-6 rounded-full text-white grid place-items-center font-medium text-[10px] shrink-0 transition"
-              style="background-color: {{ u.avatar_color }};"
-              :class="{
-                'ring-2 ring-brand-400': state === 'included',
-                'ring-2 ring-rose-400': state === 'excluded',
-              }">
-          {{ u.display_name|slice:":1"|upper }}
-        </span>
-        {% endif %}
-        {% endif %}
-        <span class="text-xs whitespace-nowrap pr-1"
-              :class="state === 'excluded' ? 'text-rose-700 dark:text-rose-300 line-through' : 'text-muted-foreground'">
-          {{ u.display_name }}
-        </span>
-      </label>
-      {% endwith %}
-      {% endfor %}
-    </div>
+    {% include "web/_assignee_chips.html" %}
     </div>
 
     {# Fade gradient + counter overlays — absolute, no layout impact. #}

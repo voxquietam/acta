@@ -66,12 +66,16 @@ from apps.web.filters import (
     SORTABLE_COLUMNS,
     apply_task_filters,
     apply_task_ordering,
+    assignee_facet_counts,
+    available_assignees_for,
+    available_projects_for,
     filter_sidebar_context,
     project_facet_counts,
     resolve_show_archived,
     resolve_show_backlog,
     resolve_show_my_projects,
     user_project_ids,
+    visible_assignee_facets,
     visible_project_facets,
 )
 from apps.web.grouping import compute_list_section_keys, group_tasks
@@ -871,6 +875,7 @@ class AllTasksView(LoginRequiredMixin, ListView):
                 hide_assignee=True,
                 show_backlog_toggle=True,
                 project_facets=True,
+                assignee_facets=True,
                 extra_preserved={"view": view_mode},
                 effective_params=sidebar_params,
             )
@@ -879,47 +884,60 @@ class AllTasksView(LoginRequiredMixin, ListView):
 
 
 @login_required
-def filter_project_facets(request):
-    """Live project-facet rows for the filter sidebar (All Tasks scope).
+def filter_facets(request):
+    """Live facet fragments for the filter sidebar (All Tasks scope).
 
-    Returns just the ``#filter-project-rows`` partial: the task count per
-    project under the current filters (the project axis itself excluded —
-    standard facet semantics), with zero-count projects dropped (selected /
-    excluded ones kept). The client fetches this on every filter change and
-    morphs it in, so the counts + visible project set stay live without a
-    full reload. One ``GROUP BY`` query (see ``project_facet_counts``).
+    Returns ``_facets.html`` — the project-rows partial and the assignee-strip
+    chips, each a container the client morphs into its match on a filter
+    change. Every facet count reflects the current filters with its OWN axis
+    excluded (standard facet semantics); zero-count chips drop (selected ones
+    kept).
+
+    Computes ONLY what it renders — the project + assignee rosters and their
+    two ``GROUP BY`` aggregations — rather than the whole sidebar context, so
+    a filter change doesn't pay for the label/cycle queries it would throw
+    away. Runs in parallel with the panel refetch and stays well under it.
     """
     active = resolve_active_workspace(request)
     if active is None:
         return HttpResponse("")
     params = _params_with_all_tasks_cookies(request)
-    available_projects = list(
-        Project.objects.filter(workspace=active)
-        .select_related("workspace")
-        .order_by("workspace__name", "name")
-        .distinct(),
+    base = Task.objects.filter(project__workspace=active)
+
+    p_counts = project_facet_counts(base, params, request_user=request.user)
+    selected_projects = {int(p) for p in params.getlist("project") if p.isdigit()}
+    excluded_projects = {int(p) for p in params.getlist("xproject") if p.isdigit()}
+    projects = visible_project_facets(
+        available_projects_for(active),
+        p_counts,
+        selected_ids=selected_projects,
+        excluded_ids=excluded_projects,
     )
-    counts = project_facet_counts(
-        Task.objects.filter(project__workspace=active),
-        params,
-        request_user=request.user,
+
+    a_counts = assignee_facet_counts(base, params, request_user=request.user)
+    selected_assignees = set(params.getlist("assignee"))
+    excluded_assignees = set(params.getlist("xassignee"))
+    assignees = visible_assignee_facets(
+        available_assignees_for(request, active),
+        a_counts,
+        selected_ids=selected_assignees,
+        excluded_ids=excluded_assignees,
     )
-    selected = {int(p) for p in params.getlist("project") if p.isdigit()}
-    excluded = {int(p) for p in params.getlist("xproject") if p.isdigit()}
-    available_projects = visible_project_facets(
-        available_projects,
-        counts,
-        selected_ids=selected,
-        excluded_ids=excluded,
-    )
+
     return render(
         request,
-        "web/_filter_project_rows.html",
+        "web/_facets.html",
         {
-            "available_projects": available_projects,
-            "selected_projects": selected,
-            "excluded_projects": excluded,
             "project_facets": True,
+            "available_projects": projects,
+            "selected_projects": selected_projects,
+            "excluded_projects": excluded_projects,
+            "assignee_facets": True,
+            "available_assignees": assignees,
+            "selected_assignees": selected_assignees,
+            "excluded_assignees": excluded_assignees,
+            "assignee_facet_me": a_counts.get(request.user.id, 0),
+            "assignee_facet_unassigned": a_counts.get(None, 0),
         },
     )
 

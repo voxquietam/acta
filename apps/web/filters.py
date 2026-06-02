@@ -112,6 +112,105 @@ def visible_project_facets(available_projects, counts, *, selected_ids, excluded
     return rows
 
 
+def assignee_facet_counts(base_qs, params, *, request_user):
+    """Faceted task count per assignee (and unassigned).
+
+    Mirror of :func:`project_facet_counts` for the assignee axis: every
+    active filter applies EXCEPT the assignee axis itself. One GROUP BY.
+
+    Returns:
+        ``{assignee_id_or_None: count}``. The ``None`` key is the
+        unassigned bucket; numeric keys are user ids (the ``me`` / "You"
+        chip reads the request user's own id).
+    """
+    facet_params = params.copy()
+    for key in ("assignee", "xassignee"):
+        if key in facet_params:
+            del facet_params[key]
+    rows = (
+        apply_task_filters(base_qs, facet_params, request_user=request_user)
+        .values("assignee_id")
+        .annotate(n=Count("id"))
+    )
+    return {row["assignee_id"]: row["n"] for row in rows}
+
+
+def visible_assignee_facets(available_assignees, counts, *, selected_ids, excluded_ids):
+    """Filter + stamp member chips for the sidebar's assignee facet.
+
+    Keeps a member only when they have a non-zero count under the current
+    filters, OR are explicitly selected / excluded. Stamps ``facet_count``.
+    The "You" and "Unassigned" chips are always rendered (their counts are
+    passed separately), so they are not part of this list. ``selected_ids``
+    / ``excluded_ids`` are the string token sets from the querystring.
+    """
+    rows = []
+    for user in available_assignees:
+        count = counts.get(user.id, 0)
+        if count == 0 and str(user.id) not in selected_ids and str(user.id) not in excluded_ids:
+            continue
+        user.facet_count = count
+        rows.append(user)
+    return rows
+
+
+def available_projects_for(active):
+    """Project picker options for a workspace, ordered for the sidebar.
+
+    Shared by :func:`filter_sidebar_context` (cold render) and the live
+    facet endpoint so both build the same list from one place.
+    """
+    if not active:
+        return []
+    return list(
+        Project.objects.filter(workspace=active)
+        .select_related("workspace")
+        .order_by("workspace__name", "name")
+        .distinct(),
+    )
+
+
+def available_assignees_for(request, active):
+    """Assignee strip roster for a workspace.
+
+    Active members of any shared workspace + former members who still
+    carry orphan task assignments, EXCLUDING the request user (pinned
+    separately as the "You" chip). ``is_former`` is stamped on each and
+    former members sort to the end. Shared by :func:`filter_sidebar_context`
+    and the live facet endpoint. Two queries on purpose — the membership
+    set and the orphan-assignee set are distinguished so the template can
+    paint the "(former)" marker.
+    """
+    if not active:
+        return []
+    user_model = get_user_model()
+    user = request.user
+    active_member_ids = set(
+        user_model.objects.filter(workspace_memberships__workspace=active)
+        .exclude(pk=user.pk)
+        .values_list("pk", flat=True)
+        .distinct(),
+    )
+    former_assignee_ids = set(
+        user_model.objects.filter(assigned_tasks__project__workspace=active)
+        .exclude(pk=user.pk)
+        .exclude(pk__in=active_member_ids)
+        .values_list("pk", flat=True)
+        .distinct(),
+    )
+    roster = list(
+        user_model.objects.filter(pk__in=active_member_ids | former_assignee_ids).order_by(
+            "first_name",
+            "last_name",
+            "username",
+        ),
+    )
+    for member in roster:
+        member.is_former = member.pk in former_assignee_ids
+    roster.sort(key=lambda u: (u.is_former, (u.first_name or u.username or "").lower()))
+    return roster
+
+
 def _filter_archived(qs, params):
     """Exclude archived tasks unless ``?show_archived=1`` is set.
 
@@ -592,6 +691,7 @@ def filter_sidebar_context(
     show_backlog_toggle=False,
     backlog_tab_aware=True,
     project_facets=False,
+    assignee_facets=False,
     preserved_params=None,
     extra_preserved=None,
     effective_params=None,
@@ -642,16 +742,7 @@ def filter_sidebar_context(
     active = resolve_active_workspace(request)
 
     if available_projects is None:
-        available_projects = (
-            list(
-                Project.objects.filter(workspace=active)
-                .select_related("workspace")
-                .order_by("workspace__name", "name")
-                .distinct(),
-            )
-            if active
-            else []
-        )
+        available_projects = available_projects_for(active)
     # Grouped shape feeds the sidebar template; the flat list keeps the same
     # row ordering by flattening the buckets so callers that override
     # ``available_labels`` (project detail) and callers that read the flat
@@ -661,52 +752,7 @@ def filter_sidebar_context(
     if available_labels is None:
         available_labels = [label for entry in available_label_groups for label in entry["labels"]]
     if available_assignees is None:
-        User = get_user_model()
-        # The strip shows two groups: current members of any shared
-        # workspace AND any user who shows up as ``assignee`` on a
-        # task in a shared workspace. The second group catches "former
-        # members" — users who were removed from the workspace but
-        # still carry orphan task assignments. Without them, those
-        # tasks were impossible to filter to from the UI (the assignee
-        # avatar rendered fine but the strip didn't know about them).
-        #
-        # Two queries on purpose: we need to remember which group each
-        # user came from so the template can paint the ``(former)``
-        # marker on the second group. ``is_former`` is set on the
-        # Python objects below; the request user is always pinned as
-        # the leftmost "you" chip in the strip and excluded from both
-        # queries here.
-        active_member_ids = set(
-            User.objects.filter(
-                workspace_memberships__workspace=active,
-            )
-            .exclude(pk=user.pk)
-            .values_list("pk", flat=True)
-            .distinct()
-            if active
-            else []
-        )
-        former_assignee_ids = set(
-            User.objects.filter(
-                assigned_tasks__project__workspace=active,
-            )
-            .exclude(pk=user.pk)
-            .exclude(pk__in=active_member_ids)
-            .values_list("pk", flat=True)
-            .distinct()
-            if active
-            else []
-        )
-        all_ids = active_member_ids | former_assignee_ids
-        available_assignees = list(
-            User.objects.filter(pk__in=all_ids).order_by("first_name", "last_name", "username"),
-        )
-        for u in available_assignees:
-            u.is_former = u.pk in former_assignee_ids
-        # Former members go to the END of the strip — they're still
-        # filterable but visually de-prioritised so the active roster
-        # reads first. Within each group keep alphabetical order.
-        available_assignees.sort(key=lambda u: (u.is_former, (u.first_name or u.username or "").lower()))
+        available_assignees = available_assignees_for(request, active)
 
     # Cycle filter options — active + upcoming cycles of the active
     # workspace, materialized on demand. Empty list when cadence is off,
@@ -809,6 +855,27 @@ def filter_sidebar_context(
             excluded_ids=excluded_projects,
         )
 
+    # Assignee facet: same idea for the avatar strip — a count badge per
+    # member (own axis excluded) with zero-count members dropped. "You" and
+    # "Unassigned" are always shown, so their counts ride separate context
+    # vars. Gated behind ``assignee_facets``.
+    assignee_facet_me = None
+    assignee_facet_unassigned = None
+    if assignee_facets and active is not None:
+        a_counts = assignee_facet_counts(
+            Task.objects.filter(project__workspace=active),
+            params,
+            request_user=user,
+        )
+        assignee_facet_me = a_counts.get(user.id, 0)
+        assignee_facet_unassigned = a_counts.get(None, 0)
+        available_assignees = visible_assignee_facets(
+            available_assignees,
+            a_counts,
+            selected_ids=selected_assignees,
+            excluded_ids=excluded_assignees,
+        )
+
     return {
         "filter_form_url": form_url or request.path,
         "filter_htmx_target": htmx_target or "#task-list-wrapper",
@@ -817,6 +884,10 @@ def filter_sidebar_context(
         "filter_hide_project": hide_project,
         "filter_hide_status": hide_status,
         "project_facets": project_facets,
+        "assignee_facets": assignee_facets,
+        "assignee_facet_me": assignee_facet_me,
+        "assignee_facet_unassigned": assignee_facet_unassigned,
+        "facets_enabled": project_facets or assignee_facets,
         "selected_statuses": selected_statuses,
         "selected_priorities": selected_priorities,
         "selected_sizes": selected_sizes,

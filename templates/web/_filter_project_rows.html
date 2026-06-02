@@ -11,7 +11,6 @@ rows are already filtered out server-side (selected/excluded kept).
 {% endcomment %}
 <div id="filter-project-rows"
      class="acta-flt-scroller space-y-0.5 max-h-[180px] lg:max-h-none overflow-y-auto overflow-x-hidden pr-1 relative"
-     {% if project_facets %}data-facet-url="{% url 'web:filter_project_facets' %}"{% endif %}
      data-sticky-stack
      x-data
      @sticky-row-toggled.window="$nextTick(() => window.acta && window.acta.updateStickyStack && window.acta.updateStickyStack($el))">
