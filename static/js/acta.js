@@ -676,6 +676,17 @@
     };
   }
 
+  // The viewer's own user id (``data-current-user-id`` on the app shell),
+  // for resolving the ``me`` assignee token client-side. Cached once found.
+  let __actaMeId = "";
+  function actaMeId() {
+    if (!__actaMeId) {
+      const el = document.querySelector("[data-current-user-id]");
+      __actaMeId = (el && el.getAttribute("data-current-user-id")) || "";
+    }
+    return __actaMeId;
+  }
+
   function rowMatches(row, state) {
     const s = row.dataset.status || "";
     // Archived — hidden unless show_archived is on.
@@ -718,11 +729,14 @@
     // user ids. We match by intersecting the requested set with the row's
     // possible tokens (numeric id, ``me``, ``unassigned``).
     const aid = row.dataset.assigneeId || "";
-    const isMe = row.dataset.assigneeMe === "1";
     const aTokens = new Set();
     if (aid) {
       aTokens.add(aid);
-      if (isMe) aTokens.add("me");
+      // Resolve "me" against the VIEWER (``actaMeId``), not the
+      // server-rendered ``data-assignee-me`` flag: SSE-pushed cards are
+      // rendered with the CREATOR's request, so their flag would be the
+      // creator's "me". Matching the viewer's id is render-context-proof.
+      if (aid === actaMeId()) aTokens.add("me");
     } else {
       aTokens.add("unassigned");
     }
@@ -2984,21 +2998,40 @@
     // / list-row inserts is a follow-up (needs view detection +
     // per-view HTML in the broadcast).
     handle("task.created", (data) => {
-      const html = data && data.html_kanban;
-      const status = data && data.status;
-      if (html && status) {
-        const col = document.getElementById("kanban-col-" + status);
+      if (!data) return;
+      // Kanban — append the card to its status column.
+      if (data.html_kanban && data.status) {
+        const col = document.getElementById("kanban-col-" + data.status);
         if (col) {
-          col.insertAdjacentHTML("beforeend", html);
+          col.insertAdjacentHTML("beforeend", data.html_kanban);
           const card = col.lastElementChild;
           if (card && window.htmx) window.htmx.process(card);
-          // A peer's new card carries ``task_filter_attrs`` but ignores the
-          // viewer's active filter — re-run the client pass so a card that
-          // doesn't match the current chips (e.g. a different assignee) is
-          // hidden instead of popping into a filtered board.
-          if (window.actaApplyFilters) queueMicrotask(window.actaApplyFilters);
         }
       }
+      // Table — append the row, stripping any column this table doesn't show
+      // (the broadcast row carries the full set). Reconcile against an
+      // existing row so project-detail tables (no project column) line up.
+      if (data.row_html_table) {
+        const tbody = document.getElementById("task-table-body");
+        if (tbody) {
+          const ref = tbody.querySelector("tr[data-task-id]");
+          const rowHtml = ref ? reconcileTableRowCols(ref, data.row_html_table) : data.row_html_table;
+          tbody.insertAdjacentHTML("beforeend", rowHtml);
+          const tr = tbody.lastElementChild;
+          if (tr && window.htmx) window.htmx.process(tr);
+        }
+      }
+      // List — drop the row into its matching axis section; fall back to a
+      // panel refetch if that section isn't materialised yet.
+      if (data.row_html_list && data.section_keys_list) {
+        const ok = applyRowHtmlList(data.target_id, data.row_html_list, data.section_keys_list);
+        if (ok === false) refreshListPanel();
+      }
+      // A peer's new card/row ignores the viewer's active filter — re-run the
+      // client pass so anything not matching the chips (e.g. a different
+      // assignee) hides instead of popping onto a filtered board, and the
+      // column / section counts settle.
+      if (window.actaApplyFilters) queueMicrotask(window.actaApplyFilters);
       document.body.dispatchEvent(new CustomEvent("acta:task-created", { bubbles: true }));
     });
 

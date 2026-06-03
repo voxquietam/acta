@@ -6294,6 +6294,11 @@ def _create_task_post(request):
         # below AND rides the SSE broadcast (``broadcast_extras``) so peers
         # on the kanban view can live-insert it without a server round-trip.
         kanban_card_html = _render_kanban_card_html(task, request)
+        # Table + list rows ride the broadcast too, so peers on those views
+        # also live-insert. The table row carries the full column set
+        # (``show_project=True``); the client strips columns its own table
+        # doesn't show. Section keys are viewer-agnostic (no axis personalises
+        # its bucket by viewer — see compute_list_section_keys).
         log_event(
             workspace=project.workspace,
             project=project,
@@ -6302,7 +6307,12 @@ def _create_task_post(request):
             target_type=ActivityLog.TARGET_TASK,
             target_id=task.id,
             payload={"title": task.title, "status": task.status},
-            broadcast_extras={"html_kanban": kanban_card_html},
+            broadcast_extras={
+                "html_kanban": kanban_card_html,
+                "row_html_table": _render_table_row_html(task, request, show_project=True),
+                "row_html_list": _render_task_row_html(task, request),
+                "section_keys_list": compute_list_section_keys(task),
+            },
         )
         notify_task_created(task=task, actor=request.user)
         # "Create task from comment / selection" passes ``link_related``;
