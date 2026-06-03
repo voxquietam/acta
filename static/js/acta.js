@@ -2992,6 +2992,11 @@
           col.insertAdjacentHTML("beforeend", html);
           const card = col.lastElementChild;
           if (card && window.htmx) window.htmx.process(card);
+          // A peer's new card carries ``task_filter_attrs`` but ignores the
+          // viewer's active filter — re-run the client pass so a card that
+          // doesn't match the current chips (e.g. a different assignee) is
+          // hidden instead of popping into a filtered board.
+          if (window.actaApplyFilters) queueMicrotask(window.actaApplyFilters);
         }
       }
       document.body.dispatchEvent(new CustomEvent("acta:task-created", { bubbles: true }));
