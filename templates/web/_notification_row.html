@@ -52,7 +52,7 @@ Type-icon colour + glyph are keyed off ``n.kind`` (6 + priority kinds).
       {% if n.task %}<span class="font-mono text-xs px-1 rounded bg-muted text-foreground">{{ n.task.slug }}</span>{% endif %}{% if n.kind == 'project_update' and n.project_update %}<span class="font-mono text-xs px-1 rounded bg-muted text-foreground">{{ n.project_update.project.slug_prefix }}</span>{% endif %}{% if n.kind == 'assigned' %} {% trans "to you" %}{% endif %}{% if n.kind == 'status_change' and n.payload.to %} {% trans "to" %} <b class="text-foreground">{{ n.payload.to|status_label }}</b>{% endif %}
     </div>
     {% if n.preview %}
-    <div class="mt-0.5 text-[11.5px] text-placeholder-foreground line-clamp-2">{{ n.preview }}</div>
+    <div class="mt-0.5 text-[11.5px] text-placeholder-foreground line-clamp-2 break-words">{{ n.preview }}</div>
     {% endif %}
   </div>
 

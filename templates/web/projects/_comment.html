@@ -15,7 +15,7 @@ is a click into the task away.
 <li id="comment-{{ comment.id }}" class="bg-card border border-border rounded-lg px-3 py-2 scroll-mt-20 flex items-start gap-2">
   <div class="flex-1 min-w-0" x-data="{ exp: false, tall: false }" x-init="$nextTick(() => tall = $refs.cbody.scrollHeight > 200)">
     <div x-ref="cbody" class="relative" :class="!exp && tall && 'max-h-48 overflow-hidden'">
-      <div class="prose dark:prose-invert prose-sm max-w-none text-muted-foreground">{{ comment.body|markdown }}</div>
+      <div class="prose dark:prose-invert prose-sm max-w-none text-muted-foreground break-words">{{ comment.body|markdown }}</div>
       <div x-show="!exp && tall" x-cloak class="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-card pointer-events-none"></div>
     </div>
     <button type="button" x-show="tall" x-cloak @click="exp = !exp"
@@ -55,7 +55,7 @@ card for a new top-level comment; replies append via ``_comment_reply``.
     card barely shifts). Save/Cancel re-render the whole card.
     {% endcomment %}
     <div id="comment-body-{{ comment.id }}">
-      <div class="prose dark:prose-invert prose-sm max-w-none text-muted-foreground" data-create-from-selection>
+      <div class="prose dark:prose-invert prose-sm max-w-none text-muted-foreground break-words" data-create-from-selection>
         {{ comment.body|markdown }}
       </div>
       {% include "web/projects/_comment_attachments.html" %}

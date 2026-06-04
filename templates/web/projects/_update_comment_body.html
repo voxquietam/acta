@@ -26,7 +26,7 @@ Expects ``comment`` (with ``can_modify`` decorated).
     </div>
   </div>
   <div id="update-comment-body-{{ comment.id }}">
-    <div class="prose dark:prose-invert prose-sm max-w-none text-muted-foreground">{{ comment.body|markdown }}</div>
+    <div class="prose dark:prose-invert prose-sm max-w-none text-muted-foreground break-words">{{ comment.body|markdown }}</div>
     <div class="mt-2">
       {% include "web/_reaction_bar.html" with target_type="comment" target_id=comment.id reactions=comment.reaction_summary can_react=True %}
     </div>
