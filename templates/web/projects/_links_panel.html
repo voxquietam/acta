@@ -97,7 +97,7 @@ blocker that's still open (the thing actually blocking this task).
       <input type="text" x-ref="searchInput" x-model="q"
              @input.debounce.250ms="search()"
              @focus="if (q || statusFilter) search()"
-             placeholder="{% trans 'Search by slug or title…' %}"
+             placeholder="{% trans 'Search by slug, title or assignee…' %}"
              class="acta-input text-xs w-full">
       {# Results dropdown #}
       <div x-show="open && results.length" x-cloak

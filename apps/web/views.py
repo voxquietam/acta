@@ -3712,10 +3712,21 @@ def task_link_search(request, slug_prefix, number):
     """Typeahead search for the link-target picker.
 
     Returns up to 10 tasks in the same workspace (excluding this task
-    and already-linked ones), matched by title (icontains), full slug
-    (``PREFIX-NUMBER``), or bare number. Optional ``status`` filter
-    narrows by task status. JSON payload feeds the Alpine autocomplete
-    in the links panel.
+    and already-linked ones). Matching is forgiving so a partial query
+    still surfaces the target:
+
+    - **Title / assignee**: every whitespace-separated word must appear
+      in the title *or* the assignee's name (first / last / username) —
+      AND of words, so order and gaps don't matter. ``"звіт двв"`` finds
+      *"…звіту по ДВВ"*; ``"сенчишен денис"`` finds tasks assigned to
+      Денис … Сенчишен regardless of name-part order.
+    - **Slug**: ``PREFIX``, ``PREFIX-`` or ``PREFIX-NUMBER`` matches by
+      ``slug_prefix`` prefix (``istartswith``) plus the number when given,
+      so a half-typed key still works.
+    - **Bare number**: matches ``number`` across the workspace.
+
+    Optional ``status`` filter narrows by task status. JSON payload feeds
+    the Alpine autocomplete in the links panel.
     """
     from django.db.models import Q
 
@@ -3738,14 +3749,29 @@ def task_link_search(request, slug_prefix, number):
     if status in Task.STATUS_VALUES:
         qs = qs.filter(status=status)
     if q:
-        match = Q(title__icontains=q)
+        match = Q()
+        for word in q.split():
+            match &= (
+                Q(title__icontains=word)
+                | Q(assignee__first_name__icontains=word)
+                | Q(assignee__last_name__icontains=word)
+                | Q(assignee__username__icontains=word)
+            )
+
         upper = q.upper()
-        if "-" in upper:
-            prefix, _, num = upper.rpartition("-")
-            if num.isdigit():
-                match |= Q(project__slug_prefix=prefix, number=int(num))
+        prefix, dash, num = upper.rpartition("-")
+        if dash:
+            prefix = prefix.strip()
+            num = num.strip()
+            if prefix:
+                slug_q = Q(project__slug_prefix__istartswith=prefix)
+                if num.isdigit():
+                    slug_q &= Q(number=int(num))
+                match |= slug_q
         elif q.isdigit():
             match |= Q(number=int(q))
+        elif " " not in q:
+            match |= Q(project__slug_prefix__istartswith=upper)
         qs = qs.filter(match)
 
     results = []
