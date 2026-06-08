@@ -1,0 +1,74 @@
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+Inner fragment of the Recurring page — the filter bar + rule list (or empty
+state). Rendered on cold load inside ``recurring.html`` and re-fetched on
+``change`` / ``acta:recurring-changed`` (the ``#recurring-list`` container
+drives it, including ``#recurring-filters`` values). ``total_rules`` is the
+unfiltered count: 0 → first-run empty state (no filters); otherwise show the
+filter bar even when the current filter matches nothing.
+{% endcomment %}
+{% if total_rules == 0 %}
+<div class="grid place-items-center text-center py-20">
+  <div>
+    <div class="w-12 h-12 rounded-full border border-dashed border-border-strong grid place-items-center text-placeholder-foreground mx-auto mb-3">
+      {% lucide "repeat" "w-5 h-5" %}
+    </div>
+    <h2 class="text-lg font-medium text-muted-foreground">{% trans "No recurring tasks yet" %}</h2>
+    <p class="text-sm text-placeholder-foreground mt-1 max-w-sm">
+      {% trans "Set up a rule and Acta will create the task for you on its cadence — every week, every two weeks, on specific days." %}
+    </p>
+    <button type="button"
+            hx-get="{% url 'web:recurring_new' %}"
+            hx-target="#modal-root"
+            hx-swap="innerHTML"
+            class="acta-btn-primary inline-flex items-center gap-1.5 text-xs mt-4">
+      {% lucide "plus" "w-3.5 h-3.5" %}{% trans "New recurring task" %}
+    </button>
+  </div>
+</div>
+{% else %}
+{# Filter bar — selects live inside the swap target; ``#recurring-list`` #}
+{# hx-includes them, so a change refetches and the server-rendered       #}
+{# ``selected`` keeps each control sticky. #}
+<div id="recurring-filters" class="max-w-4xl mx-auto flex flex-wrap items-center gap-2 mb-3">
+  {% with sel_cls="bg-muted border border-border-strong rounded-md text-xs text-foreground pl-2 pr-7 py-1.5 focus:outline-none focus:border-brand-500 cursor-pointer" %}
+  <select name="project" class="{{ sel_cls }}" aria-label="{% trans 'Filter by project' %}">
+    <option value="">{% trans "All projects" %}</option>
+    {% for p in filter_projects %}
+    <option value="{{ p.slug_prefix }}" {% if f_project == p.slug_prefix %}selected{% endif %}>{{ p.name }}</option>
+    {% endfor %}
+  </select>
+  <select name="assignee" class="{{ sel_cls }}" aria-label="{% trans 'Filter by assignee' %}">
+    <option value="">{% trans "All assignees" %}</option>
+    <option value="unassigned" {% if f_assignee == 'unassigned' %}selected{% endif %}>{% trans "Unassigned" %}</option>
+    {% for u in filter_members %}
+    <option value="{{ u.id }}" {% if f_assignee == u.id|stringformat:'s' %}selected{% endif %}>{{ u.display_name|default:u.username }}</option>
+    {% endfor %}
+  </select>
+  <select name="state" class="{{ sel_cls }}" aria-label="{% trans 'Filter by state' %}">
+    <option value="">{% trans "Active & paused" %}</option>
+    <option value="active" {% if f_state == 'active' %}selected{% endif %}>{% trans "Active" %}</option>
+    <option value="paused" {% if f_state == 'paused' %}selected{% endif %}>{% trans "Paused" %}</option>
+  </select>
+  <select name="freq" class="{{ sel_cls }}" aria-label="{% trans 'Filter by frequency' %}">
+    <option value="">{% trans "Any frequency" %}</option>
+    {% for value, label in freq_choices %}
+    <option value="{{ value }}" {% if f_freq == value %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  {% endwith %}
+</div>
+
+{% if rules %}
+<div class="max-w-4xl mx-auto border border-border rounded-lg bg-card divide-y divide-border">
+  {% for rule in rules %}
+  {% include "web/recurring/_recurring_row.html" %}
+  {% endfor %}
+</div>
+{% else %}
+<div class="max-w-4xl mx-auto text-center py-12 text-sm text-placeholder-foreground">
+  {% trans "No recurring tasks match these filters." %}
+</div>
+{% endif %}
+{% endif %}

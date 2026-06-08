@@ -1,0 +1,82 @@
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+One recurring-task rule row. Expects ``rule`` in context. The left region
+(icon + title + cadence) is clickable and opens the edit modal in
+``#modal-root``. The right actions (run-now / pause / delete) post into
+``hx-swap=none`` and return ``204 + acta:recurring-changed`` so the list
+refetches with the active filters; each is a tiny ``<form>`` so the CSRF
+token rides along.
+{% endcomment %}
+<div class="group flex items-center gap-3 px-4 py-3 text-sm hover:bg-muted/40 first:rounded-t-lg last:rounded-b-lg{% if not rule.is_active %} opacity-70{% endif %}">
+
+  {# Clickable region → edit modal. #}
+  <div class="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
+       hx-get="{% url 'web:recurring_edit' pk=rule.id %}"
+       hx-target="#modal-root"
+       hx-swap="innerHTML">
+    <span class="shrink-0 {{ rule.project.icon_color_class }}">
+      {% lucide "repeat" "w-4 h-4" %}
+    </span>
+    <div class="flex-1 min-w-0">
+      <div class="flex items-center gap-2 min-w-0">
+        <span class="truncate text-foreground group-hover:text-brand-400 transition">{{ rule.title }}</span>
+        {% if not rule.is_active %}
+        <span class="shrink-0 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400">{% trans "Paused" %}</span>
+        {% endif %}
+      </div>
+      <div class="flex items-center gap-2 mt-0.5 text-xs text-placeholder-foreground min-w-0">
+        <span class="inline-flex items-center gap-1 shrink-0">
+          {% lucide "repeat" "w-3 h-3" %}{{ rule.human_cadence }}
+        </span>
+        <span class="text-border-strong">·</span>
+        <span class="inline-flex items-center gap-1 truncate">
+          <span class="{{ rule.project.icon_color_class }}">{% lucide rule.project.icon|default:"folder" "w-3 h-3" %}</span>
+          <span class="truncate">{{ rule.project.name }}</span>
+        </span>
+        {% if rule.assignee %}
+        <span class="text-border-strong">·</span>
+        <span class="truncate">{{ rule.assignee.display_name|default:rule.assignee.username }}</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="shrink-0 text-right">
+    {% if rule.is_active and rule.next_occurrence_date %}
+    <div class="text-xs text-muted-foreground tabular-nums">{% trans "Next" %}: {{ rule.next_occurrence_date|date:"M j" }}</div>
+    {% else %}
+    <div class="text-xs text-placeholder-foreground">{% trans "Inactive" %}</div>
+    {% endif %}
+    <div class="text-[11px] text-placeholder-foreground">{% blocktrans count n=rule.occurrences_created %}{{ n }} created{% plural %}{{ n }} created{% endblocktrans %}</div>
+  </div>
+
+  <div class="shrink-0 hidden group-hover:flex items-center gap-0.5">
+    {# Run now — spawn the next occurrence immediately. #}
+    <form hx-post="{% url 'web:recurring_run_now' pk=rule.id %}" hx-swap="none">
+      {% csrf_token %}
+      <button type="submit" data-tooltip="{% trans 'Create next now' %}" data-tooltip-pos="below"
+              class="grid place-items-center w-7 h-7 rounded-md text-placeholder-foreground hover:bg-muted hover:text-foreground">
+        {% lucide "zap" "w-3.5 h-3.5" %}
+      </button>
+    </form>
+    {# Pause / resume. #}
+    <form hx-post="{% url 'web:recurring_toggle' pk=rule.id %}" hx-swap="none">
+      {% csrf_token %}
+      <button type="submit"
+              data-tooltip="{% if rule.is_active %}{% trans 'Pause' %}{% else %}{% trans 'Resume' %}{% endif %}" data-tooltip-pos="below"
+              class="grid place-items-center w-7 h-7 rounded-md text-placeholder-foreground hover:bg-muted hover:text-foreground">
+        {% if rule.is_active %}{% lucide "pause" "w-3.5 h-3.5" %}{% else %}{% lucide "play" "w-3.5 h-3.5" %}{% endif %}
+      </button>
+    </form>
+    {# Delete — generated tasks survive (SET_NULL). #}
+    <form hx-post="{% url 'web:recurring_delete' pk=rule.id %}" hx-swap="none"
+          x-data @submit="if (!confirm('{% trans "Delete this recurring rule? Tasks it already created stay." %}')) $event.preventDefault()">
+      {% csrf_token %}
+      <button type="submit" data-tooltip="{% trans 'Delete' %}" data-tooltip-pos="below"
+              class="grid place-items-center w-7 h-7 rounded-md text-placeholder-foreground hover:text-rose-400">
+        {% lucide "trash-2" "w-3.5 h-3.5" %}
+      </button>
+    </form>
+  </div>
+</div>

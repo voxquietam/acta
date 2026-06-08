@@ -139,6 +139,12 @@ Pages extend this and override the `app_main` block.
         <span :class="!$store.sidebar.open && 'md:hidden'" x-cloak>{% trans "All Tasks" %}</span>
         <span x-show="!$store.sidebar.open" x-cloak class="hidden md:block acta-rail-tip">{% trans "All Tasks" %}</span>
       </a>
+      <a href="{% url 'web:recurring_list' %}"
+         class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground">
+        {% lucide "repeat" "w-4 h-4 shrink-0" %}
+        <span :class="!$store.sidebar.open && 'md:hidden'" x-cloak>{% trans "Recurring" %}</span>
+        <span x-show="!$store.sidebar.open" x-cloak class="hidden md:block acta-rail-tip">{% trans "Recurring" %}</span>
+      </a>
       <a href="{% url 'web:project_list' %}"
          class="acta-rail-link group relative flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground">
         {% lucide "folders" "w-4 h-4 shrink-0" %}

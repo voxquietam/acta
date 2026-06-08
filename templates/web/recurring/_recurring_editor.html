@@ -1,0 +1,328 @@
+{% extends "web/_modal_shell.html" %}
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+Create / edit modal for a recurring-task rule. Loaded into ``#modal-root``
+via HTMX. On save the server returns ``204 + HX-Trigger:
+acta:recurring-changed`` — the list re-fetches and this modal closes.
+
+Mirrors the create-task modal (``_create_task_modal.html``): same field
+chrome, the same teleported searchable label picker, plus a schedule
+builder. Members + labels are workspace-scoped, so the project
+``<select>`` only picks the destination — it does NOT re-fetch the modal
+(every accessible project shares the active workspace's roster).
+{% endcomment %}
+
+{% block root_attrs %}
+x-data="{
+  freq: '{{ rule.freq|default:'weekly' }}',
+  interval: {{ rule.interval|default:1 }},
+  weekdays: [{% for d in rule.weekdays %}'{{ d }}'{% if not forloop.last %}, {% endif %}{% endfor %}],
+  dayOfMonth: '{{ rule.day_of_month|default:'' }}',
+  endMode: '{{ rule.end_mode|default:'never' }}',
+  close() { const r = document.getElementById('modal-root'); if (r) r.innerHTML = ''; },
+  toggleWeekday(d) { const i = this.weekdays.indexOf(d); if (i === -1) this.weekdays.push(d); else this.weekdays.splice(i, 1); },
+  get summary() {
+    const wd = {'0':'{% trans "Mon" %}','1':'{% trans "Tue" %}','2':'{% trans "Wed" %}','3':'{% trans "Thu" %}','4':'{% trans "Fri" %}','5':'{% trans "Sat" %}','6':'{% trans "Sun" %}'};
+    const ev = this.interval > 1 ? this.interval + ' ' : '';
+    if (this.freq === 'daily') return this.interval > 1 ? '{% trans "Every" %} ' + this.interval + ' {% trans "days" %}' : '{% trans "Daily" %}';
+    if (this.freq === 'weekly') {
+      let base = this.interval > 1 ? '{% trans "Every" %} ' + ev + '{% trans "weeks" %}' : '{% trans "Weekly" %}';
+      if (this.weekdays.length) return base + ' · ' + this.weekdays.slice().sort().map(d => wd[d]).join(', ');
+      return base;
+    }
+    let base = this.interval > 1 ? '{% trans "Every" %} ' + ev + '{% trans "months" %}' : '{% trans "Monthly" %}';
+    return base + ' · {% trans "day" %} ' + (this.dayOfMonth || '—');
+  }
+}"
+@acta:recurring-changed.window="close()"
+{% endblock %}
+
+{% block panel_class %}sm:max-w-xl sm:max-h-[88vh]{% endblock %}
+
+{% block panel_attrs %}x-init="$nextTick(() => $refs.title?.focus())"{% endblock %}
+
+{% block title %}<h2 class="text-sm font-medium text-foreground">{% if rule %}{% trans "Edit recurring task" %}{% else %}{% trans "New recurring task" %}{% endif %}</h2>{% endblock %}
+
+{% block body %}
+{% if not projects %}
+<div class="p-6">
+  <div class="rounded-lg border border-dashed border-border bg-card/50 p-8 text-center space-y-2">
+    <p class="text-sm text-foreground">{% trans "Recurring tasks live inside projects." %}</p>
+    <p class="text-xs text-placeholder-foreground">{% trans "This workspace has no projects yet — create one first." %}</p>
+  </div>
+</div>
+<footer class="flex items-center justify-end gap-2 px-4 py-3 border-t border-border bg-subtle/60">
+  <button type="button" @click="close()" class="acta-btn-ghost">{% trans "Close" %}</button>
+</footer>
+{% else %}
+<form hx-post="{% if rule %}{% url 'web:recurring_edit' pk=rule.id %}{% else %}{% url 'web:recurring_new' %}{% endif %}"
+      hx-swap="none"
+      class="flex flex-col flex-1 min-h-0">
+  {% csrf_token %}
+
+  <div class="p-4 space-y-3 flex-1 overflow-y-auto min-h-0">
+
+    {# ---------- Blueprint ---------- #}
+    <div>
+      <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Project" %}</label>
+      <select name="project" class="mt-1 acta-input">
+        {% for project in projects %}
+        <option value="{{ project.slug_prefix }}"
+                {% if selected_project and selected_project.slug_prefix == project.slug_prefix %}selected{% endif %}>
+          {{ project.workspace.name }} · {{ project.slug_prefix }} · {{ project.name }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div>
+      <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Title" %}</label>
+      <input type="text" name="title" maxlength="200" required x-ref="title"
+             value="{{ rule.title|default:'' }}"
+             class="mt-1 acta-input" placeholder="{% trans 'What needs doing each time?' %}">
+    </div>
+
+    <div>
+      <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Description" %}</label>
+      <textarea name="description" rows="2"
+                class="mt-1 acta-input resize-y"
+                placeholder="{% trans 'Optional details (Markdown)…' %}">{{ rule.description|default:'' }}</textarea>
+    </div>
+
+    <div class="grid grid-cols-3 gap-3">
+      <div>
+        <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Priority" %}</label>
+        <select name="priority" class="mt-1 acta-input">
+          {% for value, label in priority_labels.items %}
+          <option value="{{ value }}" {% if rule and rule.priority == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Size" %}</label>
+        <select name="size" class="mt-1 acta-input">
+          <option value="">—</option>
+          {% for value in size_values %}
+          <option value="{{ value }}" {% if rule and rule.size == value %}selected{% endif %}>{{ value }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Assignee" %}</label>
+        <select name="assignee" class="mt-1 acta-input">
+          <option value="">{% trans "— Unassigned —" %}</option>
+          {% for user in members %}
+          <option value="{{ user.id }}" {% if rule and rule.assignee_id == user.id %}selected{% endif %}>
+            {{ user.display_name|default:user.username }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    {% if label_groups %}
+    {# Searchable label picker — same teleported popover the create-task   #}
+    {# modal uses (``_create_task_modal.html``). Self-contained Alpine     #}
+    {# state; hidden checkboxes (name=labels) are the form payload.        #}
+    <div>
+      <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Labels" %}</label>
+      <div class="mt-1"
+           x-data="{
+             open: false,
+             dropUp: false,
+             q: '',
+             selected: [{% for id in selected_label_ids %}'{{ id }}'{% if not forloop.last %}, {% endif %}{% endfor %}],
+             rect: { top: 0, left: 0, bottom: 0, width: 0 },
+             matches(name) { return name.toLowerCase().includes(this.q.toLowerCase()); },
+             isOn(id) { return this.selected.includes(String(id)); },
+             toggleLabel(id) {
+               id = String(id);
+               const i = this.selected.indexOf(id);
+               if (i === -1) { this.selected.push(id); } else { this.selected.splice(i, 1); }
+             },
+             measure() {
+               const r = this.$refs.trigger.getBoundingClientRect();
+               this.rect = { top: r.top, left: r.left, bottom: r.bottom, width: r.width };
+               this.dropUp = (window.innerHeight - r.bottom) < 360;
+             },
+             toggle() { if (!this.open) { this.measure(); } this.open = !this.open; },
+           }"
+           x-init="
+             const onScroll = (e) => {
+               if (!$el.isConnected) { document.removeEventListener('scroll', onScroll, true); return; }
+               if (open && !($refs.panel && $refs.panel.contains(e.target))) open = false;
+             };
+             document.addEventListener('scroll', onScroll, true);
+           "
+           @resize.window="if (open) open = false">
+
+        <div class="hidden">
+          {% for entry in label_groups %}{% for label in entry.labels %}
+          <input type="checkbox" name="labels" value="{{ label.id }}" x-model="selected">
+          {% endfor %}{% endfor %}
+        </div>
+
+        <button type="button"
+                x-ref="trigger"
+                @click="toggle()"
+                class="w-full flex items-center gap-1.5 flex-wrap min-h-[2.25rem] bg-muted border border-border-strong rounded-md px-2.5 py-1.5 text-left cursor-pointer focus:outline-none focus:border-brand-500">
+          <span x-show="selected.length === 0" class="text-xs text-placeholder-foreground">{% trans "Add labels…" %}</span>
+          {% for entry in label_groups %}{% for label in entry.labels %}
+          <span x-show="isOn('{{ label.id }}')"
+                class="acta-label-pill" data-state="on"
+                style="--label-color: {{ label.color }};">
+            <span class="acta-label-pill-dot" style="background-color: {{ label.color }};"></span>
+            <span>{{ label.name }}</span>
+          </span>
+          {% endfor %}{% endfor %}
+          <svg class="ml-auto shrink-0 w-4 h-4 text-placeholder-foreground" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </button>
+
+        <template x-teleport="body">
+          <div x-ref="panel"
+               x-show="open"
+               @click.outside="open = false"
+               x-effect="if (open) $nextTick(() => $refs.search.focus())"
+               x-cloak
+               :style="dropUp
+                 ? `position:fixed; left:${rect.left}px; bottom:${window.innerHeight - rect.top + 4}px; width:${rect.width}px;`
+                 : `position:fixed; left:${rect.left}px; top:${rect.bottom + 4}px; width:${rect.width}px;`"
+               class="bg-card border border-border rounded-lg shadow-lg overflow-hidden z-[60]">
+
+            <div class="p-2 border-b border-border">
+              <input x-ref="search"
+                     x-model="q"
+                     @keydown.escape.prevent="open = false"
+                     type="text"
+                     placeholder="{% trans 'Search labels…' %}"
+                     class="w-full bg-muted border border-border-strong rounded px-2 py-1 text-xs text-foreground placeholder-placeholder-foreground focus:outline-none focus:border-brand-500">
+            </div>
+
+            <div class="max-h-64 overflow-y-auto [overflow-x:clip]">
+              {% with bucket_count=label_groups|length %}
+              {% for entry in label_groups %}
+              {% if entry.labels %}
+              {% if entry.group or bucket_count > 1 %}
+              {% include "web/_label_group_header.html" with group=entry.group %}
+              {% endif %}
+              {% for label in entry.labels %}
+              <button type="button"
+                      @click="toggleLabel('{{ label.id }}')"
+                      x-show="matches('{{ label.name|escapejs }}')"
+                      :class="isOn('{{ label.id }}') ? 'text-foreground bg-brand-500/10 hover:bg-brand-500/15' : 'text-muted-foreground hover:bg-muted'"
+                      class="w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 transition">
+                <span class="acta-label-pill-dot" style="background-color: {{ label.color }};"></span>
+                <span class="flex-1 min-w-0 truncate">{{ label.name }}</span>
+                <span x-show="isOn('{{ label.id }}')" class="text-brand-400 shrink-0 font-medium">✓</span>
+              </button>
+              {% endfor %}
+              {% endif %}
+              {% endfor %}
+              {% endwith %}
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+    {% endif %}
+
+    {# ---------- Schedule ---------- #}
+    <div class="pt-3 mt-1 border-t border-border space-y-3">
+      <div class="flex items-center justify-between">
+        <span class="text-[10px] uppercase tracking-wider text-brand-400 font-medium">{% trans "Schedule" %}</span>
+        <span class="text-xs text-muted-foreground" x-text="summary"></span>
+      </div>
+
+      {# Repeat: interval · frequency · lead-time all in one aligned row. #}
+      <div>
+        <div class="flex items-end gap-2">
+          <div class="shrink-0">
+            <label class="block text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Every" %}</label>
+            <input type="number" name="interval" min="1" max="365" x-model.number="interval"
+                   class="mt-1 acta-input w-16 text-center">
+          </div>
+          <div class="flex-1 min-w-0">
+            <label class="block text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Frequency" %}</label>
+            <select name="freq" x-model="freq" class="mt-1 acta-input">
+              {% for value, label in freq_choices %}
+              <option value="{{ value }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="shrink-0">
+            <label class="block text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Create early" %}</label>
+            <input type="number" name="lead_time_days" min="0" max="365"
+                   value="{{ rule.lead_time_days|default:0 }}" class="mt-1 acta-input w-20 text-center"
+                   title="{% trans 'Days before the due date to create the task (0 = on the day)' %}">
+          </div>
+        </div>
+        <p class="mt-1 text-[11px] text-placeholder-foreground">{% trans "“Create early” = days before the due date · 0 = on the day" %}</p>
+
+        {# Weekly: weekday chips. #}
+        <div class="mt-2 flex flex-wrap gap-1" x-show="freq === 'weekly'" x-cloak>
+          {% for value, label in weekday_choices %}
+          <label class="cursor-pointer">
+            <input type="checkbox" name="weekdays" value="{{ value }}" class="peer sr-only"
+                   :checked="weekdays.includes('{{ value }}')" @change="toggleWeekday('{{ value }}')">
+            <span class="inline-block px-2.5 py-1 rounded-md text-xs border transition select-none"
+                  :class="weekdays.includes('{{ value }}') ? 'bg-brand-600 border-brand-500 text-white' : 'bg-muted border-border-strong text-muted-foreground hover:text-foreground'">{{ label }}</span>
+          </label>
+          {% endfor %}
+        </div>
+
+        {# Monthly: day of month. #}
+        <div class="mt-2 flex items-center gap-2" x-show="freq === 'monthly'" x-cloak>
+          <span class="text-xs text-placeholder-foreground shrink-0">{% trans "On day" %}</span>
+          <input type="number" name="day_of_month" min="1" max="31" x-model="dayOfMonth"
+                 class="acta-input w-16 text-center shrink-0">
+          <span class="text-[11px] text-placeholder-foreground">{% trans "blank = start date's day · clamped to month length" %}</span>
+        </div>
+      </div>
+
+      {# Start date + Ends — one row. #}
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Start date" %}</label>
+          <input type="date" name="start_date" required
+                 value="{{ rule.start_date|date:'Y-m-d'|default:today }}"
+                 class="mt-1 acta-input">
+        </div>
+        <div>
+          <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Ends" %}</label>
+          <select name="end_mode" x-model="endMode" class="mt-1 acta-input">
+            {% for value, label in end_mode_choices %}
+            <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      {# Ends parameter — aligned under the Ends column, shown only when set. #}
+      <div class="grid grid-cols-2 gap-3" x-show="endMode !== 'never'" x-cloak>
+        <div></div>
+        <div>
+          <div x-show="endMode === 'on_date'" x-cloak>
+            <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "End date" %}</label>
+            <input type="date" name="end_date" value="{{ rule.end_date|date:'Y-m-d'|default:'' }}" class="mt-1 acta-input">
+          </div>
+          <div x-show="endMode === 'after_count'" x-cloak>
+            <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Occurrences" %}</label>
+            <input type="number" name="max_occurrences" min="1"
+                   value="{{ rule.max_occurrences|default:'' }}" class="mt-1 acta-input">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="flex items-center justify-end gap-2 px-4 py-3 border-t border-border bg-subtle/60 shrink-0">
+    <button type="button" @click="close()" class="acta-btn-ghost">{% trans "Cancel" %}</button>
+    <button type="submit" class="acta-btn-primary">{% if rule %}{% trans "Save" %}{% else %}{% trans "Create rule" %}{% endif %}</button>
+  </footer>
+</form>
+{% endif %}
+{% endblock %}

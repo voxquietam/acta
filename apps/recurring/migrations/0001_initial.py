@@ -28,7 +28,7 @@ class Migration(migrations.Migration):
                 ('size', models.SmallIntegerField(blank=True, help_text='Fibonacci size estimate copied onto each generated task; blank leaves it unset', null=True)),
                 ('freq', models.CharField(choices=[('daily', 'Daily'), ('weekly', 'Weekly'), ('monthly', 'Monthly')], default='weekly', help_text='Recurrence frequency: daily, weekly, or monthly', max_length=10)),
                 ('interval', models.PositiveSmallIntegerField(default=1, help_text='Repeat every N units of freq (e.g. 2 + weekly = every two weeks)', validators=[django.core.validators.MinValueValidator(1)])),
-                ('weekdays', models.JSONField(blank=True, default=list, help_text="For weekly freq: weekdays to fire on as ints (0=Mon … 6=Sun); empty falls back to start_date's weekday")),
+                ('weekdays', models.JSONField(blank=True, default=list, help_text="Weekly: weekdays to fire on as ints (0=Mon … 6=Sun); empty uses start_date's weekday")),
                 ('day_of_month', models.PositiveSmallIntegerField(blank=True, help_text="For monthly freq: day of month (1-31, clamped to month length); blank uses start_date's day", null=True)),
                 ('start_date', models.DateField(help_text='Anchor date; the first occurrence is the first matching date on or after this')),
                 ('lead_time_days', models.PositiveSmallIntegerField(default=0, help_text='Create each task this many days before its occurrence date (0 = on the day)')),

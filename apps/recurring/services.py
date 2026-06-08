@@ -163,6 +163,21 @@ def materialize_due(today: date | None = None, *, cap_per_rule: int = 50) -> lis
     return created
 
 
+def run_once(rule) -> list:
+    """Spawn the rule's next occurrence immediately (the "create now" action).
+
+    Ignores the lead-time / due-date gating that :func:`materialize_due`
+    applies — it materializes exactly the current cursor occurrence and
+    advances. A no-op for a finished rule (no cursor).
+
+    Returns:
+        The created tasks (zero or one).
+    """
+    if rule.next_occurrence_date is None:
+        return []
+    return _materialize_rule(rule.id, rule.next_occurrence_date, 1)
+
+
 def _materialize_rule(rule_id: int, today: date, cap_per_rule: int) -> list:
     """Spawn the due occurrences of one rule under a row lock.
 

@@ -110,6 +110,7 @@ from .views import (
     upload_task_attachment,
     upload_task_inline_image,
 )
+from .views_recurring import recurring_delete, recurring_editor, recurring_list, recurring_run_now, recurring_toggle
 
 app_name = "web"
 
@@ -118,6 +119,12 @@ urlpatterns = [
     path("my-work/", MyWorkView.as_view(), name="my_work"),
     path("my-work/export.json", export_my_work_json, name="export_my_work_json"),
     path("my-work/facets", my_work_facets, name="my_work_facets"),
+    path("recurring/", recurring_list, name="recurring_list"),
+    path("recurring/new/", recurring_editor, name="recurring_new"),
+    path("recurring/<int:pk>/edit/", recurring_editor, name="recurring_edit"),
+    path("recurring/<int:pk>/toggle/", recurring_toggle, name="recurring_toggle"),
+    path("recurring/<int:pk>/run/", recurring_run_now, name="recurring_run_now"),
+    path("recurring/<int:pk>/delete/", recurring_delete, name="recurring_delete"),
     path("my-activity/", MyActivityView.as_view(), name="my_activity"),
     path("inbox/", InboxView.as_view(), name="inbox"),
     path("inbox/bulk/", bulk_notifications, name="notifications_bulk"),
