@@ -512,6 +512,34 @@ def _get_user_task_or_404(user, slug_prefix, number):
     )
 
 
+def _my_work_base_qs(user, workspace):
+    """Base My Work queryset: ``user``'s tasks in ``workspace``, windowed.
+
+    Scopes to tasks assigned to ``user`` that are either active / backlog
+    or done within the last 7 days — the same window the My Work list and
+    its project facet counts share, so the per-project numbers match the
+    rows. No ``select_related`` / ordering: callers add what they need
+    (the list adds joins + ordering, the facet counter only aggregates).
+
+    Args:
+        user: The owner of the My Work view.
+        workspace: The active workspace, or ``None``.
+
+    Returns:
+        An unordered ``Task`` queryset (empty when ``workspace`` is None).
+    """
+    if workspace is None:
+        return Task.objects.none()
+    done_cutoff = timezone.now() - datetime.timedelta(days=7)
+    return Task.objects.filter(
+        assignee=user,
+        project__workspace=workspace,
+    ).filter(
+        Q(status__in=_MY_WORK_ACTIVE_STATUSES + _MY_WORK_BACKLOG_STATUSES)
+        | Q(status=Task.STATUS_DONE, updated_at__gte=done_cutoff),
+    )
+
+
 def _my_work_tasks(user, params, workspace, *, restrict_to_project_ids=None):
     """Resolve the My Work task queryset for ``user``.
 
@@ -537,15 +565,19 @@ def _my_work_tasks(user, params, workspace, *, restrict_to_project_ids=None):
     """
     if workspace is None:
         return []
-    done_cutoff = timezone.now() - datetime.timedelta(days=7)
     base = (
-        Task.objects.filter(assignee=user, project__workspace=workspace)
-        .filter(
-            Q(status__in=_MY_WORK_ACTIVE_STATUSES + _MY_WORK_BACKLOG_STATUSES)
-            | Q(status=Task.STATUS_DONE, updated_at__gte=done_cutoff),
+        _my_work_base_qs(user, workspace)
+        .select_related(
+            "project__workspace",
+            "assignee",
+            "reporter",
+            "parent__project",
         )
-        .select_related("project__workspace", "assignee", "reporter", "parent__project")
-        .prefetch_related("labels", "blocks", "blocked_by")
+        .prefetch_related(
+            "labels",
+            "blocks",
+            "blocked_by",
+        )
     )
     if restrict_to_project_ids is not None:
         base = base.filter(project_id__in=restrict_to_project_ids)
@@ -1019,8 +1051,8 @@ class MyWorkView(LoginRequiredMixin, TemplateView):
                     if cap and row["n"] > cap:
                         wip_self_over[row["status"]] = {"count": row["n"], "limit": cap}
         ctx["wip_self_over"] = wip_self_over
-        # The project strip only offers projects the user actually has
-        # tasks in — no point filtering My Work by a project with none.
+        # The Project filter section only offers projects the user actually
+        # has tasks in — no point filtering My Work by a project with none.
         my_work_projects = list(
             Project.objects.filter(
                 workspace=active,
@@ -1040,7 +1072,10 @@ class MyWorkView(LoginRequiredMixin, TemplateView):
                 self.request,
                 available_projects=my_work_projects,
                 hide_assignee=True,
-                hide_project=True,
+                hide_project=False,
+                project_facets=True,
+                facet_base_qs=_my_work_base_qs(self.request.user, active),
+                facet_url=reverse("web:my_work_facets"),
                 show_backlog_toggle=True,
                 backlog_tab_aware=False,
                 htmx_target="#my-work-content",
@@ -1048,6 +1083,55 @@ class MyWorkView(LoginRequiredMixin, TemplateView):
             )
         )
         return ctx
+
+
+@login_required
+def my_work_facets(request):
+    """Live project-facet fragment for the My Work filter sidebar.
+
+    My-Work counterpart of :func:`filter_facets`: re-renders the project
+    rows partial with per-project counts under the current filters, but
+    scoped to the user's own assigned tasks (the same base the My Work
+    list draws from) instead of every task in the workspace. Only the
+    project axis is faceted — My Work hides the assignee filter (it is
+    always implicitly the current user).
+    """
+    active = resolve_active_workspace(request)
+    if active is None:
+        return HttpResponse("")
+    params = _params_with_archive_cookie(request)
+    counts = project_facet_counts(
+        _my_work_base_qs(request.user, active),
+        params,
+        request_user=request.user,
+    )
+    selected_projects = {int(p) for p in params.getlist("project") if p.isdigit()}
+    excluded_projects = {int(p) for p in params.getlist("xproject") if p.isdigit()}
+    available = list(
+        Project.objects.filter(
+            workspace=active,
+            tasks__assignee=request.user,
+        )
+        .select_related("workspace")
+        .order_by("workspace__name", "name")
+        .distinct()
+    )
+    projects = visible_project_facets(
+        available,
+        counts,
+        selected_ids=selected_projects,
+        excluded_ids=excluded_projects,
+    )
+    return render(
+        request,
+        "web/_facets.html",
+        {
+            "project_facets": True,
+            "available_projects": projects,
+            "selected_projects": selected_projects,
+            "excluded_projects": excluded_projects,
+        },
+    )
 
 
 # ---------------------------------------------------------------------

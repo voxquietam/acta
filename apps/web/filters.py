@@ -9,6 +9,7 @@ the three views share one canonical implementation.
 from django.contrib.auth import get_user_model
 from django.db.models import Case, Count, F, IntegerField, Q, Value, When
 from django.db.models.functions import Lower
+from django.urls import reverse
 from django.utils import timezone
 
 from apps.labels.services import grouped_labels
@@ -692,6 +693,8 @@ def filter_sidebar_context(
     backlog_tab_aware=True,
     project_facets=False,
     assignee_facets=False,
+    facet_base_qs=None,
+    facet_url=None,
     preserved_params=None,
     extra_preserved=None,
     effective_params=None,
@@ -726,6 +729,14 @@ def filter_sidebar_context(
             value comes from a cookie / view default rather than from
             the current URL — e.g. ``view=table`` must travel with
             every filter submit even when the URL doesn't yet carry it.
+        facet_base_qs: Task queryset the project facet counts are
+            computed from. Defaults to every task in the active
+            workspace; pages with a narrower scope (e.g. My Work, which
+            only counts the user's own tasks) inject their base here so
+            the per-project counts match what the page actually lists.
+        facet_url: URL the client polls for live facet refreshes
+            (``data-facet-url``). Defaults to the All Tasks endpoint;
+            scoped pages pass their own so counts stay in scope.
         form_url: Action URL for the filter form. Defaults to the
             current path.
         htmx_target: CSS selector for the HTMX swap target.
@@ -844,7 +855,7 @@ def filter_sidebar_context(
     # partial on filter change (``web:filter_project_facets``).
     if project_facets and active is not None:
         counts = project_facet_counts(
-            Task.objects.filter(project__workspace=active),
+            facet_base_qs if facet_base_qs is not None else Task.objects.filter(project__workspace=active),
             params,
             request_user=user,
         )
@@ -888,6 +899,7 @@ def filter_sidebar_context(
         "assignee_facet_me": assignee_facet_me,
         "assignee_facet_unassigned": assignee_facet_unassigned,
         "facets_enabled": project_facets or assignee_facets,
+        "filter_facet_url": facet_url or reverse("web:filter_facets"),
         "selected_statuses": selected_statuses,
         "selected_priorities": selected_priorities,
         "selected_sizes": selected_sizes,

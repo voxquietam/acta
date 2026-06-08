@@ -127,7 +127,7 @@ Section visibility flags from the view:
         hx-swap="innerHTML"
         hx-push-url="true"
         data-my-project-ids="{{ my_project_ids_csv }}"
-        {% if facets_enabled %}data-facet-url="{% url 'web:filter_facets' %}"{% endif %}
+        {% if facets_enabled %}data-facet-url="{{ filter_facet_url }}"{% endif %}
         class="flex flex-row-reverse gap-2 items-stretch lg:h-full lg:max-h-full">
 
     {% for name, value in filter_preserved_pairs %}
