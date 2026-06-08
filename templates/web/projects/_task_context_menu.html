@@ -36,7 +36,7 @@ picker. Expects ``task``, ``status_labels``, ``priority_labels``,
          if (this.view === 'root') {
            if (e.metaKey || e.ctrlKey) { if (e.key.toLowerCase() === 'c') { e.preventDefault(); e.shiftKey ? this.copyUrl() : this.copySlug(); } return; }
            const k = e.key.toLowerCase();
-           if (k === 'l') { e.preventDefault(); this.view = 'label'; }
+           if (k === 'l') { e.preventDefault(); this.view = 'label'; this.q = ''; this.$nextTick(() => this.$refs.lsearch && this.$refs.lsearch.focus()); }
            else if (k === 'd') { e.preventDefault(); this.view = 'due'; }
            else if (k === 'm') { const m = document.querySelector('#context-menu-root [data-open=\'project\']'); if (m) { e.preventDefault(); this.view = 'project'; } }
            else if (e.key === 'Enter') { e.preventDefault(); this.openModal(); }
@@ -72,7 +72,7 @@ picker. Expects ``task``, ``status_labels``, ``priority_labels``,
       <span class="flex-1">{% trans "Set priority" %}</span>
       <span class="text-placeholder-foreground inline-flex">{% lucide "chevron-right" "w-3 h-3" %}</span>
     </button>
-    <button type="button" @click="view = 'assignee'; $nextTick(() => $refs.asearch && $refs.asearch.focus())" class="group w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left hover:bg-muted/40 hover:text-foreground transition">
+    <button type="button" @click="view = 'assignee'; q = ''; $nextTick(() => $refs.asearch && $refs.asearch.focus())" class="group w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left hover:bg-muted/40 hover:text-foreground transition">
       <span class="text-placeholder-foreground group-hover:text-foreground inline-flex shrink-0">{% lucide "user" "w-3.5 h-3.5" %}</span>
       <span class="flex-1">{% trans "Assign to…" %}</span>
       <span class="text-placeholder-foreground inline-flex">{% lucide "chevron-right" "w-3 h-3" %}</span>
@@ -89,7 +89,7 @@ picker. Expects ``task``, ``status_labels``, ``priority_labels``,
       <span class="text-placeholder-foreground inline-flex">{% lucide "chevron-right" "w-3 h-3" %}</span>
     </button>
     {% endif %}
-    <button type="button" @click="view = 'label'" class="group w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left hover:bg-muted/40 hover:text-foreground transition">
+    <button type="button" @click="view = 'label'; q = ''; $nextTick(() => $refs.lsearch && $refs.lsearch.focus())" class="group w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left hover:bg-muted/40 hover:text-foreground transition">
       <span class="text-placeholder-foreground group-hover:text-foreground inline-flex shrink-0">{% lucide "tag" "w-3.5 h-3.5" %}</span>
       <span class="flex-1">{% trans "Labels…" %}</span>
       <span class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-muted border border-border text-placeholder-foreground">L</span>
@@ -239,14 +239,14 @@ picker. Expects ``task``, ``status_labels``, ``priority_labels``,
       <input x-ref="asearch" x-model="q" type="text" placeholder="{% trans 'Type to search…' %}"
              class="flex-1 bg-transparent border-none outline-none text-foreground text-[11.5px] placeholder-zinc-500">
     </div>
-    <div class="max-h-60 overflow-y-auto">
+    <div class="max-h-60 overflow-y-auto overflow-x-hidden">
       {% for member in workspace_members %}
       <form hx-post="{% url 'web:set_task_assignee' slug_prefix=task.project.slug_prefix number=task.number %}" hx-swap="none"
             x-show="matches('{{ member.user.display_name|escapejs }}')">
         {% csrf_token %}<input type="hidden" name="assignee_id" value="{{ member.user.id }}">
         <button type="submit" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left text-xs hover:bg-muted/40 {% if task.assignee_id == member.user.id %}font-medium text-foreground{% else %}text-muted-foreground hover:text-foreground{% endif %}">
           {% include "web/_user_avatar.html" with user=member.user class="w-[18px] h-[18px]" text_class="text-[10px]" %}
-          <span class="flex-1 truncate">{{ member.user.display_name }}</span>
+          <span class="flex-1 truncate min-w-0">{{ member.user.display_name }}</span>
           {% if task.assignee_id == member.user.id %}<span class="inline-flex">{% lucide "check" "w-3 h-3" %}</span>{% endif %}
         </button>
       </form>
@@ -303,7 +303,7 @@ picker. Expects ``task``, ``status_labels``, ``priority_labels``,
       {% csrf_token %}<input type="hidden" name="cycle_id" value="{{ cycle.id }}">
       <button type="submit" data-mk="{{ forloop.counter }}" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left text-xs hover:bg-muted/40 {% if cycle.id == task.cycle_id %}text-brand-500{% else %}text-muted-foreground hover:text-foreground{% endif %}">
         <span class="w-[7px] h-[7px] rounded-full {% if cycle.is_active %}bg-emerald-500{% else %}bg-zinc-600{% endif %}"></span>
-        <span class="flex-1 truncate">{{ cycle.display_name }}</span>
+        <span class="flex-1 truncate min-w-0">{{ cycle.display_name }}</span>
         {% if cycle.id == task.cycle_id %}<span class="inline-flex">{% lucide "check" "w-3 h-3" %}</span>{% endif %}
         <span class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-muted border border-border text-placeholder-foreground">{{ forloop.counter }}</span>
       </button>
@@ -318,13 +318,13 @@ picker. Expects ``task``, ``status_labels``, ``priority_labels``,
     <button type="button" @click="view = 'root'" class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[11px] text-placeholder-foreground hover:bg-muted/40 hover:text-foreground mb-1">
       {% lucide "chevron-left" "w-3 h-3" %}<span class="text-subtle-foreground">{{ task.slug }} <span class="text-placeholder-foreground">›</span> <b class="text-foreground font-medium">{% trans "Move" %}</b></span>
     </button>
-    <div class="max-h-60 overflow-y-auto">
+    <div class="max-h-60 overflow-y-auto overflow-x-hidden">
       {% for project in workspace_projects %}
       <form hx-post="{% url 'web:set_task_project' slug_prefix=task.project.slug_prefix number=task.number %}" hx-swap="none">
         {% csrf_token %}<input type="hidden" name="project_id" value="{{ project.id }}">
         <button type="submit" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left text-xs hover:bg-muted/40 {% if project.id == task.project_id %}font-medium text-foreground{% else %}text-muted-foreground hover:text-foreground{% endif %}">
           <span class="font-mono text-[11px] text-placeholder-foreground">{{ project.slug_prefix }}</span>
-          <span class="flex-1 truncate">{{ project.name }}</span>
+          <span class="flex-1 truncate min-w-0">{{ project.name }}</span>
           {% if project.id == task.project_id %}<span class="inline-flex">{% lucide "check" "w-3 h-3" %}</span>{% endif %}
         </button>
       </form>
@@ -338,14 +338,21 @@ picker. Expects ``task``, ``status_labels``, ``priority_labels``,
     <button type="button" @click="view = 'root'" class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[11px] text-placeholder-foreground hover:bg-muted/40 hover:text-foreground mb-1">
       {% lucide "chevron-left" "w-3 h-3" %}<span class="text-subtle-foreground">{{ task.slug }} <span class="text-placeholder-foreground">›</span> <b class="text-foreground font-medium">{% trans "Labels" %}</b></span>
     </button>
-    <div class="max-h-60 overflow-y-auto">
+    <div class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-muted/40 border border-border mb-1">
+      <span class="text-placeholder-foreground inline-flex">{% lucide "search" "w-3 h-3" %}</span>
+      <input x-ref="lsearch" x-model="q" type="text" placeholder="{% trans 'Type to search…' %}"
+             class="flex-1 bg-transparent border-none outline-none text-foreground text-[11.5px] placeholder-zinc-500">
+    </div>
+    <div class="max-h-60 overflow-y-auto overflow-x-hidden">
       {% with bucket_count=workspace_label_groups|length %}
       {% for entry in workspace_label_groups %}
       {% if entry.labels %}
       {# Named group → always header. Ungrouped → only when sibling groups #}
       {# exist (see ``_labels_dropdown_inner.html`` for the same rule).    #}
+      {# Headers hide while searching so a filtered list reads flat (no    #}
+      {# orphan group headers above zero matches).                         #}
       {% if entry.group or bucket_count > 1 %}
-      {% include "web/_label_group_header.html" with group=entry.group %}
+      <div x-show="!q">{% include "web/_label_group_header.html" with group=entry.group %}</div>
       {% endif %}
       {% for label in entry.labels %}
       {% comment %}
@@ -358,12 +365,13 @@ picker. Expects ``task``, ``status_labels``, ``priority_labels``,
       <form hx-post="{% url 'web:toggle_task_label' slug_prefix=task.project.slug_prefix number=task.number %}"
             hx-swap="none"
             x-data="{ on: {% if label.id in attached_label_ids %}true{% else %}false{% endif %} }"
+            x-show="matches('{{ label.name|escapejs }}')"
             @htmx:after-request.stop="if ($event.detail.successful) on = !on">
         {% csrf_token %}<input type="hidden" name="label_id" value="{{ label.id }}">
         <button type="submit" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left text-xs hover:bg-muted/40"
                 :class="on ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'">
           <span class="w-2 h-2 rounded-full" style="background-color: {{ label.color }};"></span>
-          <span class="flex-1 truncate">{{ label.name }}</span>
+          <span class="flex-1 truncate min-w-0">{{ label.name }}</span>
           <span x-show="on" class="text-brand-500 inline-flex">{% lucide "check" "w-3 h-3" %}</span>
         </button>
       </form>

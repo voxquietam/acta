@@ -1203,6 +1203,8 @@ class TestContextMenu:
         assert "Set status" in body
         assert "Delete" in body
         assert "Move to project" in body  # top-level task → move row present
+        # Labels submenu carries a type-to-search input like assignee/project.
+        assert 'x-ref="lsearch"' in body
 
     def test_subtask_hides_move(self, client, setup):
         user, project, task = setup
