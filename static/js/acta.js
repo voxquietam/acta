@@ -2984,6 +2984,26 @@
       recomputeKanbanSubstatus();
     });
 
+    // Stuck-popover guard (UI-20). The table's hover label popovers
+    // (``labelsCluster``) close only on ``mouseleave``, which the browser
+    // does NOT fire reliably when rows shift under a stationary cursor (a
+    // burst of SSE inserts from a peer / MCP bulk-create) or when the list
+    // scrolls. Broadcast ``acta:dismiss-popovers`` on those moments — each
+    // cluster listens via ``@acta:dismiss-popovers.window`` and closes.
+    // rAF-throttled so a scroll storm collapses into one dispatch per frame.
+    let _dismissScheduled = false;
+    function dismissPopovers() {
+      if (_dismissScheduled) return;
+      _dismissScheduled = true;
+      requestAnimationFrame(() => {
+        _dismissScheduled = false;
+        window.dispatchEvent(new CustomEvent("acta:dismiss-popovers"));
+      });
+    }
+    // Capture phase: ``scroll`` doesn't bubble, so a window-level capture
+    // listener is what catches scrolls inside the inner table/list scroller.
+    window.addEventListener("scroll", dismissPopovers, true);
+
     // New task from another user — server's ``task.created`` broadcast
     // includes the pre-rendered kanban card in ``broadcast_extras``
     // (see ``log_event`` + ``_create_task_post``). If the peer is on
@@ -3033,6 +3053,9 @@
       // column / section counts settle.
       if (window.actaApplyFilters) queueMicrotask(window.actaApplyFilters);
       document.body.dispatchEvent(new CustomEvent("acta:task-created", { bubbles: true }));
+      // Rows just shifted under the cursor — close any hover popover that
+      // the missing ``mouseleave`` would otherwise leave stuck open.
+      dismissPopovers();
     });
 
     // Live refresh on the task detail page. Each section wrapper
