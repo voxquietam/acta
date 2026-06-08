@@ -19,8 +19,15 @@ Optional context:
 <div class="space-y-6" data-list-sections>
   {% for section in sections %}
   {% if section.tasks %}
-  <section data-list-section data-section-key="{{ section.key }}">
-    <div class="flex items-baseline gap-2 mb-2 px-1">
+  <section data-list-section data-section-key="{{ section.key }}" x-data="listSectionSelect">
+    <div class="flex items-center gap-2 mb-2 px-1 acta-section-head"
+         :class="$store.selection.size > 0 ? 'is-selmode' : ''">
+      <input type="checkbox"
+             class="acta-checkbox acta-section-check shrink-0"
+             :class="{ 'is-on': allSelected, 'is-indet': someSelected && !allSelected }"
+             :checked="allSelected"
+             @click.prevent.stop="toggle()"
+             aria-label="{% trans 'Select all tasks in this section' %}">
       <h2 class="text-xs uppercase tracking-wider font-medium
         {% if section.tone == 'rose' %}text-rose-400
         {% elif section.tone == 'amber' %}text-amber-400

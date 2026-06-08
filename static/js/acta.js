@@ -3997,10 +3997,12 @@
     // Used by the floating action bar AND the bulk context menu (right-
     // click on a selected task). The endpoint contract is in
     // docs/decisions/0012-bulk-operations.md. On success we clear the
-    // selection and fire ``acta:bulk-changed`` (+ legacy
-    // ``acta:bulk-archived``); page panels listen via ``hx-trigger`` and
-    // refetch their fragment, so the board reflects the change without a
-    // full reload / SSE reconnect.
+    // selection and fire ``acta:bulk-changed``; page panels listen via
+    // ``hx-trigger`` and refetch their fragment, so the board reflects the
+    // change without a full reload / SSE reconnect. A single event only —
+    // panels that also listened for the legacy ``acta:bulk-archived`` were
+    // refetching twice (one bulk action → two fragment swaps → visible
+    // double flicker).
     function csrfToken() {
       const m = document.cookie.match(/csrftoken=([^;]+)/);
       return m ? decodeURIComponent(m[1]) : "";
@@ -4021,7 +4023,6 @@
         // clear it so the bulk bar / menu dismiss.
         if (!(opts && opts.keepSelection)) store.clear();
         document.body.dispatchEvent(new CustomEvent("acta:bulk-changed", { bubbles: true }));
-        document.body.dispatchEvent(new CustomEvent("acta:bulk-archived", { bubbles: true }));
         return true;
       }
       let detail = "";
@@ -4095,6 +4096,42 @@
       },
       hide() {
         this.open = false;
+      },
+    }));
+
+    // Section-level "select all" for the list view. Mounted on each
+    // ``<section data-list-section>``; reads the task ids of its own
+    // (filter-visible) rows and reflects / drives ``$store.selection``
+    // for the whole group. The getters touch ``$store.selection.has``
+    // so Alpine tracks the store and re-evaluates the header checkbox
+    // (checked / indeterminate) whenever the selection changes.
+    window.Alpine.data("listSectionSelect", () => ({
+      _ids() {
+        // ``$root`` (the ``<section>`` the x-data is mounted on), NOT
+        // ``$el`` — inside a method fired from the header checkbox's
+        // ``@click`` the current element is that checkbox, which holds no
+        // task rows; ``$root`` is the section that actually contains them.
+        return [...this.$root.querySelectorAll("[data-task-id]:not([hidden])")]
+          .map((r) => Number(r.dataset.taskId))
+          .filter(Number.isFinite);
+      },
+      get allSelected() {
+        const ids = this._ids();
+        if (!ids.length) return false;
+        const sel = this.$store.selection;
+        return ids.every((id) => sel.has(id));
+      },
+      get someSelected() {
+        const sel = this.$store.selection;
+        return this._ids().some((id) => sel.has(id));
+      },
+      toggle() {
+        const sel = this.$store.selection;
+        const ids = this._ids();
+        const allOn = ids.length > 0 && ids.every((id) => sel.has(id));
+        if (allOn) ids.forEach((id) => sel.ids.delete(id));
+        else ids.forEach((id) => sel.ids.add(id));
+        sel._tick();
       },
     }));
   });

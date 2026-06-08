@@ -18,11 +18,31 @@ status dot · slug + priority chevron · title (flex-1) · size · labels
    data-task-title="{{ task.title }}"
    {% open_task_modal_attrs task %}
    {% task_filter_attrs task %}
-   class="group flex items-center gap-2.5 px-3.5 py-2 hover:bg-muted/55 text-[13px]{% if task.archived_at %} opacity-70{% endif %}">
+   class="group acta-listrow flex items-center gap-2.5 px-3.5 py-2 text-[13px]{% if task.archived_at %} opacity-70{% endif %}"
+   :class="{
+     'is-selmode': $store.selection.size > 0,
+     'bg-brand-500/[0.07] shadow-[inset_3px_0_0_0_rgba(66,90,245,0.5)]': $store.selection.has({{ task.id }}),
+     'hover:bg-muted/55': !$store.selection.has({{ task.id }}),
+   }">
 
-  <span class="w-[7px] h-[7px] rounded-full shrink-0 acta-filter-dot {{ task.status|status_dot_classes }}"
-    title="{% trans 'Filter by status' %}: {{ status_labels|get_item:task.status|default:task.status }}"
-    data-filter-name="status" data-filter-value="{{ task.status }}"></span>
+  {# Status dot doubles as a selection slot: the dot fades out and a       #}
+  {# checkbox fades in on row hover, when the row is selected, or while    #}
+  {# any selection is active (``.is-selmode`` mirrors the store size).     #}
+  <span class="relative shrink-0 grid place-items-center w-3.5 h-3.5">
+    <span class="acta-rowsel-dot w-[7px] h-[7px] rounded-full acta-filter-dot {{ task.status|status_dot_classes }}"
+      title="{% trans 'Filter by status' %}: {{ status_labels|get_item:task.status|default:task.status }}"
+      data-filter-name="status" data-filter-value="{{ task.status }}"></span>
+    {# Visual "checked" rides a reactive class (``is-on``), not the native #}
+    {# ``checked`` property: the row is an ``<a>`` so the click must        #}
+    {# ``preventDefault`` to stop navigation, and Chromium reverts a        #}
+    {# checkbox's ``checked`` on a prevented click. ``:class`` is immune.   #}
+    <input type="checkbox"
+      class="acta-checkbox acta-rowsel-check absolute inset-0 m-auto"
+      :class="$store.selection.has({{ task.id }}) ? 'is-on' : ''"
+      :checked="$store.selection.has({{ task.id }})"
+      @click.prevent.stop="$store.selection.toggle({{ task.id }})"
+      aria-label="{% trans 'Select task' %}">
+  </span>
 
   <span class="font-mono text-[11px] text-placeholder-foreground shrink-0 inline-flex items-center gap-1">
     {{ task.slug }}

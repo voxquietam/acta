@@ -1378,16 +1378,40 @@ html.dark .acta-label-pill[data-state="on"] {
 html.dark .acta-checkbox {
   background-color: rgb(var(--muted));
 }
-.acta-checkbox:checked {
+/* ``html.dark .acta-checkbox`` (the base dark bg) outweighs a bare
+   ``.acta-checkbox:checked`` on specificity, so the checked / is-on /
+   is-indet brand fills are listed under ``html.dark`` too — otherwise a
+   selected box keeps the muted bg in dark mode. */
+.acta-checkbox:checked,
+.acta-checkbox.is-on,
+html.dark .acta-checkbox:checked,
+html.dark .acta-checkbox.is-on {
   background-color: #2e44d6;       /* brand-600 */
   border-color: #425af5;            /* brand-500 */
 }
-.acta-checkbox:checked::after {
+.acta-checkbox:checked::after,
+.acta-checkbox.is-on::after {
   content: "";
   width: 0.55rem;
   height: 0.55rem;
   background-color: white;
   clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+}
+/* Indeterminate ("some but not all") — a centered dash. Driven by a
+   reactive ``is-indet`` class for the same reason ``is-on`` exists: the
+   native ``indeterminate`` property is brittle across prevented clicks,
+   the class binding is not. */
+.acta-checkbox.is-indet,
+html.dark .acta-checkbox.is-indet {
+  background-color: #2e44d6;
+  border-color: #425af5;
+}
+.acta-checkbox.is-indet::after {
+  content: "";
+  width: 0.5rem;
+  height: 0.15rem;
+  border-radius: 1px;
+  background-color: white;
 }
 
 /* Click-to-filter cells on task rows (status / priority / size / cycle
@@ -1956,4 +1980,41 @@ select:-webkit-autofill {
 .acta-table.has-selection .acta-row-check,
 .acta-row[data-selected="true"] .acta-row-check {
   opacity: 1;
+}
+
+/* List-view multi-select (My Work / All Tasks / project detail). The
+   list row is a whole-row ``<a>`` whose leftmost status dot doubles as
+   a selection slot: the dot fades out and a checkbox fades in on row
+   hover, when the row is selected, or while any selection is active
+   (``.is-selmode`` mirrors ``$store.selection.size > 0``, set by Alpine).
+   Mirrors the table's ``.acta-row-check`` reveal so both surfaces match. */
+.acta-rowsel-dot {
+  transition: opacity 100ms ease;
+}
+.acta-rowsel-check {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 100ms ease;
+}
+.acta-listrow:hover .acta-rowsel-check,
+.acta-listrow.is-selmode .acta-rowsel-check {
+  opacity: 1;
+  pointer-events: auto;
+}
+.acta-listrow:hover .acta-rowsel-dot,
+.acta-listrow.is-selmode .acta-rowsel-dot {
+  opacity: 0;
+}
+
+/* Section-header "select all" checkbox: hidden until the section is
+   hovered or a selection is active, so idle headers stay uncluttered. */
+.acta-section-check {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 100ms ease;
+}
+.acta-section-head:hover .acta-section-check,
+.acta-section-head.is-selmode .acta-section-check {
+  opacity: 1;
+  pointer-events: auto;
 }
