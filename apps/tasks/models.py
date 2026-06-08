@@ -227,6 +227,25 @@ class Task(models.Model):
             "Maintained in save() and the bulk update path. Powers the completed-date filter"
         ),
     )
+    recurrence = models.ForeignKey(
+        "recurring.RecurringTask",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="instances",
+        help_text=(
+            "Recurring-task rule that spawned this task; null for normal tasks. "
+            "SET_NULL so the task survives the rule's deletion"
+        ),
+    )
+    occurrence_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text=(
+            "The scheduled occurrence date this task was generated for; null for "
+            "normal tasks. Unique per recurrence for idempotent generation"
+        ),
+    )
 
     class Meta:
         constraints = [
@@ -236,6 +255,14 @@ class Task(models.Model):
                     "number",
                 ],
                 name="tasks_unique_project_number",
+            ),
+            models.UniqueConstraint(
+                fields=[
+                    "recurrence",
+                    "occurrence_date",
+                ],
+                condition=models.Q(recurrence__isnull=False),
+                name="tasks_unique_recurrence_occurrence",
             ),
         ]
         indexes = [

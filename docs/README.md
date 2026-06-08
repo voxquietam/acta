@@ -30,6 +30,7 @@ ADR format: **Context → Options → Decision → Why → Consequences**.
 | 0021 | accepted | Notification inbox: persistent, per-user fan-out (supersedes 0017) | [0021-notification-inbox.md](decisions/0021-notification-inbox.md) |
 | 0022 | accepted | Polymorphic Comment model: task OR project update, one-level replies | [0022-polymorphic-comments.md](decisions/0022-polymorphic-comments.md) |
 | 0023 | accepted | Mentions: `@user` / `@task` markdown-token pipeline, bleach-hardened chips | [0023-mentions.md](decisions/0023-mentions.md) |
+| 0028 | accepted | Recurring tasks: rule entity + daily materializer, structured cadence | [0028-recurring-tasks.md](decisions/0028-recurring-tasks.md) |
 
 ## Operations
 

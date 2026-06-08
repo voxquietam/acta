@@ -27,3 +27,8 @@ def notify_cycle_events() -> None:
 def flush_telegram_quiet_digests() -> None:
     """Send a batched digest to each account whose quiet window just closed."""
     call_command("flush_telegram_quiet_digests")
+
+
+def materialize_recurring_tasks() -> None:
+    """Spawn tasks from recurring-task rules whose occurrence is due."""
+    call_command("materialize_recurring_tasks")

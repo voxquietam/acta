@@ -16,6 +16,7 @@ _JOBS = [
     ("archive stale done tasks", "apps.common.scheduled.archive_stale_done_tasks", (3, 30)),
     ("gc orphan attachments", "apps.common.scheduled.gc_orphan_attachments", (4, 0)),
     ("notify cycle events", "apps.common.scheduled.notify_cycle_events", (6, 0)),
+    ("materialize recurring tasks", "apps.common.scheduled.materialize_recurring_tasks", (5, 0)),
 ]
 
 # Minute-cadence schedules (django-q ``MINUTES`` cycle). Used for the
