@@ -50,8 +50,10 @@ def telegram_webhook(request, secret):
     return HttpResponse(status=200)
 
 
-# Notification kinds offered as per-chat delivery toggles (SYSTEM omitted —
-# it isn't user-facing). Order = how they read in the settings list.
+# Notification kinds offered as per-chat delivery toggles. Order = how they
+# read in the settings list. SYSTEM is last — it gates the deploy heads-up
+# ("SYSTEM UPDATE INCOMING") broadcast, the only opt-out for those messages
+# short of disabling Telegram entirely.
 def _kind_pref_kinds():
     from apps.notifications.models import Notification
 
@@ -67,6 +69,7 @@ def _kind_pref_kinds():
         K.DUE,
         K.PROJECT_UPDATE,
         K.CYCLE,
+        K.SYSTEM,
     ]
 
 
@@ -84,6 +87,9 @@ def settings_context(user):
 
         muted = set(account.muted_kinds or [])
         labels = dict(Notification.Kind.choices)
+        # "System" alone is opaque next to the other chips — spell out that it
+        # gates the deploy / downtime heads-up.
+        labels[Notification.Kind.SYSTEM] = _("System updates")
         # (value, label, is_on) per offered kind — "on" = not muted.
         ctx["telegram_kind_prefs"] = [(k, labels[k], k not in muted) for k in _kind_pref_kinds()]
     return ctx

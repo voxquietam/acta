@@ -31,6 +31,20 @@ def test_broadcasts_to_enabled_accounts(monkeypatch):
 
 
 @pytest.mark.django_db
+def test_skips_accounts_that_muted_system(monkeypatch):
+    """A chat that muted the ``system`` kind opts out of deploy heads-ups."""
+    sent = _capture(monkeypatch)
+    a = TelegramAccountFactory(enabled=True)
+    TelegramAccountFactory(enabled=True, muted_kinds=["system"])  # opted out of system updates
+    # Muting some other kind must NOT exclude the chat from deploy pings.
+    c = TelegramAccountFactory(enabled=True, muted_kinds=["comment", "mention"])
+
+    call_command("notify_deploy", branch="dev")
+
+    assert sorted(sent) == sorted([a.chat_id, c.chat_id])
+
+
+@pytest.mark.django_db
 @override_settings(TELEGRAM_DEPLOY_CHAT_ID="555")
 def test_override_chat_id_sends_only_there(monkeypatch):
     """``TELEGRAM_DEPLOY_CHAT_ID`` set → single chat, accounts ignored."""

@@ -5,9 +5,11 @@ step, on ANY branch, so people get a warning before the brief restart.
 
 Targeting: there is no group chat — bot delivery is per linked user
 (``TelegramAccount.chat_id``). By default the heads-up fans out to every
-linked account with ``enabled=True`` (i.e. the team that opted into bot
-notifications). Set ``TELEGRAM_DEPLOY_CHAT_ID`` to override and send to a
-single chat instead (an ops group, or one person).
+linked account with ``enabled=True`` that hasn't muted the ``SYSTEM`` kind
+("System updates" in settings) — i.e. the team that opted into bot
+notifications and still wants downtime warnings. Set
+``TELEGRAM_DEPLOY_CHAT_ID`` to override and send to a single chat instead
+(an ops group, or one person); the override ignores per-user mutes.
 
 Best-effort throughout: a missing bot token or zero reachable chats makes
 this a no-op and never aborts the deploy — matching the rest of the
@@ -56,7 +58,17 @@ class Command(BaseCommand):
         if override:
             chat_ids = [int(override)]
         else:
-            chat_ids = list(TelegramAccount.objects.filter(enabled=True).values_list("chat_id", flat=True))
+            from apps.notifications.models import Notification
+
+            # Honour the per-chat "System updates" mute: these heads-ups bypass
+            # the notification pipeline, so the opt-out is read straight off
+            # ``muted_kinds`` here. The explicit override above is an ops target
+            # and intentionally ignores user prefs.
+            chat_ids = list(
+                TelegramAccount.objects.filter(enabled=True)
+                .exclude(muted_kinds__contains=[Notification.Kind.SYSTEM])
+                .values_list("chat_id", flat=True)
+            )
         if not chat_ids:
             self.stdout.write("notify_deploy: no reachable chats — skipped")
             return
