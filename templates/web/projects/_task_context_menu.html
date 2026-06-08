@@ -102,6 +102,16 @@ picker. Expects ``task``, ``status_labels``, ``priority_labels``,
 
     <div class="-mx-1 my-1 border-t border-border"></div>
 
+    {# Make recurring — opens the recurring-rule editor seeded from this task. #}
+    <button type="button"
+            @click="window.htmx && window.htmx.ajax('GET', '{% url 'web:recurring_new' %}?from_task={{ task.slug|escapejs }}', { target: '#modal-root', swap: 'innerHTML' }); close()"
+            class="group w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left hover:bg-muted/40 hover:text-foreground transition">
+      <span class="text-placeholder-foreground group-hover:text-foreground inline-flex shrink-0">{% lucide "repeat" "w-3.5 h-3.5" %}</span>
+      <span class="flex-1">{% trans "Make recurring…" %}</span>
+    </button>
+
+    <div class="-mx-1 my-1 border-t border-border"></div>
+
     {# Cancel / Reopen #}
     <form hx-post="{% url 'web:cancel_task' slug_prefix=task.project.slug_prefix number=task.number %}" hx-swap="none">
       {% csrf_token %}

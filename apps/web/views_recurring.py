@@ -24,7 +24,13 @@ from apps.recurring import services
 from apps.recurring.models import RecurringTask
 from apps.tasks.models import Task
 from apps.web.nav import resolve_active_workspace
-from apps.web.views import _is_htmx_partial, _project_labels_qs, _project_members_qs, _user_accessible_projects
+from apps.web.views import (
+    _is_htmx_partial,
+    _project_labels_qs,
+    _project_members_qs,
+    _resolve_link_target,
+    _user_accessible_projects,
+)
 
 _SIZE_VALUES = {1, 2, 3, 5, 8, 13}
 
@@ -110,26 +116,46 @@ def recurring_list(request):
     return render(request, "web/recurring/recurring.html", ctx)
 
 
-def _editor_context(request, *, rule=None, selected_project=None):
-    """Build the create/edit modal context (blueprint pickers + rule state)."""
+def _editor_context(request, *, rule=None):
+    """Build the create/edit modal context.
+
+    For a new rule, the blueprint fields can be seeded from a task via
+    ``?from_task=<slug>`` (the "Make recurring" action). ``obj`` is the
+    object the template reads field values from — the rule when editing,
+    or an unsaved seed (task-prefilled or plain defaults) when creating.
+    """
     projects = list(_user_accessible_projects(request.user, resolve_active_workspace(request)))
-    if selected_project is None:
-        if rule is not None:
-            selected_project = rule.project
-        elif projects:
+    selected_project = None
+    selected_label_ids = []
+    seed = RecurringTask()
+    if rule is not None:
+        selected_project = rule.project
+        selected_label_ids = list(rule.labels.values_list("id", flat=True))
+    else:
+        from_slug = (request.GET.get("from_task") or "").strip()
+        task = _resolve_link_target(request.user, from_slug) if from_slug else None
+        if task is not None:
+            seed.title = task.title
+            seed.description = task.description
+            seed.priority = task.priority
+            seed.size = task.size
+            seed.assignee = task.assignee
+            selected_project = task.project
+            selected_label_ids = list(task.labels.values_list("id", flat=True))
+        if selected_project is None and projects:
             requested = request.GET.get("project") or ""
             selected_project = next((p for p in projects if p.slug_prefix == requested), projects[0])
+    obj = rule or seed
     members = list(_project_members_qs(selected_project)) if selected_project else []
     label_groups = grouped_labels(selected_project.workspace) if selected_project else []
-    selected_label_ids = list(rule.labels.values_list("id", flat=True)) if rule is not None else []
     return {
         "rule": rule,
+        "obj": obj,
         "projects": projects,
         "selected_project": selected_project,
         "members": members,
         "label_groups": label_groups,
         "selected_label_ids": selected_label_ids,
-        "status_labels": Task.STATUS_LABELS,
         "priority_labels": dict(Task.PRIORITY_CHOICES),
         "size_values": sorted(_SIZE_VALUES),
         "freq_choices": RecurringTask.Freq.choices,

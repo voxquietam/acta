@@ -134,6 +134,57 @@ def test_run_now_spawns_task(client, ws_project):
 
 
 @pytest.mark.django_db
+def test_editor_seeds_from_task(client, ws_project):
+    from apps.tasks.tests.factories import TaskFactory
+
+    ws, project = ws_project
+    task = TaskFactory(project=project, title="Seed me", priority=2)
+    client.force_login(ws.owner)
+    body = client.get(
+        reverse("web:recurring_new"),
+        {"from_task": task.slug},
+        HTTP_HX_REQUEST="true",
+    ).content.decode()
+    # Title pre-filled from the task; the modal is still in "new rule" mode.
+    assert 'value="Seed me"' in body
+    assert "Create rule" in body
+
+
+@pytest.mark.django_db
+def test_context_menu_has_make_recurring(client, ws_project):
+    from apps.tasks.tests.factories import TaskFactory
+
+    ws, project = ws_project
+    task = TaskFactory(project=project)
+    client.force_login(ws.owner)
+    menu = client.get(
+        reverse("web:task_context_menu", kwargs={"slug_prefix": project.slug_prefix, "number": task.number}),
+    ).content.decode()
+    assert "Make recurring" in menu
+    # ``escapejs`` encodes the slug's hyphen (``-``); the JS decodes it
+    # back to the real slug at click time. Assert the param key is wired.
+    assert "recurring/new/?from_task=" in menu
+
+
+@pytest.mark.django_db
+def test_recurring_instance_badge_and_marker(client, ws_project):
+    from apps.recurring.services import materialize_due
+
+    ws, project = ws_project
+    rule = RecurringTaskFactory(project=project, workspace=ws, title="Daily ritual", freq="daily", start_date=TODAY)
+    created = materialize_due(datetime.date.fromisoformat(TODAY))
+    task = next(t for t in created if t.recurrence_id == rule.id)
+    client.force_login(ws.owner)
+    detail = client.get(
+        reverse("web:task_detail", kwargs={"slug_prefix": project.slug_prefix, "number": task.number}),
+    ).content.decode()
+    assert "Repeats" in detail
+    assert "Edit schedule" in detail
+    table = client.get(reverse("web:all_tasks") + "?view=table").content.decode()
+    assert "Recurring task" in table  # the marker's title attribute
+
+
+@pytest.mark.django_db
 def test_list_filters(client, ws_project):
     ws, project = ws_project
     other = ProjectFactory(workspace=ws)

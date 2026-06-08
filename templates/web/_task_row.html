@@ -51,6 +51,9 @@ status dot · slug + priority chevron · title (flex-1) · size · labels
     {# row's opacity-70 so the whole row reads as muted/archived.         #}
     <span class="text-placeholder-foreground" title="{% trans 'Archived' %}">{% lucide "archive" "w-3 h-3" %}</span>
     {% endif %}
+    {% if task.recurrence_id %}
+    <span class="text-placeholder-foreground" title="{% trans 'Recurring task' %}">{% lucide "repeat" "w-3 h-3" %}</span>
+    {% endif %}
     {% if task.priority %}
     <span class="acta-filter-chip {{ task.priority|priority_text_classes }}"
       title="{% trans 'Filter by priority' %}: {{ priority_labels|get_item:task.priority }}"

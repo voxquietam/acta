@@ -15,11 +15,11 @@ builder. Members + labels are workspace-scoped, so the project
 
 {% block root_attrs %}
 x-data="{
-  freq: '{{ rule.freq|default:'weekly' }}',
-  interval: {{ rule.interval|default:1 }},
-  weekdays: [{% for d in rule.weekdays %}'{{ d }}'{% if not forloop.last %}, {% endif %}{% endfor %}],
-  dayOfMonth: '{{ rule.day_of_month|default:'' }}',
-  endMode: '{{ rule.end_mode|default:'never' }}',
+  freq: '{{ obj.freq|default:'weekly' }}',
+  interval: {{ obj.interval|default:1 }},
+  weekdays: [{% for d in obj.weekdays %}'{{ d }}'{% if not forloop.last %}, {% endif %}{% endfor %}],
+  dayOfMonth: '{{ obj.day_of_month|default:'' }}',
+  endMode: '{{ obj.end_mode|default:'never' }}',
   close() { const r = document.getElementById('modal-root'); if (r) r.innerHTML = ''; },
   toggleWeekday(d) { const i = this.weekdays.indexOf(d); if (i === -1) this.weekdays.push(d); else this.weekdays.splice(i, 1); },
   get summary() {
@@ -79,7 +79,7 @@ x-data="{
     <div>
       <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Title" %}</label>
       <input type="text" name="title" maxlength="200" required x-ref="title"
-             value="{{ rule.title|default:'' }}"
+             value="{{ obj.title|default:'' }}"
              class="mt-1 acta-input" placeholder="{% trans 'What needs doing each time?' %}">
     </div>
 
@@ -87,7 +87,7 @@ x-data="{
       <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Description" %}</label>
       <textarea name="description" rows="2"
                 class="mt-1 acta-input resize-y"
-                placeholder="{% trans 'Optional details (Markdown)…' %}">{{ rule.description|default:'' }}</textarea>
+                placeholder="{% trans 'Optional details (Markdown)…' %}">{{ obj.description|default:'' }}</textarea>
     </div>
 
     <div class="grid grid-cols-3 gap-3">
@@ -95,7 +95,7 @@ x-data="{
         <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Priority" %}</label>
         <select name="priority" class="mt-1 acta-input">
           {% for value, label in priority_labels.items %}
-          <option value="{{ value }}" {% if rule and rule.priority == value %}selected{% endif %}>{{ label }}</option>
+          <option value="{{ value }}" {% if obj.priority == value %}selected{% endif %}>{{ label }}</option>
           {% endfor %}
         </select>
       </div>
@@ -104,7 +104,7 @@ x-data="{
         <select name="size" class="mt-1 acta-input">
           <option value="">—</option>
           {% for value in size_values %}
-          <option value="{{ value }}" {% if rule and rule.size == value %}selected{% endif %}>{{ value }}</option>
+          <option value="{{ value }}" {% if obj.size == value %}selected{% endif %}>{{ value }}</option>
           {% endfor %}
         </select>
       </div>
@@ -113,7 +113,7 @@ x-data="{
         <select name="assignee" class="mt-1 acta-input">
           <option value="">{% trans "— Unassigned —" %}</option>
           {% for user in members %}
-          <option value="{{ user.id }}" {% if rule and rule.assignee_id == user.id %}selected{% endif %}>
+          <option value="{{ user.id }}" {% if obj.assignee_id == user.id %}selected{% endif %}>
             {{ user.display_name|default:user.username }}
           </option>
           {% endfor %}
@@ -256,7 +256,7 @@ x-data="{
           <div class="shrink-0">
             <label class="block text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Create early" %}</label>
             <input type="number" name="lead_time_days" min="0" max="365"
-                   value="{{ rule.lead_time_days|default:0 }}" class="mt-1 acta-input w-20 text-center"
+                   value="{{ obj.lead_time_days|default:0 }}" class="mt-1 acta-input w-20 text-center"
                    title="{% trans 'Days before the due date to create the task (0 = on the day)' %}">
           </div>
         </div>
@@ -288,7 +288,7 @@ x-data="{
         <div>
           <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Start date" %}</label>
           <input type="date" name="start_date" required
-                 value="{{ rule.start_date|date:'Y-m-d'|default:today }}"
+                 value="{{ obj.start_date|date:'Y-m-d'|default:today }}"
                  class="mt-1 acta-input">
         </div>
         <div>
@@ -307,12 +307,12 @@ x-data="{
         <div>
           <div x-show="endMode === 'on_date'" x-cloak>
             <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "End date" %}</label>
-            <input type="date" name="end_date" value="{{ rule.end_date|date:'Y-m-d'|default:'' }}" class="mt-1 acta-input">
+            <input type="date" name="end_date" value="{{ obj.end_date|date:'Y-m-d'|default:'' }}" class="mt-1 acta-input">
           </div>
           <div x-show="endMode === 'after_count'" x-cloak>
             <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Occurrences" %}</label>
             <input type="number" name="max_occurrences" min="1"
-                   value="{{ rule.max_occurrences|default:'' }}" class="mt-1 acta-input">
+                   value="{{ obj.max_occurrences|default:'' }}" class="mt-1 acta-input">
           </div>
         </div>
       </div>
