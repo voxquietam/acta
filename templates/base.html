@@ -12,6 +12,17 @@
   <link rel="icon" type="image/png" sizes="16x16" href="{% static 'img/brand/favicon-16.png' %}">
   <link rel="apple-touch-icon" sizes="180x180" href="{% static 'img/brand/apple-touch-icon.png' %}">
 
+  {# PWA — installable web app. Manifest + worker are rendered views (root #}
+  {# scope, hash-aware icon URLs); see ADR 0029. theme-color matches the   #}
+  {# dark default surface (zinc-950) so the standalone chrome blends in.   #}
+  <link rel="manifest" href="{% url 'web:pwa_manifest' %}">
+  <meta name="theme-color" content="#09090b">
+  <meta name="application-name" content="Acta">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Acta">
+
   {% comment %}
   Pre-paint theme set: read ``acta:theme`` from localStorage and put
   the matching class on ``<html>`` BEFORE the first paint so a
@@ -242,6 +253,18 @@
   {# output ~54 KB. Bundle split into core + timeline + kanban lazy    #}
   {# chunks is deferred — see handoff memory for the plan.             #}
   <script src="{% static 'js/acta.min.js' %}"></script>
+
+  {# PWA service-worker registration. Deferred to ``load`` so it never #}
+  {# competes with the critical path; the browser only treats the app  #}
+  {# as installable on a secure context (https / localhost). See ADR    #}
+  {# 0029 — the worker is network-first, so it can't serve stale pages. #}
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("{% url 'web:service_worker' %}").catch(function () {});
+      });
+    }
+  </script>
   {% comment %}
   Description editor bundle — TipTap + extensions compiled from
   ``static_src/js/description_editor.js`` via esbuild (~169 KB gzip).

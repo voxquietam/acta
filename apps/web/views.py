@@ -8073,3 +8073,43 @@ def palette_search(request):
             ],
         },
     )
+
+
+def pwa_manifest(request):
+    """Serve the PWA web app manifest.
+
+    Rendered rather than served as a static file so the icon ``src`` URLs
+    resolve through ``{% static %}``: production hashes static filenames via
+    WhiteNoise's manifest storage, so a fixed-path static manifest would 404
+    after every asset rebuild. Public — the login page links it too.
+
+    Returns:
+        The manifest with the ``application/manifest+json`` content type.
+    """
+    return render(
+        request,
+        "web/pwa_manifest.json",
+        content_type="application/manifest+json",
+    )
+
+
+def service_worker(request):
+    """Serve the service worker from root scope.
+
+    Must be served from ``/sw.js`` (not under ``/static/``) so the worker's
+    scope covers the whole origin. Sent uncached at the HTTP layer so an
+    updated worker is picked up on the next visit. The worker is network-first
+    for navigations and cache-first only for versioned ``/static/`` assets —
+    see the template header and ADR 0029. Public.
+
+    Returns:
+        The worker script with the ``application/javascript`` content type.
+    """
+    response = render(
+        request,
+        "web/service_worker.js",
+        content_type="application/javascript",
+    )
+    response["Cache-Control"] = "no-cache"
+    response["Service-Worker-Allowed"] = "/"
+    return response

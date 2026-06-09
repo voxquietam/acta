@@ -53,6 +53,7 @@ from .views import (
     post_project_update,
     post_update_comment,
     project_insights,
+    pwa_manifest,
     read_all_notifications,
     remove_task_link,
     remove_workspace_member,
@@ -60,6 +61,7 @@ from .views import (
     resend_workspace_invite,
     revoke_workspace_invite,
     serve_attachment,
+    service_worker,
     set_notification_read,
     set_project_archived,
     set_project_description,
@@ -116,6 +118,11 @@ app_name = "web"
 
 urlpatterns = [
     path("", DashboardView.as_view(), name="dashboard"),
+    # PWA: manifest + service worker. The worker lives at the site root so its
+    # scope covers the whole origin; both are public (linked from the login
+    # page too). See ADR 0029.
+    path("manifest.webmanifest", pwa_manifest, name="pwa_manifest"),
+    path("sw.js", service_worker, name="service_worker"),
     path("my-work/", MyWorkView.as_view(), name="my_work"),
     path("my-work/export.json", export_my_work_json, name="export_my_work_json"),
     path("my-work/facets", my_work_facets, name="my_work_facets"),
