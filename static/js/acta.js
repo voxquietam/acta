@@ -3947,17 +3947,23 @@
         // columns already ARE the statuses, so a status filter would leave
         // most columns empty — and the Status sidebar section is hidden here,
         // so the user couldn't clear it. Only status/xstatus reset; every
-        // other active filter stays.
+        // other active filter stays. Done SYNCHRONOUSLY (no requestSubmit):
+        // ``loadPanel`` below reads ``window.location`` to fetch the kanban
+        // slot, so the URL must already be status-free or the panel loads
+        // filtered and the other-status cards go missing until a reload.
         if (value === "kanban") {
           const form = document.getElementById("filter-form");
-          if (form) {
-            const fd = new FormData(form);
-            if (fd.getAll("status").length + fd.getAll("xstatus").length > 0) {
-              window.dispatchEvent(new CustomEvent("acta:filter-reset-status"));
-              // ``requestAnimationFrame`` so Alpine flushes the chips' reactive
-              // ``:checked`` / ``:name`` before the form serialises.
-              requestAnimationFrame(() => form.requestSubmit());
-            }
+          const fd = form ? new FormData(form) : null;
+          if (fd && fd.getAll("status").length + fd.getAll("xstatus").length > 0) {
+            window.dispatchEvent(new CustomEvent("acta:filter-reset-status"));
+            const u = new URL(window.location.href);
+            u.searchParams.delete("status");
+            u.searchParams.delete("xstatus");
+            history.replaceState({}, "", u.pathname + u.search);
+            // Force a clean reload of the kanban slot (it may be cached from a
+            // prior, status-filtered visit).
+            const slot = document.querySelector('[data-panel-slot="kanban"]');
+            if (slot) slot.replaceChildren();
           }
         }
         // Lazy panels (list / timeline) fill on first paint, but a slow
