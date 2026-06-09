@@ -3943,6 +3943,23 @@
         // previously-server-rendered view.
         const oneYear = 60 * 60 * 24 * 365;
         document.cookie = `acta_view_mode=${value}; path=/; max-age=${oneYear}; samesite=Lax`;
+        // Entering kanban: drop any active status filter (BOARD-10). Kanban
+        // columns already ARE the statuses, so a status filter would leave
+        // most columns empty — and the Status sidebar section is hidden here,
+        // so the user couldn't clear it. Only status/xstatus reset; every
+        // other active filter stays.
+        if (value === "kanban") {
+          const form = document.getElementById("filter-form");
+          if (form) {
+            const fd = new FormData(form);
+            if (fd.getAll("status").length + fd.getAll("xstatus").length > 0) {
+              window.dispatchEvent(new CustomEvent("acta:filter-reset-status"));
+              // ``requestAnimationFrame`` so Alpine flushes the chips' reactive
+              // ``:checked`` / ``:name`` before the form serialises.
+              requestAnimationFrame(() => form.requestSubmit());
+            }
+          }
+        }
         // Lazy panels (list / timeline) fill on first paint, but a slow
         // or missed initial fetch can leave the slot empty — the user
         // then switches to that tab and sees nothing. Retrigger the load

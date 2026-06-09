@@ -159,7 +159,10 @@ Section visibility flags from the view:
       </button>
 
       {% if not filter_hide_status %}
+      {# Hidden on the kanban view — its columns already group by status, so #}
+      {# filtering by status there just empties columns (see ADR / BOARD-10). #}
       <button type="button" class="acta-flt-rail-btn" data-tooltip-pos="left"
+              x-show="!($store.viewMode && $store.viewMode.current === 'kanban')" x-cloak
               :class="$store.filters.openSection === 'status' && 'is-active'"
               title="{% trans 'Status' %}"
               @click.stop="$store.filters.openOnly('status', $event)">
@@ -336,8 +339,10 @@ Section visibility flags from the view:
         </div>
 
         {# ---------- STATUS (col-span-2) ---------- #}
+        {# Hidden on kanban — columns already group by status (BOARD-10). #}
         {% if not filter_hide_status %}
-        <div class="acta-flt-sec acta-flt-sec-row span2" data-section="status">
+        <div class="acta-flt-sec acta-flt-sec-row span2" data-section="status"
+             x-show="!($store.viewMode && $store.viewMode.current === 'kanban')" x-cloak>
           <div class="acta-flt-sec-h">
             {% lucide "circle-dot" "w-3 h-3 ic" %}
             <span class="lbl">{% trans "Status" %}</span>
@@ -355,6 +360,7 @@ Section visibility flags from the view:
                    x-data="{ state: '{% if key in excluded_statuses %}excluded{% elif key in selected_statuses %}included{% else %}none{% endif %}' }"
                    {% if key == "planned" or key == "ready" %}x-show="showBacklog" x-cloak{% endif %}
                    @acta:filter-reset.window="state = 'none'"
+                   @acta:filter-reset-status.window="state = 'none'"
                    @contextmenu.prevent="state = state === 'excluded' ? 'none' : 'excluded'; $nextTick(() => document.getElementById('filter-form').requestSubmit())">
               <input type="checkbox"
                      :name="state === 'excluded' ? 'xstatus' : 'status'"
