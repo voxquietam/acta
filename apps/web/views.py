@@ -2449,15 +2449,15 @@ class TaskDetailView(LoginRequiredMixin, DetailView):
     def get_object(self, queryset=None):
         """Resolve the task by slug_prefix + number, 404 if foreign.
 
-        Adds ``reporter`` and ``parent`` to the base queryset's
-        ``select_related`` — both appear on this page (rail's
-        "reporter" line and the "subtask of …" breadcrumb in the
-        title cell). The base ``_user_task_qs`` omits them so the
-        common table / kanban / list views don't pay for joins they
-        never use.
+        Adds ``reporter``, ``parent`` and ``recurrence`` to the base
+        queryset's ``select_related`` — all appear on this page (rail's
+        "reporter" line, the "subtask of …" breadcrumb, and the
+        recurring-series badge in the title cell). The base
+        ``_user_task_qs`` omits them so the common table / kanban / list
+        views don't pay for joins they never use.
         """
         return get_object_or_404(
-            _user_task_qs(self.request.user).select_related("reporter", "parent")
+            _user_task_qs(self.request.user).select_related("reporter", "parent", "recurrence")
             # Links panel + Blocked badge read all three link sets; the
             # ``__project`` hop is needed because each chip renders the
             # linked task's slug (prefix + number).
