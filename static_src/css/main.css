@@ -1122,6 +1122,14 @@ body.acta-flt-mobile-locked {
   flex: 1 1 auto;
   min-height: 0;
 }
+/* On kanban the Status section is hidden (BOARD-10), which removes one
+   span-2 row from the top. Drop the template to 5 rows so the stretchable
+   ``minmax(0, 1fr)`` row still lands on Project|Label — otherwise they
+   shift into a content-sized ``auto`` row and their list scrollers
+   collapse to zero height (empty Project / Labels sections). */
+.acta-flt-content.is-kanban[data-mode="expanded"] .acta-flt-content-b {
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+}
 /* ``order`` rewires the auto-flow without touching the template: pull
    Labels up next to Project (row 5), push Cycle + Date down to row 6.
    Without this the DOM order would put Project|Cycle in row 5 and

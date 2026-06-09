@@ -261,6 +261,10 @@ Section visibility flags from the view:
     {# ========================================================== #}
     <div class="acta-flt-content"
          :data-mode="$store.filters.mode"
+         {# On kanban the Status section is hidden (BOARD-10); that drops a #}
+         {# grid row, so ``is-kanban`` re-maps the expanded grid template   #}
+         {# to keep Project|Label on the stretchable row.                   #}
+         :class="$store.viewMode && $store.viewMode.current === 'kanban' ? 'is-kanban' : ''"
          :data-open="$store.filters.openSection || ''"
          :style="$store.filters.mode === 'rail' && !$store.filters.mobileOpen ? `top: ${$store.filters.openTop}px` : ''"
          x-show="$store.filters.mode === 'expanded' || ($store.filters.mode === 'rail' && $store.filters.openSection) || $store.filters.mobileOpen"
