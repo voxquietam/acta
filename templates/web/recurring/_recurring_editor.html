@@ -60,6 +60,7 @@ x-data="{
       hx-swap="none"
       class="flex flex-col flex-1 min-h-0">
   {% csrf_token %}
+  {% if from_task_slug %}<input type="hidden" name="from_task" value="{{ from_task_slug }}">{% endif %}
 
   <div class="p-4 space-y-3 flex-1 overflow-y-auto min-h-0">
 

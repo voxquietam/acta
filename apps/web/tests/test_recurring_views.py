@@ -66,6 +66,18 @@ def test_create_rule(client, ws_project):
 
 
 @pytest.mark.django_db
+def test_create_daily_rule_logs_without_error(client, ws_project):
+    # Regression: a cadence with no interpolation (e.g. ``_("Daily")``) is a
+    # lazy gettext proxy; it must be coerced to str before going into the
+    # JSON activity-log payload, otherwise the save 500s.
+    ws, project = ws_project
+    client.force_login(ws.owner)
+    resp = client.post(reverse("web:recurring_new"), _valid_post(project, freq="daily"))
+    assert resp.status_code == 204
+    assert RecurringTask.objects.filter(freq="daily").exists()
+
+
+@pytest.mark.django_db
 def test_create_requires_title(client, ws_project):
     ws, project = ws_project
     client.force_login(ws.owner)
@@ -88,6 +100,30 @@ def test_after_count_needs_max(client, ws_project):
     client.force_login(ws.owner)
     resp = client.post(reverse("web:recurring_new"), _valid_post(project, end_mode="after_count"))
     assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+def test_make_recurring_adopts_source_task(client, ws_project):
+    from apps.tasks.tests.factories import TaskFactory
+
+    ws, project = ws_project
+    task = TaskFactory(project=project, title="Weekly report")
+    client.force_login(ws.owner)
+    resp = client.post(
+        reverse("web:recurring_new"),
+        _valid_post(project, title="Weekly report", freq="daily", from_task=task.slug),
+    )
+    assert resp.status_code == 204
+    # The adopted task changed → fire task-changed so panels / detail refresh live.
+    assert "acta:task-changed" in resp["HX-Trigger"]
+    rule = RecurringTask.objects.get(title="Weekly report")
+    task.refresh_from_db()
+    # The source task is now the series' first occurrence → it reads as recurring.
+    assert task.recurrence_id == rule.id
+    assert task.occurrence_date is not None
+    # Cursor advanced past the adopted occurrence; no duplicate will spawn.
+    assert rule.occurrences_created == 1
+    assert rule.next_occurrence_date > task.occurrence_date
 
 
 @pytest.mark.django_db

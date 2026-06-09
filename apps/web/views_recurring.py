@@ -127,6 +127,7 @@ def _editor_context(request, *, rule=None):
     projects = list(_user_accessible_projects(request.user, resolve_active_workspace(request)))
     selected_project = None
     selected_label_ids = []
+    from_task_slug = ""
     seed = RecurringTask()
     if rule is not None:
         selected_project = rule.project
@@ -135,6 +136,7 @@ def _editor_context(request, *, rule=None):
         from_slug = (request.GET.get("from_task") or "").strip()
         task = _resolve_link_target(request.user, from_slug) if from_slug else None
         if task is not None:
+            from_task_slug = task.slug
             seed.title = task.title
             seed.description = task.description
             seed.priority = task.priority
@@ -151,6 +153,7 @@ def _editor_context(request, *, rule=None):
     return {
         "rule": rule,
         "obj": obj,
+        "from_task_slug": from_task_slug,
         "projects": projects,
         "selected_project": selected_project,
         "members": members,
@@ -270,9 +273,49 @@ def _recurring_save(request, rule):
             event_type="recurring.created" if is_create else "recurring.updated",
             target_type=ActivityLog.TARGET_TASK,
             target_id=rule.id,
-            payload={"title": rule.title, "cadence": rule.human_cadence()},
+            # ``str(...)`` forces the lazy ``gettext`` proxy to a concrete
+            # string — the JSONField payload can't serialize a ``__proxy__``
+            # (e.g. a plain ``_("Daily")`` cadence with no interpolation).
+            payload={"title": rule.title, "cadence": str(rule.human_cadence())},
         )
-    return _changed_response()
+        # "Make recurring" from a task: adopt that task as the series' first
+        # occurrence so it visibly becomes recurring (the badge keys off
+        # ``Task.recurrence``). The cursor then advances past it, so the
+        # materializer starts from the next occurrence — no duplicate.
+        adopted = _adopt_source_task(request, rule) if is_create else False
+    resp = _changed_response()
+    if adopted:
+        # The source task changed (it's now recurring) — fire the canonical
+        # task-changed event too so the open detail and every list / table /
+        # board panel refetch and show the badge / marker without a reload.
+        resp["HX-Trigger"] = "acta:recurring-changed, acta:task-changed"
+    return resp
+
+
+def _adopt_source_task(request, rule) -> bool:
+    """Link the originating task to ``rule`` as its first occurrence (best effort).
+
+    No-op (returns ``False``) unless ``from_task`` resolves to an accessible,
+    not-yet-recurring task in the same project as the rule — so changing the
+    project in the editor cleanly opts out of adoption.
+
+    Returns:
+        ``True`` when a task was adopted, else ``False``.
+    """
+    from_slug = (request.POST.get("from_task") or "").strip()
+    if not from_slug or rule.next_occurrence_date is None:
+        return False
+    task = _resolve_link_target(request.user, from_slug)
+    if task is None or task.recurrence_id is not None or task.project_id != rule.project_id:
+        return False
+    occ = rule.next_occurrence_date
+    task.recurrence = rule
+    task.occurrence_date = occ
+    task.save(update_fields=["recurrence", "occurrence_date", "updated_at"])
+    rule.occurrences_created = 1
+    rule.next_occurrence_date = services.occurrence_after(rule, occ)
+    rule.save(update_fields=["occurrences_created", "next_occurrence_date", "updated_at"])
+    return True
 
 
 @login_required

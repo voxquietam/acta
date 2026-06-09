@@ -80,6 +80,19 @@ Re-included by ``task_detail.html`` and rendered standalone by
   Cancel marks the task terminal "won't do" (status → cancelled); reopen
   sends a cancelled task back to to-do. Archive is orthogonal (hide).
   {% endcomment %}
+  {% if not task.recurrence_id %}
+  {# Make this task recurring — opens the rule editor seeded from it. #}
+  <div class="pt-2 border-t border-border">
+    <button type="button"
+            hx-get="{% url 'web:recurring_new' %}?from_task={{ task.slug|urlencode }}"
+            hx-target="#modal-root"
+            hx-swap="innerHTML"
+            class="w-full flex items-center justify-center gap-1.5 text-xs text-placeholder-foreground hover:text-foreground py-1 rounded transition">
+      {% lucide "repeat" "w-3.5 h-3.5" %}{% trans "Make recurring…" %}
+    </button>
+  </div>
+  {% endif %}
+
   <div class="pt-2 border-t border-border flex items-stretch gap-2">
     <form hx-post="{% url 'web:cancel_task' slug_prefix=task.project.slug_prefix number=task.number %}"
           hx-target="#task-meta"
