@@ -208,3 +208,19 @@ def test_labels_copied_to_instance():
     rule.labels.add(label)
     created = materialize_due(D(2026, 1, 1))
     assert list(created[0].labels.all()) == [label]
+
+
+@pytest.mark.django_db
+def test_materialize_notifies_assignee():
+    from apps.accounts.tests.factories import UserFactory
+    from apps.notifications.models import Notification
+    from apps.projects.tests.factories import ProjectFactory
+    from apps.workspaces.tests.factories import WorkspaceFactory
+
+    ws = WorkspaceFactory()
+    project = ProjectFactory(workspace=ws)
+    assignee = UserFactory()
+    ws.members.add(assignee)
+    RecurringTaskFactory(project=project, workspace=ws, freq="daily", start_date=D(2026, 1, 1), assignee=assignee)
+    materialize_due(D(2026, 1, 1))
+    assert Notification.objects.filter(recipient=assignee, kind=Notification.Kind.ASSIGNED).exists()

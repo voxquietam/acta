@@ -245,6 +245,7 @@ def _spawn(rule, occ: date):
     """
     from apps.activity.models import ActivityLog
     from apps.activity.services import log_event
+    from apps.notifications.services import notify_task_created
     from apps.tasks.models import Task
 
     task, was_created = Task.objects.get_or_create(
@@ -281,4 +282,8 @@ def _spawn(rule, occ: date):
             "occurrence_date": occ.isoformat(),
         },
     )
+    # Notify the assignee their recurring task has landed — an in-app
+    # ASSIGNED notification (which the Telegram fan-out hooks onto). ``actor``
+    # is ``None`` (system), so the self-suppression rule never fires.
+    notify_task_created(task=task, actor=None)
     return task

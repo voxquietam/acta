@@ -76,8 +76,10 @@ make a double run — or a re-run after a crash between spawn and cursor-save
   affordance are Phases 2–3.
 - `Task` gains two nullable columns and one partial unique constraint
   (migration `tasks 0013`).
-- **Deferred:** assignment notifications for spawned tasks (the engine runs
-  outside request context, so the live-insert HTML extras / `notify_task_*`
-  are not emitted — peers see new recurring tasks on next navigation, as with
-  other non-kanban live inserts); cycle assignment on spawn; "nth weekday of
-  the month" rules.
+- The materializer calls `notify_task_created(task, actor=None)` per spawn, so
+  the assignee gets the usual `ASSIGNED` in-app notification (and the Telegram
+  fan-out that hooks onto it). `actor=None` marks it system-originated.
+- **Deferred:** the SSE live-insert HTML extras for spawned tasks (the engine
+  runs outside request context, so peers viewing a board see new recurring
+  tasks on next navigation, as with other non-kanban live inserts); cycle
+  assignment on spawn; "nth weekday of the month" rules.
