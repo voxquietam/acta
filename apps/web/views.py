@@ -6400,9 +6400,9 @@ def _create_task_post(request):
             # tick more than one; only the first survives, see
             # ``trim_exclusive_conflicts``).
             task.labels.set(trim_exclusive_conflicts(label_ids))
-        # Pre-render the kanban card once: feeds the local HX-Retarget swap
-        # below AND rides the SSE broadcast (``broadcast_extras``) so peers
-        # on the kanban view can live-insert it without a server round-trip.
+        # Pre-render the kanban card once: feeds the local ``acta:card-insert``
+        # payload below AND rides the SSE broadcast (``broadcast_extras``) so
+        # peers on the kanban view can live-insert it without a round-trip.
         kanban_card_html = _render_kanban_card_html(task, request)
         # Table + list rows ride the broadcast too, so peers on those views
         # also live-insert. The table row carries the full column set
@@ -6526,13 +6526,15 @@ def _current_view_from_htmx(request):
     URL the click came from. The active surface is the lazy-loaded *panel*
     (``?panel=``), which wins over ``?view=``: the backlog / timeline tab can
     render with ``?view=table`` set, but its insert target (``#task-table-body``)
-    only exists on the real table panel — keying off ``view`` there retargets a
-    DOM node that isn't on screen, so the swap never settles and the modal-close
-    + loader-clear triggers (which ride ``HX-Trigger-After-Settle``) silently
-    drop, hanging the create modal with the bar spinning. ``panel`` reflects
-    what's actually rendered; fall back to ``view`` only when it's absent. The
-    path decides ``show_project`` (AllTasks needs the project column, project-
-    scoped pages don't).
+    only exists on the real table panel — keying off ``view`` there would render
+    a fragment aimed at a DOM node that isn't on screen. The insert is now a
+    best-effort client-side ``acta:card-insert`` (a missing target is a silent
+    no-op, see ``_task_card_insert_response``), so a wrong surface no longer
+    hangs the modal — but picking the panel that's actually rendered still gets
+    the card placed instead of silently dropped. ``panel`` reflects what's
+    rendered; fall back to ``view`` only when it's absent. The path decides
+    ``show_project`` (AllTasks needs the project column, project-scoped pages
+    don't).
     """
     current_url = (request.headers.get("HX-Current-URL") or "").strip()
     if not current_url:
@@ -6546,8 +6548,7 @@ def _current_view_from_htmx(request):
     # the board pages: All Tasks (``/tasks/``) and a project detail
     # (``/projects/<slug>/``). On the dashboard, inbox, settings, etc. there
     # is no card to insert into — return the ``"none"`` surface so the create
-    # response stays toast-only and the modal-close trigger never rides a swap
-    # that can't settle (which would silently drop it and hang the modal).
+    # response stays toast-only (the modal still closes regardless).
     board_path = parsed.path.startswith("/tasks/") or parsed.path.startswith("/projects/")
     if not board_path:
         return "none", show_project
@@ -6560,37 +6561,46 @@ def _current_view_from_htmx(request):
 def _task_card_insert_response(request, task, *, linked, kanban_html):
     """Build the in-page create response that drops the new card into the active view.
 
-    The form posts with ``hx-swap="none"``; the server overrides that via
-    ``HX-Retarget`` + ``HX-Reswap`` and returns the rendered fragment as the
-    body. htmx appends just that one element — no wrapper refetch, no
-    cascade rebuild of the kanban. Active view comes from ``HX-Current-URL``:
+    Always a ``204`` carrying everything on the immediate ``HX-Trigger`` —
+    the form posts with ``hx-swap="none"`` and the server never retargets
+    its request. The new card is inserted client-side from event payloads
+    instead, which decouples three things that used to be fatally coupled
+    when the response drove the swap via ``HX-Retarget`` + an after-settle
+    modal-close: (1) the swap target may not be in the current DOM (wrong
+    lazy panel, a status column hidden by a filter) → htmx couldn't settle
+    → the after-settle ``acta:task-created`` dropped → modal hung with the
+    spinner; (2) closing the modal detaches the form mid-swap → htmx errors
+    out, indicator class never cleared. With a ``204`` there is no swap to
+    settle and nothing to detach, so the modal always closes and the loader
+    always clears; the card insert is best-effort. Active view comes from
+    ``HX-Current-URL``:
 
-    * ``kanban`` — kanban card into ``#kanban-col-<status>``.
-    * ``table`` — table row into ``#task-table-body`` (``show_project`` flag
-      tracks AllTasks vs ProjectDetail so the column count matches).
-    * ``list`` — pre-renders the row HTML + per-axis section keys and fires
-      ``acta:list-insert-row``; ``acta.js`` finds the matching
+    * ``kanban`` — ``acta:card-insert`` with the card HTML + target
+      ``#kanban-col-<status>``; ``acta.js`` appends it (no-op if absent).
+    * ``table`` — ``acta:card-insert`` with the ``<tr>`` HTML + target
+      ``#task-table-body`` (``show_project`` flag tracks AllTasks vs
+      ProjectDetail so the column count matches).
+    * ``list`` — ``acta:list-insert-row`` with the row HTML + per-axis
+      section keys; ``acta.js`` finds each matching
       ``[data-list-axis] section[data-section-key]`` wrapper and appends.
-      No swap on the response itself (the panel pre-renders all axes, so a
-      single ``HX-Retarget`` can't reach all of them) — JS does the work.
-    * ``timeline`` / ``backlog`` — toast-only; gantt positioning and the
-      backlog's own grouping aren't covered yet. Modal still closes.
+    * ``timeline`` / ``backlog`` / ``none`` — toast-only; gantt positioning
+      and the backlog's own grouping aren't covered yet. Modal still closes.
 
-    Why split the triggers: toast fires immediately, but the modal-close +
-    link-changed events ride ``HX-Trigger-After-Settle`` so the form stays
-    in the DOM until htmx finishes the swap — otherwise the indicator class
-    never gets cleaned up (loader spins forever) and the swap can error out
-    with the elt detached mid-request.
+    Trigger ordering matters: ``acta:task-created`` empties ``#modal-root``
+    (detaching the form htmx dispatches these events on), so it MUST come
+    last — anything after it would fire on a detached node and never bubble
+    to ``window`` / ``body``. The insert + ``acta:link-changed`` therefore
+    precede it.
     """
     view, show_project = _current_view_from_htmx(request)
-    body = ""
-    retarget = None
-    reswap = None
+    card_insert = None
     list_insert = None
     if view == "table":
-        body = _render_table_row_html(task, request, show_project=show_project)
-        retarget = "#task-table-body"
-        reswap = "beforeend"
+        card_insert = {
+            "html": _render_table_row_html(task, request, show_project=show_project),
+            "target": "#task-table-body",
+            "position": "beforeend",
+        }
     elif view == "list":
         list_insert = {
             "task_id": task.id,
@@ -6598,41 +6608,25 @@ def _task_card_insert_response(request, task, *, linked, kanban_html):
             "section_keys": compute_list_section_keys(task, request_user=request.user),
         }
     elif view == "kanban":
-        body = kanban_html
-        retarget = f"#kanban-col-{task.status}"
-        reswap = "beforeend"
-    else:
-        # timeline / backlog / "none" (dashboard, inbox, …) / anything we
-        # can't confidently place: toast-only. Retargeting a surface that
-        # isn't on screen leaves the swap unable to settle, which drops the
-        # ``HX-Trigger-After-Settle`` modal-close and hangs the modal — see
-        # ``_current_view_from_htmx``.
-        pass
+        card_insert = {
+            "html": kanban_html,
+            "target": f"#kanban-col-{task.status}",
+            "position": "beforeend",
+        }
     toast = {
         "message": str(_("Created %(slug)s") % {"slug": task.slug}),
         "level": "success",
     }
-    after_settle = {"acta:task-created": True}
-    if linked:
-        after_settle["acta:link-changed"] = True
-    immediate = {"acta:toast": toast}
+    triggers = {"acta:toast": toast}
+    if card_insert is not None:
+        triggers["acta:card-insert"] = card_insert
     if list_insert is not None:
-        immediate["acta:list-insert-row"] = list_insert
-    if retarget:
-        response = HttpResponse(body, status=200, content_type="text/html; charset=utf-8")
-        response["HX-Retarget"] = retarget
-        response["HX-Reswap"] = reswap
-        response["HX-Trigger"] = json.dumps(immediate, default=str)
-        # Modal-close + link-changed wait until after the swap so the form
-        # stays in the DOM (indicator class gets cleaned up, swap doesn't
-        # error on a detached elt).
-        response["HX-Trigger-After-Settle"] = json.dumps(after_settle, default=str)
-    else:
-        # No swap → settle never fires → ``HX-Trigger-After-Settle`` would
-        # silently drop. Send everything on immediate ``HX-Trigger`` instead;
-        # there's no swap to wait for and nothing to detach the form from.
-        response = HttpResponse(status=204)
-        response["HX-Trigger"] = json.dumps({**immediate, **after_settle}, default=str)
+        triggers["acta:list-insert-row"] = list_insert
+    if linked:
+        triggers["acta:link-changed"] = True
+    triggers["acta:task-created"] = True
+    response = HttpResponse(status=204)
+    response["HX-Trigger"] = json.dumps(triggers, default=str)
     return response
 
 

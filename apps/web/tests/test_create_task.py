@@ -207,30 +207,39 @@ class TestCreateTaskPost:
             data={"project": project.slug_prefix, "title": "First task"},
             HTTP_HX_CURRENT_URL="http://localhost:8001/tasks/?view=kanban",
         )
-        assert resp.status_code == 200
-        # ``open_after_create`` defaults off → no full-page HX-Redirect;
-        # server retargets the form's no-op swap into the matching kanban
-        # column (``HX-Retarget`` + ``HX-Reswap=beforeend``) and ships the
-        # rendered card as the body. The kanban column appends just that
-        # one card — no wrapper refetch, no cascade, no jerk. Outside
-        # kanban the retarget selector misses and htmx skips the swap;
-        # the toast still confirms the create.
+        assert resp.status_code == 204
+        # ``open_after_create`` defaults off → no full-page HX-Redirect. The
+        # response is a 204 carrying everything on the immediate ``HX-Trigger``;
+        # the new card is inserted client-side from the ``acta:card-insert``
+        # payload (best-effort — a missing column is a no-op), so the modal
+        # always closes and the loader always clears regardless of the
+        # current DOM. No server-driven swap → no ``HX-Retarget``.
         assert "HX-Redirect" not in resp.headers
-        assert resp.headers["HX-Retarget"] == f"#kanban-col-{Task.STATUS_PLANNED}"
-        assert resp.headers["HX-Reswap"] == "beforeend"
-        assert "data-kanban-card" in resp.content.decode()
-        assert "acta:toast" in resp.headers.get("HX-Trigger", "")
-        assert "acta:task-created" in resp.headers.get("HX-Trigger-After-Settle", "")
+        assert "HX-Retarget" not in resp.headers
+        assert "HX-Trigger-After-Settle" not in resp.headers
+        trigger = json.loads(resp.headers.get("HX-Trigger", "{}"))
+        assert "acta:toast" in trigger
+        assert "acta:task-created" in trigger
+        card = trigger["acta:card-insert"]
+        assert card["target"] == f"#kanban-col-{Task.STATUS_PLANNED}"
+        assert card["position"] == "beforeend"
+        assert "data-kanban-card" in card["html"]
+        # ``acta:task-created`` empties ``#modal-root`` (detaching the form),
+        # so it must be the LAST key — the insert has to run while the form
+        # is still attached and before the column recount keys off it.
+        keys = list(trigger.keys())
+        assert keys[-1] == "acta:task-created"
+        assert keys.index("acta:card-insert") < keys.index("acta:task-created")
         task = Task.objects.get(project=project, title="First task")
         assert task.reporter == user
         assert task.status == Task.STATUS_PLANNED
 
-    def test_table_view_retargets_to_table_body(self, client, setup):
-        """``HX-Current-URL?view=table`` → server returns a ``<tr>`` for the table.
+    def test_table_view_inserts_table_row(self, client, setup):
+        """``HX-Current-URL?view=table`` → ``acta:card-insert`` with a ``<tr>``.
 
         View-aware routing — the form has no idea which surface (kanban /
         table / etc.) the user is on; htmx tells us via ``HX-Current-URL``
-        and the server picks the right template + retarget.
+        and the server picks the right template + insert target.
         """
         _ws, project, user = setup
         client.force_login(user)
@@ -239,22 +248,24 @@ class TestCreateTaskPost:
             data={"project": project.slug_prefix, "title": "Row task"},
             HTTP_HX_CURRENT_URL="http://localhost:8001/tasks/?view=table",
         )
-        assert resp.status_code == 200
-        assert resp.headers["HX-Retarget"] == "#task-table-body"
-        assert resp.headers["HX-Reswap"] == "beforeend"
-        body = resp.content.decode()
-        assert "<tr" in body
-        assert "data-task-id" in body
-        # Modal-close still rides after-settle (form must stay in DOM for the swap).
-        assert "acta:task-created" in resp.headers.get("HX-Trigger-After-Settle", "")
+        assert resp.status_code == 204
+        assert "HX-Retarget" not in resp.headers
+        assert "HX-Trigger-After-Settle" not in resp.headers
+        trigger = json.loads(resp.headers.get("HX-Trigger", "{}"))
+        assert "acta:task-created" in trigger
+        card = trigger["acta:card-insert"]
+        assert card["target"] == "#task-table-body"
+        assert card["position"] == "beforeend"
+        assert "<tr" in card["html"]
+        assert "data-task-id" in card["html"]
 
     def test_list_view_skips_swap_but_keeps_toast(self, client, setup):
         """``?view=list`` → 204 + toast + ``acta:list-insert-row`` payload.
 
-        No HTMX swap on the response (list panel pre-renders every axis, so
-        a single ``HX-Retarget`` can't reach all of them). The client-side
-        handler in ``acta.js`` listens for ``acta:list-insert-row`` and
-        injects the pre-rendered row into the matching section per axis.
+        The list panel pre-renders every axis, so a single insert target
+        can't reach all of them. The client-side handler in ``acta.js``
+        listens for ``acta:list-insert-row`` and injects the pre-rendered
+        row into the matching section per axis.
         """
         _ws, project, user = setup
         client.force_login(user)
@@ -265,10 +276,10 @@ class TestCreateTaskPost:
         )
         assert resp.status_code == 204
         assert "HX-Retarget" not in resp.headers
-        # No swap → settle never fires; modal-close rides plain HX-Trigger here.
         trigger_raw = resp.headers.get("HX-Trigger", "")
         assert "acta:toast" in trigger_raw
         assert "acta:task-created" in trigger_raw
+        assert "acta:card-insert" not in trigger_raw
         assert "HX-Trigger-After-Settle" not in resp.headers
         # List view also ships row HTML + per-axis section keys so the
         # client can insert the new row without a panel refetch.
@@ -297,16 +308,14 @@ class TestCreateTaskPost:
         assert "acta:task-created" in trigger
 
     def test_backlog_panel_with_table_view_is_toast_only(self, client, setup):
-        """``?view=table&panel=backlog`` must NOT retarget the table body.
+        """``?view=table&panel=backlog`` must NOT emit a table-body insert.
 
         Regression: the backlog tab can render as a table (``?view=table``),
         but ``#task-table-body`` only exists on the real table panel — not
-        inside the backlog panel. Keying the insert off ``view`` there
-        retargets a DOM node that isn't on screen, so the swap never settles
-        and the modal-close trigger (which rides ``HX-Trigger-After-Settle``)
-        silently drops, hanging the modal with the loader spinning. The
-        active *panel* must win: backlog → toast-only 204, modal-close on the
-        immediate ``HX-Trigger``.
+        inside the backlog panel. Keying the insert off ``view`` there would
+        aim ``acta:card-insert`` at a DOM node that isn't on screen. The
+        active *panel* must win: backlog → toast-only, no card-insert (the
+        modal still closes on the immediate ``acta:task-created``).
         """
         _ws, project, user = setup
         client.force_login(user)
@@ -320,17 +329,16 @@ class TestCreateTaskPost:
         assert "HX-Trigger-After-Settle" not in resp.headers
         trigger = json.loads(resp.headers.get("HX-Trigger", "{}"))
         assert "acta:task-created" in trigger
+        assert "acta:card-insert" not in trigger
 
     def test_non_board_page_is_toast_only(self, client, setup):
         """Creating from the dashboard (or any non-board page) is toast-only.
 
         Regression: the dashboard / inbox / settings have no kanban column,
         table body, or list axis to insert into. Defaulting to a kanban
-        retarget there points the swap at ``#kanban-col-…`` which isn't on
-        screen, so it never settles, the modal-close trigger (on
-        ``HX-Trigger-After-Settle``) drops, and the modal hangs with the
-        loader spinning. Non-board pages must be toast-only: 204, modal-close
-        on the immediate ``HX-Trigger``, no retarget.
+        insert there would aim ``acta:card-insert`` at ``#kanban-col-…``
+        which isn't on screen. Non-board pages must be toast-only: 204,
+        modal-close on the immediate ``acta:task-created``, no card-insert.
         """
         _ws, project, user = setup
         client.force_login(user)
@@ -344,6 +352,7 @@ class TestCreateTaskPost:
         assert "HX-Trigger-After-Settle" not in resp.headers
         trigger = json.loads(resp.headers.get("HX-Trigger", "{}"))
         assert "acta:task-created" in trigger
+        assert "acta:card-insert" not in trigger
 
     def test_open_after_create_navigates_boosted(self, client, setup):
         ws, project, user = setup
@@ -603,14 +612,19 @@ class TestCreateTaskLinkRelated:
             data={"project": project.slug_prefix, "title": "Spun off", "link_related": origin.slug},
             HTTP_HX_CURRENT_URL="http://localhost:8001/tasks/?view=kanban",
         )
-        assert resp.status_code in (200, 204)
+        assert resp.status_code == 204
         new = Task.objects.get(project=project, title="Spun off")
         # related is symmetric — both sides see the link.
         assert origin in new.related.all()
         assert new in origin.related.all()
-        # Fires the extra trigger so the origin's links panel refetches live.
-        # On a board surface (kanban) the swap settles, so it rides after-settle.
-        assert "acta:link-changed" in resp.headers.get("HX-Trigger-After-Settle", "")
+        # Fires the extra trigger so the origin's links panel refetches live —
+        # on the immediate ``HX-Trigger``, ordered before ``acta:task-created``
+        # (which detaches the form) so it still bubbles to ``window``.
+        trigger_raw = resp.headers.get("HX-Trigger", "")
+        trigger = json.loads(trigger_raw)
+        assert "acta:link-changed" in trigger
+        keys = list(trigger.keys())
+        assert keys.index("acta:link-changed") < keys.index("acta:task-created")
 
     def test_unlinked_create_omits_link_trigger(self, client, setup):
         ws, project, user = setup
@@ -620,7 +634,9 @@ class TestCreateTaskLinkRelated:
             data={"project": project.slug_prefix, "title": "Plain"},
             HTTP_HX_CURRENT_URL="http://localhost:8001/tasks/?view=kanban",
         )
-        assert "acta:task-created" in resp.headers.get("HX-Trigger-After-Settle", "")
+        trigger = json.loads(resp.headers.get("HX-Trigger", "{}"))
+        assert "acta:task-created" in trigger
+        assert "acta:link-changed" not in trigger
 
     def test_links_fragment_shows_related(self, client, setup):
         ws, project, user = setup

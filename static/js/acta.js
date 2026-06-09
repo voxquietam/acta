@@ -1228,10 +1228,11 @@
   }
 
   // Recount the per-column ``[data-column-count]`` after a card is inserted
-  // (HX-Retarget from ``_create_task_post`` appends a card but doesn't
-  // touch the header counter; the same recount runs on filter-apply and
-  // sortable-end already). ``acta:task-created`` fires after-settle so by
-  // here the new card is already in the DOM and the count picks it up.
+  // (the ``acta:card-insert`` handler from ``_create_task_post`` appends a
+  // card but doesn't touch the header counter; the same recount runs on
+  // filter-apply and sortable-end already). ``acta:card-insert`` is fired
+  // before ``acta:task-created`` in the same trigger batch, so by the time
+  // this runs the new card is already in the DOM and the count picks it up.
   function recountKanbanColumns() {
     document.querySelectorAll(".kanban-column").forEach((c) => {
       const visible = c.querySelectorAll("[data-task-id]:not([hidden])").length;
@@ -1239,21 +1240,28 @@
       if (counter) counter.textContent = String(visible);
     });
   }
-  document.body.addEventListener("acta:task-created", () => {
-    recountKanbanColumns();
-    recomputeKanbanSubstatus();
+  // Both the local create (``acta:task-created``) and a peer's SSE insert
+  // (``acta:task-created-remote``) change the column membership — recount
+  // either way. Only the LOCAL event closes the create modal (wired in the
+  // modal template); the remote one must NOT, or a coworker creating a task
+  // would slam shut the modal you're typing in. See the SSE handler.
+  ["acta:task-created", "acta:task-created-remote"].forEach((name) => {
+    document.body.addEventListener(name, () => {
+      recountKanbanColumns();
+      recomputeKanbanSubstatus();
+    });
   });
 
   // Cross-view freshness: any newly created task only inserts into the
-  // *active* view (kanban gets a card via HX-Retarget, table gets a row
-  // the same way, list runs ``acta:list-insert-row``). The sibling
+  // *active* view (kanban + table run ``acta:card-insert``, list runs
+  // ``acta:list-insert-row``). The sibling
   // ``data-panel-slot`` panels already in the DOM hold stale data — they
   // don't know about the new task. Clear them so the next view-switch
   // re-fetches via ``lazyLoadPanels`` (the active slot we leave alone —
   // it just got its inline insert, no point refetching). For an SSE peer
   // who isn't on kanban, the same rule applies: their active slot stays,
   // others get invalidated.
-  document.body.addEventListener("acta:task-created", () => {
+  const invalidateSiblingPanels = () => {
     const active = window.Alpine && window.Alpine.store && window.Alpine.store("viewMode")
       ? window.Alpine.store("viewMode").current
       : null;
@@ -1277,7 +1285,10 @@
     // it's a no-op if the slot already has children, so this is safe
     // to call eagerly.
     if (window.actaLoadPanels) window.actaLoadPanels();
-  });
+  };
+  ["acta:task-created", "acta:task-created-remote"].forEach((name) =>
+    document.body.addEventListener(name, invalidateSiblingPanels),
+  );
 
   // Live-insert a freshly-created task into the list view without a panel
   // refetch. Payload from ``_task_card_insert_response`` carries the row
@@ -1290,6 +1301,28 @@
   // that builds sections on-demand, e.g. assignee/project/cycle) we skip
   // it silently — toast already confirmed the create. Next filter change
   // or nav rebuilds the panel from scratch.
+  // Live-insert a freshly-created kanban card / table row without an HTMX
+  // swap. The create POST returns ``204`` + ``acta:card-insert`` instead of
+  // retargeting the form's own request at the column / table body — that
+  // swap silently dropped (hanging the modal with a spinner) whenever its
+  // target wasn't in the current DOM (wrong lazy panel, a status column
+  // hidden by a filter), and closing the modal could detach the form
+  // mid-swap. Inserting here is best-effort: a missing target is a no-op
+  // (the toast already confirmed the create; the panel refetch on
+  // ``acta:task-created`` keeps siblings fresh). ``htmx.swap`` is used
+  // rather than hand-rolled DOM so table rows (``<tr>``) get the correct
+  // foster-parenting wrapper and the inserted node runs the full
+  // afterSwap/afterSettle lifecycle (Alpine init, kanban DnD re-bind).
+  document.body.addEventListener("acta:card-insert", (evt) => {
+    const detail = evt.detail || {};
+    const html = detail.html;
+    const target = detail.target;
+    if (!html || !target || !window.htmx) return;
+    const dest = document.querySelector(target);
+    if (!dest) return;
+    window.htmx.swap(dest, html, { swapStyle: detail.position || "beforeend" });
+  });
+
   document.body.addEventListener("acta:list-insert-row", (evt) => {
     const detail = evt.detail || {};
     const html = detail.row_html;
@@ -3009,9 +3042,10 @@
     // (see ``log_event`` + ``_create_task_post``). If the peer is on
     // the kanban view, insert the card straight into the matching
     // ``#kanban-col-<status>`` column — same target the local create
-    // flow's HX-Retarget hits — and run ``htmx.process`` so click-to-
-    // open wires up. ``acta:task-created`` still fires for the
-    // column-count recount and any other listeners.
+    // flow's ``acta:card-insert`` hits — and run ``htmx.process`` so
+    // click-to-open wires up. ``acta:task-created-remote`` then fires for
+    // the column-count recount + sibling-panel invalidation (the ``-remote``
+    // variant so it doesn't close the viewer's open create modal).
     //
     // Non-kanban peers (table / list / timeline) won't have a target
     // — they'll see the new task on next nav. Extending to table-row
@@ -3052,7 +3086,11 @@
       // assignee) hides instead of popping onto a filtered board, and the
       // column / section counts settle.
       if (window.actaApplyFilters) queueMicrotask(window.actaApplyFilters);
-      document.body.dispatchEvent(new CustomEvent("acta:task-created", { bubbles: true }));
+      // ``-remote`` (NOT ``acta:task-created``): a peer's create must recount
+      // columns + invalidate sibling panels, but must NOT trip the create
+      // modal's ``@acta:task-created.window`` close — otherwise a coworker
+      // creating a task slams shut the modal the viewer is typing in.
+      document.body.dispatchEvent(new CustomEvent("acta:task-created-remote", { bubbles: true }));
       // Rows just shifted under the cursor — close any hover popover that
       // the missing ``mouseleave`` would otherwise leave stuck open.
       dismissPopovers();
