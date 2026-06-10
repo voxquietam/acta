@@ -30,7 +30,12 @@ ADR format: **Context → Options → Decision → Why → Consequences**.
 | 0021 | accepted | Notification inbox: persistent, per-user fan-out (supersedes 0017) | [0021-notification-inbox.md](decisions/0021-notification-inbox.md) |
 | 0022 | accepted | Polymorphic Comment model: task OR project update, one-level replies | [0022-polymorphic-comments.md](decisions/0022-polymorphic-comments.md) |
 | 0023 | accepted | Mentions: `@user` / `@task` markdown-token pipeline, bleach-hardened chips | [0023-mentions.md](decisions/0023-mentions.md) |
+| 0024 | accepted | Client-owned history navigation: own cache, htmx history off | [0024-client-history-navigation.md](decisions/0024-client-history-navigation.md) |
+| 0025 | accepted | File storage & attachments: local FileSystemStorage, swappable | [0025-file-storage.md](decisions/0025-file-storage.md) |
+| 0026 | accepted | Scrumban: WIP limits, aging, flow metrics from activity-log replay | [0026-scrumban-metrics.md](decisions/0026-scrumban-metrics.md) |
+| 0027 | accepted | Cycles: workspace-level time-boxed iterations | [0027-cycles.md](decisions/0027-cycles.md) |
 | 0028 | accepted | Recurring tasks: rule entity + daily materializer, structured cadence | [0028-recurring-tasks.md](decisions/0028-recurring-tasks.md) |
+| 0029 | accepted | PWA installability: rendered manifest + root-scope network-first worker | [0029-pwa-installability.md](decisions/0029-pwa-installability.md) |
 
 ## Operations
 
