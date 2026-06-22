@@ -24,10 +24,22 @@ priority cells.
      class="flex flex-wrap items-center gap-1"
      x-data="{
        open: false,
+       dropUp: false,
+       pickerH: 400,
+       pickerLeft: 0,
        rect: { top: 0, left: 0, bottom: 0, right: 0 },
        measure() {
          const r = this.$refs.trigger.getBoundingClientRect();
          this.rect = { top: r.top, left: r.left, bottom: r.bottom, right: r.right };
+         // Flip above the trigger when there isn't room below (e.g. a
+         // comment near the bottom of the screen); cap the picker height to
+         // the available space so its list scrolls instead of clipping off
+         // the viewport, and clamp it horizontally inside the window.
+         const below = window.innerHeight - r.bottom - 12;
+         const above = r.top - 12;
+         this.dropUp = below < 360 && above > below;
+         this.pickerH = Math.max(240, Math.min(440, this.dropUp ? above : below));
+         this.pickerLeft = Math.max(8, Math.min(r.left, window.innerWidth - 360));
        },
        toggle() { if (!this.open) this.measure(); this.open = !this.open; },
        react(emoji) { this.$refs.emoji.value = emoji; this.$refs.form.requestSubmit(); this.open = false; }
@@ -82,11 +94,14 @@ priority cells.
          x-cloak
          @click.outside="open = false"
          @keydown.escape.window="open = false"
-         :style="`position:fixed; top:${rect.bottom + 6}px; left:${rect.left}px;`"
+         :style="dropUp
+           ? `position:fixed; bottom:${window.innerHeight - rect.top + 6}px; left:${pickerLeft}px;`
+           : `position:fixed; top:${rect.bottom + 6}px; left:${pickerLeft}px;`"
          class="z-50 rounded-lg overflow-hidden border border-border shadow-lg">
       <template x-if="open">
         <emoji-picker data-source="{% static 'vendor/emoji-data.json' %}"
                       :class="document.documentElement.classList.contains('light') ? 'light' : 'dark'"
+                      :style="`height:${pickerH}px;`"
                       @emoji-click="react($event.detail.unicode)"></emoji-picker>
       </template>
     </div>
