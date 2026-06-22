@@ -18,6 +18,7 @@ class ActivityLog(models.Model):
     TARGET_WORKSPACE = "workspace"
     TARGET_MEMBER = "member"
     TARGET_ATTACHMENT = "attachment"
+    TARGET_MEETING = "meeting"
 
     workspace = models.ForeignKey(
         "workspaces.Workspace",
@@ -36,7 +37,9 @@ class ActivityLog(models.Model):
 
     target_type = models.CharField(
         max_length=20,
-        help_text="Kind of object the event is about: task, comment, project, workspace, member, or attachment",
+        help_text=(
+            "Kind of object the event is about: task, comment, project, " "workspace, member, attachment, or meeting"
+        ),
     )
     target_id = models.PositiveBigIntegerField(
         help_text="ID of the target object. Not a foreign key — the row survives target deletion",

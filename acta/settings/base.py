@@ -87,6 +87,7 @@ LOCAL_APPS = [
     "apps.tasks",
     "apps.cycles",
     "apps.recurring",
+    "apps.meetings",
     "apps.labels",
     "apps.comments",
     "apps.activity",
