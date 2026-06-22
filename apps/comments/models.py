@@ -4,14 +4,15 @@ from django.utils.translation import gettext_lazy as _
 
 
 class Comment(models.Model):
-    """A Markdown comment attached to a task or a project update.
+    """A Markdown comment attached to a task, a project update, or a meeting.
 
-    Targets exactly one of ``task`` / ``project_update`` (enforced by a
-    DB check constraint). Task comments contribute to the activity log
-    via ``comment.created`` / ``comment.edited`` / ``comment.deleted``
-    events (see docs/decisions/0011-activity-log.md); project-update
-    comments do not — updates are intentionally off the activity log.
-    One level of threading is supported via ``parent``.
+    Targets exactly one of ``task`` / ``project_update`` / ``meeting``
+    (enforced by a DB check constraint). Task comments contribute to the
+    activity log via ``comment.created`` / ``comment.edited`` /
+    ``comment.deleted`` events (see docs/decisions/0011-activity-log.md);
+    project-update and meeting comments do not — those surfaces are
+    intentionally off the activity log. One level of threading is supported
+    via ``parent``.
     """
 
     task = models.ForeignKey(
@@ -20,7 +21,7 @@ class Comment(models.Model):
         null=True,
         blank=True,
         related_name="comments",
-        help_text="Task this comment is attached to. Null when it targets a project update",
+        help_text="Task this comment is attached to. Null when it targets a project update or meeting",
     )
     project_update = models.ForeignKey(
         "projects.ProjectUpdate",
@@ -28,7 +29,15 @@ class Comment(models.Model):
         null=True,
         blank=True,
         related_name="comments",
-        help_text="Project update this comment is attached to. Null when it targets a task",
+        help_text="Project update this comment is attached to. Null when it targets a task or meeting",
+    )
+    meeting = models.ForeignKey(
+        "meetings.Meeting",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="comments",
+        help_text="Meeting this comment is attached to. Null when it targets a task or project update",
     )
     parent = models.ForeignKey(
         "self",
@@ -66,8 +75,9 @@ class Comment(models.Model):
         constraints = [
             models.CheckConstraint(
                 condition=(
-                    models.Q(task__isnull=False, project_update__isnull=True)
-                    | models.Q(task__isnull=True, project_update__isnull=False)
+                    models.Q(task__isnull=False, project_update__isnull=True, meeting__isnull=True)
+                    | models.Q(task__isnull=True, project_update__isnull=False, meeting__isnull=True)
+                    | models.Q(task__isnull=True, project_update__isnull=True, meeting__isnull=False)
                 ),
                 name="comment_exactly_one_target",
             ),
@@ -76,7 +86,7 @@ class Comment(models.Model):
     def __str__(self) -> str:
         """Return author, target, and a preview of the comment body."""
         preview = self.body[:60].replace("\n", " ")
-        return f"{self.author} on {self.task or self.project_update}: {preview}"
+        return f"{self.author} on {self.task or self.project_update or self.meeting}: {preview}"
 
     def clean(self) -> None:
         """Validate the comment target and one-level reply threading.
@@ -88,12 +98,16 @@ class Comment(models.Model):
         """
         from django.core.exceptions import ValidationError
 
-        if bool(self.task_id) == bool(self.project_update_id):
-            raise ValidationError(_("A comment must target exactly one of a task or a project update."))
+        if sum([bool(self.task_id), bool(self.project_update_id), bool(self.meeting_id)]) != 1:
+            raise ValidationError(_("A comment must target exactly one of a task, a project update, or a meeting."))
         if self.parent_id is not None:
             if self.parent.parent_id is not None:
                 raise ValidationError(_("Replies cannot have their own replies (depth limit 1)."))
-            if self.parent.task_id != self.task_id or self.parent.project_update_id != self.project_update_id:
+            if (
+                self.parent.task_id != self.task_id
+                or self.parent.project_update_id != self.project_update_id
+                or self.parent.meeting_id != self.meeting_id
+            ):
                 raise ValidationError(_("A reply must belong to the same target as its parent."))
 
     @property

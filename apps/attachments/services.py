@@ -114,18 +114,20 @@ def _sniff(uploaded_file, category: str, ext: str) -> None:
 
 
 def _comment_workspace(comment):
-    """Return the workspace a comment lives in (task or project update).
+    """Return the workspace a comment lives in (task, project update, or meeting).
 
     Args:
         comment: A :class:`apps.comments.models.Comment`. Its owner FK
-            (``task`` or ``project_update``) must be loaded.
+            (``task`` / ``project_update`` / ``meeting``) must be loaded.
 
     Returns:
         The owning :class:`apps.workspaces.models.Workspace`.
     """
     if comment.task_id:
         return comment.task.project.workspace
-    return comment.project_update.project.workspace
+    if comment.project_update_id:
+        return comment.project_update.project.workspace
+    return comment.meeting.workspace
 
 
 def _store_attachment(
