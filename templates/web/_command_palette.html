@@ -425,13 +425,24 @@ inside each row template.
             ];
 
         // Walk once, annotate items with cursor/key, build flat list.
+        // ``_key`` MUST be unique within its section and never undefined:
+        // Alpine's keyed x-for throws an *uncaught* TypeError on a duplicate
+        // key, which aborts the current Alpine flush mid-batch — and if a
+        // task modal was just swapped into #modal-root in that same flush its
+        // directives never bind, so its close()/Esc silently stop working.
+        // We disambiguate genuine duplicates with the global cursor and fall
+        // back to the cursor when an item has no url/action/slug/label.
         let flat = [];
         let cursor = 0;
+        const seenKeys = {};
         for (const s of order) {
           for (const item of s.items) {
-            const id = item.url || item.action || item.slug || item.label || cursor;
+            const base = item.url || item.action || item.slug || item.label || "idx" + cursor;
+            let key = s.kind + ":" + base;
+            if (seenKeys[key]) key += ":" + cursor;
+            seenKeys[key] = true;
             item._flatIdx = cursor;
-            item._key = s.kind + ":" + id;
+            item._key = key;
             flat.push(item);
             cursor += 1;
           }
