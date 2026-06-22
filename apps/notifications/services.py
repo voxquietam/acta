@@ -63,6 +63,7 @@ def notify(
     comment=None,
     activity=None,
     project_update=None,
+    meeting=None,
     preview: str = "",
     payload: dict[str, Any] | None = None,
     include_actor: bool = False,
@@ -107,6 +108,7 @@ def notify(
         comment=comment,
         activity=activity,
         project_update=project_update,
+        meeting=meeting,
         preview=preview or "",
         payload=payload or {},
     )
@@ -485,6 +487,36 @@ def notify_project_update_created(*, update, actor) -> None:
             workspace_id=workspace_id,
             project_update=update,
             preview=preview,
+        )
+
+
+def notify_meeting_created(*, meeting, actor, recipient_ids=None) -> None:
+    """Notify a meeting's participants that a call was logged.
+
+    Delivers a ``MEETING`` notification (and its Telegram fan-out) to each
+    participant; the actor is dropped by :func:`notify`'s self-suppression.
+    ``recipient_ids`` narrows the audience — used on edit to notify only the
+    participants newly added since the last save. When omitted, every current
+    participant is notified (the create path).
+
+    Args:
+        meeting: The :class:`apps.meetings.models.Meeting`.
+        actor: The :class:`User` who logged / edited it.
+        recipient_ids: Optional explicit set of participant user ids to
+            notify; defaults to all current participants.
+    """
+    if recipient_ids is None:
+        recipient_ids = set(meeting.participants.values_list("pk", flat=True))
+    preview = _truncate_preview(meeting.title)
+    for recipient_id in recipient_ids:
+        notify(
+            recipient_id=recipient_id,
+            actor=actor,
+            kind=Notification.Kind.MEETING,
+            workspace_id=meeting.workspace_id,
+            meeting=meeting,
+            preview=preview,
+            payload={"happened_at": meeting.happened_at.isoformat()},
         )
 
 

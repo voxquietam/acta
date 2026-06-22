@@ -27,6 +27,7 @@ class Notification(models.Model):
         STATUS_CHANGE = "status_change", _("Status change")
         PRIORITY_CHANGE = "priority_change", _("Priority change")
         PROJECT_UPDATE = "project_update", _("Project update")
+        MEETING = "meeting", _("Meeting")
         CYCLE = "cycle", _("Cycle")
         ANNOUNCEMENT = "announcement", _("Announcement")
         SYSTEM = "system", _("System")
@@ -87,6 +88,14 @@ class Notification(models.Model):
         blank=True,
         related_name="notifications",
         help_text="Project update this notification is about, for project_update kind",
+    )
+    meeting = models.ForeignKey(
+        "meetings.Meeting",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="notifications",
+        help_text="Meeting this notification is about, for meeting kind",
     )
     preview = models.TextField(
         blank=True,

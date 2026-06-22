@@ -209,6 +209,14 @@ def _task_url(task) -> str | None:
     return base.rstrip("/") + path
 
 
+def _meeting_url(meeting) -> str | None:
+    """Absolute URL to a meeting's detail page, or ``None`` with no base URL."""
+    base = getattr(settings, "ACTA_PUBLIC_BASE_URL", "")
+    if not base or meeting is None:
+        return None
+    return base.rstrip("/") + reverse("web:call_detail", kwargs={"pk": meeting.id})
+
+
 def _clean_preview(text: str, recipient_id: int | None = None, *, limit: int = _PREVIEW_LIMIT) -> str:
     """Reduce a raw-markdown snippet to a short plain-text Telegram preview.
 
@@ -482,6 +490,8 @@ def _format_notification(notification) -> str:
         head = _("Task due soon")
     elif kind == K.PROJECT_UPDATE:
         head = _("%(actor)s posted a project update") % {"actor": actor}
+    elif kind == K.MEETING:
+        head = _("%(actor)s logged a call") % {"actor": actor}
     elif kind == K.CYCLE:
         head = notification.payload.get("title") or _("Cycle update")
     elif kind == K.ANNOUNCEMENT:
@@ -496,8 +506,16 @@ def _format_notification(notification) -> str:
         slug = escape(task.slug)
         slug_html = f'<a href="{url}">{slug}</a>' if url else slug
         lines.append(f"{slug_html} {escape(task.title)}")
+    meeting = notification.meeting
+    if meeting is not None:
+        url = _meeting_url(meeting)
+        title = escape(meeting.title)
+        lines.append(f'<a href="{url}">{title}</a>' if url else title)
     preview = _clean_preview(notification.preview, notification.recipient_id)
-    if preview and not (task is not None and notification.preview == task.title):
+    skip_preview = (task is not None and notification.preview == task.title) or (
+        meeting is not None and notification.preview == meeting.title
+    )
+    if preview and not skip_preview:
         lines.append(_blockquote(escape(preview)))
     if task is not None and kind == K.ASSIGNED:
         meta = " · ".join(chip for chip in (_priority_chip(task.priority), _due_chip(task.due_date)) if chip)
