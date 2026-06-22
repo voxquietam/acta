@@ -1,0 +1,54 @@
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+Inner fragment of the Calls page — the project filter + meeting list (or
+empty state). Rendered on cold load inside ``meetings.html`` and re-fetched
+on ``change`` / ``acta:meeting-changed`` (the ``#calls-list`` container
+drives it, including ``#calls-filters`` values). ``total_meetings`` is the
+unfiltered count: 0 → first-run empty state; otherwise show the filter bar
+even when the current filter matches nothing.
+{% endcomment %}
+{% if total_meetings == 0 %}
+<div class="grid place-items-center text-center py-20">
+  <div>
+    <div class="w-12 h-12 rounded-full border border-dashed border-border-strong grid place-items-center text-placeholder-foreground mx-auto mb-3">
+      {% lucide "phone" "w-5 h-5" %}
+    </div>
+    <h2 class="text-lg font-medium text-muted-foreground">{% trans "No calls logged yet" %}</h2>
+    <p class="text-sm text-placeholder-foreground mt-1 max-w-sm">
+      {% trans "Log a call to record the time spent and link it to the tasks you discussed — it then shows up on each of those tasks." %}
+    </p>
+    <button type="button"
+            hx-get="{% url 'web:create_call' %}"
+            hx-target="#modal-root"
+            hx-swap="innerHTML"
+            class="acta-btn-primary inline-flex items-center gap-1.5 text-xs mt-4">
+      {% lucide "plus" "w-3.5 h-3.5" %}{% trans "New call" %}
+    </button>
+  </div>
+</div>
+{% else %}
+<div id="calls-filters" class="max-w-3xl mx-auto flex flex-wrap items-center gap-2 mb-3">
+  {% with sel_cls="bg-muted border border-border-strong rounded-md text-xs text-foreground pl-2 pr-7 py-1.5 focus:outline-none focus:border-brand-500 cursor-pointer" %}
+  <select name="project" class="{{ sel_cls }}" aria-label="{% trans 'Filter by project' %}">
+    <option value="">{% trans "All projects" %}</option>
+    <option value="none" {% if f_project == 'none' %}selected{% endif %}>{% trans "No project" %}</option>
+    {% for p in filter_projects %}
+    <option value="{{ p.slug_prefix }}" {% if f_project == p.slug_prefix %}selected{% endif %}>{{ p.name }}</option>
+    {% endfor %}
+  </select>
+  {% endwith %}
+</div>
+
+{% if meetings %}
+<div class="max-w-3xl mx-auto border border-border rounded-lg bg-card divide-y divide-border">
+  {% for meeting in meetings %}
+  {% include "web/meetings/_meeting_row.html" %}
+  {% endfor %}
+</div>
+{% else %}
+<div class="max-w-3xl mx-auto text-center py-12 text-sm text-placeholder-foreground">
+  {% trans "No calls match this filter." %}
+</div>
+{% endif %}
+{% endif %}

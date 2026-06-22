@@ -1,0 +1,244 @@
+{% extends "web/_modal_shell.html" %}
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+Create / edit modal for a meeting (call). Loaded into ``#modal-root`` via
+HTMX. On save the server returns ``204 + HX-Trigger: acta:meeting-changed``
+— every open list / task panel re-fetches and this modal closes.
+
+Mirrors the recurring-task editor's chrome. The task link picker reuses the
+same async-autocomplete shape as the task-detail links panel, backed by the
+workspace-scoped ``meeting_task_search`` endpoint; selected tasks are held
+as objects so chips can show the slug, and posted as hidden ``tasks`` ids.
+{% endcomment %}
+
+{% block root_attrs %}
+x-data="{
+  close() { const r = document.getElementById('modal-root'); if (r) r.innerHTML = ''; },
+  tasks: [{% for t in selected_tasks %}{ id: {{ t.id }}, slug: '{{ t.slug|escapejs }}', title: '{{ t.title|escapejs }}' }{% if not forloop.last %}, {% endif %}{% endfor %}],
+  q: '',
+  results: [],
+  open: false,
+  loading: false,
+  coords: { top: 0, left: 0, width: 0 },
+  has(id) { return this.tasks.some(t => t.id === id); },
+  removeTask(id) { this.tasks = this.tasks.filter(t => t.id !== id); },
+  position() {
+    const r = this.$refs.taskSearch.getBoundingClientRect();
+    this.coords = { top: r.bottom + 4, left: r.left, width: r.width };
+  },
+  async search() {
+    this.q = this.q.trim();
+    if (!this.q) { this.results = []; this.open = false; return; }
+    const term = this.q;
+    this.loading = true;
+    const url = '{% url 'web:meeting_task_search' %}?q=' + encodeURIComponent(term);
+    try {
+      const r = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      const data = await r.json();
+      // Drop a stale response: if the box was cleared or changed (e.g. a
+      // result was picked) while this request was in flight, don't reopen
+      // the dropdown with the old query's results.
+      if (this.q !== term) return;
+      this.results = data.results || [];
+      this.position();
+      this.open = true;
+    } finally {
+      this.loading = false;
+    }
+  },
+  pick(r) {
+    if (!this.has(r.id)) this.tasks.push({ id: r.id, slug: r.slug, title: r.title });
+    this.q = ''; this.results = []; this.open = false;
+    this.$nextTick(() => this.$refs.taskSearch.focus());
+  }
+}"
+@acta:meeting-changed.window="close()"
+{% endblock %}
+
+{% block panel_class %}sm:max-w-4xl sm:max-h-[85vh]{% endblock %}
+
+{% block panel_attrs %}x-init="$nextTick(() => $refs.title?.focus())"{% endblock %}
+
+{% block title %}<h2 class="text-sm font-medium text-foreground">{% if meeting %}{% trans "Edit call" %}{% else %}{% trans "Log a call" %}{% endif %}</h2>{% endblock %}
+
+{% block header_actions %}
+{% if meeting %}
+<button type="button"
+        x-data="{ copied: false }"
+        @click="navigator.clipboard.writeText(window.location.origin + '{% url 'web:call_detail' pk=meeting.id %}').then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
+        :data-tooltip="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy call link' %}'"
+        :aria-label="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy call link' %}'"
+        class="p-1.5 rounded-md text-placeholder-foreground hover:bg-muted hover:text-foreground transition">
+  <span x-show="!copied">{% lucide "link" "w-4 h-4" %}</span>
+  <span x-show="copied" x-cloak>{% lucide "check" "w-4 h-4" %}</span>
+</button>
+<button type="button"
+        @click="window.location.assign('{% url 'web:call_detail' pk=meeting.id %}')"
+        aria-label="{% trans 'Open full page' %}"
+        data-tooltip="{% trans 'Open full page' %}"
+        class="p-1.5 rounded-md text-placeholder-foreground hover:bg-muted hover:text-foreground transition">
+  {% lucide "maximize-2" "w-4 h-4" %}
+</button>
+{% endif %}
+{% endblock %}
+
+{% block body %}
+<div class="flex flex-col flex-1 min-h-0">
+  <div class="flex-1 overflow-y-auto min-h-0">
+  <form id="meeting-edit-form"
+        hx-post="{% if meeting %}{% url 'web:edit_call' pk=meeting.id %}{% else %}{% url 'web:create_call' %}{% endif %}"
+        hx-swap="none">
+    {% csrf_token %}
+
+    {# Hidden task ids — one per selected task, serialized on submit. #}
+    <template x-for="t in tasks" :key="t.id">
+      <input type="hidden" name="tasks" :value="t.id">
+    </template>
+
+    <div class="p-4 space-y-3">
+
+    <div>
+      <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Title" %}</label>
+      <input type="text" name="title" maxlength="200" required x-ref="title"
+             value="{{ obj.title|default:'' }}"
+             class="mt-1 acta-input" placeholder="{% trans 'What was the call about?' %}">
+    </div>
+
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "When" %}</label>
+        <input type="datetime-local" name="happened_at" required
+               value="{% if obj.happened_at %}{{ obj.happened_at|date:'Y-m-d\TH:i' }}{% else %}{{ now }}{% endif %}"
+               class="mt-1 acta-input">
+      </div>
+      <div>
+        <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Duration (min)" %}</label>
+        <input type="number" name="duration_minutes" min="1" max="1440" required
+               value="{{ obj.duration_minutes|default:30 }}"
+               class="mt-1 acta-input">
+      </div>
+    </div>
+
+    <div>
+      <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Project" %}</label>
+      <select name="project" class="mt-1 acta-input">
+        <option value="">{% trans "— No project —" %}</option>
+        {% for project in projects %}
+        <option value="{{ project.slug_prefix }}"
+                {% if obj.project_id == project.id %}selected{% endif %}>
+          {{ project.slug_prefix }} · {{ project.name }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    {% if members %}
+    <div>
+      <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Participants" %}</label>
+      <div class="mt-1 flex flex-wrap gap-1.5">
+        {% for user in members %}
+        <label class="cursor-pointer">
+          <input type="checkbox" name="participants" value="{{ user.id }}" class="peer sr-only"
+                 {% if user.id in selected_participant_ids %}checked{% endif %}>
+          <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs border transition select-none
+                       border-border-strong text-muted-foreground hover:text-foreground
+                       peer-checked:bg-brand-600 peer-checked:border-brand-500 peer-checked:text-white">
+            <span class="w-3.5 h-3.5 rounded-full text-white grid place-items-center text-[7px] font-medium"
+                  style="background-color: {{ user.avatar_color }};">{{ user.display_name|default:user.username|first|upper }}</span>
+            {{ user.display_name|default:user.username }}
+          </span>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {# ---------- Linked tasks ---------- #}
+    <div>
+      <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Linked tasks" %}</label>
+
+      <div class="mt-1 flex flex-wrap gap-1.5" x-show="tasks.length" x-cloak>
+        <template x-for="t in tasks" :key="t.id">
+          <span class="inline-flex items-center gap-1.5 bg-muted border border-border-strong rounded-md pl-2 pr-1 py-1 text-xs">
+            <span class="font-mono text-placeholder-foreground" x-text="t.slug"></span>
+            <span class="truncate max-w-[12rem] text-subtle-foreground" x-text="t.title"></span>
+            <button type="button" @click="removeTask(t.id)" class="text-placeholder-foreground hover:text-rose-400">
+              {% lucide "x" "w-3 h-3" %}
+            </button>
+          </span>
+        </template>
+      </div>
+
+      <div class="relative mt-1.5">
+        <input type="text" x-ref="taskSearch" x-model="q"
+               @input.debounce.250ms="search()"
+               @focus="if (q) search()"
+               placeholder="{% trans 'Search tasks by slug, title or assignee…' %}"
+               class="acta-input text-xs w-full">
+        <div x-show="open && results.length" x-cloak
+             @click.outside="open = false"
+             :style="`top: ${coords.top}px; left: ${coords.left}px; width: ${coords.width}px;`"
+             class="fixed z-[60] max-h-56 overflow-y-auto bg-card border border-border rounded-lg shadow-lg">
+          <template x-for="r in results" :key="r.id">
+            <button type="button" @click="pick(r)"
+                    :class="has(r.id) ? 'bg-brand-500/10' : 'hover:bg-muted'"
+                    class="w-full text-left flex items-center gap-2 px-2 py-1.5 text-xs transition">
+              <span class="w-1.5 h-1.5 rounded-full shrink-0"
+                    :class="{
+                      'bg-zinc-500': r.status === 'planned',
+                      'bg-cyan-500': r.status === 'ready',
+                      'bg-blue-500': r.status === 'to-do',
+                      'bg-violet-500': r.status === 'in-progress',
+                      'bg-amber-500': r.status === 'in-review',
+                      'bg-emerald-500': r.status === 'done',
+                      'bg-zinc-600': r.status === 'cancelled'
+                    }"></span>
+              <span class="font-mono text-placeholder-foreground shrink-0" x-text="r.slug"></span>
+              <span class="truncate flex-1 text-subtle-foreground" x-text="r.title"></span>
+              <span x-show="has(r.id)" class="shrink-0 text-brand-500">{% lucide "check" "w-3.5 h-3.5" %}</span>
+            </button>
+          </template>
+        </div>
+        <div x-show="open && q && !results.length && !loading" x-cloak
+             :style="`top: ${coords.top}px; left: ${coords.left}px; width: ${coords.width}px;`"
+             class="fixed z-[60] bg-card border border-border rounded-lg shadow-lg px-2 py-1.5 text-[11px] text-placeholder-foreground italic">
+          {% trans "No tasks match." %}
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Notes" %}</label>
+      {# TipTap rich editor — same module as the task description, so the #}
+      {# Markdown renders WYSIWYG instead of showing raw source. Inline   #}
+      {# images only when the meeting already has a project to scope the  #}
+      {# upload to. #}
+      <div data-description-editor
+           data-no-autosave
+           {% if obj.project %}data-image-upload-url="{% url 'web:upload_project_inline_image' slug_prefix=obj.project.slug_prefix %}"{% endif %}
+           data-placeholder="{% trans 'Outcomes, decisions, follow-ups…' %}"
+           class="mt-1">
+        <input type="hidden" name="notes" value="{{ obj.notes|default:'' }}" data-editor-output>
+        <textarea class="description-editor-source hidden" readonly>{{ obj.notes|default:'' }}</textarea>
+        {% include "web/projects/_editor_toolbar.html" %}
+        <div class="description-editor-mount min-h-[5rem] bg-muted border border-border-strong rounded-md px-3 py-2 text-sm text-foreground"></div>
+      </div>
+    </div>
+
+    </div>
+  </form>
+
+  {% if meeting %}
+  <div class="px-4 pb-4">
+    {% include "web/meetings/_comments.html" %}
+  </div>
+  {% endif %}
+  </div>
+
+  <footer class="flex items-center justify-end gap-2 px-4 py-3 border-t border-border bg-subtle/60 shrink-0">
+    <button type="button" @click="close()" class="acta-btn-ghost">{% trans "Cancel" %}</button>
+    <button type="submit" form="meeting-edit-form" class="acta-btn-primary">{% if meeting %}{% trans "Save" %}{% else %}{% trans "Log call" %}{% endif %}</button>
+  </footer>
+</div>
+{% endblock %}

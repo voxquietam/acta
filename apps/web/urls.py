@@ -112,6 +112,16 @@ from .views import (
     upload_task_attachment,
     upload_task_inline_image,
 )
+from .views_meetings import (
+    call_detail,
+    calls_list,
+    meeting_comment_reply_form,
+    meeting_delete,
+    meeting_editor,
+    meeting_task_search,
+    post_meeting_comment,
+    task_meetings_fragment,
+)
 from .views_recurring import recurring_delete, recurring_editor, recurring_list, recurring_run_now, recurring_toggle
 
 app_name = "web"
@@ -132,6 +142,18 @@ urlpatterns = [
     path("recurring/<int:pk>/toggle/", recurring_toggle, name="recurring_toggle"),
     path("recurring/<int:pk>/run/", recurring_run_now, name="recurring_run_now"),
     path("recurring/<int:pk>/delete/", recurring_delete, name="recurring_delete"),
+    path("calls/", calls_list, name="calls_list"),
+    path("calls/new/", meeting_editor, name="create_call"),
+    path("calls/task-search/", meeting_task_search, name="meeting_task_search"),
+    path("calls/<int:pk>/edit/", meeting_editor, name="edit_call"),
+    path("calls/<int:pk>/delete/", meeting_delete, name="delete_call"),
+    path("calls/<int:pk>/comments/", post_meeting_comment, name="post_meeting_comment"),
+    path(
+        "calls/<int:pk>/comments/<int:comment_id>/reply/",
+        meeting_comment_reply_form,
+        name="meeting_comment_reply_form",
+    ),
+    path("calls/<int:pk>/", call_detail, name="call_detail"),
     path("my-activity/", MyActivityView.as_view(), name="my_activity"),
     path("inbox/", InboxView.as_view(), name="inbox"),
     path("inbox/bulk/", bulk_notifications, name="notifications_bulk"),
@@ -461,6 +483,11 @@ urlpatterns = [
         "projects/<str:slug_prefix>/<int:number>/links/",
         task_links_fragment,
         name="task_links_fragment",
+    ),
+    path(
+        "projects/<str:slug_prefix>/<int:number>/meetings/",
+        task_meetings_fragment,
+        name="task_meetings_fragment",
     ),
     path(
         "projects/<str:slug_prefix>/<int:number>/links/add/",

@@ -1,0 +1,65 @@
+{% load i18n %}
+{% load lucide %}
+{% load web_extras %}
+{% comment %}
+Inner of one meeting comment — header (avatar + author + time + edit/delete)
+and the body region (Markdown + attachments + reactions + an optional Reply
+trigger). Shared by top-level cards and replies. The body sits in
+``#meeting-comment-body-<id>`` so the inline TipTap edit form can swap in
+place; the host card has id ``#meeting-comment-<id>``. Edit/delete use the
+owner-agnostic ``/comments/<id>/…`` endpoints. Expects ``comment`` (with
+``can_modify`` + ``reaction_summary``); ``reply_url`` enables the Reply
+trigger (top-level only).
+{% endcomment %}
+<div class="flex items-center gap-2 text-xs text-placeholder-foreground mb-1.5">
+  {% include "web/_user_avatar.html" with user=comment.author class="w-5 h-5" text_class="text-[10px]" %}
+  <span class="text-muted-foreground">{{ comment.author.display_name|default:_("unknown") }}</span>
+  {% if comment.was_edited %}<span class="italic">({% trans "edited" %})</span>{% endif %}
+  <div class="ml-auto flex items-center gap-1">
+    <span class="text-placeholder-foreground">{{ comment.created_at|timesince }}</span>
+    {% if comment.can_modify %}
+    <div class="flex items-center gap-0.5 max-w-0 opacity-0 overflow-hidden transition-all duration-200 ease-out group-hover:max-w-[6rem] group-hover:opacity-100 group-hover:ml-1 focus-within:max-w-[6rem] focus-within:opacity-100 focus-within:ml-1"
+         :class="confirming && '!max-w-[6rem] !opacity-100 !ml-1'"
+         x-data="{ confirming: false }">
+      <button type="button"
+              hx-get="{% url 'web:comment_edit_form' comment_id=comment.id %}"
+              hx-target="#meeting-comment-body-{{ comment.id }}"
+              hx-swap="innerHTML"
+              data-tooltip="{% trans 'Edit' %}"
+              class="p-1 rounded text-placeholder-foreground hover:text-foreground hover:bg-muted transition">
+        {% lucide "pencil" "w-3.5 h-3.5" %}
+      </button>
+      <button x-show="!confirming" type="button" @click="confirming = true"
+              data-tooltip="{% trans 'Delete' %}"
+              class="p-1 rounded text-placeholder-foreground hover:text-rose-400 hover:bg-muted transition">
+        {% lucide "trash-2" "w-3.5 h-3.5" %}
+      </button>
+      <form x-show="confirming" x-cloak
+            hx-post="{% url 'web:delete_comment' comment_id=comment.id %}"
+            hx-target="#meeting-comment-{{ comment.id }}"
+            hx-swap="outerHTML"
+            class="inline-flex items-center gap-1">
+        {% csrf_token %}
+        <button type="submit" class="text-emerald-400 hover:text-emerald-300 p-0.5">{% lucide "check" "w-3.5 h-3.5" %}</button>
+        <button type="button" @click="confirming = false" class="text-placeholder-foreground hover:text-foreground p-0.5">{% lucide "x" "w-3.5 h-3.5" %}</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+</div>
+<div id="meeting-comment-body-{{ comment.id }}">
+  <div class="prose dark:prose-invert prose-sm max-w-none text-muted-foreground break-words">{{ comment.body|markdown }}</div>
+  {% include "web/projects/_comment_attachments.html" %}
+  <div class="mt-2 flex items-center gap-3">
+    {% include "web/_reaction_bar.html" with target_type="comment" target_id=comment.id reactions=comment.reaction_summary can_react=True %}
+    {% if reply_url %}
+    <button type="button"
+            hx-get="{{ reply_url }}"
+            hx-target="#meeting-reply-form-{{ comment.id }}"
+            hx-swap="innerHTML"
+            class="ml-auto shrink-0 text-[11px] text-placeholder-foreground hover:text-foreground transition">
+      {% trans "Reply" %}
+    </button>
+    {% endif %}
+  </div>
+</div>

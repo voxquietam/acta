@@ -1,0 +1,33 @@
+{% extends "base_app.html" %}
+{% load i18n %}
+{% load lucide %}
+
+{% block title %}{% trans "Calls" %} · Acta{% endblock %}
+
+{% block topbar_left %}
+<h1 class="text-base font-medium text-muted-foreground">{% trans "Calls" %}</h1>
+{% endblock %}
+
+{% block topbar_right_prepend %}
+<button type="button"
+        hx-get="{% url 'web:create_call' %}"
+        hx-target="#modal-root"
+        hx-swap="innerHTML"
+        class="acta-btn-primary inline-flex items-center gap-1.5 text-xs">
+  {% lucide "plus" "w-3.5 h-3.5" %}{% trans "New call" %}
+</button>
+{% endblock %}
+
+{% block app_main %}
+<div class="h-full flex flex-col">
+  <div id="calls-list"
+       class="flex-1 min-h-0 overflow-y-auto px-4 md:px-6 py-4"
+       hx-get="{% url 'web:calls_list' %}"
+       hx-trigger="change, acta:meeting-changed from:body"
+       hx-include="#calls-filters"
+       hx-target="this"
+       hx-swap="innerHTML">
+    {% include "web/meetings/_meetings_inner.html" %}
+  </div>
+</div>
+{% endblock %}

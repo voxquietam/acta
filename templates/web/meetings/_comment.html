@@ -1,0 +1,22 @@
+{% load i18n %}
+{% comment %}
+One meeting comment thread card — top-level comment, its one-level replies,
+a lazy "Reply" composer slot, mirroring the task thread card. Returned by
+``post_meeting_comment`` for a new top-level comment (appended to
+``#meeting-comments-<meeting pk>``). Expects ``comment`` (top-level, with
+``can_modify`` + ``reaction_summary``).
+{% endcomment %}
+<li id="meeting-comment-{{ comment.id }}" class="group bg-card border border-border rounded-lg overflow-hidden">
+  <div class="p-3">
+    {% url 'web:meeting_comment_reply_form' pk=comment.meeting_id comment_id=comment.id as reply_url %}
+    {% include "web/meetings/_comment_body.html" with reply_url=reply_url %}
+  </div>
+
+  <div id="meeting-replies-{{ comment.id }}">
+    {% for reply in comment.replies.all %}
+    {% include "web/meetings/_comment_reply.html" with comment=reply %}
+    {% endfor %}
+  </div>
+
+  <div id="meeting-reply-form-{{ comment.id }}"></div>
+</li>

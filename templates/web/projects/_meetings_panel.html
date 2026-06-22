@@ -1,0 +1,17 @@
+{% load i18n %}
+{% comment %}
+Meetings panel shell on the task detail rail. Lazy: it ``hx-get``s its
+content from ``task_meetings_fragment`` on ``load`` and refetches on
+``acta:meeting-changed`` — so the meetings join never touches the detail /
+meta querysets (no N+1), and the panel stays live when a call is logged,
+edited or deleted anywhere. The outer element keeps its hx attributes
+across the innerHTML swap, so the ``acta:meeting-changed`` refetch persists.
+{% endcomment %}
+<div id="task-meetings"
+     hx-get="{% url 'web:task_meetings_fragment' slug_prefix=task.project.slug_prefix number=task.number %}"
+     hx-trigger="load, acta:meeting-changed from:body"
+     hx-target="this"
+     hx-swap="innerHTML"
+     class="bg-card border border-border rounded-lg p-4 mt-4">
+  <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Meetings" %}</div>
+</div>

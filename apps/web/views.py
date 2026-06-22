@@ -974,6 +974,32 @@ def filter_facets(request):
     )
 
 
+def _my_work_calls_context(user, active):
+    """Return the My Work calls strip context: upcoming + recent past calls.
+
+    Personal: only meetings the user takes part in (a participant) or logged
+    (``created_by``), in the active workspace. Upcoming are soonest-first;
+    past are most-recent-first for the thin "recent calls" strip. Both
+    capped so the strip never grows unbounded.
+    """
+    from apps.meetings.models import Meeting
+
+    if active is None:
+        return {"upcoming_calls": [], "past_calls": []}
+    now = timezone.now()
+    base = (
+        Meeting.objects.filter(workspace=active)
+        .filter(Q(participants=user) | Q(created_by=user))
+        .distinct()
+        .select_related("project")
+        .prefetch_related("participants")
+    )
+    return {
+        "upcoming_calls": list(base.filter(happened_at__gte=now).order_by("happened_at")[:9]),
+        "past_calls": list(base.filter(happened_at__lt=now).order_by("-happened_at")[:12]),
+    }
+
+
 class MyWorkView(LoginRequiredMixin, TemplateView):
     """The user's personal task inbox at ``/my-work/``.
 
@@ -1082,6 +1108,7 @@ class MyWorkView(LoginRequiredMixin, TemplateView):
                 effective_params=sidebar_params,
             )
         )
+        ctx.update(_my_work_calls_context(self.request.user, active))
         return ctx
 
 
@@ -1195,6 +1222,7 @@ def _inbox_base_qs(user):
             "task__project",
             "actor",
             "comment",
+            "meeting",
         )
         .order_by("-created_at")
     )
@@ -1314,7 +1342,13 @@ def _get_user_notification_or_404(user, pk):
         The :class:`Notification` instance.
     """
     return get_object_or_404(
-        Notification.objects.select_related("task__project", "actor", "comment", "project_update__project"),
+        Notification.objects.select_related(
+            "task__project",
+            "actor",
+            "comment",
+            "project_update__project",
+            "meeting",
+        ),
         pk=pk,
         recipient=user,
     )
@@ -3121,9 +3155,12 @@ def _get_user_comment_or_404(user, comment_id):
             "author",
             "task__project__workspace",
             "project_update__project__workspace",
+            "meeting__workspace",
+            "meeting__project",
         ).filter(
             Q(task__project__workspace__memberships__user=user)
             | Q(project_update__project__workspace__memberships__user=user)
+            | Q(meeting__workspace__memberships__user=user)
         ),
         pk=comment_id,
     )
@@ -3132,13 +3169,17 @@ def _get_user_comment_or_404(user, comment_id):
 def _comment_owner(comment):
     """Return ``(workspace, project, kind)`` for a comment's owner.
 
-    ``kind`` is ``"task"`` or ``"update"``. Both owner types resolve to a
-    project + workspace, which drive permission checks and the editor's
-    mention / image-upload endpoints.
+    ``kind`` is ``"task"``, ``"update"``, or ``"meeting"``. Task and update
+    comments always resolve to a project + workspace; a meeting comment
+    resolves to a workspace and an *optional* project (a meeting may have
+    none). The workspace drives permission checks; the project (when set)
+    drives the editor's mention / image-upload endpoints.
     """
     if comment.task_id:
         return comment.task.project.workspace, comment.task.project, "task"
-    return comment.project_update.project.workspace, comment.project_update.project, "update"
+    if comment.project_update_id:
+        return comment.project_update.project.workspace, comment.project_update.project, "update"
+    return comment.meeting.workspace, comment.meeting.project, "meeting"
 
 
 def _can_modify_any_comment(user, comment):
@@ -3179,6 +3220,23 @@ def _render_any_comment_card(request, comment):
         )
         _decorate_comments([fresh], task, request.user.id)
         template = "web/projects/_comment_reply.html" if fresh.parent_id else "web/projects/_comment.html"
+        return HttpResponse(render_to_string(template, {"comment": fresh}, request=request))
+
+    if kind == "meeting":
+        fresh = get_object_or_404(
+            Comment.objects.select_related("author", "meeting__workspace").prefetch_related(
+                "attachments",
+                "replies__author",
+                "replies__attachments",
+            ),
+            pk=comment.id,
+        )
+        user_is_admin = _is_workspace_admin(request.user.id, fresh.meeting.workspace_id)
+        items = [fresh, *fresh.replies.all()]
+        for item in items:
+            item.can_modify = user_is_admin or item.author_id == request.user.id
+        attach_reactions(objs=items, target_field="comment", user_id=request.user.id)
+        template = "web/meetings/_comment_reply.html" if fresh.parent_id else "web/meetings/_comment.html"
         return HttpResponse(render_to_string(template, {"comment": fresh}, request=request))
 
     fresh = get_object_or_404(
@@ -5861,6 +5919,17 @@ def comment_edit_form(request, comment_id):
     if not _can_modify_any_comment(request.user, comment):
         raise PermissionDenied()
     _workspace, project, kind = _comment_owner(comment)
+    if kind == "meeting":
+        # Same TipTap edit form as task / update comments, minus the
+        # project-scoped mention / inline-image data attrs (a meeting may
+        # have no project). card_id targets the meeting comment card.
+        return HttpResponse(
+            render_to_string(
+                "web/projects/_comment_edit_form.html",
+                {"comment": comment, "card_id": f"meeting-comment-{comment.id}"},
+                request=request,
+            ),
+        )
     mention_url = reverse("web:mention_search", kwargs={"slug_prefix": project.slug_prefix})
     if kind == "task":
         image_url = reverse(
@@ -6029,7 +6098,8 @@ def _get_reaction_target_or_404(user, target_type, target_id):
     elif target_type == "comment":
         qs = Comment.objects.filter(
             Q(task__project__workspace__memberships__user=user)
-            | Q(project_update__project__workspace__memberships__user=user),
+            | Q(project_update__project__workspace__memberships__user=user)
+            | Q(meeting__workspace__memberships__user=user),
         )
     else:
         qs = ProjectUpdate.objects.filter(project__workspace__memberships__user=user)

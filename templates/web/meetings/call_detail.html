@@ -1,0 +1,133 @@
+{% extends "base_app.html" %}
+{% load i18n %}
+{% load lucide %}
+{% load web_extras %}
+{% comment %}
+Full-page view of one meeting — the shareable counterpart to the editor
+modal. Reached via the modal's "Open full page" button and the copied call
+link. Edit opens the same modal into ``#modal-root``; on save / delete the
+``acta:meeting-changed`` event refetches the panel below and (on delete)
+navigates back to the calls list.
+{% endcomment %}
+
+{% block title %}{{ meeting.title }} · {% trans "Calls" %} · Acta{% endblock %}
+
+{% block topbar_left %}
+<a href="{% url 'web:calls_list' %}" class="text-placeholder-foreground hover:text-foreground text-xs shrink-0">{% trans "Calls" %}</a>
+<span class="text-border-strong shrink-0">/</span>
+<h1 class="text-sm font-medium text-foreground truncate">{{ meeting.title }}</h1>
+<div class="flex items-center gap-0.5 shrink-0">
+  <button type="button"
+          x-data="{ copied: false }"
+          @click="navigator.clipboard.writeText(window.location.origin + '{% url 'web:call_detail' pk=meeting.id %}').then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
+          :data-tooltip="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy call link' %}'"
+          :aria-label="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy call link' %}'"
+          class="p-1.5 rounded-md text-placeholder-foreground hover:bg-muted hover:text-foreground transition">
+    <span x-show="!copied">{% lucide "link" "w-3.5 h-3.5" %}</span>
+    <span x-show="copied" x-cloak>{% lucide "check" "w-3.5 h-3.5" %}</span>
+  </button>
+</div>
+{% endblock %}
+
+{% block topbar_right_prepend %}
+<button type="button"
+        hx-get="{% url 'web:edit_call' pk=meeting.id %}"
+        hx-target="#modal-root"
+        hx-swap="innerHTML"
+        class="inline-flex items-center gap-1.5 text-xs text-placeholder-foreground hover:text-foreground px-2 py-1.5 rounded-md hover:bg-muted transition">
+  {% lucide "pencil" "w-3.5 h-3.5" %}{% trans "Edit" %}
+</button>
+{% endblock %}
+
+{% block app_main %}
+<div class="h-full overflow-y-auto px-4 md:px-6 py-6">
+  <div class="max-w-4xl mx-auto space-y-4">
+
+    <div class="bg-card border border-border rounded-lg p-5">
+      <div class="flex items-start gap-3">
+        <span class="mt-0.5 shrink-0 w-10 h-10 rounded-full bg-muted grid place-items-center text-placeholder-foreground">
+          {% lucide "phone" "w-5 h-5" %}
+        </span>
+        <div class="min-w-0 flex-1">
+          <h2 class="text-lg font-medium text-foreground leading-tight">{{ meeting.title }}</h2>
+          <div class="mt-1 flex items-center gap-3 text-xs text-placeholder-foreground flex-wrap">
+            <span class="inline-flex items-center gap-1">{% lucide "calendar" "w-3.5 h-3.5" %}{{ meeting.happened_at|date:"M j, Y · H:i" }}</span>
+            <span class="inline-flex items-center gap-1">{% lucide "clock" "w-3.5 h-3.5" %}{{ meeting.human_duration }}</span>
+            {% if meeting.project %}
+            <a href="{% url 'web:project_detail' slug_prefix=meeting.project.slug_prefix %}"
+               class="inline-flex items-center gap-1 text-subtle-foreground hover:text-foreground">{% lucide "folder" "w-3.5 h-3.5" %}{{ meeting.project.name }}</a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      {% with participants=meeting.participants.all %}
+      {% if participants %}
+      <div class="mt-4 pt-4 border-t border-border">
+        <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Participants" %}</div>
+        <div class="mt-2 flex flex-wrap gap-1.5">
+          {% for p in participants %}
+          <span class="inline-flex items-center gap-1.5 bg-muted rounded-md px-2 py-1 text-xs text-subtle-foreground">
+            <span class="w-4 h-4 rounded-full text-white grid place-items-center text-[8px] font-medium"
+                  style="background-color: {{ p.avatar_color }};">{{ p.display_name|default:p.username|first|upper }}</span>
+            {{ p.display_name|default:p.username }}
+          </span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      {% endwith %}
+
+      {% with tasks=meeting.tasks.all %}
+      {% if tasks %}
+      <div class="mt-4 pt-4 border-t border-border">
+        <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Linked tasks" %}</div>
+        <div class="mt-2 space-y-1">
+          {% for t in tasks %}
+          <a href="{% url 'web:task_detail' slug_prefix=t.project.slug_prefix number=t.number %}"
+             class="group/link flex items-center gap-2 text-xs">
+            <span class="font-mono text-placeholder-foreground group-hover/link:text-foreground shrink-0">{{ t.slug }}</span>
+            <span class="truncate flex-1 text-subtle-foreground group-hover/link:text-foreground">{{ t.title }}</span>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      {% endwith %}
+
+      {% if meeting.notes %}
+      <div class="mt-4 pt-4 border-t border-border">
+        <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground mb-2">{% trans "Notes" %}</div>
+        <div class="prose dark:prose-invert prose-sm max-w-none text-muted-foreground break-words">{{ meeting.notes|markdown }}</div>
+      </div>
+      {% endif %}
+
+      <div class="mt-5 pt-4 border-t border-border flex items-center gap-3 text-[11px] text-placeholder-foreground">
+        <span>{% trans "Logged by" %} {% if meeting.created_by %}{{ meeting.created_by.display_name|default:meeting.created_by.username }}{% else %}—{% endif %}</span>
+        {% if meeting.was_edited %}<span>· {% trans "edited" %}</span>{% endif %}
+        <span class="ml-auto" x-data="{ confirmDelete: false }">
+          <template x-if="!confirmDelete">
+            <button type="button" @click="confirmDelete = true" class="inline-flex items-center gap-1 hover:text-rose-400 transition">
+              {% lucide "trash-2" "w-3.5 h-3.5" %}{% trans "Delete" %}
+            </button>
+          </template>
+          <template x-if="confirmDelete">
+            <span class="inline-flex items-center gap-2">
+              <span class="text-rose-400">{% trans "Delete permanently?" %}</span>
+              <form hx-post="{% url 'web:delete_call' pk=meeting.id %}" hx-swap="none" class="contents"
+                    @htmx:after-request="if ($event.detail.successful) window.location.assign('{% url 'web:calls_list' %}')">
+                {% csrf_token %}
+                <button type="submit" class="font-medium text-rose-400 hover:text-rose-300">{% trans "Delete" %}</button>
+              </form>
+              <button type="button" @click="confirmDelete = false" class="hover:text-foreground">{% trans "No" %}</button>
+            </span>
+          </template>
+        </span>
+      </div>
+    </div>
+
+    {% include "web/meetings/_comments.html" %}
+
+  </div>
+</div>
+{% endblock %}

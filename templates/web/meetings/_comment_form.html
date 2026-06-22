@@ -1,0 +1,74 @@
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+Top-level comment composer for a meeting — the same boxed TipTap editor +
+file-attach paperclip + "Post comment" pill the task page uses, retargeted
+to ``post_meeting_comment``. New comments append to
+``#meeting-comments-<meeting pk>``. Mentions / inline images are wired only
+when the meeting has a project. Expects ``meeting`` + ``user``.
+{% endcomment %}
+<form x-data="{
+        empty: true,
+        files: [],
+        pick(list) { for (const f of list) this.files.push(f); this.sync(); },
+        remove(i) { this.files.splice(i, 1); this.sync(); },
+        sync() {
+          const dt = new DataTransfer();
+          this.files.forEach((f) => dt.items.add(f));
+          this.$refs.fileInput.files = dt.files;
+        },
+        reset() { this.files = []; this.sync(); }
+      }"
+      @editor:change="empty = $event.detail.empty"
+      hx-post="{% url 'web:post_meeting_comment' pk=meeting.id %}"
+      hx-target="#meeting-comments-{{ meeting.id }}"
+      hx-swap="beforeend"
+      hx-encoding="multipart/form-data"
+      @htmx:after-request="
+        if ($event.detail.successful) {
+          const ed = $el.querySelector('[data-description-editor]')?._editor;
+          if (ed) ed.commands.clearContent(true);
+          reset();
+        }
+      "
+      class="space-y-2 mt-3">
+  {% csrf_token %}
+
+  <div data-description-editor
+       data-no-autosave
+       {% if meeting.project %}data-mention-url="{% url 'web:mention_search' slug_prefix=meeting.project.slug_prefix %}"{% endif %}
+       {% if meeting.project %}data-image-upload-url="{% url 'web:upload_project_inline_image' slug_prefix=meeting.project.slug_prefix %}"{% endif %}
+       data-placeholder="{% trans 'Write a comment…' %}">
+    <input type="hidden" name="body" value="" data-editor-output>
+    <textarea class="description-editor-source hidden" readonly></textarea>
+    {% include "web/projects/_editor_toolbar.html" %}
+    <div class="description-editor-mount min-h-[3rem] bg-card border border-border rounded-lg p-3"></div>
+  </div>
+
+  <input type="file" name="file" multiple class="hidden" x-ref="fileInput"
+         @change="pick($event.target.files)">
+
+  <div x-show="files.length" x-cloak class="flex flex-wrap gap-1.5">
+    <template x-for="(f, i) in files" :key="i">
+      <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted border border-border text-xs text-subtle-foreground">
+        <span class="truncate max-w-[12rem]" x-text="f.name"></span>
+        <button type="button" @click="remove(i)" class="text-placeholder-foreground hover:text-rose-400">
+          {% lucide "x" "w-3 h-3" %}
+        </button>
+      </span>
+    </template>
+  </div>
+
+  <div class="flex items-center justify-between">
+    <button type="button" @click="$refs.fileInput.click()"
+            data-tooltip="{% trans 'Attach files' %}" data-tooltip-pos="below"
+            class="p-1.5 rounded-md text-placeholder-foreground hover:text-foreground hover:bg-muted transition">
+      {% lucide "paperclip" "w-4 h-4" %}
+    </button>
+    <button type="submit"
+            :disabled="empty && files.length === 0"
+            class="px-3 py-1.5 text-xs rounded-md bg-brand-600 text-white hover:bg-brand-500 disabled:opacity-40 disabled:cursor-not-allowed">
+      {% trans "Post comment" %}
+    </button>
+  </div>
+</form>

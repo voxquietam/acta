@@ -1,0 +1,59 @@
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+Calls strip for My Work, shown above the task groups. A thin horizontal
+"recent calls" lenta (past, scrollable) on top, then "upcoming calls" as
+small cards. Personal: only calls the current user takes part in (or
+logged). Expects ``past_calls`` + ``upcoming_calls``.
+{% endcomment %}
+{% if past_calls or upcoming_calls %}
+<div class="mb-4 space-y-3">
+
+  {% if past_calls %}
+  <div class="flex items-center gap-2 overflow-x-auto pb-1">
+    <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground shrink-0">{% trans "Recent calls" %}</span>
+    {% for m in past_calls %}
+    <a href="{% url 'web:call_detail' pk=m.id %}"
+       class="shrink-0 inline-flex items-center gap-1.5 bg-card border border-border rounded-full px-2.5 py-1 text-[11px] text-subtle-foreground hover:text-foreground hover:border-border-strong transition">
+      {% lucide "phone" "w-3 h-3 text-placeholder-foreground" %}
+      <span class="truncate max-w-[10rem]">{{ m.title }}</span>
+      <span class="text-placeholder-foreground">· {{ m.happened_at|date:"M j" }}</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if upcoming_calls %}
+  <div>
+    <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground mb-1.5">{% trans "Upcoming calls" %}</div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+      {% for m in upcoming_calls %}
+      <a href="{% url 'web:call_detail' pk=m.id %}"
+         class="group bg-card border border-border rounded-lg p-3 hover:border-border-strong transition">
+        <div class="flex items-center gap-2">
+          <span class="w-7 h-7 rounded-full bg-indigo-500/15 text-indigo-400 grid place-items-center shrink-0">{% lucide "phone" "w-3.5 h-3.5" %}</span>
+          <div class="min-w-0 flex-1">
+            <div class="text-sm text-foreground truncate group-hover:text-brand-400 transition">{{ m.title }}</div>
+            <div class="text-[11px] text-placeholder-foreground">{{ m.happened_at|date:"M j · H:i" }} · {{ m.human_duration }}</div>
+          </div>
+        </div>
+        {% with parts=m.participants.all %}
+        {% if parts %}
+        <div class="mt-2 flex items-center -space-x-1">
+          {% for p in parts|slice:":5" %}
+          <span class="w-5 h-5 rounded-full text-white grid place-items-center text-[8px] font-medium ring-1 ring-card"
+                style="background-color: {{ p.avatar_color }};"
+                title="{{ p.display_name|default:p.username }}">{{ p.display_name|default:p.username|first|upper }}</span>
+          {% endfor %}
+          {% if parts|length > 5 %}<span class="pl-1.5 text-[10px] text-placeholder-foreground">+{{ parts|length|add:"-5" }}</span>{% endif %}
+        </div>
+        {% endif %}
+        {% endwith %}
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endif %}

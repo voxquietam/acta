@@ -1,0 +1,16 @@
+{% load i18n %}
+{% comment %}
+Comment thread for a meeting, shown on the call detail page. A list of
+top-level comment cards (each with its replies + reply composer) plus a
+top-level composer. Plain Markdown — see ``_comment_composer.html``.
+Expects ``meeting`` + ``comments`` (top-level, decorated with ``can_modify``).
+{% endcomment %}
+<div class="bg-card border border-border rounded-lg p-5">
+  <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground mb-3">{% trans "Comments" %}</div>
+  <ul id="meeting-comments-{{ meeting.id }}" class="space-y-3 mb-1">
+    {% for comment in comments %}
+    {% include "web/meetings/_comment.html" %}
+    {% endfor %}
+  </ul>
+  {% include "web/meetings/_comment_form.html" %}
+</div>

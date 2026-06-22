@@ -1,0 +1,18 @@
+{% load i18n %}
+{% comment %}
+Lazy TipTap reply composer for one meeting comment. Loaded on demand via
+``hx-get`` (``meeting_comment_reply_form``) into ``#meeting-reply-form-<id>``;
+the editor bundle mounts it on ``htmx:afterSwap``. Posts to
+``post_meeting_comment?parent=<id>``, appended into ``#meeting-replies-<id>``.
+The form itself is the shared ``_comment_composer``. Mentions / inline images
+are scoped to the meeting's project when it has one. Expects ``meeting`` +
+``parent``.
+{% endcomment %}
+{% url 'web:post_meeting_comment' pk=meeting.id as post_url %}
+{% if meeting.project %}
+{% url 'web:mention_search' slug_prefix=meeting.project.slug_prefix as mention_url %}
+{% url 'web:upload_project_inline_image' slug_prefix=meeting.project.slug_prefix as image_url %}
+{% endif %}
+{% trans "Write a reply…" as placeholder %}
+{% trans "Reply" as tooltip %}
+{% include "web/projects/_comment_composer.html" with post_url=post_url parent_id=parent.id target_kind="meeting-replies" target_id=parent.id mention_url=mention_url image_url=image_url placeholder=placeholder tooltip=tooltip wrapper_class="flex items-end gap-2 px-3 py-2.5 pl-8 border-t border-border" user=user %}

@@ -1,0 +1,52 @@
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+Meetings panel content for one task — rendered by ``task_meetings_fragment``
+into the ``#task-meetings`` shell. Lists the linked calls with their
+duration and a rollup total (sum of linked meetings' minutes — a "time
+spent around this task" signal). "Log a call" opens the editor pre-linked
+to this task via ``?task=<id>``.
+{% endcomment %}
+<div class="flex items-center justify-between gap-2">
+  <div class="flex items-center gap-2 min-w-0">
+    <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Meetings" %}</div>
+    {% if meetings %}
+    <span class="text-[11px] text-subtle-foreground">
+      {% blocktrans count counter=meetings|length %}{{ counter }} call · {{ total_minutes }}m{% plural %}{{ counter }} calls · {{ total_minutes }}m{% endblocktrans %}
+    </span>
+    {% else %}
+    <span class="text-[11px] text-placeholder-foreground italic">{% trans "No calls yet." %}</span>
+    {% endif %}
+  </div>
+  <button type="button"
+          hx-get="{% url 'web:create_call' %}?task={{ task.id }}"
+          hx-target="#modal-root"
+          hx-swap="innerHTML"
+          class="text-placeholder-foreground hover:text-foreground p-0.5 rounded"
+          data-tooltip="{% trans 'Log a call' %}">
+    {% lucide "plus" "w-3.5 h-3.5" %}
+  </button>
+</div>
+
+{% if meetings %}
+<div class="mt-2 space-y-1.5">
+  {% for meeting in meetings %}
+  <div class="group/meeting flex items-center gap-2 text-xs">
+    <span class="w-7 h-7 rounded-full bg-muted grid place-items-center text-placeholder-foreground shrink-0">
+      {% lucide "phone" "w-3.5 h-3.5" %}
+    </span>
+    <button type="button"
+            hx-get="{% url 'web:edit_call' pk=meeting.id %}"
+            hx-target="#modal-root"
+            hx-swap="innerHTML"
+            class="min-w-0 flex-1 text-left">
+      <span class="block truncate text-subtle-foreground group-hover/meeting:text-foreground">{{ meeting.title }}</span>
+      <span class="block text-[10px] text-placeholder-foreground">{{ meeting.happened_at|date:"M j, Y · H:i" }}</span>
+    </button>
+    <span class="inline-flex items-center gap-1 text-[10px] text-placeholder-foreground shrink-0">
+      {% lucide "clock" "w-3 h-3" %}{{ meeting.human_duration }}
+    </span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
