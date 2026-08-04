@@ -41,6 +41,20 @@ from apps.web.views import (
 )
 
 
+def _comment_scope(request):
+    """Return the comment-thread render scope ("page" or "m").
+
+    The same meeting comment thread can be live in two places at once — the
+    call detail page and the edit modal opened over it — so each render is
+    namespaced to keep element ids unique. The triggering element echoes its
+    scope back (a hidden ``scope`` POST field or a ``?scope=`` query) so the
+    returned fragment's ids match the thread it belongs to. Anything other
+    than the modal scope falls back to "page".
+    """
+    raw = request.POST.get("scope") or request.GET.get("scope") or ""
+    return "m" if raw == "m" else "page"
+
+
 def _accessible_meetings(request):
     """Return the meetings the user may see in the active workspace.
 
@@ -392,8 +406,9 @@ def post_meeting_comment(request, pk):
             create_comment_attachment(comment=comment, uploader=request.user, uploaded_file=upload)
     comment.reaction_summary = []
     comment.can_modify = True
+    scope = _comment_scope(request)
     template = "web/meetings/_comment_reply.html" if parent else "web/meetings/_comment.html"
-    return HttpResponse(render_to_string(template, {"comment": comment}, request=request))
+    return HttpResponse(render_to_string(template, {"comment": comment, "scope": scope}, request=request))
 
 
 @login_required
@@ -409,7 +424,7 @@ def meeting_comment_reply_form(request, pk, comment_id):
     return HttpResponse(
         render_to_string(
             "web/meetings/_comment_reply_form.html",
-            {"meeting": meeting, "parent": parent},
+            {"meeting": meeting, "parent": parent, "scope": _comment_scope(request)},
             request=request,
         ),
     )

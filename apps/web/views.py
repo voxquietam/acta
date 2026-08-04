@@ -3236,8 +3236,9 @@ def _render_any_comment_card(request, comment):
         for item in items:
             item.can_modify = user_is_admin or item.author_id == request.user.id
         attach_reactions(objs=items, target_field="comment", user_id=request.user.id)
+        scope = "m" if (request.POST.get("scope") or request.GET.get("scope")) == "m" else "page"
         template = "web/meetings/_comment_reply.html" if fresh.parent_id else "web/meetings/_comment.html"
-        return HttpResponse(render_to_string(template, {"comment": fresh}, request=request))
+        return HttpResponse(render_to_string(template, {"comment": fresh, "scope": scope}, request=request))
 
     fresh = get_object_or_404(
         Comment.objects.select_related("author", "project_update__project__workspace").prefetch_related(
@@ -5922,11 +5923,14 @@ def comment_edit_form(request, comment_id):
     if kind == "meeting":
         # Same TipTap edit form as task / update comments, minus the
         # project-scoped mention / inline-image data attrs (a meeting may
-        # have no project). card_id targets the meeting comment card.
+        # have no project). ``scope`` namespaces the card id (page vs the
+        # edit modal) and rides along on save / cancel so the refreshed card
+        # lands in the right thread copy.
+        scope = "m" if request.GET.get("scope") == "m" else "page"
         return HttpResponse(
             render_to_string(
                 "web/projects/_comment_edit_form.html",
-                {"comment": comment, "card_id": f"meeting-comment-{comment.id}"},
+                {"comment": comment, "card_id": f"meeting-comment-{scope}-{comment.id}", "scope": scope},
                 request=request,
             ),
         )

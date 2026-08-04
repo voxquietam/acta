@@ -1,16 +1,21 @@
 {% load i18n %}
 {% comment %}
-Comment thread for a meeting, shown on the call detail page. A list of
-top-level comment cards (each with its replies + reply composer) plus a
-top-level composer. Plain Markdown — see ``_comment_composer.html``.
-Expects ``meeting`` + ``comments`` (top-level, decorated with ``can_modify``).
+Comment thread for a meeting. The SAME thread can render twice at once — on
+the call detail page AND inside the edit modal opened over it — so every
+element id is namespaced by ``scope`` ("page" / "m") to avoid the duplicate-id
+collision that would otherwise send a modal-posted comment into the page's
+hidden thread. ``scope`` threads through the cards + composer + the comment
+endpoints (as a hidden ``scope`` field on POSTs, a ``?scope=`` query on GETs).
+Expects ``meeting`` + ``comments`` (decorated with ``can_modify``); optional
+``scope`` (default "page").
 {% endcomment %}
+{% firstof scope "page" as scope %}
 <div class="bg-card border border-border rounded-lg p-5">
   <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground mb-3">{% trans "Comments" %}</div>
-  <ul id="meeting-comments-{{ meeting.id }}" class="space-y-3 mb-1">
+  <ul id="meeting-comments-{{ scope }}-{{ meeting.id }}" class="space-y-3 mb-1">
     {% for comment in comments %}
-    {% include "web/meetings/_comment.html" %}
+    {% include "web/meetings/_comment.html" with scope=scope %}
     {% endfor %}
   </ul>
-  {% include "web/meetings/_comment_form.html" %}
+  {% include "web/meetings/_comment_form.html" with scope=scope %}
 </div>

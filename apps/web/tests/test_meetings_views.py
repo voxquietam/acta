@@ -362,6 +362,35 @@ def test_meeting_comment_with_attachment(client, ws_project):
 
 
 @pytest.mark.django_db
+def test_comment_thread_scope_namespacing(client, ws_project):
+    """Page and edit-modal threads use distinct, namespaced element ids.
+
+    Guards the duplicate-id bug: when the edit modal opens over the detail
+    page both render the thread, so a modal-posted comment must target the
+    modal's container (``meeting-comments-m-…``), not the page's.
+    """
+    ws, project = ws_project
+    meeting = MeetingFactory(workspace=ws, project=project)
+    client.force_login(ws.owner)
+
+    page = client.get(reverse("web:call_detail", kwargs={"pk": meeting.id})).content
+    assert f'id="meeting-comments-page-{meeting.id}"'.encode() in page
+
+    modal = client.get(reverse("web:edit_call", kwargs={"pk": meeting.id})).content
+    assert f'id="meeting-comments-m-{meeting.id}"'.encode() in modal
+
+    # A comment posted from the modal comes back with modal-scoped ids so HTMX
+    # appends it into the modal's container, not the page's hidden one.
+    resp = client.post(
+        reverse("web:post_meeting_comment", kwargs={"pk": meeting.id}),
+        {"body": "from modal", "scope": "m"},
+    )
+    cid = Comment.objects.get(meeting=meeting).id
+    assert f'id="meeting-comment-m-{cid}"'.encode() in resp.content
+    assert f'id="meeting-comment-page-{cid}"'.encode() not in resp.content
+
+
+@pytest.mark.django_db
 def test_meeting_comment_reply_form_renders(client, ws_project):
     ws, project = ws_project
     meeting = MeetingFactory(workspace=ws, project=project)

@@ -231,7 +231,7 @@ x-data="{
 
   {% if meeting %}
   <div class="px-4 pb-4">
-    {% include "web/meetings/_comments.html" %}
+    {% include "web/meetings/_comments.html" with scope="m" %}
   </div>
   {% endif %}
   </div>

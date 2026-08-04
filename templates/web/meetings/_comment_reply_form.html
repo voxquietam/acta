@@ -8,6 +8,7 @@ The form itself is the shared ``_comment_composer``. Mentions / inline images
 are scoped to the meeting's project when it has one. Expects ``meeting`` +
 ``parent``.
 {% endcomment %}
+{% firstof scope "page" as scope %}
 {% url 'web:post_meeting_comment' pk=meeting.id as post_url %}
 {% if meeting.project %}
 {% url 'web:mention_search' slug_prefix=meeting.project.slug_prefix as mention_url %}
@@ -15,4 +16,4 @@ are scoped to the meeting's project when it has one. Expects ``meeting`` +
 {% endif %}
 {% trans "Write a reply…" as placeholder %}
 {% trans "Reply" as tooltip %}
-{% include "web/projects/_comment_composer.html" with post_url=post_url parent_id=parent.id target_kind="meeting-replies" target_id=parent.id mention_url=mention_url image_url=image_url placeholder=placeholder tooltip=tooltip wrapper_class="flex items-end gap-2 px-3 py-2.5 pl-8 border-t border-border" user=user %}
+{% include "web/projects/_comment_composer.html" with post_url=post_url parent_id=parent.id target_kind="meeting-replies-"|add:scope target_id=parent.id mention_url=mention_url image_url=image_url placeholder=placeholder tooltip=tooltip wrapper_class="flex items-end gap-2 px-3 py-2.5 pl-8 border-t border-border" user=user scope=scope %}

@@ -4,6 +4,7 @@ top divider. Returned by ``post_meeting_comment`` for a new reply (appended
 to ``#meeting-replies-<parent pk>``). Expects ``comment`` (a reply, with
 ``can_modify`` + ``reaction_summary``).
 {% endcomment %}
-<div id="meeting-comment-{{ comment.id }}" class="group border-t border-border px-3 py-2.5 pl-8">
-  {% include "web/meetings/_comment_body.html" %}
+{% firstof scope "page" as scope %}
+<div id="meeting-comment-{{ scope }}-{{ comment.id }}" class="group border-t border-border px-3 py-2.5 pl-8">
+  {% include "web/meetings/_comment_body.html" with scope=scope %}
 </div>

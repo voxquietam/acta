@@ -1,5 +1,6 @@
 {% load i18n %}
 {% load lucide %}
+{% firstof scope "page" as scope %}
 {% comment %}
 Top-level comment composer for a meeting — the same boxed TipTap editor +
 file-attach paperclip + "Post comment" pill the task page uses, retargeted
@@ -21,7 +22,7 @@ when the meeting has a project. Expects ``meeting`` + ``user``.
       }"
       @editor:change="empty = $event.detail.empty"
       hx-post="{% url 'web:post_meeting_comment' pk=meeting.id %}"
-      hx-target="#meeting-comments-{{ meeting.id }}"
+      hx-target="#meeting-comments-{{ scope }}-{{ meeting.id }}"
       hx-swap="beforeend"
       hx-encoding="multipart/form-data"
       @htmx:after-request="
@@ -33,6 +34,7 @@ when the meeting has a project. Expects ``meeting`` + ``user``.
       "
       class="space-y-2 mt-3">
   {% csrf_token %}
+  <input type="hidden" name="scope" value="{{ scope }}">
 
   <div data-description-editor
        data-no-autosave

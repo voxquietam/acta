@@ -18,6 +18,7 @@ the unchanged card via ``comment_fragment``. The view passes ``card_id``,
       hx-swap="outerHTML"
       class="space-y-2">
   {% csrf_token %}
+  {% if scope %}<input type="hidden" name="scope" value="{{ scope }}">{% endif %}
   <div data-description-editor
        data-no-autosave
        {% if mention_url %}data-mention-url="{{ mention_url }}"{% endif %}
@@ -32,7 +33,7 @@ the unchanged card via ``comment_fragment``. The view passes ``card_id``,
   </div>
   <div class="flex items-center justify-end gap-2">
     <button type="button"
-            hx-get="{% url 'web:comment_fragment' comment_id=comment.id %}"
+            hx-get="{% url 'web:comment_fragment' comment_id=comment.id %}{% if scope %}?scope={{ scope }}{% endif %}"
             hx-target="#{{ card_id }}"
             hx-swap="outerHTML"
             class="px-3 py-1.5 text-xs rounded-md text-placeholder-foreground hover:text-foreground transition">

@@ -6,17 +6,18 @@ a lazy "Reply" composer slot, mirroring the task thread card. Returned by
 ``#meeting-comments-<meeting pk>``). Expects ``comment`` (top-level, with
 ``can_modify`` + ``reaction_summary``).
 {% endcomment %}
-<li id="meeting-comment-{{ comment.id }}" class="group bg-card border border-border rounded-lg overflow-hidden">
+{% firstof scope "page" as scope %}
+<li id="meeting-comment-{{ scope }}-{{ comment.id }}" class="group bg-card border border-border rounded-lg overflow-hidden">
   <div class="p-3">
     {% url 'web:meeting_comment_reply_form' pk=comment.meeting_id comment_id=comment.id as reply_url %}
-    {% include "web/meetings/_comment_body.html" with reply_url=reply_url %}
+    {% include "web/meetings/_comment_body.html" with reply_url=reply_url|add:"?scope="|add:scope scope=scope %}
   </div>
 
-  <div id="meeting-replies-{{ comment.id }}">
+  <div id="meeting-replies-{{ scope }}-{{ comment.id }}">
     {% for reply in comment.replies.all %}
-    {% include "web/meetings/_comment_reply.html" with comment=reply %}
+    {% include "web/meetings/_comment_reply.html" with comment=reply scope=scope %}
     {% endfor %}
   </div>
 
-  <div id="meeting-reply-form-{{ comment.id }}"></div>
+  <div id="meeting-reply-form-{{ scope }}-{{ comment.id }}"></div>
 </li>
