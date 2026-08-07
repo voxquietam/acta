@@ -51,6 +51,18 @@ class TestNotifyViaTelegram:
         assert tg.notify_via_telegram(n) is False
         assert sent == []
 
+    def test_skips_when_user_inactive(self, sent):
+        # A deactivated (offboarded) user keeps their linked, enabled account
+        # but must stop receiving DMs.
+        ws = WorkspaceFactory()
+        user = UserFactory()
+        _linked(user, chat_id=321, enabled=True)
+        user.is_active = False
+        user.save(update_fields=["is_active"])
+        n = Notification.objects.create(recipient=user, workspace=ws, kind=Notification.Kind.MENTION, preview="x")
+        assert tg.notify_via_telegram(n) is False
+        assert sent == []
+
     def test_sender_gets_own_announcement_dm(self, sent):
         # the sender of a broadcast also gets their own Telegram copy
         ws = WorkspaceFactory()

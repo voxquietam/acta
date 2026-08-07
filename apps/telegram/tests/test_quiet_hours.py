@@ -159,6 +159,20 @@ class TestFlushDigest:
         assert sent == []
         assert TelegramQueuedNotification.objects.filter(delivered_at__isnull=True).count() == 1
 
+    def test_does_not_flush_for_inactive_user(self, sent):
+        # A deactivated user's queued digest must not be sent even after the
+        # quiet window closes.
+        user = UserFactory()
+        account = _linked(user, chat_id=42)
+        account.quiet_hours_enabled = False
+        account.save(update_fields=["quiet_hours_enabled"])
+        self._queue(account, kind=Notification.Kind.ASSIGNED, task_id=1)
+        user.is_active = False
+        user.save(update_fields=["is_active"])
+        call_command("flush_telegram_quiet_digests")
+        assert sent == []
+        assert TelegramQueuedNotification.objects.filter(delivered_at__isnull=True).count() == 1
+
     def test_sends_and_marks_delivered_when_outside_window(self, sent):
         user = UserFactory()
         account = _linked(user, chat_id=42)

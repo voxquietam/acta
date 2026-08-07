@@ -578,8 +578,14 @@ def notify_via_telegram(notification) -> bool:
     """
     from apps.notifications.models import Notification
 
+    # ``user__is_active`` gates deactivated accounts: an offboarded (fired)
+    # user keeps their linked, ``enabled`` TelegramAccount, but must stop
+    # receiving DMs the moment they're marked inactive in the admin. Checked
+    # at send time so it holds however the deactivation happened.
     account = (
-        TelegramAccount.objects.filter(user_id=notification.recipient_id, enabled=True).select_related("user").first()
+        TelegramAccount.objects.filter(user_id=notification.recipient_id, enabled=True, user__is_active=True)
+        .select_related("user")
+        .first()
     )
     if account is None:
         return False

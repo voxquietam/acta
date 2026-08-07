@@ -41,6 +41,7 @@ class Command(BaseCommand):
         candidates = (
             TelegramAccount.objects.filter(
                 enabled=True,
+                user__is_active=True,
                 queued_notifications__delivered_at__isnull=True,
             )
             .select_related("user")
