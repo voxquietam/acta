@@ -1148,6 +1148,36 @@
       });
   }
 
+  // Touch devices have no native HTML5 DnD to drive Sortable, so they get its
+  // pointer-driven fallback ghost plus a hold-to-drag delay that leaves plain
+  // swipes free to scroll the column. Mouse and trackpad keep the NATIVE
+  // path: it draws a smooth ghost that tracks the cursor exactly, and it
+  // suppresses the trailing ``click`` that would otherwise open the task
+  // modal the moment a card is dropped. Forcing the fallback everywhere
+  // regressed both — a laggy ghost lagging behind the cursor, and a modal
+  // popping open after every drop.
+  //
+  // What actually broke dragging in Safari was text selection, not the DnD
+  // backend: Sortable only flips ``el.draggable = true`` on pointerdown, by
+  // which point the browser had already begun selecting the card's text, so
+  // ``dragstart`` never fired. In Chrome the second attempt usually worked
+  // (the flag lingered from the first); in Safari — including the "Add to
+  // Dock" PWA — it never did. The fix is ``select-none`` on the card itself
+  // (see ``_task_card.html``): it removes the race and leaves native DnD
+  // untouched.
+  const COARSE_POINTER =
+    !!window.matchMedia && window.matchMedia("(hover: none) and (pointer: coarse)").matches;
+  const DND_TOUCH_OPTS = COARSE_POINTER
+    ? {
+        forceFallback: true,
+        fallbackOnBody: true,
+        fallbackTolerance: 4,
+        delay: 150,
+        delayOnTouchOnly: true,
+        touchStartThreshold: 4,
+      }
+    : {};
+
   function initKanbanDnD() {
     if (!window.Sortable) return;
     document.querySelectorAll(".kanban-column").forEach((col) => {
@@ -1157,6 +1187,7 @@
         animation: 150,
         ghostClass: "opacity-30",
         onAdd: handleKanbanDrop,
+        ...DND_TOUCH_OPTS,
       });
     });
   }
@@ -1193,6 +1224,7 @@
         ghostClass: "opacity-30",
         handle: "[data-label]",
         onEnd: persistLabelOrder,
+        ...DND_TOUCH_OPTS,
       });
     });
   }

@@ -19,6 +19,11 @@ the task via the HTMX attrs from ``open_task_modal_attrs``. Losing the
 anchor would drop "open in new tab"; ``data-task-url`` + the delegated
 handler in ``_kanban.html`` restores it for middle / Ctrl+click.
 ``data-kanban-card`` marks it for the SSE card selectors in acta.js.
+
+``select-none`` is load-bearing, not cosmetic: without it a press-and-drag
+starts a text selection, which in Safari (and on the first attempt in
+Chrome) swallowed the drag entirely — the card just highlighted. Pairs
+with ``forceFallback`` on the Sortable instance in acta.js.
 {% endcomment %}
 <div data-kanban-card
    data-task-id="{{ task.id }}"
@@ -27,7 +32,7 @@ handler in ``_kanban.html`` restores it for middle / Ctrl+click.
    data-task-url="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
    {% open_task_modal_attrs task %}
    {% task_filter_attrs task %}
-   class="relative block bg-card border border-border rounded-lg p-2.5 overflow-hidden hover:border-border-strong transition group cursor-grab active:cursor-grabbing
+   class="relative block select-none bg-card border border-border rounded-lg p-2.5 overflow-hidden hover:border-border-strong transition group cursor-grab active:cursor-grabbing
      {% if task.archived_at %}opacity-70{% elif task.status == 'done' %}opacity-90{% endif %}">
 
   {% comment %}
