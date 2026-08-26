@@ -60,6 +60,7 @@ from apps.reactions.services import TARGET_TYPES, attach_reactions, summarize_re
 from apps.tasks.events import broadcast_link_change, broadcast_task_events, emit_task_diff_events, snapshot_task
 from apps.tasks.metrics import compute_bottlenecks, compute_cfd, compute_flow_metrics
 from apps.tasks.models import Task
+from apps.tasks.search import search_tasks
 from apps.web.dashboard import DEFAULT_RANGE, build_dashboard_context
 from apps.web.exports import serialize_project_overview, serialize_tasks
 from apps.web.filters import (
@@ -3854,25 +3855,13 @@ def task_links_fragment(request, slug_prefix, number):
 def task_link_search(request, slug_prefix, number):
     """Typeahead search for the link-target picker.
 
-    Returns up to 10 tasks in the same workspace (excluding this task
-    and already-linked ones). Matching is forgiving so a partial query
-    still surfaces the target:
-
-    - **Title / assignee**: every whitespace-separated word must appear
-      in the title *or* the assignee's name (first / last / username) —
-      AND of words, so order and gaps don't matter. ``"звіт двв"`` finds
-      *"…звіту по ДВВ"*; ``"сенчишен денис"`` finds tasks assigned to
-      Денис … Сенчишен regardless of name-part order.
-    - **Slug**: ``PREFIX``, ``PREFIX-`` or ``PREFIX-NUMBER`` matches by
-      ``slug_prefix`` prefix (``istartswith``) plus the number when given,
-      so a half-typed key still works.
-    - **Bare number**: matches ``number`` across the workspace.
+    Returns workspace tasks (excluding this task and already-linked ones),
+    ranked by relevance then recency. Matching rules live in
+    :mod:`apps.tasks.search` and are shared with the meeting task picker.
 
     Optional ``status`` filter narrows by task status. JSON payload feeds
     the Alpine autocomplete in the links panel.
     """
-    from django.db.models import Q
-
     task = _get_user_task_or_404(request.user, slug_prefix, number)
     q = (request.GET.get("q") or "").strip()
     status = (request.GET.get("status") or "").strip()
@@ -3891,34 +3880,9 @@ def task_link_search(request, slug_prefix, number):
     )
     if status in Task.STATUS_VALUES:
         qs = qs.filter(status=status)
-    if q:
-        match = Q()
-        for word in q.split():
-            match &= (
-                Q(title__icontains=word)
-                | Q(assignee__first_name__icontains=word)
-                | Q(assignee__last_name__icontains=word)
-                | Q(assignee__username__icontains=word)
-            )
-
-        upper = q.upper()
-        prefix, dash, num = upper.rpartition("-")
-        if dash:
-            prefix = prefix.strip()
-            num = num.strip()
-            if prefix:
-                slug_q = Q(project__slug_prefix__istartswith=prefix)
-                if num.isdigit():
-                    slug_q &= Q(number=int(num))
-                match |= slug_q
-        elif q.isdigit():
-            match |= Q(number=int(q))
-        elif " " not in q:
-            match |= Q(project__slug_prefix__istartswith=upper)
-        qs = qs.filter(match)
 
     results = []
-    for t in qs.order_by("-updated_at")[:10]:
+    for t in search_tasks(qs, q):
         assignee = None
         if t.assignee_id:
             assignee = {

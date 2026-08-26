@@ -111,3 +111,57 @@ class TestTaskLinkSearch:
         foreign = TaskFactory(project=ProjectFactory(slug_prefix="REPS"), title="unrelated title")
         client.force_login(ws.owner)
         assert foreign.slug not in _search(client, host, q=foreign.slug)
+
+    def test_slug_plus_title_word_narrows_instead_of_exploding(self, client):
+        """``"REPS-42 звіт"`` must AND the slug with the word, not OR them.
+
+        The old parser ran ``rpartition("-")`` over the whole query, so the
+        number landed in ``"42 звіт"``, failed ``isdigit()`` and was dropped —
+        leaving a bare prefix OR-ed in, which returned the whole project.
+        """
+        ws = WorkspaceFactory()
+        project = ProjectFactory(workspace=ws, slug_prefix="REPS")
+        host = TaskFactory(project=project, title="Host")
+        target = TaskFactory(project=project, title="Квартальний звіт")
+        noise = TaskFactory(project=project, title="Щось інше")
+        client.force_login(ws.owner)
+        found = _search(client, host, q=f"{target.slug} звіт")
+        assert target.slug in found
+        assert noise.slug not in found
+
+    def test_slug_with_space_instead_of_dash(self, client):
+        """``"REPS 42"`` is how people type a key without reaching for the dash."""
+        ws = WorkspaceFactory()
+        project = ProjectFactory(workspace=ws, slug_prefix="REPS")
+        host = TaskFactory(project=project, title="Host")
+        target = TaskFactory(project=project, title="unrelated title")
+        client.force_login(ws.owner)
+        assert target.slug in _search(client, host, q=f"REPS {target.number}")
+
+    def test_exact_slug_outranks_fresher_tasks(self, client):
+        """An exact slug hit survives truncation however stale it is.
+
+        Ordering by ``-updated_at`` alone buried the match under whatever was
+        touched most recently, which reads to users as "the task isn't there".
+        """
+        ws = WorkspaceFactory()
+        project = ProjectFactory(workspace=ws, slug_prefix="REPS")
+        host = TaskFactory(project=project, title="Host")
+        target = TaskFactory(project=project, title="unrelated title")
+        # Every one of these is touched after the target, and each matches the
+        # bare-prefix reading of the query.
+        for i in range(30):
+            TaskFactory(project=project, title=f"noise {i}")
+        client.force_login(ws.owner)
+        url = reverse("web:task_link_search", args=[host.project.slug_prefix, host.number])
+        results = client.get(url, {"q": target.slug}).json()["results"]
+        assert results[0]["slug"] == target.slug
+
+    def test_multi_word_title_search_is_unaffected_by_a_trailing_number(self, client):
+        """``"sprint 3"`` is title text, not a slug — both readings must work."""
+        ws = WorkspaceFactory()
+        project = ProjectFactory(workspace=ws, slug_prefix="REPS")
+        host = TaskFactory(project=project, title="Host")
+        target = TaskFactory(project=project, title="Sprint 3 planning")
+        client.force_login(ws.owner)
+        assert target.slug in _search(client, host, q="sprint 3")

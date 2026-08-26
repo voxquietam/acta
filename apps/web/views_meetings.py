@@ -16,7 +16,6 @@ workspace (mirroring ``task_link_search`` but not anchored to one task).
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Q
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.template.loader import render_to_string
@@ -31,6 +30,7 @@ from apps.comments.models import Comment
 from apps.meetings.models import Meeting
 from apps.notifications.services import notify_meeting_created
 from apps.reactions.services import attach_reactions
+from apps.tasks.search import search_tasks
 from apps.web.nav import resolve_active_workspace
 from apps.web.views import (
     _get_user_task_or_404,
@@ -482,40 +482,19 @@ def task_meetings_fragment(request, slug_prefix, number):
 def meeting_task_search(request):
     """Workspace-scoped task typeahead for the meeting editor's link picker.
 
-    Mirrors :func:`apps.web.views.task_link_search` (AND-of-words over title /
-    assignee, slug-prefix, bare number) but scoped to the active workspace
-    rather than anchored to one task — a meeting may link any task in the
-    workspace. JSON payload feeds the Alpine autocomplete in the modal.
+    Shares its matching rules with :func:`apps.web.views.task_link_search` via
+    :mod:`apps.tasks.search`, but is scoped to the active workspace rather than
+    anchored to one task — a meeting may link any task in the workspace. JSON
+    payload feeds the Alpine autocomplete in the modal.
     """
     active = resolve_active_workspace(request)
     if active is None:
         return JsonResponse({"results": []})
     q = (request.GET.get("q") or "").strip()
     qs = _user_task_qs(request.user).filter(project__workspace=active).select_related("project", "assignee")
-    if q:
-        match = Q()
-        for word in q.split():
-            match &= (
-                Q(title__icontains=word)
-                | Q(assignee__first_name__icontains=word)
-                | Q(assignee__last_name__icontains=word)
-                | Q(assignee__username__icontains=word)
-            )
-        upper = q.upper()
-        prefix, dash, num = upper.rpartition("-")
-        if dash and prefix.strip():
-            slug_q = Q(project__slug_prefix__istartswith=prefix.strip())
-            if num.strip().isdigit():
-                slug_q &= Q(number=int(num.strip()))
-            match |= slug_q
-        elif q.isdigit():
-            match |= Q(number=int(q))
-        elif " " not in q:
-            match |= Q(project__slug_prefix__istartswith=upper)
-        qs = qs.filter(match)
 
     results = []
-    for t in qs.order_by("-updated_at")[:10]:
+    for t in search_tasks(qs, q):
         results.append(
             {
                 "id": t.id,

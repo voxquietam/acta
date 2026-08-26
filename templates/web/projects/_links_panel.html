@@ -28,11 +28,16 @@ blocker that's still open (the thing actually blocking this task).
          this.coords = { top: r.bottom + 4, left: r.left, width: r.width };
        },
        async search() {
-         this.q = this.q.trim();
-         if (!this.q && !this.statusFilter) { this.results = []; this.open = false; return; }
+         // Trim for the request ONLY — never write back into ``this.q``.
+         // ``q`` is bound with x-model, so assigning here rewrote the live
+         // input mid-typing: pause past the 250ms debounce after a word and
+         // the trailing space vanished, gluing the next word onto it
+         // (``звіт `` + ``двв`` -> ``звітдвв``), which matched nothing.
+         const term = this.q.trim();
+         if (!term && !this.statusFilter) { this.results = []; this.open = false; return; }
          this.loading = true;
          const base = '{% url 'web:task_link_search' slug_prefix=task.project.slug_prefix number=task.number %}';
-         const url = base + '?q=' + encodeURIComponent(this.q) + '&status=' + encodeURIComponent(this.statusFilter);
+         const url = base + '?q=' + encodeURIComponent(term) + '&status=' + encodeURIComponent(this.statusFilter);
          try {
            const r = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
            const data = await r.json();

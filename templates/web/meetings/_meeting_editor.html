@@ -28,9 +28,11 @@ x-data="{
     this.coords = { top: r.bottom + 4, left: r.left, width: r.width };
   },
   async search() {
-    this.q = this.q.trim();
-    if (!this.q) { this.results = []; this.open = false; return; }
-    const term = this.q;
+    // Trim for the request ONLY — assigning back into ``this.q`` rewrote the
+    // x-model-bound input mid-typing and glued the next word onto the last
+    // one once the debounce fired during a pause. See the links panel.
+    const term = this.q.trim();
+    if (!term) { this.results = []; this.open = false; return; }
     this.loading = true;
     const url = '{% url 'web:meeting_task_search' %}?q=' + encodeURIComponent(term);
     try {
@@ -39,7 +41,7 @@ x-data="{
       // Drop a stale response: if the box was cleared or changed (e.g. a
       // result was picked) while this request was in flight, don't reopen
       // the dropdown with the old query's results.
-      if (this.q !== term) return;
+      if (this.q.trim() !== term) return;
       this.results = data.results || [];
       this.position();
       this.open = true;
