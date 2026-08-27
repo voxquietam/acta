@@ -104,10 +104,26 @@ blocker that's still open (the thing actually blocking this task).
              @focus="if (q || statusFilter) search()"
              placeholder="{% trans 'Search by slug, title or assignee…' %}"
              class="acta-input text-xs w-full">
-      {# Results dropdown #}
-      <div x-show="open && results.length" x-cloak
-           :style="`top: ${coords.top}px; left: ${coords.left}px; width: ${coords.width}px;`"
-           class="fixed z-40 max-h-56 overflow-y-auto bg-card border border-border rounded-lg shadow-lg">
+      {% comment %}
+      Results dropdown — ONE positioned layer holding both states.
+
+      Two things were wrong before. The list and the empty state were separate
+      ``fixed`` divs sharing the same coords and z-index, so whichever painted
+      last sat on top of the other. And each carried ``x-show`` *and*
+      ``:style`` on the same element — ``x-show`` hides by setting
+      ``style.display = 'none'``, which the ``:style`` binding then wiped the
+      next time ``coords`` changed, because it rewrites the whole style
+      attribute. Net effect: "No tasks match." unstuck itself into permanent
+      visibility and covered a list that had results, so a perfectly good
+      search read as "nothing found".
+
+      Hence ``x-if`` rather than ``x-show`` for the toggling: it adds and
+      removes the node instead of fighting over ``display``, and the element
+      carrying ``:style`` never carries a visibility directive.
+      {% endcomment %}
+      <template x-if="open">
+        <div :style="`top: ${coords.top}px; left: ${coords.left}px; width: ${coords.width}px;`"
+             class="fixed z-40 max-h-56 overflow-y-auto bg-card border border-border rounded-lg shadow-lg">
         <template x-for="r in results" :key="r.slug">
           <button type="button" @click.stop="toggle(r.slug)"
                   :class="selected.includes(r.slug) ? 'bg-brand-500/10' : 'hover:bg-muted'"
@@ -143,12 +159,14 @@ blocker that's still open (the thing actually blocking this task).
             <span x-show="selected.includes(r.slug)" class="shrink-0 text-brand-500">{% lucide "check" "w-3.5 h-3.5" %}</span>
           </button>
         </template>
-      </div>
-      <div x-show="open && !results.length && !loading" x-cloak
-           :style="`top: ${coords.top}px; left: ${coords.left}px; width: ${coords.width}px;`"
-           class="fixed z-40 bg-card border border-border rounded-lg shadow-lg px-2 py-1.5 text-[11px] text-placeholder-foreground italic">
-        {% trans "No tasks match." %}
-      </div>
+        {# Same layer as the list, so the two can never overlap. #}
+        <template x-if="!results.length && !loading">
+          <div class="px-2 py-1.5 text-[11px] text-placeholder-foreground italic">
+            {% trans "No tasks match." %}
+          </div>
+        </template>
+        </div>
+      </template>
     </div>
 
     {# No explicit "add" button: clicking outside the picker commits the    #}

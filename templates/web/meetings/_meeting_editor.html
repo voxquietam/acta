@@ -178,8 +178,15 @@ x-data="{
                @focus="if (q) search()"
                placeholder="{% trans 'Search tasks by slug, title or assignee…' %}"
                class="acta-input text-xs w-full">
-        <div x-show="open && results.length" x-cloak
-             @click.outside="open = false"
+        {% comment %}
+        One positioned layer for both states, toggled with ``x-if``. Two
+        overlapping ``fixed`` divs each carrying ``x-show`` next to ``:style``
+        let the empty state cover a list that had results: ``:style`` rewrites
+        the whole style attribute and wipes the ``display: none`` that
+        ``x-show`` set. Same fix as the task links panel.
+        {% endcomment %}
+        <template x-if="open">
+        <div @click.outside="open = false"
              :style="`top: ${coords.top}px; left: ${coords.left}px; width: ${coords.width}px;`"
              class="fixed z-[60] max-h-56 overflow-y-auto bg-card border border-border rounded-lg shadow-lg">
           <template x-for="r in results" :key="r.id">
@@ -201,12 +208,14 @@ x-data="{
               <span x-show="has(r.id)" class="shrink-0 text-brand-500">{% lucide "check" "w-3.5 h-3.5" %}</span>
             </button>
           </template>
+          {# Shares the layer with the list, so neither can cover the other. #}
+          <template x-if="q && !results.length && !loading">
+            <div class="px-2 py-1.5 text-[11px] text-placeholder-foreground italic">
+              {% trans "No tasks match." %}
+            </div>
+          </template>
         </div>
-        <div x-show="open && q && !results.length && !loading" x-cloak
-             :style="`top: ${coords.top}px; left: ${coords.left}px; width: ${coords.width}px;`"
-             class="fixed z-[60] bg-card border border-border rounded-lg shadow-lg px-2 py-1.5 text-[11px] text-placeholder-foreground italic">
-          {% trans "No tasks match." %}
-        </div>
+        </template>
       </div>
     </div>
 
