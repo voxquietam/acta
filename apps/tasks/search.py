@@ -24,7 +24,14 @@ slug hit under ten freshly-touched tasks, which read to users as "the task
 isn't there".
 """
 
-from django.db.models import Case, IntegerField, Q, Value, When
+from django.db.models import Case, IntegerField, Q, TextField, Value, When
+from django.db.models.functions import Cast
+
+# Task numbers are integers, but a typeahead sees them mid-typing: "AUD-16"
+# on the way to "AUD-169". Comparing as text lets a partial number match by
+# prefix. ``search_tasks`` annotates this alias, so every clause built here
+# may rely on it.
+NUMBER_AS_TEXT = "number_str"
 
 RESULT_LIMIT = 25
 
@@ -54,17 +61,23 @@ def _word_q(word):
 def _slug_ref(prefix, num=None):
     """Build the clause for a slug reference such as ``ST-42``.
 
+    Both halves match by prefix, because a typeahead query is usually still
+    being typed: ``AUD-16`` has to surface ``AUD-169`` on the way to it. An
+    exact hit is not lost in the crowd — :func:`rank_case` floats it to the
+    top rather than filtering the near-misses out.
+
     Args:
         prefix: Project slug prefix as typed; matched with ``istartswith`` so a
             half-typed key still resolves.
-        num: Task number, or ``None`` when the user has only typed the prefix.
+        num: Task number as a digit string, or ``None`` when the user has only
+            typed the prefix.
 
     Returns:
         A ``Q`` matching the referenced task(s).
     """
     clause = Q(project__slug_prefix__istartswith=prefix)
-    if num is not None:
-        clause &= Q(number=num)
+    if num:
+        clause &= Q(**{f"{NUMBER_AS_TEXT}__startswith": num})
     return clause
 
 
@@ -76,8 +89,9 @@ def parse_query(query):
 
     Returns:
         A tuple ``(slug_refs, words)`` where ``slug_refs`` is a list of
-        ``(prefix, number_or_None)`` pairs parsed from unambiguous ``PREFIX-``
-        tokens, and ``words`` holds everything else.
+        ``(prefix, number_string_or_None)`` pairs parsed from unambiguous
+        ``PREFIX-`` tokens, and ``words`` holds everything else. The number
+        stays a string so a partially typed one can match by prefix.
     """
     tokens = query.split()
     slug_refs = []
@@ -91,10 +105,10 @@ def parse_query(query):
         # OR-ed shorthand clauses in ``build_query``.
         if dash and prefix:
             if num.isdigit():
-                slug_refs.append((prefix, int(num)))
+                slug_refs.append((prefix, num))
             elif not num and i + 1 < len(tokens) and tokens[i + 1].isdigit():
                 # "ST- 42" — the number landed in the next token.
-                slug_refs.append((prefix, int(tokens[i + 1])))
+                slug_refs.append((prefix, tokens[i + 1]))
                 i += 1
             else:
                 slug_refs.append((prefix, None))
@@ -127,12 +141,12 @@ def build_query(query):
     # neither reading is lost; ``rank_case`` puts the slug hit on top.
     if not slug_refs:
         if len(tokens) == 1 and tokens[0].isdigit():
-            match |= Q(number=int(tokens[0]))
+            match |= Q(**{f"{NUMBER_AS_TEXT}__startswith": tokens[0]})
         elif len(tokens) == 1:
             match |= Q(project__slug_prefix__istartswith=tokens[0])
         elif len(tokens) == 2 and tokens[1].isdigit() and not tokens[0].isdigit():
             # "ST 42" — the dash-less spelling of a slug reference.
-            match |= _slug_ref(tokens[0], int(tokens[1]))
+            match |= _slug_ref(tokens[0], tokens[1])
 
     return match
 
@@ -154,15 +168,27 @@ def rank_case(query):
     tokens = query.split()
     if not slug_refs and len(tokens) == 2 and tokens[1].isdigit() and not tokens[0].isdigit():
         slug_refs = [
-            (tokens[0], int(tokens[1])),
+            (tokens[0], tokens[1]),
         ]
 
     whens = []
+    # A bare number matches by prefix too ("16" reaches AUD-169), so give the
+    # task actually numbered 16 the top spot.
+    if not slug_refs and len(tokens) == 1 and tokens[0].isdigit():
+        whens.append(
+            When(
+                number=int(tokens[0]),
+                then=Value(RANK_EXACT_SLUG),
+            )
+        )
     for prefix, num in slug_refs:
-        if num is not None:
+        if num:
+            # The filter matches numbers by prefix, so "AUD-16" also returns
+            # AUD-169. Rank the literal number first, so typing the whole key
+            # puts that exact task at the top of the list.
             whens.append(
                 When(
-                    Q(project__slug_prefix__iexact=prefix) & Q(number=num),
+                    Q(project__slug_prefix__iexact=prefix) & Q(number=int(num)),
                     then=Value(RANK_EXACT_SLUG),
                 )
             )
@@ -194,7 +220,12 @@ def search_tasks(qs, query, limit=RESULT_LIMIT):
     if not query:
         return qs.order_by("-updated_at")[:limit]
     return (
-        qs.filter(build_query(query))
+        # The text form of ``number`` has to exist before the filter runs —
+        # partial numbers ("AUD-16" reaching for AUD-169) match by prefix.
+        qs.annotate(
+            **{NUMBER_AS_TEXT: Cast("number", TextField())},
+        )
+        .filter(build_query(query))
         .annotate(
             match_rank=rank_case(query),
         )

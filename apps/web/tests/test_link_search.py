@@ -157,6 +157,42 @@ class TestTaskLinkSearch:
         results = client.get(url, {"q": target.slug}).json()["results"]
         assert results[0]["slug"] == target.slug
 
+    def test_partial_number_still_matches(self, client):
+        """``"REPS-16"`` must surface REPS-169 — the number is still being typed."""
+        ws = WorkspaceFactory()
+        project = ProjectFactory(workspace=ws, slug_prefix="REPS")
+        host = TaskFactory(project=project, title="Host")
+        target = TaskFactory(project=project, number=169, title="unrelated title")
+        client.force_login(ws.owner)
+        assert target.slug in _search(client, host, q="REPS-16")
+
+    def test_exact_number_outranks_its_prefix_matches(self, client):
+        """Typing the whole key puts that task first, ahead of longer numbers."""
+        ws = WorkspaceFactory()
+        project = ProjectFactory(workspace=ws, slug_prefix="REPS")
+        host = TaskFactory(project=project, title="Host")
+        exact = TaskFactory(project=project, number=16, title="the one")
+        # Created later, so recency alone would float these above the exact hit.
+        for n in (160, 161, 169):
+            TaskFactory(project=project, number=n, title=f"noise {n}")
+        client.force_login(ws.owner)
+        url = reverse("web:task_link_search", args=[host.project.slug_prefix, host.number])
+        results = client.get(url, {"q": "REPS-16"}).json()["results"]
+        assert results[0]["slug"] == exact.slug
+
+    def test_partial_bare_number_matches_by_prefix(self, client):
+        """A bare ``"16"`` reaches 169 as well, with 16 itself ranked first."""
+        ws = WorkspaceFactory()
+        project = ProjectFactory(workspace=ws, slug_prefix="REPS")
+        host = TaskFactory(project=project, title="Host")
+        exact = TaskFactory(project=project, number=16, title="the one")
+        longer = TaskFactory(project=project, number=169, title="the other")
+        client.force_login(ws.owner)
+        url = reverse("web:task_link_search", args=[host.project.slug_prefix, host.number])
+        slugs = [t["slug"] for t in client.get(url, {"q": "16"}).json()["results"]]
+        assert longer.slug in slugs
+        assert slugs[0] == exact.slug
+
     def test_multi_word_title_search_is_unaffected_by_a_trailing_number(self, client):
         """``"sprint 3"`` is title text, not a slug — both readings must work."""
         ws = WorkspaceFactory()
