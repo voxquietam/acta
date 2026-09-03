@@ -42,6 +42,34 @@ class TestCreateProjectGet:
         assert resp.status_code == 200
         assert b"New project" in resp.content or "New project".encode() in resp.content
 
+    def test_modal_defaults_to_the_active_workspace(self, client, member, workspace):
+        """The form opens on the workspace the user is in, not the first by name.
+
+        Defaulting to ``workspaces[0]`` aimed the form at an alphabetically
+        earlier workspace, so creating a project from inside one workspace
+        silently targeted another — surfacing only as a slug collision
+        against projects invisible from where the user stood.
+        """
+        # Sorts before the fixture workspace by name, so the old fallback
+        # would have picked this one.
+        earlier = WorkspaceFactory(name="AAA earlier")
+        WorkspaceMemberFactory(workspace=earlier, user=member, role=WorkspaceMember.MEMBER)
+        member.active_workspace = workspace
+        member.save(update_fields=["active_workspace"])
+        client.force_login(member)
+        resp = client.get(URL, HTTP_HX_REQUEST="true")
+        assert f'value="{workspace.pk}" selected'.encode() in resp.content
+
+    def test_explicit_workspace_param_wins(self, client, member, workspace):
+        """Switching the dropdown still re-renders against the chosen workspace."""
+        other = WorkspaceFactory()
+        WorkspaceMemberFactory(workspace=other, user=member, role=WorkspaceMember.MEMBER)
+        member.active_workspace = workspace
+        member.save(update_fields=["active_workspace"])
+        client.force_login(member)
+        resp = client.get(URL, {"workspace": other.pk}, HTTP_HX_REQUEST="true")
+        assert f'value="{other.pk}" selected'.encode() in resp.content
+
     def test_direct_get_redirects_to_projects(self, client, member):
         client.force_login(member)
         resp = client.get(URL)

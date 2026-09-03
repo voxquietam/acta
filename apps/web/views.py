@@ -3558,9 +3558,17 @@ def set_task_project(request, slug_prefix, number):
     kanban / table surfaces refresh over SSE.
 
     Only top-level tasks carry a project picker; a subtask rides along
-    with its parent. The target must be a project in the user's active
+    with its parent. The target must be a project in the **task's own**
     workspace, so labels and assignee stay valid (the move never crosses
     a workspace boundary).
+
+    Scoping to the task's workspace rather than the viewer's active one is
+    load-bearing: the picker is populated from ``_workspace_projects``,
+    which reads the task's workspace. Validating against the active
+    workspace instead made every option in that picker fail with a bare
+    404 whenever the two had drifted apart — opening a task from a
+    workspace other than the active one, which All Tasks and direct links
+    both do routinely.
 
     Returns:
         ``204`` with an ``HX-Location`` pointing at the task's new detail
@@ -3574,10 +3582,11 @@ def set_task_project(request, slug_prefix, number):
         target_pk = int((request.POST.get("project_id") or "").strip())
     except (TypeError, ValueError):
         return HttpResponseBadRequest("invalid project")
-    target = get_object_or_404(
-        _user_accessible_projects(request.user, resolve_active_workspace(request)),
-        pk=target_pk,
-    )
+    # A plain 400 rather than ``get_object_or_404``: the toast surfaces the
+    # response body, and a 404 page dumped a wall of raw HTML at the user.
+    target = _user_accessible_projects(request.user, task.project.workspace).filter(pk=target_pk).first()
+    if target is None:
+        return HttpResponseBadRequest(_("Project not available in this workspace"))
     if target.id != task.project_id:
         with transaction.atomic():
             subtasks = list(task.subtasks.select_related("project__workspace").all())
@@ -7322,6 +7331,12 @@ def _create_project_get(request):
     The workspace dropdown change event fires this view again with the
     new workspace pre-selected (``?workspace=<id>``), so the lead
     picker can re-populate with that workspace's members.
+
+    With no explicit ``?workspace=``, the form opens on the workspace the
+    user is currently in. Falling back to the alphabetically first one
+    instead silently aimed the form at an unrelated workspace: opening it
+    from inside "UNU" pre-selected "KSU24", and the only hint was a slug
+    collision against projects the user could not even see from there.
     """
     workspaces = list(Workspace.objects.filter(memberships__user=request.user).order_by("name"))
     selected_workspace = None
@@ -7333,6 +7348,10 @@ def _create_project_get(request):
             ws_id = None
         if ws_id is not None:
             selected_workspace = next((w for w in workspaces if w.pk == ws_id), None)
+    if selected_workspace is None:
+        active = resolve_active_workspace(request, members=workspaces)
+        if active is not None:
+            selected_workspace = next((w for w in workspaces if w.pk == active.pk), None)
     if selected_workspace is None and workspaces:
         selected_workspace = workspaces[0]
 

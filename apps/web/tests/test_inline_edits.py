@@ -1143,13 +1143,35 @@ class TestSetTaskProject:
         resp = client.post(self._url(project, child), {"project_id": str(dst.id)})
         assert resp.status_code == 400
 
-    def test_cross_workspace_target_404(self, client, setup):
+    def test_cross_workspace_target_rejected(self, client, setup):
         user, project, task = setup
         other_ws = WorkspaceFactory()
         foreign = ProjectFactory(workspace=other_ws)
         client.force_login(user)
         resp = client.post(self._url(project, task), {"project_id": str(foreign.id)})
-        assert resp.status_code == 404
+        # 400, not 404: the toast renders the response body, and a 404 page
+        # put a wall of raw HTML in front of the user.
+        assert resp.status_code == 400
+
+    def test_move_works_when_active_workspace_differs(self, client, setup):
+        """The target is validated against the task's workspace, not the active one.
+
+        Opening a task from outside the active workspace (All Tasks, a direct
+        link, the modal over another board) used to make every option in the
+        project picker fail — the picker lists the task's workspace while the
+        endpoint checked the active one.
+        """
+        user, project, task = setup
+        dst = ProjectFactory(workspace=project.workspace)
+        elsewhere = WorkspaceFactory()
+        elsewhere.memberships.create(user=user)
+        user.active_workspace = elsewhere
+        user.save(update_fields=["active_workspace"])
+        client.force_login(user)
+        resp = client.post(self._url(project, task), {"project_id": str(dst.id)})
+        assert resp.status_code == 204
+        task.refresh_from_db()
+        assert task.project_id == dst.id
 
 
 @pytest.mark.django_db
