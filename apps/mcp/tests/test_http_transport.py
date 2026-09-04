@@ -141,6 +141,16 @@ class TestProtocol:
         response = client.get(MCP_URL, HTTP_AUTHORIZATION=f"Token {plain}")
         assert response.status_code == 405
 
+    def test_get_explains_itself_in_the_body(self, client):
+        """A 405 with an empty body left SSE-probing bridges with nothing to log."""
+        response = client.get(MCP_URL)
+        assert response.status_code == 405
+        assert response["Allow"] == "POST"
+        body = json.loads(response.content)
+        assert body["error"]["code"] == -32600
+        assert "POST only" in body["error"]["message"]
+        assert "http-only" in body["error"]["message"]
+
     def test_malformed_json_returns_400(self, client, auth):
         _, plain = auth
         status, body = _post(client, "{this is not json", token=plain)

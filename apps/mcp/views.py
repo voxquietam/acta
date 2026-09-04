@@ -28,7 +28,6 @@ from typing import Any
 
 from django.http import HttpRequest, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_http_methods
 
 from asgiref.sync import sync_to_async
 
@@ -50,7 +49,6 @@ MCP_PROTOCOL_VERSION = "2024-11-05"
 
 
 @csrf_exempt
-@require_http_methods(["POST"])
 async def mcp_http(request: HttpRequest) -> JsonResponse:
     """Single-endpoint MCP JSON-RPC handler.
 
@@ -63,7 +61,28 @@ async def mcp_http(request: HttpRequest) -> JsonResponse:
 
     Auth runs before parsing the body so a malformed but unauthenticated
     request still gets a clean 401 instead of leaking parser internals.
+
+    Non-POST verbs get a 405 whose *body* explains itself. Django's
+    stock ``require_http_methods`` returns an empty one, and the two
+    clients that hit this route routinely — a browser opening the URL,
+    and ``mcp-remote`` probing for an SSE stream — then had nothing to
+    show but a bare status code, which is how a mis-set bridge flag
+    turns into a silent hang.
     """
+    if request.method != "POST":
+        response = JsonResponse(
+            _error(
+                None,
+                -32600,
+                f"{request.method} not supported. This endpoint speaks MCP over HTTP POST only: "
+                "send a JSON-RPC body with an 'Authorization: Token <secret>' header. "
+                "There is no SSE stream here — bridges such as mcp-remote need --transport http-only.",
+            ),
+            status=405,
+        )
+        response["Allow"] = "POST"
+        return response
+
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Token "):
         return JsonResponse(
