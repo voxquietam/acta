@@ -14,6 +14,7 @@ import pytest
 from apps.accounts.tests.factories import UserFactory
 from apps.labels.tests.factories import LabelFactory
 from apps.mcp.tools import CALLABLES
+from apps.mcp.tools._shared import resolve_project, resolve_task
 from apps.projects.tests.factories import ProjectFactory
 from apps.tasks.models import Task
 from apps.tasks.tests.factories import TaskFactory
@@ -703,3 +704,40 @@ class TestLabelGroupsList:
         LabelGroup.objects.create(workspace=foreign_ws, name="Hidden")
         result = CALLABLES["acta_label_groups_list"](user, {})
         assert all(g["name"] != "Hidden" for g in result)
+
+
+@pytest.mark.django_db
+class TestAmbiguousSlugPrefix:
+    """Slug prefixes are unique per workspace, so a slug can match twice.
+
+    The resolvers caught only ``DoesNotExist``, so a user in two workspaces
+    that share a prefix got a raw ``MultipleObjectsReturned`` instead of
+    something actionable. Writes must not guess which one was meant.
+    """
+
+    def _two_workspaces_sharing_a_prefix(self):
+        first = WorkspaceFactory()
+        user = first.owner
+        second = WorkspaceFactory()
+        second.memberships.create(user=user)
+        p1 = ProjectFactory(workspace=first, slug_prefix="SER")
+        p2 = ProjectFactory(workspace=second, slug_prefix="SER")
+        TaskFactory(project=p1, number=2, reporter=user)
+        TaskFactory(project=p2, number=2, reporter=user)
+        return user, first, second
+
+    def test_task_get_reports_the_ambiguity(self):
+        user, first, second = self._two_workspaces_sharing_a_prefix()
+        with pytest.raises(ValueError) as exc:
+            resolve_task(user, "SER-2")
+        message = str(exc.value)
+        assert "ambiguous" in message
+        assert first.slug in message and second.slug in message
+
+    def test_project_lookup_reports_the_ambiguity(self):
+        user, first, second = self._two_workspaces_sharing_a_prefix()
+        with pytest.raises(ValueError) as exc:
+            resolve_project(user, "SER")
+        message = str(exc.value)
+        assert "ambiguous" in message
+        assert first.slug in message and second.slug in message

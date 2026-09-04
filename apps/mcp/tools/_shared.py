@@ -43,6 +43,25 @@ def resolve_project(user: User, slug_prefix: str):
         )
     except Project.DoesNotExist:
         raise ValueError(f"Project {slug_prefix!r} not found or not accessible to this user.")
+    except Project.MultipleObjectsReturned:
+        # Prefixes are unique per workspace, not globally, so a user in
+        # two workspaces that both have this prefix matches twice. Refuse
+        # rather than guess — picking one silently would let a write tool
+        # edit the wrong project.
+        where = ", ".join(
+            sorted(
+                p.workspace.slug
+                for p in Project.objects.filter(
+                    slug_prefix=slug_prefix,
+                    workspace_id__in=user_workspace_ids(user),
+                ).select_related("workspace")
+            )
+        )
+        raise ValueError(
+            f"Project {slug_prefix!r} is ambiguous — that prefix exists in more than one "
+            f"workspace you belong to ({where}). Slug prefixes are unique per workspace, "
+            "not globally."
+        )
 
 
 def resolve_user_by_username(username: str):
@@ -100,6 +119,23 @@ def resolve_task(user: User, slug: str):
         )
     except Task.DoesNotExist:
         raise ValueError(f"Task {slug!r} not found or not accessible to this user.")
+    except Task.MultipleObjectsReturned:
+        # See ``resolve_project`` — same per-workspace uniqueness trap.
+        where = ", ".join(
+            sorted(
+                t.project.workspace.slug
+                for t in Task.objects.filter(
+                    project__slug_prefix=prefix,
+                    number=number_int,
+                    project__workspace_id__in=user_workspace_ids(user),
+                ).select_related("project__workspace")
+            )
+        )
+        raise ValueError(
+            f"Task {slug!r} is ambiguous — that project prefix exists in more than one "
+            f"workspace you belong to ({where}). Slug prefixes are unique per workspace, "
+            "not globally."
+        )
 
 
 def task_url(task: Task) -> str | None:
