@@ -552,11 +552,11 @@ class TestAllTasksQueryCount:
             t.labels.add(label)
 
     def test_no_n_plus_one(self, client, setup):
-        user, _, _, p1, _ = setup
+        user, ws1, _, p1, _ = setup
         self._seed_thirty(user, p1)
         client.force_login(user)
         with CaptureQueriesContext(connection) as ctx:
-            resp = client.get(reverse("web:all_tasks"))
+            resp = client.get(reverse("web_ws:all_tasks", kwargs={"workspace": ws1.slug}))
             assert resp.status_code == 200
         assert len(ctx.captured_queries) < 20, f"Got {len(ctx.captured_queries)} queries for 30 tasks — N+1 regression."
 
@@ -569,7 +569,7 @@ class TestAllTasksQueryCount:
         the lazy-panels mechanism (see ``docs/audit/01-all-tasks.md §2.1``
         and ``docs/audit/wave2/00-baseline.md §3 (M1)``).
         """
-        user, _, _, p1, _ = setup
+        user, ws1, _, p1, _ = setup
         self._seed_thirty(user, p1)
         client.force_login(user)
         with CaptureQueriesContext(connection) as ctx:
@@ -599,11 +599,11 @@ class TestAllTasksQueryCount:
         on ksu24 ran at 15 queries (identical to cold), so per-filter
         joins (labels M2M, assignee FK) cost nothing on top.
         """
-        user, _, _, p1, _ = setup
+        user, ws1, _, p1, _ = setup
         self._seed_thirty(user, p1)
         client.force_login(user)
         with CaptureQueriesContext(connection) as ctx:
-            resp = client.get(reverse("web:all_tasks") + f"?{qs}")
+            resp = client.get(reverse("web_ws:all_tasks", kwargs={"workspace": ws1.slug}) + f"?{qs}")
             assert resp.status_code == 200
         assert (
             len(ctx.captured_queries) < 20
@@ -622,7 +622,7 @@ class TestAllTasksQueryCount:
         ``docs/audit/wave2/00-baseline.md §3 (M3)`` and
         ``project_todo_all_tasks_lazy_panels``.
         """
-        user, _, _, p1, _ = setup
+        user, ws1, _, p1, _ = setup
         self._seed_thirty(user, p1)
         client.force_login(user)
         resp = client.get(

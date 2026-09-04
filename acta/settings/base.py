@@ -151,6 +151,10 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",
+    # Nudges legacy workspace-less page URLs to their canonical form
+    # (ADR 0031). Must come after AuthenticationMiddleware — it needs
+    # ``request.user`` to know which workspace is active.
+    "apps.web.middleware.LegacyWorkspacePathRedirectMiddleware",
 ]
 
 

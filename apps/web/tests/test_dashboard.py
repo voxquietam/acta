@@ -99,7 +99,7 @@ class TestDashboardView:
         _seed(ws)
         client = Client()
         client.force_login(ws.owner)
-        resp = client.get("/?range=30d")
+        resp = client.get(f"/{ws.slug}/?range=30d")
         assert resp.status_code == 200
         assert b"Workspace dashboard" in resp.content
         assert b"matrix-body" in resp.content
@@ -121,7 +121,7 @@ class TestDashboardView:
         client = Client()
         client.force_login(ws.owner)
         with CaptureQueriesContext(connection) as ctx:
-            resp = client.get("/?range=30d")
+            resp = client.get(f"/{ws.slug}/?range=30d")
         assert resp.status_code == 200
         assert len(ctx.captured_queries) < 30, len(ctx.captured_queries)
 

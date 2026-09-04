@@ -82,3 +82,81 @@ class NoBrowserCacheMiddleware:
         response["Pragma"] = "no-cache"
         response["Expires"] = "0"
         return response
+
+
+class LegacyWorkspacePathRedirectMiddleware:
+    """Send legacy workspace-less page URLs to their canonical form.
+
+    Acta's URLs gained a workspace segment (ADR 0031). The old paths keep
+    resolving forever — six months of links live in Telegram messages and
+    bookmarks — but a browser landing on one is nudged to the canonical
+    address so what people copy out of the address bar is unambiguous from
+    then on.
+
+    Deliberately narrow, because a redirect is easy to get wrong here:
+
+    - **GET only.** A 301 on a POST is replayed as a GET by browsers, which
+      would silently drop the body of every form in the app.
+    - **Not HTMX.** Fragment endpoints answer partials into a target; a
+      redirect would swap a whole page into a cell.
+    - **An explicit list of page names**, not a heuristic. Two thirds of the
+      URLconf are inline-edit endpoints, and guessing which is which from
+      the name would eventually redirect one of them.
+    - **Task and project detail are excluded** — their canonical workspace
+      comes from the record, not from whoever is looking, so those two
+      redirect from inside the view once the object is resolved (and stay
+      put when the slug is ambiguous, so the chooser can do its job).
+    """
+
+    #: Pages whose canonical workspace is simply the viewer's active one.
+    REDIRECTABLE = frozenset(
+        {
+            "all_tasks",
+            "calls_list",
+            "cycles_overview",
+            "dashboard",
+            "inbox",
+            "my_activity",
+            "my_work",
+            "project_list",
+            "recurring_list",
+        }
+    )
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        return self.get_response(request)
+
+    def process_view(self, request, view_func, view_args, view_kwargs):
+        """Redirect a legacy page URL to the workspace-scoped one.
+
+        Returns:
+            A permanent redirect, or ``None`` to let the view run.
+        """
+        from django.shortcuts import redirect
+        from django.urls import reverse
+
+        from apps.web.nav import resolve_active_workspace
+
+        if request.method != "GET" or request.headers.get("HX-Request"):
+            return None
+        match = request.resolver_match
+        if match is None or match.namespace != "web":
+            return None
+        if match.url_name not in self.REDIRECTABLE:
+            return None
+        user = getattr(request, "user", None)
+        if user is None or not user.is_authenticated:
+            return None
+        workspace = resolve_active_workspace(request)
+        if workspace is None:
+            return None
+        target = reverse(
+            f"web_ws:{match.url_name}",
+            kwargs={"workspace": workspace.slug, **view_kwargs},
+        )
+        if request.META.get("QUERY_STRING"):
+            target = f"{target}?{request.META['QUERY_STRING']}"
+        return redirect(target, permanent=True)

@@ -81,8 +81,8 @@ from apps.web.filters import (
 )
 from apps.web.grouping import compute_list_section_keys, group_tasks
 from apps.web.nav import resolve_active_workspace, set_active_workspace
-from apps.web.url_scoping import project_path, task_path
-from apps.workspaces.models import RESERVED_WORKSPACE_SLUGS, Workspace, WorkspaceMember
+from apps.web.url_scoping import project_path, request_workspace_slug, section_path, task_path
+from apps.workspaces.models import Workspace, WorkspaceMember, reserved_workspace_slugs
 
 User = get_user_model()
 
@@ -494,6 +494,34 @@ def _user_task_qs(user):
             "blocked_by",
         )
     )
+
+
+def _canonical_redirect(request, canonical_path):
+    """Return a 301 to ``canonical_path`` when the request came in legacy.
+
+    Task and project pages can't be redirected by the middleware, because
+    their canonical workspace comes from the record itself rather than from
+    whoever is looking — resolving that needs the object in hand, which is
+    the view's job (ADR 0031).
+
+    Skips the modal fetch and any other HTMX request: those expect a
+    partial for a specific target, and a redirect would swap a whole page
+    into a cell.
+
+    Args:
+        request: The active ``HttpRequest``.
+        canonical_path: Where this record actually lives.
+
+    Returns:
+        A permanent redirect, or ``None`` when already canonical.
+    """
+    match = request.resolver_match
+    if match is None or match.namespace != "web":
+        return None
+    if request.headers.get("HX-Request") or request.GET.get("modal") == "1":
+        return None
+    query = request.META.get("QUERY_STRING")
+    return redirect(f"{canonical_path}?{query}" if query else canonical_path, permanent=True)
 
 
 def _render_disambiguation(request, *, slug, options):
@@ -2262,7 +2290,10 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         # Same per-workspace uniqueness trap as the task URL: two
         # workspaces may each own a "SER" project, and ``get()`` raised
         # MultipleObjectsReturned — a 500 — for anyone in both.
-        hint = self.request.GET.get("w")
+        # The canonical route states the workspace in the path; ``?w=`` is
+        # the older query-string form, still honoured for links minted
+        # before the move (ADR 0031).
+        hint = request_workspace_slug(self.request) or self.request.GET.get("w")
         if hint:
             hinted = matches.filter(workspace__slug=hint).first()
             if hinted is not None:
@@ -2278,13 +2309,13 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         return project
 
     def get(self, request, *args, **kwargs):
-        """Render the project, or a chooser when the key names two.
+        """Render the project, redirect to its canonical URL, or ask which one.
 
         Same per-workspace uniqueness trap as the task URL — see
         :func:`_resolve_task_or_404`.
         """
         try:
-            return super().get(request, *args, **kwargs)
+            self.object = self.get_object()
         except AmbiguousSlug as exc:
             return _render_disambiguation(
                 request,
@@ -2294,11 +2325,15 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
                         "workspace": project.workspace.name,
                         "project": None,
                         "title": project.name,
-                        "url": f"{request.path}?w={project.workspace.slug}",
+                        "url": project_path(project),
                     }
                     for project in exc.matches
                 ],
             )
+        canonical = _canonical_redirect(request, project_path(self.object))
+        if canonical is not None:
+            return canonical
+        return self.render_to_response(self.get_context_data(object=self.object))
 
     def render_to_response(self, context, **response_kwargs):
         """Persist ``view_mode`` + ``show_archived`` + ``list_axis`` cookies."""
@@ -2659,22 +2694,24 @@ class TaskDetailView(LoginRequiredMixin, DetailView):
             self.request.user,
             self.kwargs["slug_prefix"],
             self.kwargs["number"],
-            self.request.GET.get("w"),
+            # Path segment first, ``?w=`` as the legacy fallback.
+            request_workspace_slug(self.request) or self.request.GET.get("w"),
         )
         if self.request.GET.get("modal") != "1":
             set_active_workspace(self.request, task.project.workspace)
         return task
 
     def get(self, request, *args, **kwargs):
-        """Render the task, or a choice page when the URL names two.
+        """Render the task, redirect to its canonical URL, or ask which one.
 
-        Only reachable when the viewer belongs to both workspaces that
-        share the prefix — anything they can't see was already filtered
-        out of the queryset, and a single remaining candidate opens
-        directly. So the page appears exactly when a real choice exists.
+        The chooser is only reachable when the viewer belongs to both
+        workspaces that share the prefix — anything they can't see was
+        already filtered out of the queryset, and a single remaining
+        candidate opens directly. So it appears exactly when a real choice
+        exists.
         """
         try:
-            return super().get(request, *args, **kwargs)
+            self.object = self.get_object()
         except AmbiguousSlug as exc:
             return _render_disambiguation(
                 request,
@@ -2684,11 +2721,15 @@ class TaskDetailView(LoginRequiredMixin, DetailView):
                         "workspace": task.project.workspace.name,
                         "project": task.project.name,
                         "title": task.title,
-                        "url": f"{request.path}?w={task.project.workspace.slug}",
+                        "url": task_path(task),
                     }
                     for task in exc.matches
                 ],
             )
+        canonical = _canonical_redirect(request, task_path(self.object))
+        if canonical is not None:
+            return canonical
+        return self.render_to_response(self.get_context_data(object=self.object))
 
     def get_context_data(self, **kwargs):
         """Attach subtasks, comments, activity timeline, and the merged
@@ -4684,7 +4725,9 @@ def switch_workspace(request, workspace_id):
     )
     request.user.active_workspace = workspace
     request.user.save(update_fields=["active_workspace"])
-    target = reverse("web:project_list")
+    # Straight to the new workspace's canonical page — landing on the
+    # legacy path would only bounce through a 301 to the same place.
+    target = section_path("project_list", workspace)
     if request.headers.get("HX-Request") == "true":
         resp = HttpResponse(status=204)
         resp["HX-Redirect"] = target
@@ -7709,7 +7752,7 @@ def _create_workspace_post(request):
         slug = slugify(raw_slug)
         if not slug:
             return HttpResponseBadRequest(_("Invalid slug"))
-        if slug in RESERVED_WORKSPACE_SLUGS:
+        if slug in reserved_workspace_slugs():
             return HttpResponseBadRequest(_("This name is reserved. Pick another."))
         if Workspace.objects.filter(slug=slug).exists():
             return HttpResponseBadRequest(_("Slug already taken"))
@@ -7720,7 +7763,7 @@ def _create_workspace_post(request):
         # A derived slug can land on a reserved word too ("API" -> "api"),
         # so the suffix loop treats that the same as a collision rather
         # than handing back an unreachable workspace (ADR 0031).
-        while slug in RESERVED_WORKSPACE_SLUGS or Workspace.objects.filter(slug=slug).exists():
+        while slug in reserved_workspace_slugs() or Workspace.objects.filter(slug=slug).exists():
             slug = f"{base}-{suffix}"
             suffix += 1
             if suffix > 100:  # pragma: no cover — runaway loop guard
@@ -8260,15 +8303,15 @@ def palette_search(request):
             )
 
     nav_targets = [
-        ("layout-dashboard", _("Dashboard"), reverse("web:dashboard")),
-        ("inbox", _("Inbox"), reverse("web:inbox")),
-        ("briefcase", _("My Work"), reverse("web:my_work")),
-        ("list-checks", _("All Tasks"), reverse("web:all_tasks")),
-        ("folders", _("Projects"), reverse("web:project_list")),
-        ("history", _("My activity"), reverse("web:my_activity")),
+        ("layout-dashboard", _("Dashboard"), section_path("dashboard", workspace)),
+        ("inbox", _("Inbox"), section_path("inbox", workspace)),
+        ("briefcase", _("My Work"), section_path("my_work", workspace)),
+        ("list-checks", _("All Tasks"), section_path("all_tasks", workspace)),
+        ("folders", _("Projects"), section_path("project_list", workspace)),
+        ("history", _("My activity"), section_path("my_activity", workspace)),
     ]
     if workspace and workspace.cycle_config()["enabled"]:
-        nav_targets.append(("iteration-cw", _("Cycles"), reverse("web:cycles_overview")))
+        nav_targets.append(("iteration-cw", _("Cycles"), section_path("cycles_overview", workspace)))
     nav_targets.append(("user", _("Account settings"), reverse("accounts:settings")))
     if workspace:
         nav_targets.append(

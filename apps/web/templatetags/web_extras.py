@@ -683,14 +683,9 @@ def task_url(task) -> str:
     Returns:
         The task's canonical, workspace-scoped detail path.
     """
-    return reverse(
-        "web_ws:task_detail",
-        kwargs={
-            "workspace": task.project.workspace.slug,
-            "slug_prefix": task.project.slug_prefix,
-            "number": task.number,
-        },
-    )
+    from apps.web.url_scoping import task_path
+
+    return task_path(task)
 
 
 @register.simple_tag(name="project_url")
@@ -706,13 +701,9 @@ def project_url(project) -> str:
     Returns:
         The project's canonical, workspace-scoped detail path.
     """
-    return reverse(
-        "web_ws:project_detail",
-        kwargs={
-            "workspace": project.workspace.slug,
-            "slug_prefix": project.slug_prefix,
-        },
-    )
+    from apps.web.url_scoping import project_path
+
+    return project_path(project)
 
 
 @register.simple_tag(takes_context=True, name="wurl")

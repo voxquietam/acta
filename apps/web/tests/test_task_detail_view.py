@@ -185,8 +185,12 @@ class TestTaskDetailQueryCount:
         with django_assert_max_num_queries(30):
             client.get(
                 reverse(
-                    "web:task_detail",
-                    kwargs={"slug_prefix": project.slug_prefix, "number": task.number},
+                    "web_ws:task_detail",
+                    kwargs={
+                        "workspace": project.workspace.slug,
+                        "slug_prefix": project.slug_prefix,
+                        "number": task.number,
+                    },
                 ),
             )
 

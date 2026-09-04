@@ -143,3 +143,26 @@ def project_path(project):
             "slug_prefix": project.slug_prefix,
         },
     )
+
+
+def section_path(name, workspace, **kwargs):
+    """Return the canonical path of a workspace section.
+
+    The Python counterpart of the ``{% wurl %}`` template tag, for the
+    handful of places that build navigation URLs outside a template — the
+    command palette's target list, the post-workspace-switch redirect.
+
+    Args:
+        name: URL name without namespace, e.g. ``"inbox"``.
+        workspace: The :class:`Workspace` the link belongs to, or ``None``
+            to fall back to the legacy route.
+        **kwargs: Any further URL kwargs the pattern needs.
+
+    Returns:
+        The path.
+    """
+    from django.urls import reverse
+
+    if workspace is None:
+        return reverse(f"web:{name}", kwargs=kwargs)
+    return reverse(f"web_ws:{name}", kwargs={"workspace": workspace.slug, **kwargs})

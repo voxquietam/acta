@@ -78,7 +78,12 @@ class TestSwitchWorkspace:
             HTTP_HX_REQUEST="true",
         )
         assert resp.status_code == 204
-        assert resp["HX-Redirect"] == reverse("web:project_list")
+        # Straight to the newly-active workspace's own page — landing on the
+        # legacy path would only bounce through a 301 to the same place.
+        assert resp["HX-Redirect"] == reverse(
+            "web_ws:project_list",
+            kwargs={"workspace": b.slug},
+        )
         user.refresh_from_db()
         assert user.active_workspace_id == b.id
 

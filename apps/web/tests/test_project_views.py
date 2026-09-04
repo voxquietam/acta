@@ -425,10 +425,10 @@ class TestProjectViewQueryCounts:
             TaskFactory(project=p, reporter=user)
         client.force_login(user)
         with django_assert_max_num_queries(15):
-            client.get(reverse("web:project_list"))
+            client.get(reverse("web_ws:project_list", kwargs={"workspace": ws.slug}))
 
     def test_project_detail_constant_queries(self, client, member_user, django_assert_max_num_queries):
-        user, _, project = member_user
+        user, ws, project = member_user
         for _ in range(20):
             TaskFactory(project=project, reporter=user)
         client.force_login(user)
@@ -440,7 +440,10 @@ class TestProjectViewQueryCounts:
         # Still constant — adding more tasks must not move it.
         with django_assert_max_num_queries(19):
             client.get(
-                reverse("web:project_detail", kwargs={"slug_prefix": project.slug_prefix}),
+                reverse(
+                    "web_ws:project_detail",
+                    kwargs={"workspace": ws.slug, "slug_prefix": project.slug_prefix},
+                ),
             )
 
 

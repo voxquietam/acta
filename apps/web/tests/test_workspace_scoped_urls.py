@@ -6,6 +6,7 @@ patterns at import time, so these tests guard the generation itself as much
 as the individual routes — if the mirroring breaks, everything below 404s.
 """
 
+from django.test import Client
 from django.urls import Resolver404, resolve, reverse
 
 import pytest
@@ -43,7 +44,11 @@ class TestCanonicalRoutes:
             assert client.get(path).status_code == 200, path
 
     def test_legacy_paths_still_work(self, client, workspace_setup):
-        """Six months of links are already out there; they keep resolving."""
+        """Six months of links are already out there; they keep landing.
+
+        They redirect to the canonical form rather than serving directly,
+        so what matters is that following one still reaches the page.
+        """
         user, _, project, task = workspace_setup
         client.force_login(user)
         for path in (
@@ -51,7 +56,7 @@ class TestCanonicalRoutes:
             "/projects/",
             f"/projects/{project.slug_prefix}/{task.number}/",
         ):
-            assert client.get(path).status_code == 200, path
+            assert client.get(path, follow=True).status_code == 200, path
 
     def test_reverse_produces_both_forms(self, workspace_setup):
         _, workspace, _, _ = workspace_setup
@@ -110,3 +115,78 @@ class TestCanonicalRouteAccess:
         except Resolver404:  # pragma: no cover — would mean admin is unmounted
             pytest.fail("/admin/ no longer resolves")
         assert match.namespace != "web_ws"
+
+
+@pytest.fixture
+def raw_client():
+    """A client that does NOT follow redirects.
+
+    The project-wide ``client`` fixture follows them, which is right for
+    suites asking "does this page render". This one is for the tests that
+    are about the redirect itself.
+    """
+    return Client()
+
+
+@pytest.mark.django_db
+class TestLegacyRedirects:
+    """Legacy paths keep working, but nudge the browser to the canonical one.
+
+    The old URLs can never be retired — six months of them are in Telegram
+    messages and bookmarks — so they resolve forever. A 301 just means what
+    the user copies out of the address bar afterwards is unambiguous.
+    """
+
+    def test_legacy_page_redirects(self, raw_client, workspace_setup):
+        user, workspace, _, _ = workspace_setup
+        raw_client.force_login(user)
+        response = raw_client.get("/my-work/")
+        assert response.status_code == 301
+        assert response["Location"] == f"/{workspace.slug}/my-work/"
+
+    def test_querystring_survives(self, raw_client, workspace_setup):
+        """Filters live in the querystring; losing them would break links."""
+        user, workspace, _, _ = workspace_setup
+        raw_client.force_login(user)
+        response = raw_client.get("/tasks/", {"status": "to-do"})
+        assert response["Location"] == f"/{workspace.slug}/tasks/?status=to-do"
+
+    def test_legacy_task_and_project_redirect(self, raw_client, workspace_setup):
+        """These resolve their workspace from the record, not the viewer."""
+        user, workspace, project, task = workspace_setup
+        raw_client.force_login(user)
+        task_response = raw_client.get(f"/projects/{project.slug_prefix}/{task.number}/")
+        assert task_response["Location"] == f"/{workspace.slug}/projects/{project.slug_prefix}/{task.number}/"
+        project_response = raw_client.get(f"/projects/{project.slug_prefix}/")
+        assert project_response["Location"] == f"/{workspace.slug}/projects/{project.slug_prefix}/"
+
+    def test_canonical_url_does_not_redirect(self, raw_client, workspace_setup):
+        """Guards against a redirect loop."""
+        user, workspace, _, _ = workspace_setup
+        raw_client.force_login(user)
+        assert raw_client.get(f"/{workspace.slug}/my-work/").status_code == 200
+
+    def test_htmx_fragments_are_left_alone(self, raw_client, workspace_setup):
+        """A fragment answers into a target; redirecting swaps a whole page in."""
+        user, _, project, task = workspace_setup
+        raw_client.force_login(user)
+        assert raw_client.get("/my-work/", HTTP_HX_REQUEST="true").status_code == 200
+        modal = raw_client.get(
+            f"/projects/{project.slug_prefix}/{task.number}/",
+            {"modal": "1"},
+            HTTP_HX_REQUEST="true",
+        )
+        assert modal.status_code == 200
+
+    def test_post_endpoints_are_not_redirected(self, raw_client, workspace_setup):
+        """A 301 on POST is replayed as GET, dropping the body of every form."""
+        user, _, project, task = workspace_setup
+        raw_client.force_login(user)
+        response = raw_client.post(
+            f"/projects/{project.slug_prefix}/{task.number}/priority/",
+            {"priority": 2},
+            HTTP_HX_REQUEST="true",
+        )
+        assert response.status_code != 301
+        task.refresh_from_db()
+        assert task.priority == 2

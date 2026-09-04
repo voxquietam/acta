@@ -98,7 +98,10 @@ class TestMyActivity:
             )
         client.force_login(ws.owner)
         with django_assert_max_num_queries(20):
-            resp = client.get(reverse("web:my_activity"), {"tab": "activity"})
+            resp = client.get(
+                reverse("web_ws:my_activity", kwargs={"workspace": ws.slug}),
+                {"tab": "activity"},
+            )
             assert resp.status_code == 200
 
     def test_comments_load_more_pagination(self, client):
