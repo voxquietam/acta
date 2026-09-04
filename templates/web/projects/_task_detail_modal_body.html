@@ -61,7 +61,7 @@ listens for ``refresh`` on ``#task-meta-compact``, the timeline on
     <ul class="space-y-1 bg-card border border-border rounded-lg p-2">
       {% for sub in subtasks %}
       <li>
-        <a href="{% url 'web:task_detail' slug_prefix=sub.project.slug_prefix number=sub.number %}"
+        <a href="{% task_url sub %}"
            {% open_task_modal_attrs sub %}
            class="flex items-center gap-2 px-2 py-1 rounded hover:bg-muted text-sm">
           <span class="font-mono text-xs text-placeholder-foreground">{{ sub.slug }}</span>

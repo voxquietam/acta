@@ -35,6 +35,17 @@
 // window.* export, update this map AND audit/wave3/01-acta-js.md §4.
 
 (function () {
+  // Append ``modal=1`` to a task URL, whatever it already carries.
+  //
+  // Task links now include a ``?w=<workspace>`` hint (a slug prefix is
+  // unique per workspace, not globally, so a bare URL can name two
+  // tasks). Blind ``url + "?modal=1"`` turned those into
+  // ``…?w=ksu24?modal=1`` — a second "?" the server reads as part of the
+  // first value, so the hint silently stopped working.
+  function withModalParam(url) {
+    return url + (url.indexOf("?") === -1 ? "?" : "&") + "modal=1";
+  }
+
   // CSRF token retrieval for fetch() calls outside HTMX.
   function getCookie(name) {
     const value = `; ${document.cookie}`;
@@ -1112,7 +1123,7 @@
             // inline — and ping the picker for the first missing field
             // so it pops open automatically after the modal settles.
             window.htmx
-              .ajax("GET", card.dataset.taskUrl + "?modal=1", {
+              .ajax("GET", withModalParam(card.dataset.taskUrl), {
                 target: "#modal-root",
                 swap: "innerHTML",
               })
@@ -1703,7 +1714,7 @@
       if (_tlDragging) return;
       const url = row.dataset.url;
       if (!url || typeof htmx === "undefined") return;
-      htmx.ajax("GET", url + "?modal=1", { target: "#modal-root", swap: "innerHTML" });
+      htmx.ajax("GET", withModalParam(url), { target: "#modal-root", swap: "innerHTML" });
     }
 
     function moveTip(e) {
@@ -3583,7 +3594,7 @@
     if (!taskUrl || !window.htmx) return;
     e.preventDefault();
     window.htmx
-      .ajax("GET", taskUrl + "?modal=1", { target: "#modal-root", swap: "innerHTML" })
+      .ajax("GET", withModalParam(taskUrl), { target: "#modal-root", swap: "innerHTML" })
       .then(() => {
         setTimeout(() => highlightCommentById(commentId), 60);
       });
@@ -3602,7 +3613,7 @@
     const href = chip.getAttribute("href");
     if (!href || href === "#" || !window.htmx) return;
     e.preventDefault();
-    window.htmx.ajax("GET", href + "?modal=1", { target: "#modal-root", swap: "innerHTML" });
+    window.htmx.ajax("GET", withModalParam(href), { target: "#modal-root", swap: "innerHTML" });
   });
 
   // Open a task in the modal overlay. Elements marked ``data-task-modal``
@@ -3620,7 +3631,7 @@
     const url = el.getAttribute("href") || el.dataset.taskUrl;
     if (!url) return;
     e.preventDefault();
-    window.htmx.ajax("GET", url + "?modal=1", { target: "#modal-root", swap: "innerHTML" });
+    window.htmx.ajax("GET", withModalParam(url), { target: "#modal-root", swap: "innerHTML" });
   });
 
   // Click-to-filter on task rows/cards. Each filterable cell (status,

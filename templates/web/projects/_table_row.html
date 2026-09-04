@@ -45,7 +45,7 @@ for every other surface; keep the inlined markup here in sync with them.
       <span class="acta-filter-chip {{ task.priority|priority_text_classes }}"
             title="{% trans 'Filter by priority' %}: {{ priority_labels|get_item:task.priority|default:_('No priority') }}"
             data-filter-name="priority" data-filter-value="{{ task.priority|default:0 }}">{% if task.priority == 1 %}{% lucide "chevrons-up" "w-3.5 h-3.5" %}{% elif task.priority == 2 %}{% lucide "chevron-up" "w-3.5 h-3.5" %}{% elif task.priority == 3 %}{% lucide "minus" "w-3.5 h-3.5" %}{% elif task.priority == 4 %}{% lucide "chevron-down" "w-3.5 h-3.5" %}{% else %}{% lucide "circle-dashed" "w-3.5 h-3.5" %}{% endif %}</span>
-      <a href="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
+      <a href="{% task_url task %}"
          {% open_task_modal_attrs task %}
          class="hover:text-foreground transition">{{ task.slug }}</a>
       {% if task.archived_at %}
@@ -60,7 +60,7 @@ for every other surface; keep the inlined markup here in sync with them.
   <td class="px-3 py-2 max-w-md">
     <span class="flex items-center gap-1.5 min-w-0">
       {% if task.is_blocked %}<span title="{% trans 'Blocked by open tasks' %}" class="inline-flex items-center text-rose-400 shrink-0">{% lucide "lock" "w-3 h-3" %}</span>{% endif %}{% if task.is_blocking %}<span title="{% trans 'Blocking other tasks' %}" class="inline-flex items-center text-amber-400 shrink-0">{% lucide "git-branch" "w-3 h-3" %}</span>{% endif %}
-      <a href="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
+      <a href="{% task_url task %}"
          {% open_task_modal_attrs task %}
          class="block hover:text-brand-400 truncate min-w-0
            {% if task.status == 'done' or task.status == 'cancelled' %}line-through text-placeholder-foreground{% else %}text-foreground{% endif %}"

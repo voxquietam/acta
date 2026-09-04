@@ -305,30 +305,118 @@ class TestDuplicateSlugPrefixAcrossWorkspaces:
             kwargs={"slug_prefix": task.project.slug_prefix, "number": task.number},
         )
 
-    def test_duplicate_prefix_does_not_500(self, client):
-        user, (_, t1), _ = self._both_workspaces()
+    def test_duplicate_prefix_offers_a_choice(self, client):
+        """No guessing: both are reachable, so the user picks."""
+        user, (_, t1), (_, t2) = self._both_workspaces()
         client.force_login(user)
-        assert client.get(self._url(t1)).status_code == 200
+        response = client.get(self._url(t1))
+        assert response.status_code == 300
+        assert t1.title.encode() in response.content
+        assert t2.title.encode() in response.content
 
-    def test_resolves_to_the_active_workspace(self, client):
-        """Whichever workspace you are browsing is the one you land in."""
+    def test_workspace_hint_resolves_directly(self, client):
+        """Links made inside the app carry ``?w=`` and skip the choice."""
         user, (first, t1), (second, t2) = self._both_workspaces()
         client.force_login(user)
 
-        user.active_workspace = first
-        user.save(update_fields=["active_workspace"])
-        assert client.get(self._url(t1)).context["task"].pk == t1.pk
+        r1 = client.get(self._url(t1), {"w": first.slug})
+        assert r1.status_code == 200
+        assert r1.context["task"].pk == t1.pk
 
-        user.active_workspace = second
-        user.save(update_fields=["active_workspace"])
-        assert client.get(self._url(t2)).context["task"].pk == t2.pk
+        r2 = client.get(self._url(t2), {"w": second.slug})
+        assert r2.status_code == 200
+        assert r2.context["task"].pk == t2.pk
 
-    def test_modal_variant_also_resolves(self, client):
+    def test_single_reachable_match_opens_without_asking(self, client):
+        """Only one of the two workspaces is visible, so there is no choice.
+
+        The queryset is already membership-scoped, so a collision the user
+        cannot reach never becomes a question.
+        """
+        user, (first, t1), (second, _) = self._both_workspaces()
+        second.memberships.filter(user=user).delete()
+        client.force_login(user)
+        response = client.get(self._url(t1))
+        assert response.status_code == 200
+        assert response.context["task"].pk == t1.pk
+
+    def test_stale_hint_falls_back_to_the_choice(self, client):
+        """A hint naming a workspace without the task must not 404 it."""
+        user, (_, t1), _ = self._both_workspaces()
+        client.force_login(user)
+        assert client.get(self._url(t1), {"w": "no-such-workspace"}).status_code == 300
+
+    def test_modal_variant_also_offers_the_choice(self, client):
         """The kanban card click fetches ``?modal=1`` — same lookup path."""
-        user, (first, t1), _ = self._both_workspaces()
+        user, (_, t1), _ = self._both_workspaces()
+        client.force_login(user)
+        response = client.get(self._url(t1), {"modal": "1"}, HTTP_HX_REQUEST="true")
+        assert response.status_code == 300
+
+    def test_opening_a_task_focuses_its_workspace(self, client):
+        """The sidebar must follow the task, as it already does for projects.
+
+        Following a link into another workspace used to leave the whole app
+        — sidebar, All Tasks, every scoped view — pointing at the previous
+        one while a task from elsewhere sat on screen.
+        """
+        user, (first, t1), (second, t2) = self._both_workspaces()
         user.active_workspace = first
         user.save(update_fields=["active_workspace"])
         client.force_login(user)
-        response = client.get(self._url(t1), {"modal": "1"}, HTTP_HX_REQUEST="true")
+
+        client.get(self._url(t2), {"w": second.slug})
+        user.refresh_from_db()
+        assert user.active_workspace_id == second.pk
+
+    def test_modal_does_not_move_the_workspace(self, client):
+        """A modal is a peek over the current board, not a navigation."""
+        user, (first, _), (second, t2) = self._both_workspaces()
+        user.active_workspace = first
+        user.save(update_fields=["active_workspace"])
+        client.force_login(user)
+
+        client.get(self._url(t2), {"w": second.slug, "modal": "1"}, HTTP_HX_REQUEST="true")
+        user.refresh_from_db()
+        assert user.active_workspace_id == first.pk
+
+
+@pytest.mark.django_db
+class TestDuplicateProjectPrefix:
+    """The project page collides the same way a task URL does."""
+
+    def _two_projects(self):
+        first = WorkspaceFactory()
+        user = first.owner
+        second = WorkspaceFactory()
+        second.memberships.create(user=user)
+        p1 = ProjectFactory(workspace=first, slug_prefix="SER", name="Server one")
+        p2 = ProjectFactory(workspace=second, slug_prefix="SER", name="Server two")
+        return user, (first, p1), (second, p2)
+
+    def _url(self, project):
+        return reverse("web:project_detail", kwargs={"slug_prefix": project.slug_prefix})
+
+    def test_duplicate_prefix_offers_a_choice(self, client):
+        user, (_, p1), (_, p2) = self._two_projects()
+        client.force_login(user)
+        response = client.get(self._url(p1))
+        assert response.status_code == 300
+        assert p1.name.encode() in response.content
+        assert p2.name.encode() in response.content
+
+    def test_hint_resolves_and_focuses_the_workspace(self, client):
+        user, (first, p1), (second, p2) = self._two_projects()
+        user.active_workspace = first
+        user.save(update_fields=["active_workspace"])
+        client.force_login(user)
+        response = client.get(self._url(p2), {"w": second.slug})
         assert response.status_code == 200
-        assert response.context["task"].pk == t1.pk
+        user.refresh_from_db()
+        assert user.active_workspace_id == second.pk
+
+    def test_single_reachable_match_opens_without_asking(self, client):
+        user, (first, p1), (second, _) = self._two_projects()
+        second.memberships.filter(user=user).delete()
+        client.force_login(user)
+        assert client.get(self._url(p1)).status_code == 200

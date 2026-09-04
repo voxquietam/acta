@@ -54,7 +54,7 @@ navigates back to the calls list.
             <span class="inline-flex items-center gap-1">{% lucide "calendar" "w-3.5 h-3.5" %}{{ meeting.happened_at|date:"M j, Y · H:i" }}</span>
             <span class="inline-flex items-center gap-1">{% lucide "clock" "w-3.5 h-3.5" %}{{ meeting.human_duration }}</span>
             {% if meeting.project %}
-            <a href="{% url 'web:project_detail' slug_prefix=meeting.project.slug_prefix %}"
+            <a href="{% project_url meeting.project %}"
                class="inline-flex items-center gap-1 text-subtle-foreground hover:text-foreground">{% lucide "folder" "w-3.5 h-3.5" %}{{ meeting.project.name }}</a>
             {% endif %}
           </div>
@@ -84,7 +84,7 @@ navigates back to the calls list.
         <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Linked tasks" %}</div>
         <div class="mt-2 space-y-1">
           {% for t in tasks %}
-          <a href="{% url 'web:task_detail' slug_prefix=t.project.slug_prefix number=t.number %}"
+          <a href="{% task_url t %}"
              class="group/link flex items-center gap-2 text-xs">
             <span class="font-mono text-placeholder-foreground group-hover/link:text-foreground shrink-0">{{ t.slug }}</span>
             <span class="truncate flex-1 text-subtle-foreground group-hover/link:text-foreground">{{ t.title }}</span>

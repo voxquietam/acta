@@ -357,11 +357,11 @@ because grid items' containing block was just the 56px header row.
           {% elif task.status == 'in-progress' %}bg-violet-500
           {% elif task.status == 'in-review' %}bg-amber-500
           {% elif task.status == 'done' %}bg-emerald-500{% endif %}"></span>
-        <a href="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
+        <a href="{% task_url task %}"
            {% open_task_modal_attrs task %}
            class="font-mono text-[10px] text-placeholder-foreground shrink-0 hover:text-foreground transition"
            style="min-width:52px">{{ task.slug }}</a>
-        <a href="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
+        <a href="{% task_url task %}"
            {% open_task_modal_attrs task %}
            class="text-xs truncate min-w-0 hover:text-brand-400 transition
              {% if task.status == 'done' %}line-through text-placeholder-foreground{% else %}text-foreground{% endif %}"
@@ -456,7 +456,7 @@ because grid items' containing block was just the 56px header row.
              data-start="{{ task.start_date|date:'Y-m-d'|default:'' }}"
              data-end="{{ task.end_date|date:'Y-m-d'|default:'' }}"
              data-due="{{ task.due_date|date:'Y-m-d'|default:'' }}"
-             data-url="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
+             data-url="{% task_url task %}"
              data-start-url="{% url 'web:set_task_start_date' slug_prefix=task.project.slug_prefix number=task.number %}"
              data-end-url="{% url 'web:set_task_end_date' slug_prefix=task.project.slug_prefix number=task.number %}"
              data-due-url="{% url 'web:set_task_due_date' slug_prefix=task.project.slug_prefix number=task.number %}"

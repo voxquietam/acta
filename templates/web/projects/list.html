@@ -95,7 +95,7 @@
     {% endcomment %}
     {% with total=project.total_task_count done=project.done_count|default:0 planned=project.planned_count|default:0 ready=project.ready_count|default:0 todo=project.todo_count|default:0 in_progress=project.in_progress_count|default:0 in_review=project.in_review_count|default:0 %}
     <div class="relative h-full">
-    <a href="{% url 'web:project_detail' slug_prefix=project.slug_prefix %}"
+    <a href="{% project_url project %}"
        hx-boost="true"
        hx-target="#app-content"
        hx-select="#app-content"

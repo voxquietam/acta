@@ -12,7 +12,7 @@ Layout per ``acta-design-system/preview/comp-task-row.html``:
 status dot · slug + priority chevron · title (flex-1) · size · labels
 (overlap, fan on hover) · project · due (mono, right-aligned) · avatar.
 {% endcomment %}
-<a href="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
+<a href="{% task_url task %}"
    data-task-id="{{ task.id }}"
    data-task-slug="{{ task.slug }}"
    data-task-title="{{ task.title }}"

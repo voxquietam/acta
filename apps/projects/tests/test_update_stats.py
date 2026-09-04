@@ -126,12 +126,15 @@ class TestPostUpdateIncludesStats:
             {"health": ProjectUpdate.ON_TRACK, "body": "weekly", "include_stats": "on"},
         )
         body = resp.content.decode()
-        project_url = reverse("web:project_detail", args=[project.slug_prefix])
+        # Links carry a ``?w=`` workspace hint (project keys are unique per
+        # workspace, not globally), so the view filters join with ``&``.
+        base = reverse("web:project_detail", args=[project.slug_prefix])
+        project_url = f"{base}?w={project.workspace.slug}"
         # Closed deep-links to the list view with a completed_at window filter.
-        assert f"{project_url}?view=list&amp;date_field=completed&amp;date_after=" in body
+        assert f"{project_url}&amp;view=list&amp;date_field=completed&amp;date_after=" in body
         # Status-snapshot chips deep-link to a current-status filter.
-        assert f"{project_url}?view=list&amp;status=in-progress" in body
-        assert f"{project_url}?view=list&amp;status=in-review" in body
-        assert f"{project_url}?view=list&amp;status=ready" in body
+        assert f"{project_url}&amp;view=list&amp;status=in-progress" in body
+        assert f"{project_url}&amp;view=list&amp;status=in-review" in body
+        assert f"{project_url}&amp;view=list&amp;status=ready" in body
         # Planned chip opens the Backlog tab (planned + ready grooming).
-        assert f"{project_url}?view=backlog" in body
+        assert f"{project_url}&amp;view=backlog" in body

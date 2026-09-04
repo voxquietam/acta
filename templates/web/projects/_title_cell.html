@@ -1,4 +1,5 @@
 {% load i18n %}
+{% load web_extras %}
 {% load lucide %}
 {% comment %}
 Inline-editable task title — always a ``<textarea>`` styled to match
@@ -69,7 +70,7 @@ required at the model level, so a silent restore beats a 400.
   {% if task.parent %}
   <div class="text-xs text-placeholder-foreground mt-1">
     {% trans "Subtask of" %}
-    <a href="{% url 'web:task_detail' slug_prefix=task.parent.project.slug_prefix number=task.parent.number %}"
+    <a href="{% task_url task.parent %}"
        class="hover:text-foreground">{{ task.parent.slug }} — {{ task.parent.title }}</a>
   </div>
   {% endif %}

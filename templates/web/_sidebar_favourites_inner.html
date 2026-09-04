@@ -39,7 +39,7 @@ all injected by the ``workspace_nav`` context processor.
         </span>
       </button>
       {% endif %}
-      <a href="{% url 'web:project_detail' slug_prefix=project.slug_prefix %}"
+      <a href="{% project_url project %}"
          data-nav-prefix
          class="acta-rail-link relative flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-muted hover:text-foreground text-muted-foreground flex-1 min-w-0">
         <span class="shrink-0 {{ project.icon_color_class }}" data-project-icon-for="{{ project.slug_prefix }}">
@@ -55,7 +55,7 @@ all injected by the ``workspace_nav`` context processor.
         class="ml-5 mt-0.5 space-y-0.5 border-l border-border pl-2">
       {% for task in nested_tasks %}
       <li>
-        <a href="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
+        <a href="{% task_url task %}"
            data-nav-prefix
            class="acta-rail-link flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-muted hover:text-foreground text-subtle-foreground text-xs">
           <span class="font-mono text-[10px] text-placeholder-foreground shrink-0">{{ task.slug }}</span>
@@ -81,7 +81,7 @@ all injected by the ``workspace_nav`` context processor.
   <ul class="space-y-0.5">
     {% for task in nav_favourite_tasks_orphan %}
     <li>
-      <a href="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"
+      <a href="{% task_url task %}"
          data-nav-prefix
          class="acta-rail-link flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-muted hover:text-foreground text-subtle-foreground text-xs">
         <span class="font-mono text-[10px] text-placeholder-foreground shrink-0">{{ task.slug }}</span>

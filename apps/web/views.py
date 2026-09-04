@@ -495,7 +495,47 @@ def _user_task_qs(user):
     )
 
 
-def _resolve_task_or_404(qs, user, slug_prefix, number):
+def _render_disambiguation(request, *, slug, options):
+    """Render the "which one did you mean" chooser.
+
+    ``300 Multiple Choices`` rather than ``200``: the request did name a
+    resource, there just isn't one answer, and the status keeps caches and
+    crawlers from treating the chooser as the page itself.
+
+    Args:
+        request: The active ``HttpRequest``.
+        slug: What the user typed, for the heading.
+        options: Dicts of ``workspace`` / ``project`` / ``title`` / ``url``.
+
+    Returns:
+        The rendered chooser response.
+    """
+    return render(
+        request,
+        "web/projects/task_disambiguate.html",
+        {
+            "slug": slug,
+            "options": options,
+        },
+        status=300,
+    )
+
+
+class AmbiguousSlug(Exception):
+    """Raised when a slug URL names more than one thing the viewer can see.
+
+    Project prefixes are unique per workspace, so both ``/projects/SER/``
+    and ``/projects/SER/2/`` can be ambiguous for someone in two
+    workspaces. Carries the candidates so the caller can offer a choice
+    instead of picking one.
+    """
+
+    def __init__(self, matches):
+        self.matches = matches
+        super().__init__("Task slug matches more than one workspace.")
+
+
+def _resolve_task_or_404(qs, user, slug_prefix, number, workspace_slug=None):
     """Resolve one task from a ``<slug_prefix>/<number>`` URL.
 
     A slug prefix is unique **per workspace**, not globally — the
@@ -506,10 +546,20 @@ def _resolve_task_or_404(qs, user, slug_prefix, number):
     ``MultipleObjectsReturned``: a 500 on an ordinary click, hit only by
     people in more than one workspace.
 
-    Ambiguity is resolved rather than raised. The task in the user's
-    active workspace wins, which is what someone browsing that workspace
-    means; failing that, the lowest id, so reloading the same URL keeps
-    landing on the same task instead of flip-flopping.
+    ``qs`` is already scoped to what the user may see, so a collision in
+    a workspace they have no access to never reaches this function —
+    only genuinely reachable candidates can be ambiguous.
+
+    Resolution order:
+
+    1. ``workspace_slug`` when given. Links generated inside the app
+       carry it (see the ``task_url`` template tag), so ordinary clicks
+       resolve straight through, including from cross-workspace boards
+       like All Tasks.
+    2. A single match — nothing to disambiguate.
+    3. Otherwise :class:`AmbiguousSlug`, for the caller to turn into
+       a choice. Silently preferring the active workspace would send a
+       shared link to the wrong task without a hint that it happened.
 
     Args:
         qs: Base queryset, already scoped to what the user may see and
@@ -517,22 +567,45 @@ def _resolve_task_or_404(qs, user, slug_prefix, number):
         user: Acting :class:`User`.
         slug_prefix: Project slug prefix from the URL.
         number: Task number within the project.
+        workspace_slug: Optional workspace hint from the querystring.
 
     Returns:
         The :class:`Task` instance.
 
     Raises:
         Http404: If no visible task matches.
+        AmbiguousSlug: If several match and no hint narrows them.
     """
     matches = qs.filter(project__slug_prefix=slug_prefix, number=number)
-    task = None
-    if user.active_workspace_id:
-        task = matches.filter(project__workspace_id=user.active_workspace_id).first()
-    if task is None:
-        task = matches.order_by("pk").first()
-    if task is None:
+    if workspace_slug:
+        hinted = matches.filter(project__workspace__slug=workspace_slug).first()
+        if hinted is not None:
+            return hinted
+        # A stale or wrong hint shouldn't 404 a task the user can see —
+        # fall through and treat the request as unhinted.
+    candidates = list(matches.select_related("project__workspace")[:5])
+    if not candidates:
         raise Http404("No Task matches the given query.")
-    return task
+    if len(candidates) == 1:
+        return candidates[0]
+    raise AmbiguousSlug(candidates)
+
+
+def _resolve_task_preferring_active(qs, user, slug_prefix, number, workspace_slug=None):
+    """Same lookup, but never raises :class:`AmbiguousSlug`.
+
+    For fragment and action endpoints, which are always fired from an
+    already-open task rather than from a link someone pasted: there is no
+    page to render a choice into, so a collision falls back to the active
+    workspace, then to the lowest id for a stable answer.
+    """
+    try:
+        return _resolve_task_or_404(qs, user, slug_prefix, number, workspace_slug)
+    except AmbiguousSlug as exc:
+        for task in exc.matches:
+            if task.project.workspace_id == user.active_workspace_id:
+                return task
+        return min(exc.matches, key=lambda t: t.pk)
 
 
 def _get_user_task_or_404(user, slug_prefix, number):
@@ -546,7 +619,7 @@ def _get_user_task_or_404(user, slug_prefix, number):
     Returns:
         The :class:`Task` instance.
     """
-    return _resolve_task_or_404(_user_task_qs(user), user, slug_prefix, number)
+    return _resolve_task_preferring_active(_user_task_qs(user), user, slug_prefix, number)
 
 
 def _my_work_base_qs(user, workspace):
@@ -1256,7 +1329,7 @@ def _inbox_base_qs(user):
         )
         .exclude(kind=Notification.Kind.PROJECT_UPDATE)
         .select_related(
-            "task__project",
+            "task__project__workspace",
             "actor",
             "comment",
             "meeting",
@@ -1380,7 +1453,7 @@ def _get_user_notification_or_404(user, pk):
     """
     return get_object_or_404(
         Notification.objects.select_related(
-            "task__project",
+            "task__project__workspace",
             "actor",
             "comment",
             "project_update__project",
@@ -1798,7 +1871,7 @@ class MyActivityView(LoginRequiredMixin, TemplateView):
             ctx["my_activity_count"] = events_qs.count()
 
         if tab == "comments":
-            comments = list(comments_qs.select_related("task__project").order_by("-created_at")[offset:end])
+            comments = list(comments_qs.select_related("task__project__workspace").order_by("-created_at")[offset:end])
             ctx["my_comments"] = comments
             total = comments_qs.count()
             ctx["has_more"] = len(comments) == page and total > end
@@ -1847,7 +1920,7 @@ class MyActivityView(LoginRequiredMixin, TemplateView):
                 return None
 
             task_ids = [tid for tid in (_event_task_id(e) for e in events) if tid]
-            tasks = {t.id: t for t in Task.objects.filter(id__in=task_ids).select_related("project")}
+            tasks = {t.id: t for t in Task.objects.filter(id__in=task_ids).select_related("project__workspace")}
             for e in events:
                 e.linked_task = tasks.get(_event_task_id(e))
             _enrich_activity_events(events)
@@ -2174,7 +2247,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         ).values(
             "role"
         )[:1]
-        project = get_object_or_404(
+        matches = (
             Project.objects.filter(
                 slug_prefix=slug_prefix,
                 workspace__memberships__user=self.request.user,
@@ -2183,10 +2256,48 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             .annotate(
                 is_favourite=Exists(favourited),
                 my_workspace_role=Subquery(my_role),
-            ),
+            )
         )
+        # Same per-workspace uniqueness trap as the task URL: two
+        # workspaces may each own a "SER" project, and ``get()`` raised
+        # MultipleObjectsReturned — a 500 — for anyone in both.
+        hint = self.request.GET.get("w")
+        if hint:
+            hinted = matches.filter(workspace__slug=hint).first()
+            if hinted is not None:
+                set_active_workspace(self.request, hinted.workspace)
+                return hinted
+        candidates = list(matches[:5])
+        if not candidates:
+            raise Http404("No Project matches the given query.")
+        if len(candidates) > 1:
+            raise AmbiguousSlug(candidates)
+        project = candidates[0]
         set_active_workspace(self.request, project.workspace)
         return project
+
+    def get(self, request, *args, **kwargs):
+        """Render the project, or a chooser when the key names two.
+
+        Same per-workspace uniqueness trap as the task URL — see
+        :func:`_resolve_task_or_404`.
+        """
+        try:
+            return super().get(request, *args, **kwargs)
+        except AmbiguousSlug as exc:
+            return _render_disambiguation(
+                request,
+                slug=kwargs["slug_prefix"],
+                options=[
+                    {
+                        "workspace": project.workspace.name,
+                        "project": None,
+                        "title": project.name,
+                        "url": f"{request.path}?w={project.workspace.slug}",
+                    }
+                    for project in exc.matches
+                ],
+            )
 
     def render_to_response(self, context, **response_kwargs):
         """Persist ``view_mode`` + ``show_archived`` + ``list_axis`` cookies."""
@@ -2526,8 +2637,19 @@ class TaskDetailView(LoginRequiredMixin, DetailView):
         recurring-series badge in the title cell). The base
         ``_user_task_qs`` omits them so the common table / kanban / list
         views don't pay for joins they never use.
+
+        May raise :class:`AmbiguousSlug`, which :meth:`get` turns
+        into a choice page rather than a guess.
+
+        Opening the full page also pulls the task's workspace into focus,
+        the way :class:`ProjectDetailView` does for a project — otherwise
+        following a link into another workspace left the sidebar, All
+        Tasks and every scoped view pointing somewhere else than the task
+        on screen. The modal is excluded on purpose: it opens *over* a
+        board as a peek, so swapping the whole app's context underneath
+        it would be jarring.
         """
-        return _resolve_task_or_404(
+        task = _resolve_task_or_404(
             _user_task_qs(self.request.user).select_related("reporter", "parent", "recurrence")
             # Links panel + Blocked badge read all three link sets; the
             # ``__project`` hop is needed because each chip renders the
@@ -2536,7 +2658,36 @@ class TaskDetailView(LoginRequiredMixin, DetailView):
             self.request.user,
             self.kwargs["slug_prefix"],
             self.kwargs["number"],
+            self.request.GET.get("w"),
         )
+        if self.request.GET.get("modal") != "1":
+            set_active_workspace(self.request, task.project.workspace)
+        return task
+
+    def get(self, request, *args, **kwargs):
+        """Render the task, or a choice page when the URL names two.
+
+        Only reachable when the viewer belongs to both workspaces that
+        share the prefix — anything they can't see was already filtered
+        out of the queryset, and a single remaining candidate opens
+        directly. So the page appears exactly when a real choice exists.
+        """
+        try:
+            return super().get(request, *args, **kwargs)
+        except AmbiguousSlug as exc:
+            return _render_disambiguation(
+                request,
+                slug=f"{kwargs['slug_prefix']}-{kwargs['number']}",
+                options=[
+                    {
+                        "workspace": task.project.workspace.name,
+                        "project": task.project.name,
+                        "title": task.title,
+                        "url": f"{request.path}?w={task.project.workspace.slug}",
+                    }
+                    for task in exc.matches
+                ],
+            )
 
     def get_context_data(self, **kwargs):
         """Attach subtasks, comments, activity timeline, and the merged
@@ -2552,7 +2703,7 @@ class TaskDetailView(LoginRequiredMixin, DetailView):
         ctx = super().get_context_data(**kwargs)
         task = self.object
         ctx["subtasks"] = list(
-            task.subtasks.select_related("assignee").order_by("number"),
+            task.subtasks.select_related("assignee", "project__workspace").order_by("number"),
         )
         user_id = self.request.user.id
         ctx["comments"] = _task_comments(task, user_id)
@@ -2579,7 +2730,9 @@ def task_title_fragment(request, slug_prefix, number):
     the "subtask of <parent>" link and would otherwise lazy-load it on
     render.
     """
-    task = _resolve_task_or_404(_user_task_qs(request.user).select_related("parent"), request.user, slug_prefix, number)
+    task = _resolve_task_preferring_active(
+        _user_task_qs(request.user).select_related("parent"), request.user, slug_prefix, number
+    )
     return HttpResponse(
         render_to_string(
             "web/projects/_title_cell.html",
@@ -2642,7 +2795,7 @@ def task_meta_fragment(request, slug_prefix, number):
     reporter's display name; without the join it lazy-loads at render
     time.
     """
-    task = _resolve_task_or_404(
+    task = _resolve_task_preferring_active(
         _user_task_qs(request.user).select_related("reporter"), request.user, slug_prefix, number
     )
     return HttpResponse(
@@ -2694,7 +2847,7 @@ def task_meta_compact_fragment(request, slug_prefix, number):
     vertical rail card. SSE peer-updates hit this endpoint when the
     task is open in modal mode.
     """
-    task = _resolve_task_or_404(
+    task = _resolve_task_preferring_active(
         _user_task_qs(request.user).select_related("reporter"), request.user, slug_prefix, number
     )
     return HttpResponse(
@@ -5691,7 +5844,7 @@ def delete_task(request, slug_prefix, number):
     Returns:
         ``204 No Content`` — the caller removes the row / refetches.
     """
-    task = _resolve_task_or_404(
+    task = _resolve_task_preferring_active(
         _user_task_qs(request.user).prefetch_related("subtasks"), request.user, slug_prefix, number
     )
     with transaction.atomic():
@@ -5736,7 +5889,7 @@ def task_context_menu(request, slug_prefix, number):
     ``archive_task`` / ``delete_task`` endpoints; the menu fires
     ``acta:task-changed`` afterwards so the board refetches.
     """
-    task = _resolve_task_or_404(
+    task = _resolve_task_preferring_active(
         _user_task_qs(request.user).select_related("reporter").prefetch_related("labels"),
         request.user,
         slug_prefix,

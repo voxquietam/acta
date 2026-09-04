@@ -660,3 +660,56 @@ def priority_text_class(value):
         return _PRIORITY_TEXT_CLASS.get(int(value), "text-placeholder-foreground")
     except (TypeError, ValueError):
         return "text-placeholder-foreground"
+
+
+@register.simple_tag(name="task_url")
+def task_url(task) -> str:
+    """Return an unambiguous detail URL for ``task``.
+
+    A slug prefix is unique per workspace, not globally, so
+    ``/projects/SER/2/`` can name two different tasks for someone who
+    belongs to both workspaces. Links generated inside the app always
+    know which one they mean, so they say so with ``?w=<workspace>``;
+    that keeps ordinary clicks — including cross-workspace boards like
+    All Tasks — landing exactly where they point.
+
+    Links that arrive without the hint (older ones, pasted from chat, a
+    bookmark) stay ambiguous by nature, and the detail view answers those
+    with a disambiguation page instead of guessing.
+
+    Args:
+        task: The :class:`Task` to link to.
+
+    Returns:
+        The task's detail path, with a workspace hint appended.
+    """
+    path = reverse(
+        "web:task_detail",
+        kwargs={
+            "slug_prefix": task.project.slug_prefix,
+            "number": task.number,
+        },
+    )
+    return f"{path}?w={task.project.workspace.slug}"
+
+
+@register.simple_tag(name="project_url")
+def project_url(project) -> str:
+    """Return an unambiguous detail URL for ``project``.
+
+    Companion to :func:`task_url` — project keys collide the same way,
+    so a link built inside the app names the workspace it means.
+
+    Args:
+        project: The :class:`Project` to link to.
+
+    Returns:
+        The project's detail path, with a workspace hint appended.
+    """
+    path = reverse(
+        "web:project_detail",
+        kwargs={
+            "slug_prefix": project.slug_prefix,
+        },
+    )
+    return f"{path}?w={project.workspace.slug}"

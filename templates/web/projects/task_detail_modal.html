@@ -1,5 +1,6 @@
 {% extends "web/_modal_shell.html" %}
 {% load i18n %}
+{% load web_extras %}
 {% load lucide %}
 {% comment %}
 Modal-mode rendering for the task detail view. Served from
@@ -35,7 +36,7 @@ x-data="{
     }, 120);
   },
   expand() {
-    window.location.assign('{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}');
+    window.location.assign('{% task_url task %}');
   },
 }"
 x-show="open"

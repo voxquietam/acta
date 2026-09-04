@@ -1,0 +1,13 @@
+{% extends "base_app.html" %}
+{% load i18n %}
+{% comment %}
+Full-page wrapper around the shared chooser. Reached when a task or
+project URL matches in more than one workspace the viewer belongs to —
+see ``_disambiguate.html`` for why that happens.
+{% endcomment %}
+
+{% block title %}{{ slug }} · {% trans "Which one?" %} · Acta{% endblock %}
+
+{% block app_main %}
+{% include "web/projects/_disambiguate.html" %}
+{% endblock %}

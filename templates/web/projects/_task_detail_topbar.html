@@ -25,7 +25,7 @@ duplication.
 <span class="text-border-strong shrink-0" aria-hidden="true">·</span>
 <a href="{% url 'web:project_list' %}" class="text-placeholder-foreground hover:text-foreground text-xs shrink-0">{{ task.project.workspace.name }}</a>
 <span class="text-border-strong shrink-0">/</span>
-<a href="{% url 'web:project_detail' slug_prefix=task.project.slug_prefix %}"
+<a href="{% project_url task.project %}"
    class="text-subtle-foreground hover:text-foreground text-xs shrink-0">{{ task.project.name }}</a>
 
 {% include "web/projects/_topbar_task_title.html" %}
@@ -56,7 +56,7 @@ shareable absolute URL in both modal and full-page contexts.
   {% include "web/projects/_task_favourite_star.html" with task=task is_favourite=is_favourite_task tooltip_pos="above-right" %}
   <button type="button"
           x-data="{ copied: false }"
-          @click="navigator.clipboard.writeText(window.location.origin + '{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}').then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
+          @click="navigator.clipboard.writeText(window.location.origin + '{% task_url task %}').then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
           :data-tooltip="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy task link' %}'"
           :aria-label="copied ? '{% trans 'Copied!' %}' : '{% trans 'Copy task link' %}'"
           data-tooltip-pos="above-right"

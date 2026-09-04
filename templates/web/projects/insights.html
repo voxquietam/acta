@@ -1,5 +1,6 @@
 {% extends "base_app.html" %}
 {% load i18n %}
+{% load web_extras %}
 {% load lucide %}
 {% comment %}
 Project insights — scrumban flow metrics (cycle / lead time +
@@ -11,7 +12,7 @@ with Chart.js (CDN, same no-build approach as sortable.js on the board).
 {% block title %}{% trans "Insights" %} · {{ project.slug_prefix }} · Acta{% endblock %}
 
 {% block topbar_left %}
-<a href="{% url 'web:project_detail' slug_prefix=project.slug_prefix %}" class="text-placeholder-foreground hover:text-foreground text-sm">
+<a href="{% project_url project %}" class="text-placeholder-foreground hover:text-foreground text-sm">
   &larr; {{ project.slug_prefix }}
 </a>
 <span class="text-muted-foreground">/</span>

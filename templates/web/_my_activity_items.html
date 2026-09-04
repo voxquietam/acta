@@ -9,7 +9,7 @@ an outerHTML swap, so the next page appends in place).
 {% if tab == 'comments' %}
   {% for c in my_comments %}
   <div class="mb-3">
-    <a href="{% url 'web:task_detail' slug_prefix=c.task.project.slug_prefix number=c.task.number %}"
+    <a href="{% task_url c.task %}"
        {% open_task_modal_attrs c.task %}
        class="group flex items-baseline gap-2 mb-1">
       <span class="font-mono text-xs text-placeholder-foreground group-hover:text-foreground shrink-0">{{ c.task.slug }}</span>
@@ -33,7 +33,7 @@ an outerHTML swap, so the next page appends in place).
   {% for g in my_event_groups %}
   <div class="mb-4">
     {% if g.task %}
-    <a href="{% url 'web:task_detail' slug_prefix=g.task.project.slug_prefix number=g.task.number %}"
+    <a href="{% task_url g.task %}"
        {% open_task_modal_attrs g.task %}
        class="group flex items-baseline gap-2 mb-1">
       <span class="font-mono text-xs text-placeholder-foreground group-hover:text-foreground shrink-0">{{ g.task.slug }}</span>

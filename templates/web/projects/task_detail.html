@@ -1,5 +1,6 @@
 {% extends "base_app.html" %}
 {% load i18n %}
+{% load web_extras %}
 
 {% block title %}{{ task.slug }} · {{ task.title }} · Acta{% endblock %}
 
@@ -14,6 +15,6 @@
       data-task-slug="{{ task.slug }}"
       data-task-title="{{ task.title }}"
       data-task-project="{{ task.project.name }}"
-      data-task-url="{% url 'web:task_detail' slug_prefix=task.project.slug_prefix number=task.number %}"></span>
+      data-task-url="{% task_url task %}"></span>
 {% include "web/projects/_task_detail_body.html" %}
 {% endblock %}
