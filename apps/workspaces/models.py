@@ -2,10 +2,30 @@ import datetime
 import secrets
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+
+# Root paths that are not workspace-specific and therefore stay at the top
+# level once every workspace section moves under ``/<workspace_slug>/``
+# (ADR 0031). Django resolves URL patterns in order and these are declared
+# first, so a workspace slugged ``api`` would be created happily and then be
+# impossible to open — every one of its URLs swallowed by the API. Refusing
+# the name up front turns a ghost workspace into "name is taken".
+RESERVED_WORKSPACE_SLUGS = frozenset(
+    {
+        "accounts",
+        "admin",
+        "api",
+        "events",
+        "mcp",
+        "media",
+        "static",
+        "telegram",
+    }
+)
 
 
 class Workspace(models.Model):
@@ -21,7 +41,12 @@ class Workspace(models.Model):
     slug = models.SlugField(
         max_length=60,
         unique=True,
-        help_text="URL-safe identifier; lowercase letters, digits, hyphens",
+        help_text=(
+            "URL-safe identifier; lowercase letters, digits, hyphens. "
+            "Immutable once set — it is the workspace's segment in every URL, "
+            "and changing it would break links already in the wild (ADR 0031). "
+            "Renaming a workspace changes name only"
+        ),
     )
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -211,6 +236,33 @@ class Workspace(models.Model):
     def __str__(self) -> str:
         """Return the workspace name."""
         return self.name
+
+    def clean(self):
+        """Reject reserved slugs and any attempt to change an existing one.
+
+        The slug is the workspace's segment in every URL it owns, so it is
+        fixed at creation: changing it would break every link already issued
+        (ADR 0031). Renaming a workspace changes ``name`` only.
+
+        Raises:
+            ValidationError: If the slug is reserved, or differs from the
+                stored one on an existing row.
+        """
+        super().clean()
+        if self.slug and self.slug in RESERVED_WORKSPACE_SLUGS:
+            raise ValidationError(
+                {
+                    "slug": _("This name is reserved. Pick another."),
+                }
+            )
+        if self.pk:
+            stored = Workspace.objects.filter(pk=self.pk).values_list("slug", flat=True).first()
+            if stored is not None and stored != self.slug:
+                raise ValidationError(
+                    {
+                        "slug": _("A workspace slug cannot be changed once created."),
+                    }
+                )
 
 
 class WorkspaceMember(models.Model):

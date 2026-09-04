@@ -81,7 +81,7 @@ from apps.web.filters import (
 )
 from apps.web.grouping import compute_list_section_keys, group_tasks
 from apps.web.nav import resolve_active_workspace, set_active_workspace
-from apps.workspaces.models import Workspace, WorkspaceMember
+from apps.workspaces.models import RESERVED_WORKSPACE_SLUGS, Workspace, WorkspaceMember
 
 User = get_user_model()
 
@@ -7708,13 +7708,18 @@ def _create_workspace_post(request):
         slug = slugify(raw_slug)
         if not slug:
             return HttpResponseBadRequest(_("Invalid slug"))
+        if slug in RESERVED_WORKSPACE_SLUGS:
+            return HttpResponseBadRequest(_("This name is reserved. Pick another."))
         if Workspace.objects.filter(slug=slug).exists():
             return HttpResponseBadRequest(_("Slug already taken"))
     else:
         base = slugify(name) or "workspace"
         slug = base
         suffix = 2
-        while Workspace.objects.filter(slug=slug).exists():
+        # A derived slug can land on a reserved word too ("API" -> "api"),
+        # so the suffix loop treats that the same as a collision rather
+        # than handing back an unreachable workspace (ADR 0031).
+        while slug in RESERVED_WORKSPACE_SLUGS or Workspace.objects.filter(slug=slug).exists():
             slug = f"{base}-{suffix}"
             suffix += 1
             if suffix > 100:  # pragma: no cover — runaway loop guard

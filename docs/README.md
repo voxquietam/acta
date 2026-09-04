@@ -37,6 +37,7 @@ ADR format: **Context → Options → Decision → Why → Consequences**.
 | 0028 | accepted | Recurring tasks: rule entity + daily materializer, structured cadence | [0028-recurring-tasks.md](decisions/0028-recurring-tasks.md) |
 | 0029 | accepted | PWA installability: rendered manifest + root-scope network-first worker | [0029-pwa-installability.md](decisions/0029-pwa-installability.md) |
 | 0030 | accepted | Meetings/calls: first-class Meeting + duration rollup, no per-task split | [0030-meetings.md](decisions/0030-meetings.md) |
+| 0031 | accepted | Workspace-scoped URLs: sections under an immutable workspace slug, legacy paths redirect | [0031-workspace-scoped-urls.md](decisions/0031-workspace-scoped-urls.md) |
 
 ## Operations
 
