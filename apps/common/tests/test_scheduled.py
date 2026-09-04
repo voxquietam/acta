@@ -26,7 +26,7 @@ class TestScheduledWrappers:
 
 @pytest.mark.django_db
 class TestSetupScheduledJobs:
-    def test_seeds_three_daily_schedules_idempotently(self):
+    def test_seeds_every_schedule_idempotently(self):
         from django_q.models import Schedule
 
         call_command("setup_scheduled_jobs")
@@ -34,6 +34,8 @@ class TestSetupScheduledJobs:
             "apps.common.scheduled.archive_stale_done_tasks",
             "apps.common.scheduled.gc_orphan_attachments",
             "apps.common.scheduled.notify_cycle_events",
+            # Added with the recurring-tasks feature (ADR 0028).
+            "apps.common.scheduled.materialize_recurring_tasks",
             # Telegram quiet-hours digest — minute cadence rather than daily.
             "apps.common.scheduled.flush_telegram_quiet_digests",
         }
@@ -43,4 +45,4 @@ class TestSetupScheduledJobs:
         assert minute.schedule_type == Schedule.MINUTES
         # re-running must not duplicate
         call_command("setup_scheduled_jobs")
-        assert Schedule.objects.count() == 4
+        assert Schedule.objects.count() == len(set(Schedule.objects.values_list("func", flat=True)))

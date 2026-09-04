@@ -33,6 +33,19 @@ def active_cycle(workspace):
     return current_cycle(workspace)
 
 
+def _free_cycle_number(workspace):
+    """Return a cycle number not yet used in ``workspace``.
+
+    ``ensure_cycles`` materialises the current and next cycle from a fixed
+    anchor date, so their numbers drift upward as time passes. Tests must
+    not hardcode around them.
+    """
+    from django.db.models import Max
+
+    highest = Cycle.objects.filter(workspace=workspace).aggregate(Max("number"))["number__max"] or 0
+    return highest + 1
+
+
 @pytest.mark.django_db
 class TestApplyCyclePolicy:
 
@@ -53,7 +66,11 @@ class TestApplyCyclePolicy:
         assert task.cycle_id is None
 
     def test_does_not_override_existing_cycle(self, workspace, active_cycle):
-        other = CycleFactory(workspace=workspace, number=9, status=Cycle.PLANNING)
+        # Number picked above whatever ``ensure_cycles`` just materialised.
+        # A literal used to work until the calendar caught up with it: the
+        # anchor is fixed, so the current cycle's number climbs every two
+        # weeks and eventually collided with the hardcoded one.
+        other = CycleFactory(workspace=workspace, number=_free_cycle_number(workspace), status=Cycle.PLANNING)
         project = ProjectFactory(workspace=workspace)
         task = TaskFactory(project=project, status=Task.STATUS_TODO, cycle=other)
         task.status = Task.STATUS_IN_PROGRESS

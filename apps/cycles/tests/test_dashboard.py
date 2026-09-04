@@ -92,6 +92,18 @@ class TestVelocity:
         assert data[-1]["points"] == 8
 
 
+def _free_cycle_number(workspace):
+    """Return a cycle number not yet used in ``workspace``.
+
+    See ``apps/cycles/tests/test_policy.py`` — the materialised current and
+    next cycle numbers drift with the calendar, so tests derive theirs.
+    """
+    from django.db.models import Max
+
+    highest = Cycle.objects.filter(workspace=workspace).aggregate(Max("number"))["number__max"] or 0
+    return highest + 1
+
+
 @pytest.mark.django_db
 class TestCyclesDashboardPage:
 
@@ -117,7 +129,7 @@ class TestCyclesDashboardPage:
         from django.test.utils import CaptureQueriesContext
 
         project = ProjectFactory(workspace=workspace)
-        c1 = CycleFactory(workspace=workspace, number=1, status=Cycle.ACTIVE)
+        c1 = CycleFactory(workspace=workspace, number=_free_cycle_number(workspace), status=Cycle.ACTIVE)
         TaskFactory(project=project, cycle=c1, status=Task.STATUS_DONE, size=3)
         client.force_login(workspace.owner)
         url = reverse("web:cycles_overview")
@@ -125,13 +137,16 @@ class TestCyclesDashboardPage:
         with CaptureQueriesContext(connection) as ctx:
             client.get(url)
         baseline = len(ctx.captured_queries)
-        # Add several more cycles + tasks (high numbers avoid colliding
-        # with the auto-materialized current/next; kept under the 12 cap).
+        # Add several more cycles + tasks. Numbers are taken above whatever
+        # already exists rather than written as literals: the auto-materialised
+        # current/next cycle numbers climb with the calendar, and a fixed range
+        # eventually collides with them.
         # ``completed_at`` is pre-set so the status reconcile doesn't stamp
         # it on first view (a one-time write, not a per-request N+1).
         from django.utils import timezone
 
-        for n in range(10, 16):
+        first_free = _free_cycle_number(workspace)
+        for n in range(first_free, first_free + 6):
             cyc = CycleFactory(
                 workspace=workspace,
                 number=n,

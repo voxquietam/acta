@@ -112,7 +112,23 @@ class TestNotifyViaTelegram:
 @pytest.mark.django_db
 class TestNotifyHookFiresOnCommit:
 
-    def test_notify_dispatches_telegram_on_commit(self, sent, django_capture_on_commit_callbacks):
+    def test_notify_dispatches_telegram_on_commit(self, sent, django_capture_on_commit_callbacks, monkeypatch):
+        """``notify`` must reach Telegram through the on-commit hand-off.
+
+        The delivery is handed to django-q (``async_task``) so the network
+        round-trip never blocks the request. No worker runs during tests, so
+        the task would just sit in the broker — and the live ``qcluster``
+        container occasionally picked it out of the test database instead,
+        which is what made this look flaky. Run the payload inline and the
+        chain under test (notify → on_commit → enqueue → deliver) is
+        exercised end to end, deterministically.
+        """
+        from apps.notifications.services import _deliver_telegram
+
+        monkeypatch.setattr(
+            "django_q.tasks.async_task",
+            lambda _path, *args, **kwargs: _deliver_telegram(*args),
+        )
         ws = WorkspaceFactory()
         project = ProjectFactory(workspace=ws)
         task = TaskFactory(project=project)
