@@ -1,5 +1,6 @@
 {% extends "base_app.html" %}
 {% load i18n %}
+{% load web_extras %}
 {% load lucide %}
 {% comment %}
 Inbox page — Notifications tab (split list / preview). The Updates tab
@@ -24,12 +25,12 @@ includes the topbar), so the active tab + content re-render together
 while the sidebar stays mounted.
 {% endcomment %}
 <nav class="hidden sm:inline-flex items-center bg-card border border-border rounded-lg p-1 gap-0.5 text-sm">
-  <a href="{% url 'web:inbox' %}" hx-boost="true" hx-target="#app-content" hx-select="#app-content" hx-swap="outerHTML show:top" hx-push-url="true"
+  <a href="{% wurl 'inbox' %}" hx-boost="true" hx-target="#app-content" hx-select="#app-content" hx-swap="outerHTML show:top" hx-push-url="true"
      class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md transition {% if active_tab == 'notifications' %}bg-brand-500/15 text-brand-300 ring-1 ring-brand-500/30 ring-inset{% else %}text-subtle-foreground hover:text-foreground hover:bg-muted/50{% endif %}">
     {% lucide "inbox" "w-3.5 h-3.5" %}{% trans "Notifications" %}
     <span class="font-mono text-[10px] px-1.5 rounded {% if active_tab == 'notifications' %}bg-brand-500/20 text-brand-300{% else %}bg-muted text-subtle-foreground{% endif %}">{{ inbox_counts.all }}</span>
   </a>
-  <a href="{% url 'web:inbox' %}?tab=updates" hx-boost="true" hx-target="#app-content" hx-select="#app-content" hx-swap="outerHTML show:top" hx-push-url="true"
+  <a href="{% wurl 'inbox' %}?tab=updates" hx-boost="true" hx-target="#app-content" hx-select="#app-content" hx-swap="outerHTML show:top" hx-push-url="true"
      class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md transition {% if active_tab == 'updates' %}bg-brand-500/15 text-brand-300 ring-1 ring-brand-500/30 ring-inset{% else %}text-subtle-foreground hover:text-foreground hover:bg-muted/50{% endif %}">
     {% lucide "message-circle" "w-3.5 h-3.5" %}{% trans "Updates" %}
     <span class="font-mono text-[10px] px-1.5 rounded {% if active_tab == 'updates' %}bg-brand-500/20 text-brand-300{% else %}bg-muted text-subtle-foreground{% endif %}">{{ updates_count }}</span>

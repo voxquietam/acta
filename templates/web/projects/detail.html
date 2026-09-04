@@ -1,11 +1,12 @@
 {% extends "base_app.html" %}
 {% load i18n %}
+{% load web_extras %}
 {% load lucide %}
 
 {% block title %}{{ project.slug_prefix }} · {{ project.name }} · Acta{% endblock %}
 
 {% block topbar_left %}
-<a href="{% url 'web:project_list' %}" class="text-placeholder-foreground hover:text-foreground text-sm">
+<a href="{% wurl 'project_list' %}" class="text-placeholder-foreground hover:text-foreground text-sm">
   &larr; {% trans "Projects" %}
 </a>
 <span class="text-muted-foreground">/</span>

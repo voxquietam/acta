@@ -1,5 +1,6 @@
 {% extends "base_app.html" %}
 {% load i18n %}
+{% load web_extras %}
 {% load lucide %}
 {% comment %}
 Workspace cycles dashboard — active-cycle burndown + velocity over recent
@@ -68,7 +69,7 @@ same no-build approach as the project Insights page). Expects
           <div class="text-2xl font-semibold text-foreground tabular-nums mt-1">{{ active_summary.percent }}%</div>
         </div>
         <div class="flex items-end">
-          <a href="{% url 'web:all_tasks' %}?cycle=active" class="text-xs text-brand-500 hover:text-brand-400 inline-flex items-center gap-1">
+          <a href="{% wurl 'all_tasks' %}?cycle=active" class="text-xs text-brand-500 hover:text-brand-400 inline-flex items-center gap-1">
             {% trans "View tasks" %}{% lucide "arrow-right" "w-3.5 h-3.5" %}
           </a>
         </div>
@@ -99,7 +100,7 @@ same no-build approach as the project Insights page). Expects
         <li>
           <div class="flex items-center gap-2 text-sm">
             <span class="w-1.5 h-1.5 rounded-full {% if cycle.is_active %}bg-emerald-500{% elif cycle.status == 'planning' %}bg-zinc-500{% else %}bg-zinc-700{% endif %} shrink-0"></span>
-            <a href="{% url 'web:all_tasks' %}?cycle={{ cycle.id }}" class="text-foreground hover:text-brand-400 truncate">{{ cycle.display_name }}</a>
+            <a href="{% wurl 'all_tasks' %}?cycle={{ cycle.id }}" class="text-foreground hover:text-brand-400 truncate">{{ cycle.display_name }}</a>
             <span class="text-xs text-placeholder-foreground">{{ cycle.start_date|date:"M j" }} – {{ cycle.end_date|date:"M j" }}</span>
             <span class="ml-auto text-xs text-subtle-foreground tabular-nums shrink-0">{{ cycle.summary.done }} / {{ cycle.summary.total }}</span>
           </div>

@@ -23,7 +23,7 @@ duplication.
   {% endif %}
 </h1>
 <span class="text-border-strong shrink-0" aria-hidden="true">·</span>
-<a href="{% url 'web:project_list' %}" class="text-placeholder-foreground hover:text-foreground text-xs shrink-0">{{ task.project.workspace.name }}</a>
+<a href="{% wurl 'project_list' %}" class="text-placeholder-foreground hover:text-foreground text-xs shrink-0">{{ task.project.workspace.name }}</a>
 <span class="text-border-strong shrink-0">/</span>
 <a href="{% project_url task.project %}"
    class="text-subtle-foreground hover:text-foreground text-xs shrink-0">{{ task.project.name }}</a>

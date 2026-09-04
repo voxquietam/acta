@@ -19,9 +19,11 @@ Used by:
 """
 
 from django.db.models import Prefetch
+from django.http import Http404
 
 from apps.projects.models import Project
 from apps.tasks.models import Task
+from apps.web.url_scoping import request_workspace_slug
 from apps.workspaces.models import Workspace
 
 _ACTIVE_WS_CACHE = "_acta_active_workspace"
@@ -31,12 +33,23 @@ def resolve_active_workspace(request, members=None):
     """Return (and memoise on the request) the user's active workspace.
 
     Acta scopes All Tasks / Projects / My Work / Inbox / My Activity to a
-    single *active* workspace chosen via the sidebar switcher. The stored
-    ``User.active_workspace`` wins while the user is still a member of it;
-    otherwise we fall back to their first workspace by name and persist
-    that choice (lazy init) so freshly created / just-joined users land
-    somewhere sensible. Returns ``None`` when the user belongs to no
-    workspace.
+    single *active* workspace chosen via the sidebar switcher. Resolution
+    order:
+
+    1. The workspace segment of a canonical URL (ADR 0031), when present.
+       The URL is the most explicit statement of intent there is — a link
+       to ``/ksu24/my-work/`` means that workspace, whatever the sidebar
+       last remembered — so it also becomes the stored choice.
+    2. The stored ``User.active_workspace``, while they are still a member.
+    3. Their first workspace by name, persisted as a lazy init so freshly
+       created / just-joined users land somewhere sensible.
+
+    Returns ``None`` when the user belongs to no workspace.
+
+    Raises:
+        Http404: If the URL names a workspace that doesn't exist or that
+            the user cannot reach. Deliberately not 403 — that would
+            confirm the workspace exists to anyone guessing slugs.
 
     The result is cached on the request so the resolution (and any
     fallback write) runs at most once per request.
@@ -61,6 +74,16 @@ def resolve_active_workspace(request, members=None):
             Workspace.objects.filter(memberships__user=user).order_by("name").distinct(),
         )
     active = None
+    url_slug = request_workspace_slug(request)
+    if url_slug:
+        active = next((w for w in members if w.slug == url_slug), None)
+        if active is None:
+            raise Http404("No workspace matches the given query.")
+        if active.pk != user.active_workspace_id:
+            user.active_workspace = active
+            user.save(update_fields=["active_workspace"])
+        setattr(request, _ACTIVE_WS_CACHE, active)
+        return active
     if user.active_workspace_id is not None:
         active = next((w for w in members if w.pk == user.active_workspace_id), None)
     if active is None:

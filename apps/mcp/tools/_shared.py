@@ -9,7 +9,6 @@ from __future__ import annotations
 from typing import Any
 
 from django.conf import settings
-from django.urls import reverse
 
 from apps.accounts.models import User
 from apps.tasks.models import Task
@@ -154,17 +153,12 @@ def task_url(task: Task) -> str | None:
     Returns:
         The absolute URL, or ``None`` if no public base URL is configured.
     """
+    from apps.web.url_scoping import task_path
+
     base = getattr(settings, "ACTA_PUBLIC_BASE_URL", "")
     if not base:
         return None
-    path = reverse(
-        "web:task_detail",
-        kwargs={
-            "slug_prefix": task.project.slug_prefix,
-            "number": task.number,
-        },
-    )
-    return base.rstrip("/") + path
+    return base.rstrip("/") + task_path(task)
 
 
 def serialize_task_summary(task: Task) -> dict[str, Any]:

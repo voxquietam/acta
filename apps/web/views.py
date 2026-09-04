@@ -81,6 +81,7 @@ from apps.web.filters import (
 )
 from apps.web.grouping import compute_list_section_keys, group_tasks
 from apps.web.nav import resolve_active_workspace, set_active_workspace
+from apps.web.url_scoping import project_path, task_path
 from apps.workspaces.models import RESERVED_WORKSPACE_SLUGS, Workspace, WorkspaceMember
 
 User = get_user_model()
@@ -3783,7 +3784,7 @@ def set_task_project(request, slug_prefix, number):
                 mover.number = new_number
                 mover.save(update_fields=["project", "number", "updated_at"])
                 emit_task_diff_events(old_state=old, task=mover, actor=request.user)
-    detail_url = f"/projects/{target.slug_prefix}/{task.number}/"
+    detail_url = task_path(task)
     response = HttpResponse(status=204)
     if request.POST.get("modal") == "1":
         # Moved from the modal overlay: reload the modal body at the new
@@ -6668,7 +6669,7 @@ def _create_task_post(request):
                 payload={"kind": "related", "target_slug": task.slug, "target_title": task.title},
                 actor=request.user,
             )
-    detail_url = f"/projects/{project.slug_prefix}/{task.number}/"
+    detail_url = task_path(task)
     # ``acta:link-changed`` makes the origin's links panel + activity log
     # refetch live (they have no SSE subscription; the modal returns 204).
     # Fire it FIRST and via JSON: the modal closes on ``acta:task-created``
@@ -7638,7 +7639,7 @@ def _create_project_post(request):
     response["HX-Trigger"] = "acta:project-created"
     response["HX-Location"] = json.dumps(
         {
-            "path": f"/projects/{project.slug_prefix}/",
+            "path": project_path(project),
             "target": "#app-content",
             "select": "#app-content",
             "swap": "outerHTML show:top",
@@ -8254,7 +8255,7 @@ def palette_search(request):
                     "slug_prefix": project.slug_prefix,
                     "icon_html": _lucide(project.icon or "folder", "w-3.5 h-3.5"),
                     "icon_color_class": project.icon_color_class,
-                    "url": reverse("web:project_detail", kwargs={"slug_prefix": project.slug_prefix}),
+                    "url": project_path(project),
                 },
             )
 

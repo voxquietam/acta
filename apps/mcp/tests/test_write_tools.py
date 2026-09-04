@@ -48,10 +48,13 @@ class TestTaskCreate:
 
     def test_response_carries_an_absolute_task_url(self, project_setup):
         """The caller gets a link it can hand straight to a human."""
-        user, _, _ = project_setup
+        user, workspace, _ = project_setup
         with override_settings(ACTA_PUBLIC_BASE_URL="https://actaspace.com"):
             result = CALLABLES["acta_task_create"](user, {"project": "ACTA", "title": "Linkable"})
-        assert result["url"] == f"https://actaspace.com/projects/ACTA/{result['slug'].split('-')[1]}/"
+        number = result["slug"].split("-")[1]
+        # Canonical, workspace-scoped path (ADR 0031) — these links leave the
+        # app, so they must never be the ambiguous workspace-less kind.
+        assert result["url"] == f"https://actaspace.com/{workspace.slug}/projects/ACTA/{number}/"
 
     def test_task_url_is_none_without_a_public_base_url(self, project_setup):
         """No base URL configured means no link, rather than a broken one."""

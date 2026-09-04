@@ -8,6 +8,8 @@ from django.urls import include, path, re_path
 import django_eventstream
 
 from apps.accounts.views import InviteAwareSignupView
+from apps.web.url_scoping import workspace_scoped
+from apps.web.urls import urlpatterns as web_urlpatterns
 
 api_v1_patterns = [
     path("", include("apps.workspaces.urls")),
@@ -51,6 +53,18 @@ urlpatterns = [
         {"format-channels": ["user-{user_id}"]},
     ),
     path("", include("apps.web.urls", namespace="web")),
+    # Canonical, workspace-scoped routes (ADR 0031):
+    # ``/<workspace_slug>/projects/SER/2/``. Generated from the legacy
+    # patterns above rather than written twice — see ``workspace_scoped``.
+    #
+    # Registered LAST on purpose. The workspace segment matches any single
+    # path component, so mounting it earlier would swallow ``/projects/``
+    # as the workspace named "projects". Reserved root slugs guard the
+    # same collision from the other direction.
+    path(
+        "<slug:workspace>/",
+        include((workspace_scoped(web_urlpatterns), "web_ws"), namespace="web_ws"),
+    ),
 ]
 
 if settings.DEBUG:

@@ -1,4 +1,5 @@
 {% load i18n %}
+{% load web_extras %}
 {% load lucide %}
 {% comment %}
 Calls strip for My Work, shown above the task groups. A thin horizontal
@@ -13,7 +14,7 @@ logged). Expects ``past_calls`` + ``upcoming_calls``.
   <div class="flex items-center gap-2 overflow-x-auto pb-1">
     <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground shrink-0">{% trans "Recent calls" %}</span>
     {% for m in past_calls %}
-    <a href="{% url 'web:call_detail' pk=m.id %}"
+    <a href="{% wurl 'call_detail' pk=m.id %}"
        class="shrink-0 inline-flex items-center gap-1.5 bg-card border border-border rounded-full px-2.5 py-1 text-[11px] text-subtle-foreground hover:text-foreground hover:border-border-strong transition">
       {% lucide "phone" "w-3 h-3 text-placeholder-foreground" %}
       <span class="truncate max-w-[10rem]">{{ m.title }}</span>
@@ -28,7 +29,7 @@ logged). Expects ``past_calls`` + ``upcoming_calls``.
     <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground mb-1.5">{% trans "Upcoming calls" %}</div>
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
       {% for m in upcoming_calls %}
-      <a href="{% url 'web:call_detail' pk=m.id %}"
+      <a href="{% wurl 'call_detail' pk=m.id %}"
          class="group bg-card border border-border rounded-lg p-3 hover:border-border-strong transition">
         <div class="flex items-center gap-2">
           <span class="w-7 h-7 rounded-full bg-indigo-500/15 text-indigo-400 grid place-items-center shrink-0">{% lucide "phone" "w-3.5 h-3.5" %}</span>

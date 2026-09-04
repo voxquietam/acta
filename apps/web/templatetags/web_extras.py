@@ -666,14 +666,14 @@ def priority_text_class(value):
 def task_url(task) -> str:
     """Return an unambiguous detail URL for ``task``.
 
-    A slug prefix is unique per workspace, not globally, so
+    A slug prefix is unique per workspace, not globally, so the legacy
     ``/projects/SER/2/`` can name two different tasks for someone who
-    belongs to both workspaces. Links generated inside the app always
-    know which one they mean, so they say so with ``?w=<workspace>``;
-    that keeps ordinary clicks — including cross-workspace boards like
-    All Tasks — landing exactly where they point.
+    belongs to both workspaces. Links generated inside the app always know
+    which one they mean, so they use the canonical workspace-scoped route
+    (ADR 0031) — ordinary clicks, including cross-workspace boards like All
+    Tasks, land exactly where they point.
 
-    Links that arrive without the hint (older ones, pasted from chat, a
+    Links that arrive without a workspace (older ones, pasted from chat, a
     bookmark) stay ambiguous by nature, and the detail view answers those
     with a disambiguation page instead of guessing.
 
@@ -681,35 +681,64 @@ def task_url(task) -> str:
         task: The :class:`Task` to link to.
 
     Returns:
-        The task's detail path, with a workspace hint appended.
+        The task's canonical, workspace-scoped detail path.
     """
-    path = reverse(
-        "web:task_detail",
+    return reverse(
+        "web_ws:task_detail",
         kwargs={
+            "workspace": task.project.workspace.slug,
             "slug_prefix": task.project.slug_prefix,
             "number": task.number,
         },
     )
-    return f"{path}?w={task.project.workspace.slug}"
 
 
 @register.simple_tag(name="project_url")
 def project_url(project) -> str:
     """Return an unambiguous detail URL for ``project``.
 
-    Companion to :func:`task_url` — project keys collide the same way,
-    so a link built inside the app names the workspace it means.
+    Companion to :func:`task_url` — project keys collide the same way, so
+    a link built inside the app names the workspace it means.
 
     Args:
         project: The :class:`Project` to link to.
 
     Returns:
-        The project's detail path, with a workspace hint appended.
+        The project's canonical, workspace-scoped detail path.
     """
-    path = reverse(
-        "web:project_detail",
+    return reverse(
+        "web_ws:project_detail",
         kwargs={
+            "workspace": project.workspace.slug,
             "slug_prefix": project.slug_prefix,
         },
     )
-    return f"{path}?w={project.workspace.slug}"
+
+
+@register.simple_tag(takes_context=True, name="wurl")
+def wurl(context, name, **kwargs):
+    """Reverse a web URL under the workspace currently in view.
+
+    The canonical route carries the workspace as its first segment
+    (ADR 0031), which would otherwise mean passing it explicitly at every
+    single ``{% url %}`` call site. This reads it from the page context
+    instead, so templates say ``{% wurl 'inbox' %}`` and get
+    ``/ksu24/inbox/``.
+
+    Falls back to the legacy, workspace-less route when there is no active
+    workspace — a brand-new account with no memberships yet, or a page
+    rendered outside the workspace context processor. Those paths still
+    resolve, so the link works either way.
+
+    Args:
+        context: Template context; supplies ``active_workspace``.
+        name: URL name without the namespace, e.g. ``"inbox"``.
+        **kwargs: Any further URL kwargs the pattern needs.
+
+    Returns:
+        The resolved path.
+    """
+    workspace = context.get("active_workspace")
+    if workspace is None:
+        return reverse(f"web:{name}", kwargs=kwargs)
+    return reverse(f"web_ws:{name}", kwargs={"workspace": workspace.slug, **kwargs})

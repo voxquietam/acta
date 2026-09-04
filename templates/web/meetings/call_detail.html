@@ -13,7 +13,7 @@ navigates back to the calls list.
 {% block title %}{{ meeting.title }} · {% trans "Calls" %} · Acta{% endblock %}
 
 {% block topbar_left %}
-<a href="{% url 'web:calls_list' %}" class="text-placeholder-foreground hover:text-foreground text-xs shrink-0">{% trans "Calls" %}</a>
+<a href="{% wurl 'calls_list' %}" class="text-placeholder-foreground hover:text-foreground text-xs shrink-0">{% trans "Calls" %}</a>
 <span class="text-border-strong shrink-0">/</span>
 <h1 class="text-sm font-medium text-foreground truncate">{{ meeting.title }}</h1>
 <div class="flex items-center gap-0.5 shrink-0">

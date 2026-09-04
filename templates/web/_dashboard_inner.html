@@ -1,4 +1,4 @@
-{% load static i18n lucide %}
+{% load static i18n lucide web_extras %}
 {% comment %}
 Workspace dashboard body. Rendered inside dashboard.html on a full load,
 and returned on its own when a range chip is clicked (``?range=…&partial=1``)
@@ -122,7 +122,7 @@ the new range's data; Chart.js / Lucide are loaded once by the outer page.
         {# used elsewhere on the dashboard (Distribution / Alerts / Hygiene).#}
         {# Empty-state stays a plain ``<div>`` — nothing to navigate to.     #}
         <a class="velo{% if forloop.counter > 8 %} extra{% endif %}"
-           href="{% url 'web:project_insights' slug_prefix=v.slug %}"
+           href="{% wurl 'project_insights' slug_prefix=v.slug %}"
            hx-boost="true" hx-target="#app-content" hx-select="#app-content" hx-swap="outerHTML show:top" hx-push-url="true">
           <div class="row1">
             <span class="proj-ic" style="background: {{ v.icon }};">{% lucide "folder" "w-3 h-3" %}</span>

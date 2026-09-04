@@ -201,12 +201,19 @@ def process_update(update: dict) -> None:
 
 
 def _task_url(task) -> str | None:
-    """Absolute URL to a task, or ``None`` when no public base URL is set."""
+    """Absolute URL to a task, or ``None`` when no public base URL is set.
+
+    Uses the canonical workspace-scoped path (ADR 0031). These links leave
+    the app for good — a Telegram message is read weeks later, forwarded,
+    bookmarked — so they must never be the ambiguous kind that sends the
+    reader to a different task than the one the notification was about.
+    """
+    from apps.web.url_scoping import task_path
+
     base = getattr(settings, "ACTA_PUBLIC_BASE_URL", "")
     if not base or task is None:
         return None
-    path = reverse("web:task_detail", kwargs={"slug_prefix": task.project.slug_prefix, "number": task.number})
-    return base.rstrip("/") + path
+    return base.rstrip("/") + task_path(task)
 
 
 def _meeting_url(meeting) -> str | None:

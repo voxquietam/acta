@@ -181,7 +181,7 @@ Members with role badges.
       <section>
         <div class="flex items-center gap-2 mb-2.5">
           <h2 class="text-[10px] uppercase tracking-wider text-placeholder-foreground font-semibold flex-1">{% trans "Stats" %}</h2>
-          <a href="{% url 'web:project_insights' slug_prefix=project.slug_prefix %}"
+          <a href="{% wurl 'project_insights' slug_prefix=project.slug_prefix %}"
              class="inline-flex items-center gap-1 text-[11px] text-placeholder-foreground hover:text-brand-400 transition">
             {% lucide "chart-line" "w-3.5 h-3.5" %}{% trans "Insights" %}
           </a>
@@ -281,7 +281,7 @@ Members with role badges.
             {% trans "Latest update" %}
           </h2>
           {% if overview_updates_total > 1 %}
-          <a href="{% url 'web:inbox' %}?tab=updates&project={{ project.id }}"
+          <a href="{% wurl 'inbox' %}?tab=updates&project={{ project.id }}"
              hx-boost="true" hx-target="#app-content" hx-select="#app-content" hx-swap="outerHTML show:top" hx-push-url="true"
              class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-muted text-subtle-foreground hover:text-foreground transition">{{ overview_updates_total }}</a>
           {% endif %}
@@ -347,7 +347,7 @@ Members with role badges.
         </div>
 
         {% if overview_updates_total > 1 %}
-        <a href="{% url 'web:inbox' %}?tab=updates&project={{ project.id }}"
+        <a href="{% wurl 'inbox' %}?tab=updates&project={{ project.id }}"
            hx-boost="true" hx-target="#app-content" hx-select="#app-content" hx-swap="outerHTML show:top" hx-push-url="true"
            class="inline-flex items-center gap-1 mt-2.5 text-[11px] text-placeholder-foreground hover:text-brand-300 transition">
           {% trans "View all updates" %}
