@@ -8,6 +8,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from django.conf import settings
+from django.urls import reverse
+
 from apps.accounts.models import User
 from apps.tasks.models import Task
 
@@ -99,14 +102,46 @@ def resolve_task(user: User, slug: str):
         raise ValueError(f"Task {slug!r} not found or not accessible to this user.")
 
 
+def task_url(task: Task) -> str | None:
+    """Return the absolute URL of a task's detail page.
+
+    MCP tools answer outside any request, so the origin can't come from
+    ``request.build_absolute_uri`` — it comes from the deployment's
+    ``ACTA_PUBLIC_BASE_URL``, the same setting Telegram notifications use
+    for their links. Returns ``None`` when that setting is empty (local
+    runs that never set it), rather than emitting a path that looks
+    clickable but goes nowhere.
+
+    Args:
+        task: The task to link to.
+
+    Returns:
+        The absolute URL, or ``None`` if no public base URL is configured.
+    """
+    base = getattr(settings, "ACTA_PUBLIC_BASE_URL", "")
+    if not base:
+        return None
+    path = reverse(
+        "web:task_detail",
+        kwargs={
+            "slug_prefix": task.project.slug_prefix,
+            "number": task.number,
+        },
+    )
+    return base.rstrip("/") + path
+
+
 def serialize_task_summary(task: Task) -> dict[str, Any]:
     """Compact task-summary payload — matches ``acta_tasks_list`` rows.
 
     Write tools return this shape so LLM-driven workflows can chain
     create / update calls without restructuring the data each step.
+    ``url`` lets a client hand the human a link straight to the task it
+    just created, instead of making them reconstruct one from the slug.
     """
     return {
         "slug": task.slug,
+        "url": task_url(task),
         "title": task.title,
         "status": task.status,
         "priority": task.priority,

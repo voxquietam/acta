@@ -8,6 +8,8 @@ come for free. Labels are the one place the MCP path is more lenient
 than the UI — missing names are auto-created instead of rejected.
 """
 
+from django.test import override_settings
+
 import pytest
 
 from apps.accounts.tests.factories import UserFactory
@@ -43,6 +45,20 @@ class TestTaskCreate:
         assert result["slug"].startswith("ACTA-")
         # Persisted to DB.
         assert Task.objects.filter(project=project, title="New task").exists()
+
+    def test_response_carries_an_absolute_task_url(self, project_setup):
+        """The caller gets a link it can hand straight to a human."""
+        user, _, _ = project_setup
+        with override_settings(ACTA_PUBLIC_BASE_URL="https://actaspace.com"):
+            result = CALLABLES["acta_task_create"](user, {"project": "ACTA", "title": "Linkable"})
+        assert result["url"] == f"https://actaspace.com/projects/ACTA/{result['slug'].split('-')[1]}/"
+
+    def test_task_url_is_none_without_a_public_base_url(self, project_setup):
+        """No base URL configured means no link, rather than a broken one."""
+        user, _, _ = project_setup
+        with override_settings(ACTA_PUBLIC_BASE_URL=""):
+            result = CALLABLES["acta_task_create"](user, {"project": "ACTA", "title": "No link"})
+        assert result["url"] is None
 
     def test_optional_fields_pass_through(self, project_setup):
         user, _, _ = project_setup
