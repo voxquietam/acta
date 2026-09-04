@@ -275,3 +275,60 @@ class TestTaskDetailQueryCount:
                     kwargs={"slug_prefix": project.slug_prefix, "number": task.number},
                 ),
             )
+
+
+@pytest.mark.django_db
+class TestDuplicateSlugPrefixAcrossWorkspaces:
+    """A slug prefix is unique per workspace, so the URL can be ambiguous.
+
+    Someone in two workspaces that both own, say, a ``SER`` project matched
+    two rows for ``/projects/SER/2/``. ``get_object_or_404`` turned that into
+    ``MultipleObjectsReturned`` — a 500 on an ordinary click, and only ever
+    for people in more than one workspace.
+    """
+
+    def _both_workspaces(self):
+        """Build two workspaces sharing a prefix, with the same member."""
+        first = WorkspaceFactory()
+        user = first.owner
+        second = WorkspaceFactory()
+        second.memberships.create(user=user)
+        p1 = ProjectFactory(workspace=first, slug_prefix="SER")
+        p2 = ProjectFactory(workspace=second, slug_prefix="SER")
+        t1 = TaskFactory(project=p1, number=2, title="first workspace task", reporter=user)
+        t2 = TaskFactory(project=p2, number=2, title="second workspace task", reporter=user)
+        return user, (first, t1), (second, t2)
+
+    def _url(self, task):
+        return reverse(
+            "web:task_detail",
+            kwargs={"slug_prefix": task.project.slug_prefix, "number": task.number},
+        )
+
+    def test_duplicate_prefix_does_not_500(self, client):
+        user, (_, t1), _ = self._both_workspaces()
+        client.force_login(user)
+        assert client.get(self._url(t1)).status_code == 200
+
+    def test_resolves_to_the_active_workspace(self, client):
+        """Whichever workspace you are browsing is the one you land in."""
+        user, (first, t1), (second, t2) = self._both_workspaces()
+        client.force_login(user)
+
+        user.active_workspace = first
+        user.save(update_fields=["active_workspace"])
+        assert client.get(self._url(t1)).context["task"].pk == t1.pk
+
+        user.active_workspace = second
+        user.save(update_fields=["active_workspace"])
+        assert client.get(self._url(t2)).context["task"].pk == t2.pk
+
+    def test_modal_variant_also_resolves(self, client):
+        """The kanban card click fetches ``?modal=1`` — same lookup path."""
+        user, (first, t1), _ = self._both_workspaces()
+        user.active_workspace = first
+        user.save(update_fields=["active_workspace"])
+        client.force_login(user)
+        response = client.get(self._url(t1), {"modal": "1"}, HTTP_HX_REQUEST="true")
+        assert response.status_code == 200
+        assert response.context["task"].pk == t1.pk

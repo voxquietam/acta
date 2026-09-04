@@ -19,7 +19,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models import Count, Exists, F, Max, OuterRef, Prefetch, Q, Subquery
-from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden, JsonResponse
+from django.http import Http404, HttpResponse, HttpResponseBadRequest, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
@@ -495,6 +495,46 @@ def _user_task_qs(user):
     )
 
 
+def _resolve_task_or_404(qs, user, slug_prefix, number):
+    """Resolve one task from a ``<slug_prefix>/<number>`` URL.
+
+    A slug prefix is unique **per workspace**, not globally — the
+    ``projects_unique_workspace_slug_prefix`` constraint scopes it that
+    way — but the URL carries no workspace. So a user who belongs to two
+    workspaces that each have, say, a ``SER`` project matches two rows
+    for ``/projects/SER/2/``, and ``get_object_or_404`` turned that into
+    ``MultipleObjectsReturned``: a 500 on an ordinary click, hit only by
+    people in more than one workspace.
+
+    Ambiguity is resolved rather than raised. The task in the user's
+    active workspace wins, which is what someone browsing that workspace
+    means; failing that, the lowest id, so reloading the same URL keeps
+    landing on the same task instead of flip-flopping.
+
+    Args:
+        qs: Base queryset, already scoped to what the user may see and
+            carrying whatever ``select_related`` the caller needs.
+        user: Acting :class:`User`.
+        slug_prefix: Project slug prefix from the URL.
+        number: Task number within the project.
+
+    Returns:
+        The :class:`Task` instance.
+
+    Raises:
+        Http404: If no visible task matches.
+    """
+    matches = qs.filter(project__slug_prefix=slug_prefix, number=number)
+    task = None
+    if user.active_workspace_id:
+        task = matches.filter(project__workspace_id=user.active_workspace_id).first()
+    if task is None:
+        task = matches.order_by("pk").first()
+    if task is None:
+        raise Http404("No Task matches the given query.")
+    return task
+
+
 def _get_user_task_or_404(user, slug_prefix, number):
     """Look up a task by slug+number, 404 when foreign or missing.
 
@@ -506,11 +546,7 @@ def _get_user_task_or_404(user, slug_prefix, number):
     Returns:
         The :class:`Task` instance.
     """
-    return get_object_or_404(
-        _user_task_qs(user),
-        project__slug_prefix=slug_prefix,
-        number=number,
-    )
+    return _resolve_task_or_404(_user_task_qs(user), user, slug_prefix, number)
 
 
 def _my_work_base_qs(user, workspace):
@@ -2491,14 +2527,15 @@ class TaskDetailView(LoginRequiredMixin, DetailView):
         ``_user_task_qs`` omits them so the common table / kanban / list
         views don't pay for joins they never use.
         """
-        return get_object_or_404(
+        return _resolve_task_or_404(
             _user_task_qs(self.request.user).select_related("reporter", "parent", "recurrence")
             # Links panel + Blocked badge read all three link sets; the
             # ``__project`` hop is needed because each chip renders the
             # linked task's slug (prefix + number).
             .prefetch_related("blocked_by__project", "blocks__project", "related__project"),
-            project__slug_prefix=self.kwargs["slug_prefix"],
-            number=self.kwargs["number"],
+            self.request.user,
+            self.kwargs["slug_prefix"],
+            self.kwargs["number"],
         )
 
     def get_context_data(self, **kwargs):
@@ -2542,11 +2579,7 @@ def task_title_fragment(request, slug_prefix, number):
     the "subtask of <parent>" link and would otherwise lazy-load it on
     render.
     """
-    task = get_object_or_404(
-        _user_task_qs(request.user).select_related("parent"),
-        project__slug_prefix=slug_prefix,
-        number=number,
-    )
+    task = _resolve_task_or_404(_user_task_qs(request.user).select_related("parent"), request.user, slug_prefix, number)
     return HttpResponse(
         render_to_string(
             "web/projects/_title_cell.html",
@@ -2609,10 +2642,8 @@ def task_meta_fragment(request, slug_prefix, number):
     reporter's display name; without the join it lazy-loads at render
     time.
     """
-    task = get_object_or_404(
-        _user_task_qs(request.user).select_related("reporter"),
-        project__slug_prefix=slug_prefix,
-        number=number,
+    task = _resolve_task_or_404(
+        _user_task_qs(request.user).select_related("reporter"), request.user, slug_prefix, number
     )
     return HttpResponse(
         render_to_string(
@@ -2663,10 +2694,8 @@ def task_meta_compact_fragment(request, slug_prefix, number):
     vertical rail card. SSE peer-updates hit this endpoint when the
     task is open in modal mode.
     """
-    task = get_object_or_404(
-        _user_task_qs(request.user).select_related("reporter"),
-        project__slug_prefix=slug_prefix,
-        number=number,
+    task = _resolve_task_or_404(
+        _user_task_qs(request.user).select_related("reporter"), request.user, slug_prefix, number
     )
     return HttpResponse(
         render_to_string(
@@ -5662,10 +5691,8 @@ def delete_task(request, slug_prefix, number):
     Returns:
         ``204 No Content`` — the caller removes the row / refetches.
     """
-    task = get_object_or_404(
-        _user_task_qs(request.user).prefetch_related("subtasks"),
-        project__slug_prefix=slug_prefix,
-        number=number,
+    task = _resolve_task_or_404(
+        _user_task_qs(request.user).prefetch_related("subtasks"), request.user, slug_prefix, number
     )
     with transaction.atomic():
         workspace = task.project.workspace
@@ -5709,10 +5736,11 @@ def task_context_menu(request, slug_prefix, number):
     ``archive_task`` / ``delete_task`` endpoints; the menu fires
     ``acta:task-changed`` afterwards so the board refetches.
     """
-    task = get_object_or_404(
+    task = _resolve_task_or_404(
         _user_task_qs(request.user).select_related("reporter").prefetch_related("labels"),
-        project__slug_prefix=slug_prefix,
-        number=number,
+        request.user,
+        slug_prefix,
+        number,
     )
     return HttpResponse(
         render_to_string(
