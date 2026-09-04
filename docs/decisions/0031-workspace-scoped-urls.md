@@ -59,14 +59,27 @@ Two alternatives were rejected:
 
 ### Reserved root slugs
 
-Six paths stay at the root because they are not workspace-specific:
+Two kinds of path stay at the root, and both collide with workspace slugs.
 
-`admin/` · `accounts/` · `api/` · `mcp/` · `telegram/` · `events/`
+Service paths were never workspace-scoped: `admin/`, `accounts/`, `api/`,
+`mcp/`, `telegram/`, `events/`, plus `static/` and `media/` served outside
+Django.
 
-These are refused as workspace slugs. Django resolves patterns in order and
-these are declared first, so a workspace called `api` would be created
-successfully and then be impossible to open — every one of its URLs
-swallowed by the API. Validation turns that into "name is taken".
+Legacy section paths join them. Sections moved *under* the workspace, but
+their old paths keep resolving forever (see below), so `tasks/`,
+`projects/`, `inbox/`, `calls/`, `cycles/`, `my-work/`, `my-activity/`,
+`recurring/`, `palette/` and `workspaces/` are still occupied. This is the
+one place the "everything under the workspace" choice did *not* buy a clean
+namespace, because backwards compatibility keeps the old names alive.
+
+Django resolves patterns in order and all of these are declared first, so a
+workspace slugged `tasks` would be created happily and then be half-eaten —
+`/tasks/` showing All Tasks while `/tasks/inbox/` showed that workspace's
+inbox. Validation turns that into "name is taken".
+
+The list is **derived from the URLconf at runtime**, not hardcoded, so a
+section added later reserves itself instead of quietly breaking whoever
+already owns that name.
 
 ### Workspace slugs are immutable
 

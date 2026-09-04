@@ -8,24 +8,61 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-# Root paths that are not workspace-specific and therefore stay at the top
-# level once every workspace section moves under ``/<workspace_slug>/``
-# (ADR 0031). Django resolves URL patterns in order and these are declared
-# first, so a workspace slugged ``api`` would be created happily and then be
-# impossible to open — every one of its URLs swallowed by the API. Refusing
-# the name up front turns a ghost workspace into "name is taken".
-RESERVED_WORKSPACE_SLUGS = frozenset(
+# Slugs a workspace may not take, because something already answers at that
+# root path (ADR 0031).
+#
+# Two groups end up here. Service paths — ``admin``, ``api``, ``mcp`` — were
+# never workspace-scoped. But so are the legacy section paths (``tasks``,
+# ``projects``, ``inbox``…): sections moved *under* the workspace, yet their
+# old paths stay at the root forever so six months of shared links keep
+# working. Either way Django resolves patterns in order and these are
+# declared first, so a workspace slugged ``tasks`` would be created happily
+# and then be half-eaten — ``/tasks/`` showing All Tasks while
+# ``/tasks/inbox/`` showed that workspace's inbox.
+#
+# Derived from the URLconf rather than hardcoded, so a section added later
+# reserves itself instead of quietly breaking whoever already owns that
+# name. Always includes ``EXTRA_RESERVED`` — paths served by the web server
+# rather than Django, which the URLconf therefore cannot report.
+EXTRA_RESERVED_SLUGS = frozenset(
     {
-        "accounts",
-        "admin",
-        "api",
-        "events",
-        "mcp",
         "media",
         "static",
-        "telegram",
     }
 )
+
+_reserved_cache = None
+
+
+def reserved_workspace_slugs():
+    """Return every root path segment a workspace slug would collide with.
+
+    Computed on first call (the URLconf is not importable at model-import
+    time) and cached for the process.
+
+    Returns:
+        A frozenset of slugs to refuse.
+    """
+    global _reserved_cache
+    if _reserved_cache is None:
+        from django.urls import get_resolver
+        from django.urls.resolvers import URLResolver
+
+        segments = set()
+
+        def collect(patterns):
+            for entry in patterns:
+                raw = str(entry.pattern).lstrip("^")
+                head = raw.split("/")[0]
+                if head and not head.startswith(("<", "(")):
+                    segments.add(head)
+                elif not head and isinstance(entry, URLResolver):
+                    # An ``include("")`` mount — its children sit at the root.
+                    collect(entry.url_patterns)
+
+        collect(get_resolver().url_patterns)
+        _reserved_cache = frozenset(segments | EXTRA_RESERVED_SLUGS)
+    return _reserved_cache
 
 
 class Workspace(models.Model):
@@ -249,7 +286,7 @@ class Workspace(models.Model):
                 stored one on an existing row.
         """
         super().clean()
-        if self.slug and self.slug in RESERVED_WORKSPACE_SLUGS:
+        if self.slug and self.slug in reserved_workspace_slugs():
             raise ValidationError(
                 {
                     "slug": _("This name is reserved. Pick another."),
