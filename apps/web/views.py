@@ -6478,6 +6478,8 @@ def _create_task_get(request):
     * ``assignee`` — the current user when they're a member of the
       selected project's workspace; ``None`` otherwise (the form
       offers an explicit "Unassigned" option to clear it).
+    * ``size`` — from ``?size=<n>`` when it names one of
+      ``Task.SIZE_VALUES``; otherwise unestimated.
 
     Args:
         request: The active ``HttpRequest`` carrying optional ``project``
@@ -6514,6 +6516,14 @@ def _create_task_get(request):
         pre_priority = int(request.GET.get("priority") or 0)
     except (TypeError, ValueError):
         pre_priority = 0
+    # ``None`` means "No size" — the only value outside SIZE_VALUES the
+    # select offers, and the default for a task nobody has estimated.
+    try:
+        pre_size = int(request.GET.get("size") or 0) or None
+    except (TypeError, ValueError):
+        pre_size = None
+    if pre_size not in Task.SIZE_VALUES:
+        pre_size = None
     pre_due_date = request.GET.get("due_date") or ""
     requested_assignee = request.GET.get("assignee") or ""
     pre_assignee_id = None
@@ -6540,6 +6550,9 @@ def _create_task_get(request):
     # can show which task it'll link to (and skip silently if it doesn't
     # resolve to a task the user can see).
     link_related_task = _resolve_link_target(request.user, request.GET.get("link_related") or "")
+    # Empty when the project's workspace has cadence disabled, which is the
+    # whole gate for the cycle picker — no config flag to check twice.
+    workspace_cycles = _workspace_cycles(selected_project.workspace) if selected_project else []
     return HttpResponse(
         render_to_string(
             "web/_create_task_modal.html",
@@ -6551,6 +6564,7 @@ def _create_task_get(request):
                 "label_groups": label_groups,
                 "pre_status": pre_status,
                 "pre_priority": pre_priority,
+                "pre_size": pre_size,
                 "pre_assignee_id": pre_assignee_id,
                 "pre_title": pre_title,
                 "pre_description": pre_description,
@@ -6559,10 +6573,130 @@ def _create_task_get(request):
                 "link_related_task": link_related_task,
                 "status_labels": Task.STATUS_LABELS,
                 "priority_labels": dict(Task.PRIORITY_CHOICES),
+                "size_values": Task.SIZE_VALUES,
+                "workspace_cycles": workspace_cycles,
+                "active_cycle_id": next((c.id for c in workspace_cycles if c.is_active), ""),
             },
             request=request,
         ),
     )
+
+
+def _parse_create_task_fields(request, project):
+    """Validate the scalar fields of the create-task form.
+
+    Every value is checked against what the form was allowed to offer:
+    the status and priority must name real choices, the size must be one
+    of the Fibonacci values (empty means unestimated, same rule as
+    ``set_task_size``), the cycle must belong to the project's workspace,
+    and the assignee must be a member of it. The cycle is only a request:
+    ``apply_cycle_policy`` has the final word once the status is known.
+
+    Args:
+        request: ``HttpRequest`` whose POST body carries the form.
+        project: The resolved :class:`~apps.projects.models.Project` the
+            task will live in; the assignee is checked against its
+            workspace.
+
+    Returns:
+        An ``(fields, error)`` pair. On success ``fields`` is a dict of
+        :class:`~apps.tasks.models.Task` keyword arguments and ``error``
+        is ``None``; on failure ``fields`` is ``None`` and ``error`` is
+        the ``400`` response to return unchanged.
+    """
+    status = request.POST.get("status") or Task.STATUS_PLANNED
+    if status not in Task.STATUS_VALUES:
+        return None, HttpResponseBadRequest("invalid status")
+    try:
+        priority = int(request.POST.get("priority") or str(Task.NO_PRIORITY))
+    except (TypeError, ValueError):
+        return None, HttpResponseBadRequest("invalid priority")
+    if priority not in {p[0] for p in Task.PRIORITY_CHOICES}:
+        return None, HttpResponseBadRequest("invalid priority")
+    raw_size = (request.POST.get("size") or "").strip()
+    size = None
+    if raw_size:
+        try:
+            size = int(raw_size)
+        except (TypeError, ValueError):
+            return None, HttpResponseBadRequest("invalid size")
+        if size not in Task.SIZE_VALUES:
+            return None, HttpResponseBadRequest("invalid size")
+    due_date_raw = (request.POST.get("due_date") or "").strip()
+    due_date = None
+    if due_date_raw:
+        try:
+            due_date = datetime.date.fromisoformat(due_date_raw)
+        except ValueError:
+            return None, HttpResponseBadRequest("invalid due_date")
+    cycle = None
+    raw_cycle = (request.POST.get("cycle") or "").strip()
+    if raw_cycle:
+        try:
+            cycle_id = int(raw_cycle)
+        except (TypeError, ValueError):
+            return None, HttpResponseBadRequest("invalid cycle")
+        cycle = Cycle.objects.filter(pk=cycle_id, workspace=project.workspace).first()
+        if cycle is None:
+            return None, HttpResponseBadRequest("cycle not in workspace")
+    assignee = None
+    assignee_id_raw = request.POST.get("assignee") or ""
+    if assignee_id_raw:
+        try:
+            assignee_id = int(assignee_id_raw)
+        except ValueError:
+            return None, HttpResponseBadRequest("invalid assignee")
+        # ``filter(...).first()`` returns None when the user is not in
+        # the project workspace — we treat that as a 400 rather than a
+        # 404 because the form sent a malformed value, not a missing
+        # resource.
+        assignee = (
+            User.objects.filter(
+                pk=assignee_id,
+                workspace_memberships__workspace=project.workspace,
+            )
+            .distinct()
+            .first()
+        )
+        if assignee is None:
+            return None, HttpResponseBadRequest("assignee not in workspace")
+    return {
+        "description": request.POST.get("description") or "",
+        "status": status,
+        "priority": priority,
+        "size": size,
+        "due_date": due_date,
+        "assignee": assignee,
+        "cycle": cycle,
+    }, None
+
+
+def _parse_create_task_labels(request, project):
+    """Validate that every submitted label id lives in the project's workspace.
+
+    Args:
+        request: ``HttpRequest`` whose POST body carries the form.
+        project: The resolved :class:`~apps.projects.models.Project`.
+
+    Returns:
+        An ``(label_ids, error)`` pair. On success ``label_ids`` holds the
+        ids in submission order (possibly empty) and ``error`` is ``None``;
+        on failure ``label_ids`` is ``None`` and ``error`` is the ``400``
+        response to return unchanged.
+    """
+    label_ids: list[int] = []
+    for raw in request.POST.getlist("labels"):
+        try:
+            label_ids.append(int(raw))
+        except ValueError:
+            return None, HttpResponseBadRequest("invalid label id")
+    if label_ids:
+        valid_ids = set(
+            Label.objects.filter(id__in=label_ids, workspace=project.workspace).values_list("id", flat=True),
+        )
+        if valid_ids != set(label_ids):
+            return None, HttpResponseBadRequest("labels not in workspace")
+    return label_ids, None
 
 
 def _create_task_post(request):
@@ -6575,6 +6709,12 @@ def _create_task_post(request):
     field. The activity log gets a ``task.created`` event with
     ``actor=request.user``; per-watched-field diff events do not fire
     because there is no prior state.
+
+    Files picked in the modal arrive as multipart ``file`` entries and
+    are stored against the new task inside the same transaction, each
+    with its own ``attachment.created`` event. A file the validators
+    reject rolls the whole create back rather than producing a task
+    that quietly lost an attachment.
 
     Args:
         request: ``HttpRequest`` whose POST body carries the form.
@@ -6596,68 +6736,19 @@ def _create_task_post(request):
         _user_accessible_projects(request.user, resolve_active_workspace(request)),
         slug_prefix=project_slug,
     )
-    description = request.POST.get("description") or ""
-    status = request.POST.get("status") or Task.STATUS_PLANNED
-    if status not in Task.STATUS_VALUES:
-        return HttpResponseBadRequest("invalid status")
-    raw_priority = request.POST.get("priority") or str(Task.NO_PRIORITY)
-    try:
-        priority = int(raw_priority)
-    except (TypeError, ValueError):
-        return HttpResponseBadRequest("invalid priority")
-    if priority not in {p[0] for p in Task.PRIORITY_CHOICES}:
-        return HttpResponseBadRequest("invalid priority")
-    due_date_raw = (request.POST.get("due_date") or "").strip()
-    due_date = None
-    if due_date_raw:
-        try:
-            due_date = datetime.date.fromisoformat(due_date_raw)
-        except ValueError:
-            return HttpResponseBadRequest("invalid due_date")
-    assignee = None
-    assignee_id_raw = request.POST.get("assignee") or ""
-    if assignee_id_raw:
-        try:
-            assignee_id = int(assignee_id_raw)
-        except ValueError:
-            return HttpResponseBadRequest("invalid assignee")
-        # ``filter(...).first()`` returns None when the user is not in
-        # the project workspace — we treat that as a 400 rather than a
-        # 404 because the form sent a malformed value, not a missing
-        # resource.
-        assignee = (
-            User.objects.filter(
-                pk=assignee_id,
-                workspace_memberships__workspace=project.workspace,
-            )
-            .distinct()
-            .first()
-        )
-        if assignee is None:
-            return HttpResponseBadRequest("assignee not in workspace")
-    label_ids_raw = request.POST.getlist("labels")
-    label_ids: list[int] = []
-    for raw in label_ids_raw:
-        try:
-            label_ids.append(int(raw))
-        except ValueError:
-            return HttpResponseBadRequest("invalid label id")
-    if label_ids:
-        valid_ids = set(
-            Label.objects.filter(id__in=label_ids, workspace=project.workspace).values_list("id", flat=True),
-        )
-        if valid_ids != set(label_ids):
-            return HttpResponseBadRequest("labels not in workspace")
+    fields, error = _parse_create_task_fields(request, project)
+    if error is not None:
+        return error
+    label_ids, error = _parse_create_task_labels(request, project)
+    if error is not None:
+        return error
+    status = fields["status"]
     with transaction.atomic():
         task = Task(
             project=project,
             title=title,
-            description=description,
-            status=status,
-            priority=priority,
-            due_date=due_date,
-            assignee=assignee,
             reporter=request.user,
+            **fields,
         )
         # Mirror ``set_task_status``: a task that's born in-progress gets its
         # start_date stamped now, so the timeline knows when it began (a task
@@ -6666,12 +6757,34 @@ def _create_task_post(request):
         # its end_date stamped by ``Task.save`` → ``_sync_done_dates``.
         if status == Task.STATUS_IN_PROGRESS:
             task.start_date = timezone.localdate()
+        # The cadence policy has the last word on the cycle: a task born in
+        # the backlog (planned / ready) carries none whatever the form sent,
+        # and one born in committed work joins the active cycle when the
+        # user didn't pick one. Same rule the status transitions enforce —
+        # see apps/cycles/services.apply_cycle_policy.
+        apply_cycle_policy(task)
         task.save()
         if label_ids:
             # Drop duplicates within an exclusive group (form lets the user
             # tick more than one; only the first survives, see
             # ``trim_exclusive_conflicts``).
             task.labels.set(trim_exclusive_conflicts(label_ids))
+        # Files picked in the modal ride the create POST as multipart, so
+        # the task they belong to already exists here — no draft ownership
+        # needed (which is what still keeps inline images out of this
+        # modal, see ADR 0025). Stored before the row/card pre-render below
+        # so peers receive markup that already knows about them.
+        try:
+            attachments = [
+                create_task_attachment(task=task, uploader=request.user, uploaded_file=upload)
+                for upload in request.FILES.getlist("file")
+            ]
+        except ValidationError as exc:
+            # All-or-nothing: a task created while silently dropping a file
+            # the user picked is worse than a 400 they can correct with the
+            # modal still open and every other field intact.
+            transaction.set_rollback(True)
+            return HttpResponseBadRequest("; ".join(exc.messages))
         # Pre-render the kanban card once: feeds the local ``acta:card-insert``
         # payload below AND rides the SSE broadcast (``broadcast_extras``) so
         # peers on the kanban view can live-insert it without a round-trip.
@@ -6696,6 +6809,24 @@ def _create_task_post(request):
                 "section_keys_list": compute_list_section_keys(task),
             },
         )
+        # Logged after ``task.created`` so the task's timeline reads in the
+        # order things happened; the payload shape matches
+        # ``upload_task_attachment`` so ``_task_activity`` picks these up
+        # through the same ``payload__task_id`` clause.
+        for attachment in attachments:
+            log_event(
+                workspace=project.workspace,
+                project=project,
+                actor=request.user,
+                event_type="attachment.created",
+                target_type=ActivityLog.TARGET_ATTACHMENT,
+                target_id=attachment.id,
+                payload={
+                    "task_id": task.id,
+                    "filename": attachment.original_name,
+                    "size": attachment.size,
+                },
+            )
         notify_task_created(task=task, actor=request.user)
         # "Create task from comment / selection" passes ``link_related``;
         # link the fresh task to the origin as a related (symmetric) task,

@@ -74,8 +74,45 @@ x-data="{
   </button>
 </footer>
 {% else %}
-<form hx-post="{% url 'web:create_task' %}"
+{% comment %}
+``files`` mirrors the comment composer (``projects/_comment_form.html``):
+Alpine owns the picked File objects so a chip can be removed before
+submit, and ``sync()`` writes them back into the real input through a
+``DataTransfer`` — a file input's own FileList is read-only. The files
+ride the create POST as multipart, so the task already exists by the
+time the server stores them and no draft ownership is needed (which is
+exactly what still blocks inline images here — see ADR 0025).
+
+Changing the project re-renders this whole modal from the server, and
+every other field survives that through a ``pre_*`` round-trip. Files
+can't — a ``File`` doesn't fit in a querystring — so they are parked on
+``window.__actaCreateTaskFiles`` for the duration of that one swap and
+picked back up by ``init()``. Only the project select's request stashes
+them: on submit the modal closes for good, and a leftover stash would
+resurface in the next task's form.
+{% endcomment %}
+<form x-data="{
+        status: '{{ pre_status }}',
+        cycleWanted: '{{ active_cycle_id }}',
+        get inBacklog() { return this.status === 'planned' || this.status === 'ready'; },
+        files: [],
+        init() {
+          this.files = window.__actaCreateTaskFiles || [];
+          delete window.__actaCreateTaskFiles;
+          this.$nextTick(() => this.sync());
+        },
+        pick(list) { for (const f of list) this.files.push(f); this.sync(); },
+        remove(i) { this.files.splice(i, 1); this.sync(); },
+        sync() {
+          const dt = new DataTransfer();
+          this.files.forEach((f) => dt.items.add(f));
+          this.$refs.fileInput.files = dt.files;
+        }
+      }"
+      @htmx:before-request="if ($event.detail.elt?.name === 'project') window.__actaCreateTaskFiles = files"
+      hx-post="{% url 'web:create_task' %}"
       hx-swap="none"
+      hx-encoding="multipart/form-data"
       class="flex flex-col flex-1 min-h-0">
   {% csrf_token %}
   <input type="hidden" name="open_after_create" :value="openAfter ? '1' : '0'">
@@ -140,10 +177,16 @@ x-data="{
       </div>
     </div>
 
-    <div class="grid grid-cols-2 gap-3">
+    {# Size joins status + priority on one row: it's a single digit, and #}
+    {# the three read as one "classification" group the way the table    #}
+    {# columns do.                                                       #}
+    <div class="grid grid-cols-[1fr_1fr_auto] gap-3">
       <div>
         <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Status" %}</label>
+        {# ``x-model`` mirrors the pick into Alpine so the cycle picker below #}
+        {# can follow it; the initial value matches the server's ``selected``. #}
         <select name="status"
+                x-model="status"
                 class="mt-1 acta-input">
           {% for value, label in status_labels.items %}
           {% if value != 'cancelled' %}
@@ -158,6 +201,16 @@ x-data="{
                 class="mt-1 acta-input">
           {% for value, label in priority_labels.items %}
           <option value="{{ value }}" {% if value == pre_priority %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Size" %}</label>
+        <select name="size"
+                class="mt-1 acta-input">
+          <option value="">{% trans "No size" %}</option>
+          {% for value in size_values %}
+          <option value="{{ value }}" {% if value == pre_size %}selected{% endif %}>{{ value }}</option>
           {% endfor %}
         </select>
       </div>
@@ -184,6 +237,41 @@ x-data="{
         </select>
       </div>
     </div>
+
+    {% comment %}
+    Cycle — rendered only when the project's workspace runs a cadence:
+    ``workspace_cycles`` is empty otherwise, so there is no second config
+    flag to keep in step. A backlog status carries no cycle by definition
+    (``apply_cycle_policy``), so there the picker gives way to the same
+    read-only note the task-detail cell shows and nothing is submitted —
+    the server would clear it regardless, and a select that silently
+    ignores your pick is worse than no select. ``cycleWanted`` survives a
+    trip through the backlog, so flipping the status back restores it.
+    {% endcomment %}
+    {% if workspace_cycles %}
+    <div>
+      <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Cycle" %}</label>
+      <template x-if="inBacklog">
+        <p class="mt-1 text-xs italic text-placeholder-foreground">
+          {% trans "Backlog — a cycle is set when the task moves to To-do" %}
+        </p>
+      </template>
+      <template x-if="!inBacklog">
+        <select name="cycle"
+                x-model="cycleWanted"
+                class="mt-1 acta-input">
+          <option value="">{% trans "Backlog (no cycle)" %}</option>
+          {# A native ``<option>`` is plain text — no room for the green #}
+          {# active dot the task-detail picker draws, so the dates carry  #}
+          {# the "which one is this" load. Same span format as the cycle  #}
+          {# banner. The list is active-first (see ``_workspace_cycles``). #}
+          {% for cycle in workspace_cycles %}
+          <option value="{{ cycle.id }}">{{ cycle.display_name }} · {{ cycle.start_date|date:"M j" }} – {{ cycle.end_date|date:"M j" }}</option>
+          {% endfor %}
+        </select>
+      </template>
+    </div>
+    {% endif %}
 
     {% if labels %}
     <div>
@@ -310,6 +398,30 @@ x-data="{
       </div>
     </div>
     {% endif %}
+
+    {# Attachments — chips for files picked but not yet submitted, same #}
+    {# markup as the comment composer so both surfaces read alike. The  #}
+    {# input itself is the form field; ``sync()`` keeps its FileList in  #}
+    {# step with the chips.                                             #}
+    <div>
+      <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Attachments" %}</label>
+      <input type="file" name="file" multiple class="hidden" x-ref="fileInput"
+             @change="pick($event.target.files)">
+      <div x-show="files.length" x-cloak class="mt-1 flex flex-wrap gap-1.5">
+        <template x-for="(f, i) in files" :key="i">
+          <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted border border-border text-xs text-subtle-foreground">
+            <span class="truncate max-w-[12rem]" x-text="f.name"></span>
+            <button type="button" @click="remove(i)" class="text-placeholder-foreground hover:text-rose-400">
+              {% lucide "x" "w-3 h-3" %}
+            </button>
+          </span>
+        </template>
+      </div>
+      <button type="button" @click="$refs.fileInput.click()"
+              class="mt-1 w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-dashed border-border text-xs text-placeholder-foreground hover:text-foreground hover:border-border-strong transition">
+        {% lucide "paperclip" "w-3.5 h-3.5" %}{% trans "Attach files" %}
+      </button>
+    </div>
   </div>
 
   <footer class="flex items-center justify-between gap-2 px-4 py-3 border-t border-border bg-subtle/60 shrink-0">

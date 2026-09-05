@@ -7,12 +7,16 @@ membership enforcement, activity event, HTMX redirect).
 import datetime
 import json
 
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from django.utils import timezone
 
 import pytest
 
 from apps.activity.models import ActivityLog
+from apps.attachments.models import Attachment
+from apps.attachments.tests.factories import png_upload, text_upload
+from apps.cycles.services import current_cycle, ensure_cycles
 from apps.labels.tests.factories import LabelFactory
 from apps.projects.tests.factories import ProjectFactory
 from apps.tasks.models import Task
@@ -707,3 +711,257 @@ class TestCreateFromSelectionMarkers:
         url = reverse("web:task_description_fragment", args=[project.slug_prefix, task.number])
         body = client.get(url).content.decode()
         assert "Create task from selection" in body
+
+
+@pytest.mark.django_db
+class TestCreateTaskSize:
+    """The modal estimates a task at creation instead of forcing a
+    second trip through the detail page."""
+
+    def test_size_prefill_selects_the_option(self, client, setup):
+        ws, project, user = setup
+        client.force_login(user)
+        body = client.get(reverse("web:create_task"), {"size": "8"}).content.decode()
+        assert 'value="8" selected' in body
+
+    def test_off_scale_size_prefill_falls_back_to_unestimated(self, client, setup):
+        # 4 is not in the Fibonacci set the field accepts.
+        ws, project, user = setup
+        client.force_login(user)
+        body = client.get(reverse("web:create_task"), {"size": "4"}).content.decode()
+        assert "selected" not in body.split('name="size"')[1].split("</select>")[0]
+
+    def test_size_saved_on_create(self, client, setup):
+        ws, project, user = setup
+        client.force_login(user)
+        resp = client.post(
+            reverse("web:create_task"),
+            data={"project": project.slug_prefix, "title": "Estimated", "size": "5"},
+        )
+        assert resp.status_code == 204
+        assert Task.objects.get(title="Estimated").size == 5
+
+    def test_blank_size_leaves_the_task_unestimated(self, client, setup):
+        ws, project, user = setup
+        client.force_login(user)
+        client.post(
+            reverse("web:create_task"),
+            data={"project": project.slug_prefix, "title": "No estimate", "size": ""},
+        )
+        assert Task.objects.get(title="No estimate").size is None
+
+    @pytest.mark.parametrize("bad", ["4", "0", "-1", "abc"])
+    def test_off_scale_size_is_rejected_and_creates_nothing(self, client, setup, bad):
+        ws, project, user = setup
+        client.force_login(user)
+        resp = client.post(
+            reverse("web:create_task"),
+            data={"project": project.slug_prefix, "title": "Bad size", "size": bad},
+        )
+        assert resp.status_code == 400
+        assert not Task.objects.filter(title="Bad size").exists()
+
+
+@pytest.mark.django_db
+class TestCreateTaskAttachments:
+    """Files picked in the modal ride the create POST, so the task
+    exists by the time they are stored (no draft ownership)."""
+
+    def test_modal_offers_a_file_picker(self, client, setup):
+        ws, project, user = setup
+        client.force_login(user)
+        body = client.get(reverse("web:create_task")).content.decode()
+        assert 'name="file" multiple' in body
+        # Multipart encoding is what actually carries them.
+        assert 'hx-encoding="multipart/form-data"' in body
+
+    def test_files_are_stored_against_the_new_task(self, client, setup):
+        ws, project, user = setup
+        client.force_login(user)
+        resp = client.post(
+            reverse("web:create_task"),
+            data={
+                "project": project.slug_prefix,
+                "title": "With files",
+                "file": [png_upload("shot.png"), text_upload("notes.txt")],
+            },
+        )
+        assert resp.status_code == 204
+        task = Task.objects.get(title="With files")
+        stored = task.attachments.all()
+        assert stored.count() == 2
+        assert {a.original_name for a in stored} == {"shot.png", "notes.txt"}
+        # Panel attachments, not inline editor images.
+        assert {a.kind for a in stored} == {Attachment.KIND_FILE}
+        assert {a.uploader_id for a in stored} == {user.id}
+        assert {a.workspace_id for a in stored} == {ws.id}
+
+    def test_each_file_logs_an_event_after_the_task_was_created(self, client, setup):
+        ws, project, user = setup
+        client.force_login(user)
+        client.post(
+            reverse("web:create_task"),
+            data={"project": project.slug_prefix, "title": "Logged", "file": [text_upload("notes.txt")]},
+        )
+        task = Task.objects.get(title="Logged")
+        events = list(ActivityLog.objects.filter(project=project).order_by("id"))
+        kinds = [e.event_type for e in events]
+        assert kinds == ["task.created", "attachment.created"], "timeline must read in the order things happened"
+        attached = events[-1]
+        assert attached.actor_id == user.id
+        # ``_task_activity`` finds these through ``payload__task_id``.
+        assert attached.payload["task_id"] == task.id
+        assert attached.payload["filename"] == "notes.txt"
+
+    def test_a_rejected_file_rolls_the_whole_create_back(self, client, setup):
+        ws, project, user = setup
+        client.force_login(user)
+        resp = client.post(
+            reverse("web:create_task"),
+            data={
+                "project": project.slug_prefix,
+                "title": "Rolled back",
+                "file": [text_upload("notes.txt"), SimpleUploadedFile("payload.exe", b"MZ")],
+            },
+        )
+        assert resp.status_code == 400
+        # Neither the task nor the file that validated before it survive —
+        # a task silently missing an attachment is the worse outcome.
+        assert not Task.objects.filter(title="Rolled back").exists()
+        assert not Attachment.objects.filter(original_name="notes.txt").exists()
+
+    def test_creating_without_files_stores_nothing(self, client, setup):
+        ws, project, user = setup
+        client.force_login(user)
+        client.post(reverse("web:create_task"), data={"project": project.slug_prefix, "title": "Bare"})
+        assert Task.objects.get(title="Bare").attachments.count() == 0
+
+
+@pytest.fixture
+def cadence_setup(db):
+    """Workspace with cycles switched on, plus a project and a member."""
+    ws = WorkspaceFactory()
+    # Anchored far enough back that ``ensure_cycles`` has an active window
+    # around today whatever day the suite runs on.
+    ws.cycle_settings = {"enabled": True, "length_weeks": 2, "start_date": "2026-05-04"}
+    ws.save(update_fields=["cycle_settings"])
+    return ws, ProjectFactory(workspace=ws), ws.owner
+
+
+@pytest.mark.django_db
+class TestCreateTaskCycle:
+    """The modal commits a task to a cycle, subject to the cadence policy:
+    the backlog statuses carry none, committed work joins the active one."""
+
+    def test_no_picker_when_the_workspace_runs_no_cadence(self, client, setup):
+        ws, project, user = setup
+        client.force_login(user)
+        body = client.get(reverse("web:create_task")).content.decode()
+        assert 'name="cycle"' not in body
+
+    def test_picker_offered_when_cadence_is_on(self, client, cadence_setup):
+        ws, project, user = cadence_setup
+        client.force_login(user)
+        body = client.get(reverse("web:create_task"), {"project": project.slug_prefix}).content.decode()
+        assert 'name="cycle"' in body
+        assert "Backlog (no cycle)" in body
+        # The active cycle is the default the picker opens on.
+        active = current_cycle(ws)
+        assert active is not None
+        assert f"cycleWanted: '{active.id}'" in body
+
+    def test_options_name_the_cycle_and_its_span(self, client, cadence_setup):
+        # A native <option> is plain text, so the dates are the only thing
+        # telling two "Cycle N" entries apart.
+        ws, project, user = cadence_setup
+        client.force_login(user)
+        body = client.get(reverse("web:create_task"), {"project": project.slug_prefix}).content.decode()
+        active = current_cycle(ws)
+        span = f'{active.start_date.strftime("%b").lstrip("0")} {active.start_date.day}'
+        assert active.display_name in body
+        assert span in body
+        assert f'{active.end_date.strftime("%b")} {active.end_date.day}' in body
+
+    def test_committed_task_joins_the_active_cycle_without_being_asked(self, client, cadence_setup):
+        # BOARD-9: creating straight into to-do used to leave the task
+        # cycle-less until someone touched its status again.
+        ws, project, user = cadence_setup
+        client.force_login(user)
+        client.post(
+            reverse("web:create_task"),
+            data={"project": project.slug_prefix, "title": "Committed", "status": Task.STATUS_TODO},
+        )
+        assert Task.objects.get(title="Committed").cycle_id == current_cycle(ws).id
+
+    def test_explicit_pick_wins_over_the_active_cycle(self, client, cadence_setup):
+        ws, project, user = cadence_setup
+        client.force_login(user)
+        ensure_cycles(ws)
+        later = ws.cycles.exclude(id=current_cycle(ws).id).order_by("number").last()
+        assert later is not None, "cadence should materialise an upcoming cycle too"
+        client.post(
+            reverse("web:create_task"),
+            data={
+                "project": project.slug_prefix,
+                "title": "Picked",
+                "status": Task.STATUS_TODO,
+                "cycle": str(later.id),
+            },
+        )
+        assert Task.objects.get(title="Picked").cycle_id == later.id
+
+    @pytest.mark.parametrize("status", [Task.STATUS_PLANNED, Task.STATUS_READY])
+    def test_backlog_status_never_carries_a_cycle(self, client, cadence_setup, status):
+        # The form hides the picker for these, but a hand-rolled POST must
+        # not be able to smuggle one past the policy either.
+        ws, project, user = cadence_setup
+        client.force_login(user)
+        ensure_cycles(ws)
+        client.post(
+            reverse("web:create_task"),
+            data={
+                "project": project.slug_prefix,
+                "title": f"Backlog {status}",
+                "status": status,
+                "cycle": str(current_cycle(ws).id),
+            },
+        )
+        assert Task.objects.get(title=f"Backlog {status}").cycle_id is None
+
+    def test_backlog_task_stays_cycle_less_when_cadence_is_off(self, client, setup):
+        ws, project, user = setup
+        client.force_login(user)
+        client.post(
+            reverse("web:create_task"),
+            data={"project": project.slug_prefix, "title": "No cadence", "status": Task.STATUS_TODO},
+        )
+        assert Task.objects.get(title="No cadence").cycle_id is None
+
+    def test_cycle_from_another_workspace_is_rejected(self, client, cadence_setup):
+        ws, project, user = cadence_setup
+        other = WorkspaceFactory()
+        other.cycle_settings = {"enabled": True, "length_weeks": 2, "start_date": "2026-05-04"}
+        other.save(update_fields=["cycle_settings"])
+        foreign = ensure_cycles(other) or current_cycle(other)
+        client.force_login(user)
+        resp = client.post(
+            reverse("web:create_task"),
+            data={
+                "project": project.slug_prefix,
+                "title": "Foreign cycle",
+                "status": Task.STATUS_TODO,
+                "cycle": str(foreign.id),
+            },
+        )
+        assert resp.status_code == 400
+        assert not Task.objects.filter(title="Foreign cycle").exists()
+
+    def test_garbage_cycle_is_rejected(self, client, cadence_setup):
+        ws, project, user = cadence_setup
+        client.force_login(user)
+        resp = client.post(
+            reverse("web:create_task"),
+            data={"project": project.slug_prefix, "title": "Bad cycle", "status": Task.STATUS_TODO, "cycle": "abc"},
+        )
+        assert resp.status_code == 400
+        assert not Task.objects.filter(title="Bad cycle").exists()
