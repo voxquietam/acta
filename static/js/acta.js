@@ -2209,28 +2209,48 @@
   // and does NOT work — containment doesn't apply to ``<tr>``, so the
   // property is ignored on table rows.
   //
+  // Two properties keep SCROLLING smooth, both learned from Safari
+  // (Firefox never showed either): the overscan is a full viewport of
+  // rows, because Safari runs momentum scrolling on the compositor and
+  // delivers ``scroll`` to the main thread well behind the pixels; and
+  // the window is block-quantised, because every window move relayouts
+  // the whole table (the spacers change height) and a per-row window
+  // meant doing that on nearly every frame.
+  //
   // The window maths is mirrored from static_src/js/lib/virtual.js
   // (tests in its ``__tests__``) — change one, change the other.
   const VIRTUAL_MIN_ROWS = 60;
   const VIRTUAL_OVERSCAN = 12;
+  const VIRTUAL_BLOCK = 8;
+
+  function overscanFor(viewportHeight, rowHeight) {
+    if (!Number.isFinite(viewportHeight) || !Number.isFinite(rowHeight) || rowHeight <= 0) {
+      return VIRTUAL_OVERSCAN;
+    }
+    return Math.max(VIRTUAL_OVERSCAN, Math.ceil(viewportHeight / rowHeight));
+  }
 
   function computeWindow({
     total,
     rowHeight,
     scrollTop,
     viewportHeight,
-    overscan = VIRTUAL_OVERSCAN,
+    overscan,
+    block = VIRTUAL_BLOCK,
     minRows = VIRTUAL_MIN_ROWS,
   }) {
     const off = { active: false, start: 0, end: total > 0 ? total : 0, padTop: 0, padBottom: 0 };
     if (!Number.isFinite(total) || total < minRows) return off;
     if (!Number.isFinite(rowHeight) || rowHeight <= 0) return off;
     if (!Number.isFinite(viewportHeight) || viewportHeight <= 0) return off;
+    const pad = Number.isFinite(overscan) ? overscan : overscanFor(viewportHeight, rowHeight);
+    const step = Number.isFinite(block) && block >= 1 ? Math.floor(block) : 1;
     const top = Number.isFinite(scrollTop) && scrollTop > 0 ? scrollTop : 0;
     const first = Math.floor(top / rowHeight);
     const span = Math.ceil(viewportHeight / rowHeight) + 1;
-    const start = Math.max(0, first - overscan);
-    const end = Math.min(total, first + span + overscan);
+    const anchor = Math.floor(first / step) * step;
+    const start = Math.min(total, Math.max(0, anchor - pad));
+    const end = Math.min(total, Math.max(start, anchor + step + span + pad));
     return { active: true, start, end, padTop: start * rowHeight, padBottom: (total - end) * rowHeight };
   }
 

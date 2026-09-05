@@ -27,10 +27,40 @@
 export const VIRTUAL_MIN_ROWS = 60;
 
 /**
- * Rows rendered above and below the viewport. Covers a fast scroll
- * flick between two rAF ticks without exposing blank space.
+ * Floor for the overscan. The real value is a full viewport of rows
+ * (see ``overscanFor``) — Safari runs momentum scrolling on the
+ * compositor and delivers ``scroll`` to the main thread well behind the
+ * pixels, so a fixed 12-row buffer emptied mid-flick and rows visibly
+ * popped in. Firefox never showed it.
  */
 export const VIRTUAL_OVERSCAN = 12;
+
+/**
+ * Window edges snap to multiples of this many rows.
+ *
+ * Without it the window moves every single row, and each move relayouts
+ * the whole table (the spacer rows change height). Snapping means the
+ * DOM pass runs once per block instead of once per row, and every
+ * scroll tick in between is a ``sameWindow`` early return that touches
+ * nothing. Must stay well under the overscan, or the window snaps to a
+ * position whose buffer is already consumed.
+ */
+export const VIRTUAL_BLOCK = 8;
+
+/**
+ * Rows to keep rendered past each viewport edge: one full screen, never
+ * fewer than ``VIRTUAL_OVERSCAN``.
+ *
+ * @param {number} viewportHeight Client height of the scroll container.
+ * @param {number} rowHeight Measured height of one row, in px.
+ * @returns {number} Overscan in rows.
+ */
+export function overscanFor(viewportHeight, rowHeight) {
+  if (!Number.isFinite(viewportHeight) || !Number.isFinite(rowHeight) || rowHeight <= 0) {
+    return VIRTUAL_OVERSCAN;
+  }
+  return Math.max(VIRTUAL_OVERSCAN, Math.ceil(viewportHeight / rowHeight));
+}
 
 /**
  * Compute which slice of the row list should stay in the render tree.
@@ -45,7 +75,9 @@ export const VIRTUAL_OVERSCAN = 12;
  * @param {number} opts.rowHeight Measured height of one row, in px.
  * @param {number} opts.scrollTop Scroll offset of the scroll container.
  * @param {number} opts.viewportHeight Client height of the scroll container.
- * @param {number} [opts.overscan] Rows to keep past each edge.
+ * @param {number} [opts.overscan] Rows to keep past each edge; defaults
+ *   to ``overscanFor(viewportHeight, rowHeight)``.
+ * @param {number} [opts.block] Row granularity the edges snap to.
  * @param {number} [opts.minRows] Threshold below which we stay off.
  * @returns {{active: boolean, start: number, end: number, padTop: number, padBottom: number}}
  */
@@ -54,7 +86,8 @@ export function computeWindow({
   rowHeight,
   scrollTop,
   viewportHeight,
-  overscan = VIRTUAL_OVERSCAN,
+  overscan,
+  block = VIRTUAL_BLOCK,
   minRows = VIRTUAL_MIN_ROWS,
 }) {
   const off = {
@@ -68,12 +101,25 @@ export function computeWindow({
   if (!Number.isFinite(rowHeight) || rowHeight <= 0) return off;
   if (!Number.isFinite(viewportHeight) || viewportHeight <= 0) return off;
 
+  const pad = Number.isFinite(overscan) ? overscan : overscanFor(viewportHeight, rowHeight);
+  const step = Number.isFinite(block) && block >= 1 ? Math.floor(block) : 1;
   const top = Number.isFinite(scrollTop) && scrollTop > 0 ? scrollTop : 0;
   const first = Math.floor(top / rowHeight);
   // ``+ 1`` covers the partially-scrolled row at the bottom edge.
   const span = Math.ceil(viewportHeight / rowHeight) + 1;
-  const start = Math.max(0, first - overscan);
-  const end = Math.min(total, first + span + overscan);
+  // Both edges hang off ONE block-aligned anchor, so the whole window
+  // moves exactly once per block. Snapping the two edges independently
+  // would put their boundaries out of phase and cost two DOM passes per
+  // block instead of one.
+  //
+  // ``anchor <= first`` and ``anchor + step > first``, so widening by
+  // ``step`` at the bottom keeps the viewport enclosed however the
+  // anchor rounded. Both edges are clamped into the list: a scrollTop
+  // past the content (rubber-band, or a stale offset after a filter
+  // shrank the list) must not produce a window off the end.
+  const anchor = Math.floor(first / step) * step;
+  const start = Math.min(total, Math.max(0, anchor - pad));
+  const end = Math.min(total, Math.max(start, anchor + step + span + pad));
   return {
     active: true,
     start,
