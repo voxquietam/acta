@@ -5,20 +5,29 @@
 
 ## Context
 
-The task table lags on hover once a workspace grows past a few hundred
-tasks. Measured against real mouse events on All Tasks: 381 rows produced
-15 long tasks of 50–150 ms, 30 rows produced none. Disabling the CSS
-transitions and then Alpine changed nothing — the cost is the size of the
-render tree that a hover invalidation walks, and it scales with the number
-of `<tr>` elements, not with what the rows contain.
+The task table gets expensive once a workspace grows past a few hundred
+tasks. A full-table style invalidation — what toggling `.has-selection`
+does, and what a bulk action or a client-side sort ends up costing — took
+112 ms median on a 381-row All Tasks in Chromium.
+
+**This ADR is not about the hover lag, despite where the work started.**
+The trigger was a Safari measurement that looked row-count-bound (381
+rows stuttered on hover, 30 rows didn't). That reading was wrong: with
+virtualisation shipped and only 30 rows in the render tree, Safari still
+hovered at 12 fps, and detaching the other 350 rows from the DOM
+entirely changed nothing. The hover cost was one CSS rule — an animated
+`opacity` on the row checkbox, promoting it to a compositing layer on
+every row the mouse crossed — and it is fixed in `main.css`, not here.
+What is left in this ADR is a real but narrower win: a smaller render
+tree for every operation that restyles the whole table.
 
 Two constraints rule out the obvious fixes:
 
 - **We cannot detach the rows.** Client-side sort (ADR 0019), the client
   filter pass and the selection store all read the *full* row set — that's
   what makes sort and chip toggles instant with no round-trip. Paginating
-  or rendering only a slice server-side would trade a hover stutter for a
-  network round-trip on every interaction.
+  or rendering only a slice server-side would put a network round-trip in
+  front of every interaction.
 - **`content-visibility: auto` does not work here.** CSS containment does
   not apply to `<tr>`, so browsers ignore the property on table rows. It
   was tried, appeared to help on a warm page, and was reverted.
@@ -47,7 +56,17 @@ The pieces:
 - **Off below 60 rows**, and off whenever the panel is hidden (an inactive
   view tab collapses the scroll container to zero height, so every row
   stays rendered and the tab is complete the moment `x-show` reveals it).
-  Overscan is 12 rows each way.
+
+**Two properties keep scrolling smooth, both learned from Safari;
+Firefox showed neither.** The overscan is a full viewport of rows, not a
+fixed count: Safari runs momentum scrolling on the compositor and
+delivers `scroll` to the main thread well behind the pixels, so a 12-row
+buffer emptied mid-flick and rows visibly popped in. And the window is
+block-quantised to 8 rows, hung off a single anchor: every window move
+relayouts the table (the spacers change height), so a per-row window did
+that on nearly every frame. Snapping the two edges independently would
+put their boundaries out of phase and cost two passes per block instead
+of one.
 
 **Row height is measured as a top-to-top delta over a run of rendered
 rows**, not from one row's `offsetHeight`. Rows are 38.5 px at dpr 2 and
@@ -71,9 +90,13 @@ the anchoring is not needed.
 
 ## Consequences
 
-- Hovering a 381-row table: a full-table style invalidation went from
-  112 ms median / 149 ms max to 14.7 ms / 24.2 ms, with 45 rows in the
-  render tree instead of 381.
+- A full-table style invalidation on 381 rows went from 112 ms median /
+  149 ms max to 14.7 ms / 24.2 ms in Chromium, with ~60 rows in the
+  render tree instead of 381. That is the win: selection toggles, bulk
+  actions and sorts restyle a window, not a workspace.
+- It does **not** help hover, in any browser. Hover cost turned out to
+  be independent of row count — see the Context note and the
+  `visibility`-vs-`opacity` comment in `main.css`.
 - Sort, chip filters, the search haystack and "select all" are unchanged —
   they walk `tr[data-task-id]` and the hidden rows are still there.
 - The browser's own Ctrl/Cmd+F does not find text in a scrolled-past row.
@@ -95,7 +118,9 @@ the anchoring is not needed.
   (ADR 0019), which is the table's main advantage over Kaneo.
 - **Removing rows from the DOM** — the honest virtualisation, but it means
   reimplementing sort, filter, search and selection against a JS model
-  instead of the DOM. Much larger change for the same frame budget.
+  instead of the DOM. Measured against the one symptom that prompted this
+  work, it buys nothing: detaching 350 of 381 rows left Safari's hover
+  cost unchanged. Much larger change, no additional win.
 - **`display: table-row` on a `<div>` grid instead of a real table** —
   would let `content-visibility` work, but rewrites every cell partial and
   the sticky header for a problem the marker attribute already solves.
