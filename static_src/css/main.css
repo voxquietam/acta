@@ -2026,3 +2026,17 @@ select:-webkit-autofill {
   opacity: 1;
   pointer-events: auto;
 }
+
+/* Task-table row virtualisation (see ``virtualiseTable`` in acta.js).
+   Rows outside the scrolled window stay in the DOM — client-side sort,
+   the filter pass and the selection store all walk the full row set —
+   but leave layout and paint, which is what fixes the hover lag on a
+   few hundred rows. ``!important`` because the filter pass owns the
+   inline ``display`` on the same element and would otherwise reveal a
+   row the window has scrolled past.
+
+   ``content-visibility: auto`` is deliberately NOT used here:
+   containment does not apply to ``<tr>``, so browsers ignore it. */
+tr[data-vrow-hidden] {
+  display: none !important;
+}

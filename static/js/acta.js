@@ -1011,6 +1011,9 @@
     // hid (both left + gantt rows carry the filter attrs). Let it
     // recompute the today-line height against the now-visible row count.
     if (window.__tlAfterFilter) window.__tlAfterFilter();
+    // The set of scrollable rows just changed, so the table's virtual
+    // window is indexing the wrong positions — re-slice it.
+    refreshTableVirtualisation({ structural: true });
     return visible;
   }
   window.actaApplyFilters = applyClientFilters;
@@ -2178,10 +2181,241 @@
       }
       refreshSortIndicators(table, "", "asc");
     }
+    // Row order changed under the virtualiser — the window indexes
+    // positions, not identities, so it has to re-slice from scratch
+    // (and re-seat the spacers ``applyClientSort`` just shuffled past).
+    refreshTableVirtualisation({ structural: true });
     if (window.history && window.history.pushState) {
       window.history.pushState({}, "", nextUrl);
     }
   });
+
+  // ---- Table row virtualisation ------------------------------------------
+  //
+  // Hovering the task table went quadratic with row count: 381 rows
+  // produced 15 long tasks of 50-150 ms against real mouse events, 30
+  // rows produced none. Neither Alpine nor the CSS transitions were
+  // involved (both were disabled to check) — the cost is the size of
+  // the render tree the hover invalidation walks.
+  //
+  // We can't detach the rows: client-side sort, the filter pass and the
+  // selection store all read the FULL row set, and that's what makes
+  // them instant. So the rows stay in the DOM and only leave layout,
+  // via ``display: none`` (``tr[data-vrow-hidden]`` in main.css), with
+  // two spacer rows standing in for their height so the scrollbar and
+  // ``scrollTop`` keep meaning what they meant.
+  //
+  // ``content-visibility: auto`` would be the one-liner version of this
+  // and does NOT work — containment doesn't apply to ``<tr>``, so the
+  // property is ignored on table rows.
+  //
+  // The window maths is mirrored from static_src/js/lib/virtual.js
+  // (tests in its ``__tests__``) — change one, change the other.
+  const VIRTUAL_MIN_ROWS = 60;
+  const VIRTUAL_OVERSCAN = 12;
+
+  function computeWindow({
+    total,
+    rowHeight,
+    scrollTop,
+    viewportHeight,
+    overscan = VIRTUAL_OVERSCAN,
+    minRows = VIRTUAL_MIN_ROWS,
+  }) {
+    const off = { active: false, start: 0, end: total > 0 ? total : 0, padTop: 0, padBottom: 0 };
+    if (!Number.isFinite(total) || total < minRows) return off;
+    if (!Number.isFinite(rowHeight) || rowHeight <= 0) return off;
+    if (!Number.isFinite(viewportHeight) || viewportHeight <= 0) return off;
+    const top = Number.isFinite(scrollTop) && scrollTop > 0 ? scrollTop : 0;
+    const first = Math.floor(top / rowHeight);
+    const span = Math.ceil(viewportHeight / rowHeight) + 1;
+    const start = Math.max(0, first - overscan);
+    const end = Math.min(total, first + span + overscan);
+    return { active: true, start, end, padTop: start * rowHeight, padBottom: (total - end) * rowHeight };
+  }
+
+  function sameWindow(a, b) {
+    if (!a || !b) return false;
+    return (
+      a.active === b.active && a.start === b.start && a.end === b.end && a.padTop === b.padTop && a.padBottom === b.padBottom
+    );
+  }
+
+  const __actaVWindows = new WeakMap();
+
+  // Rows are uniform: ``table-fixed`` plus ``truncate`` on every cell
+  // means no row can grow taller than its neighbours. One measurement
+  // therefore drives the whole window. Structural passes re-measure so
+  // a zoom or font-size change lands without explicit invalidation;
+  // scroll passes reuse the cache and never touch layout.
+  //
+  // Measured as a top-to-top delta over a run of rendered rows, not as
+  // one row's own height. ``offsetHeight`` rounds to whole pixels, and
+  // a real row is 38.5px at dpr 2 — the 0.5px error compounds into a
+  // ~120px scrollbar drift over 270 rows. The table's first row is
+  // dropped from the sample when it's in the run: ``divide-y`` gives it
+  // no border, so it is a pixel shorter than every other row.
+  function virtualRowHeight(tbody, rows, remeasure) {
+    const cached = parseFloat(tbody.dataset.vrowHeight || "");
+    const haveCache = Number.isFinite(cached) && cached > 0;
+    if (!remeasure && haveCache) return cached;
+    // Rows hidden by the window are display:none, so the ones left are
+    // a contiguous run and their tops are directly comparable. (Rows
+    // hidden by a filter never entered ``rows`` in the first place.)
+    const laid = [];
+    for (let i = 0; i < rows.length && laid.length < 12; i += 1) {
+      if (!rows[i].hasAttribute("data-vrow-hidden")) laid.push(rows[i]);
+    }
+    if (laid.length >= 3 && laid[0] === rows[0]) laid.shift();
+    let measured = 0;
+    if (laid.length >= 2) {
+      const span = laid[laid.length - 1].getBoundingClientRect().top - laid[0].getBoundingClientRect().top;
+      measured = span / (laid.length - 1);
+    } else if (laid.length === 1) {
+      measured = laid[0].getBoundingClientRect().height;
+    }
+    if (measured > 0) {
+      tbody.dataset.vrowHeight = String(measured);
+      return measured;
+    }
+    return haveCache ? cached : 0;
+  }
+
+  // Spacers carry ``border-top-width: 0`` because the tbody's
+  // ``divide-y`` would otherwise paint a hairline on them, and they're
+  // dropped entirely at zero height so an unscrolled table renders
+  // byte-identical to the unvirtualised one (a zero-height spacer as
+  // first child would hand the first real row a border it never had).
+  function virtualSpacer(tbody, where, colspan) {
+    let tr = tbody.querySelector(`tr[data-vspacer="${where}"]`);
+    if (!tr) {
+      tr = document.createElement("tr");
+      tr.setAttribute("data-vspacer", where);
+      tr.setAttribute("aria-hidden", "true");
+      tr.style.borderTopWidth = "0";
+      const td = document.createElement("td");
+      td.style.padding = "0";
+      td.style.border = "0";
+      tr.appendChild(td);
+    }
+    const td = tr.firstElementChild;
+    if (td.colSpan !== colspan) td.colSpan = colspan;
+    return tr;
+  }
+
+  function placeVirtualSpacer(tbody, where, colspan, height) {
+    const existing = tbody.querySelector(`tr[data-vspacer="${where}"]`);
+    if (height <= 0) {
+      if (existing) existing.remove();
+      return;
+    }
+    const tr = virtualSpacer(tbody, where, colspan);
+    const px = height + "px";
+    if (tr.style.height !== px) {
+      tr.style.height = px;
+      tr.firstElementChild.style.height = px;
+    }
+    // ``applyClientSort`` appends every ``tr[data-task-id]`` to the
+    // tbody, which drifts the spacers out of position — re-seat them
+    // whenever they aren't where they belong.
+    if (where === "top") {
+      if (tbody.firstElementChild !== tr) tbody.insertBefore(tr, tbody.firstElementChild);
+    } else if (tbody.lastElementChild !== tr) {
+      tbody.appendChild(tr);
+    }
+  }
+
+  function virtualiseTable(tbody, opts) {
+    const structural = !!(opts && opts.structural);
+    const scroller = tbody.closest("[data-scroll-target]");
+    if (!scroller) return;
+    const all = tbody.querySelectorAll("tr[data-task-id]");
+    if (!all.length) return;
+    // Filter-hidden rows sit outside the window entirely — it indexes
+    // the rows the user can actually reach by scrolling. Clear our
+    // marker off them while we're here: the next filter pass restores
+    // their ``display``, and a stale ``!important`` rule would override
+    // it until the following recompute.
+    const rows = [];
+    for (let i = 0; i < all.length; i += 1) {
+      if (all[i].hasAttribute("hidden")) all[i].removeAttribute("data-vrow-hidden");
+      else rows.push(all[i]);
+    }
+    const win = computeWindow({
+      total: rows.length,
+      rowHeight: virtualRowHeight(tbody, rows, structural),
+      scrollTop: scroller.scrollTop,
+      viewportHeight: scroller.clientHeight,
+    });
+    // Scroll fires far more often than the window moves; a sub-row
+    // scroll must not cost a DOM pass. Structural callers bypass the
+    // cache because the row set itself changed underneath it.
+    if (!structural && sameWindow(__actaVWindows.get(tbody), win)) return;
+    __actaVWindows.set(tbody, win);
+
+    for (let i = 0; i < rows.length; i += 1) {
+      const shouldHide = win.active && (i < win.start || i >= win.end);
+      if (shouldHide === rows[i].hasAttribute("data-vrow-hidden")) continue;
+      if (shouldHide) rows[i].setAttribute("data-vrow-hidden", "");
+      else rows[i].removeAttribute("data-vrow-hidden");
+    }
+
+    if (win.active) {
+      const head = tbody.parentElement && tbody.parentElement.querySelector("thead tr");
+      const colspan = head ? head.children.length : 1;
+      placeVirtualSpacer(tbody, "top", colspan, win.padTop);
+      placeVirtualSpacer(tbody, "bottom", colspan, win.padBottom);
+      // Scroll anchoring picks an element near the top edge and keeps it
+      // put; ours vanishes from layout every window step, which reads as
+      // scroll drift. Total height is spacer-preserved, so we don't need
+      // the browser's help here.
+      scroller.style.overflowAnchor = "none";
+    } else {
+      tbody.querySelectorAll("tr[data-vspacer]").forEach((tr) => tr.remove());
+      scroller.style.overflowAnchor = "";
+    }
+  }
+
+  function refreshTableVirtualisation(opts) {
+    document.querySelectorAll("tbody#task-table-body").forEach((tbody) => virtualiseTable(tbody, opts));
+  }
+
+  let __actaVFrame = 0;
+  function scheduleVirtualise() {
+    if (__actaVFrame) return;
+    __actaVFrame = requestAnimationFrame(() => {
+      __actaVFrame = 0;
+      refreshTableVirtualisation();
+    });
+  }
+
+  function bindTableVirtualisation() {
+    document.querySelectorAll("tbody#task-table-body").forEach((tbody) => {
+      const scroller = tbody.closest("[data-scroll-target]");
+      if (!scroller || scroller.dataset.vscrollBound === "true") return;
+      scroller.dataset.vscrollBound = "true";
+      scroller.addEventListener("scroll", scheduleVirtualise, { passive: true });
+      // A view-tab switch reveals the panel by flipping ``x-show``, which
+      // fires no event — but the scroll container goes from 0 to full
+      // height, and ResizeObserver sees that. Same hook covers window
+      // resize and the sidebar collapse. It also fires once on observe,
+      // which is the initial pass. Parked on the element so it lives
+      // exactly as long as the scroller does.
+      if (window.ResizeObserver) {
+        const ro = new ResizeObserver(() => refreshTableVirtualisation({ structural: true }));
+        ro.observe(scroller);
+        scroller.__actaVirtualObserver = ro;
+      }
+    });
+    refreshTableVirtualisation({ structural: true });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bindTableVirtualisation);
+  } else {
+    bindTableVirtualisation();
+  }
+  document.body.addEventListener("htmx:afterSettle", bindTableVirtualisation);
 
   // Global ``c`` hotkey — opens the Create Task modal. Lives in JS so
   // it survives HTMX swaps without re-binding, and reliably ignores

@@ -38,6 +38,7 @@ ADR format: **Context → Options → Decision → Why → Consequences**.
 | 0029 | accepted | PWA installability: rendered manifest + root-scope network-first worker | [0029-pwa-installability.md](decisions/0029-pwa-installability.md) |
 | 0030 | accepted | Meetings/calls: first-class Meeting + duration rollup, no per-task split | [0030-meetings.md](decisions/0030-meetings.md) |
 | 0031 | accepted | Workspace-scoped URLs: sections under an immutable workspace slug, legacy paths redirect | [0031-workspace-scoped-urls.md](decisions/0031-workspace-scoped-urls.md) |
+| 0032 | accepted | Task-table virtualisation: hide out-of-window rows, spacers keep the scrollbar honest | [0032-task-table-virtualisation.md](decisions/0032-task-table-virtualisation.md) |
 
 ## Operations
 
