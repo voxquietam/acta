@@ -1974,57 +1974,64 @@ select:-webkit-autofill {
   }
 }
 
-/* Per-row checkbox visibility in the task table. Hidden by default;
-   appears on row hover (``.acta-row:hover``) OR when any selection
-   exists (``.acta-table.has-selection``) OR when this specific row
-   is selected (``.acta-row[data-selected="true"]``). The header
-   master checkbox uses ``.acta-checkbox`` directly without the
-   ``.acta-row-check`` gate — it's always visible. */
+/* Row / section select affordances hide with ``visibility``, never with
+   ``opacity``. Measured in Safari: an animated ``opacity`` on the row
+   checkbox promotes it to its own compositing layer, and sweeping the
+   mouse down the task table churned those layers at a rate that dropped
+   the page from 60 fps to 12. Bisecting every ``:hover`` rule that
+   matches inside a row put the whole cost on this one rule; swapping it
+   for ``visibility`` (no stacking context, no layer, no animation) put
+   it back to ~50. Firefox never showed the problem, so it has to be
+   re-checked in Safari specifically.
+
+   The trade is the 100 ms fade, and that a hidden checkbox is no longer
+   in the tab order — which also removes an invisible focus target the
+   ``opacity: 0`` version left behind. Both elements still occupy their
+   box either way, so nothing reflows.
+
+   Per-row checkbox in the task table: hidden by default; shown on row
+   hover (``.acta-row:hover``) OR when any selection exists
+   (``.acta-table.has-selection``) OR when this row is selected
+   (``.acta-row[data-selected="true"]``). The header master checkbox
+   uses ``.acta-checkbox`` directly without the ``.acta-row-check``
+   gate — it's always visible. */
 .acta-row-check {
-  opacity: 0;
-  transition: opacity 100ms ease;
+  visibility: hidden;
 }
 .acta-row:hover .acta-row-check,
 .acta-table.has-selection .acta-row-check,
 .acta-row[data-selected="true"] .acta-row-check {
-  opacity: 1;
+  visibility: visible;
 }
 
 /* List-view multi-select (My Work / All Tasks / project detail). The
    list row is a whole-row ``<a>`` whose leftmost status dot doubles as
-   a selection slot: the dot fades out and a checkbox fades in on row
-   hover, when the row is selected, or while any selection is active
-   (``.is-selmode`` mirrors ``$store.selection.size > 0``, set by Alpine).
-   Mirrors the table's ``.acta-row-check`` reveal so both surfaces match. */
-.acta-rowsel-dot {
-  transition: opacity 100ms ease;
-}
+   a selection slot: the dot gives way to a checkbox on row hover, when
+   the row is selected, or while any selection is active (``.is-selmode``
+   mirrors ``$store.selection.size > 0``, set by Alpine). The checkbox is
+   ``absolute inset-0`` over the dot, so the swap costs no layout.
+   Mirrors the table's ``.acta-row-check`` reveal — same ``visibility``
+   rule, same reason (see above). */
 .acta-rowsel-check {
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 100ms ease;
+  visibility: hidden;
 }
 .acta-listrow:hover .acta-rowsel-check,
 .acta-listrow.is-selmode .acta-rowsel-check {
-  opacity: 1;
-  pointer-events: auto;
+  visibility: visible;
 }
 .acta-listrow:hover .acta-rowsel-dot,
 .acta-listrow.is-selmode .acta-rowsel-dot {
-  opacity: 0;
+  visibility: hidden;
 }
 
 /* Section-header "select all" checkbox: hidden until the section is
    hovered or a selection is active, so idle headers stay uncluttered. */
 .acta-section-check {
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 100ms ease;
+  visibility: hidden;
 }
 .acta-section-head:hover .acta-section-check,
 .acta-section-head.is-selmode .acta-section-check {
-  opacity: 1;
-  pointer-events: auto;
+  visibility: visible;
 }
 
 /* Task-table row virtualisation (see ``virtualiseTable`` in acta.js).
