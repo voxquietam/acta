@@ -188,6 +188,58 @@ DATABASES: dict = {}
 
 
 # -----------------------------------------------------------------------------
+# Logging
+# -----------------------------------------------------------------------------
+
+# Django's built-in configuration hides its console handler behind
+# ``require_debug_true`` and routes errors to ``mail_admins`` otherwise. With
+# ``DEBUG = False`` and no ``ADMINS`` — which is production — the traceback of
+# every 500 went nowhere at all: nothing in ``docker compose logs``, no mail,
+# no file. Errors were only ever visible by reproducing them by hand against
+# the live database, which is a bad way to run a service.
+#
+# So: one stderr handler, always on. The container log is the only sink we
+# have, it is never shown to a user, and Django's traceback carries no local
+# variables. ``django.request`` at ERROR gives unhandled exceptions with their
+# full stack while leaving 4xx (logged there at WARNING) out — those are
+# ordinary traffic and the proxy already records them.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "acta": {
+            "format": "[{asctime}] {levelname} {name}: {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "acta",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "INFO",
+    },
+    "loggers": {
+        "django.request": {
+            "handlers": ["console"],
+            "level": "ERROR",
+            "propagate": False,
+        },
+        # Uvicorn writes its own access line for every request; Django's
+        # duplicate would double every entry in the container log.
+        "django.server": {
+            "handlers": ["console"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+    },
+}
+
+
+# -----------------------------------------------------------------------------
 # Authentication
 # -----------------------------------------------------------------------------
 
