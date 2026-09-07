@@ -1,0 +1,64 @@
+{% extends "base_auth.html" %}
+{% load i18n %}
+
+{% comment %}
+OAuth consent screen — the one human step in the Custom Connector flow.
+
+Reached from ``apps.mcp.oauth.authorize`` with the client and the
+already-validated redirect URI in context. Everything the authorize
+request carried is echoed back through hidden fields so the POST can be
+re-validated from scratch: the GET that rendered this page proves
+nothing about the POST that follows it.
+
+``client_name`` comes from the client's own registration and is
+therefore attacker-controlled text — it is rendered as plain text (never
+marked safe) and framed as a claim ("says it is"), because a connector
+can call itself anything it likes.
+{% endcomment %}
+
+{% block title %}{% trans "Authorise connection" %} · Acta{% endblock %}
+
+{% block auth_main %}
+<h1 class="text-lg font-medium text-foreground">{% trans "Connect an app to Acta" %}</h1>
+
+<p class="text-sm text-muted-foreground mt-3">
+  {% blocktrans trimmed with name=client.client_name %}
+  An application that says it is <strong class="text-foreground">{{ name }}</strong>
+  wants to connect to your Acta account.
+  {% endblocktrans %}
+</p>
+
+<div class="mt-4 rounded-lg border border-border bg-subtle/60 p-3 text-sm text-muted-foreground space-y-1.5">
+  <p>{% trans "If you approve, it will be able to:" %}</p>
+  <ul class="list-disc pl-5 space-y-1">
+    <li>{% trans "read your workspaces, projects, tasks and comments" %}</li>
+    <li>{% trans "create and change them on your behalf" %}</li>
+  </ul>
+  <p class="pt-1">
+    {% blocktrans trimmed %}
+    It acts as you, and sees exactly what you see — no more.
+    {% endblocktrans %}
+  </p>
+</div>
+
+<p class="text-xs text-placeholder-foreground mt-3">
+  {% blocktrans trimmed %}
+  Approve this only if you started the connection yourself. You can revoke
+  it at any time in Settings, under API tokens.
+  {% endblocktrans %}
+</p>
+
+<form method="post" class="mt-5 flex items-center gap-2">
+  {% csrf_token %}
+  <input type="hidden" name="client_id" value="{{ client.client_id }}">
+  <input type="hidden" name="redirect_uri" value="{{ redirect_uri }}">
+  <input type="hidden" name="state" value="{{ state }}">
+  <input type="hidden" name="code_challenge" value="{{ code_challenge }}">
+  <input type="hidden" name="code_challenge_method" value="{{ code_challenge_method }}">
+  <input type="hidden" name="response_type" value="{{ response_type }}">
+  <a href="/" class="acta-btn-ghost">{% trans "Cancel" %}</a>
+  <button type="submit" class="acta-btn-primary flex-1 justify-center">
+    {% trans "Approve" %}
+  </button>
+</form>
+{% endblock %}

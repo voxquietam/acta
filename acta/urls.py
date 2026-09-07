@@ -8,6 +8,7 @@ from django.urls import include, path, re_path
 import django_eventstream
 
 from apps.accounts.views import InviteAwareSignupView
+from apps.mcp.oauth import authorization_server_metadata, protected_resource_metadata
 from apps.web.url_scoping import workspace_scoped
 from apps.web.urls import urlpatterns as web_urlpatterns
 
@@ -33,6 +34,25 @@ urlpatterns = [
     # MCP HTTP transport — single endpoint, JSON-RPC over POST. See
     # apps/mcp/views.py for protocol notes; docs/mcp.md for client setup.
     path("mcp/", include("apps.mcp.urls", namespace="mcp")),
+    # OAuth discovery. These must sit at the site root — a client that
+    # knows only the MCP endpoint URL finds everything else by fetching
+    # ``/.well-known/…`` (RFC 9728 / RFC 8414). The second spelling with
+    # the resource path appended is the variant some clients try first.
+    path(
+        ".well-known/oauth-protected-resource",
+        protected_resource_metadata,
+        name="oauth_protected_resource",
+    ),
+    path(
+        ".well-known/oauth-protected-resource/mcp",
+        protected_resource_metadata,
+        name="oauth_protected_resource_mcp",
+    ),
+    path(
+        ".well-known/oauth-authorization-server",
+        authorization_server_metadata,
+        name="oauth_authorization_server",
+    ),
     path("telegram/", include("apps.telegram.urls", namespace="telegram")),
     # Real-time SSE — ONE stream per tab (ADR 0015). The client collects
     # every channel the page needs and asks for them together via repeated
