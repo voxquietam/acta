@@ -25,7 +25,25 @@ DATABASES = {
         "PASSWORD": os.environ["POSTGRES_PASSWORD"],
         "HOST": os.environ["POSTGRES_HOST"],
         "PORT": os.environ.get("POSTGRES_PORT", "5432"),
-        "CONN_MAX_AGE": 60,
+        # Persistent connections are a trap for this app. ``CONN_MAX_AGE > 0``
+        # tells Django to keep a connection open after the response "for the
+        # same thread to reuse" — but under ASGI each request gets its own
+        # thread-sensitive context, and an SSE request's thread never serves
+        # another request. Nothing ever runs ``close_old_connections`` there
+        # again, so the connection is pinned for the life of the process.
+        #
+        # Measured locally, 10 SSE streams opened and then dropped:
+        #   CONN_MAX_AGE=60 → 14 connections before, 23 after, still 23 a
+        #                     minute later; they never come back.
+        #   CONN_MAX_AGE=0  → peaks at 23 while streaming, back to 13 once
+        #                     the streams close.
+        # In production that ratchet reached Postgres's 100-connection limit
+        # and every request needing the database started answering 500.
+        #
+        # Zero costs a connect per request (~1 ms over the compose network),
+        # which is the right trade at this size. Revisit only behind a pooler
+        # (pgbouncer in transaction mode), never by raising this again.
+        "CONN_MAX_AGE": 0,
     }
 }
 
