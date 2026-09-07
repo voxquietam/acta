@@ -62,13 +62,26 @@ class TestAuth:
         assert status == 401
         assert "Authorization" in body["error"]["message"]
 
-    def test_malformed_scheme_returns_401(self, client):
-        status, body = _post(
-            client,
-            {"jsonrpc": "2.0", "id": 1, "method": "initialize"},
-            token=None,
+    def test_unknown_scheme_returns_401_and_points_at_the_oauth_flow(self, client):
+        """A scheme we don't speak must say which two we do — and where to
+        get a Bearer token, per RFC 9728. That header is how Claude Desktop
+        discovers the OAuth flow from nothing but the endpoint URL."""
+        response = client.post(
+            MCP_URL,
+            data=json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize"}),
+            content_type="application/json",
+            HTTP_AUTHORIZATION="Basic abc123",
         )
-        # No "Token " prefix at all
+        assert response.status_code == 401
+        message = response.json()["error"]["message"]
+        assert "Token" in message
+        assert "Bearer" in message
+        assert "oauth-protected-resource" in response["WWW-Authenticate"]
+
+    def test_bearer_scheme_is_accepted_but_still_validates_the_secret(self, client):
+        """``Bearer`` is a real scheme now (OAuth-issued tokens use it), so a
+        garbage secret must fail as an invalid credential — not as an
+        unparseable header."""
         response = client.post(
             MCP_URL,
             data=json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize"}),
@@ -76,7 +89,7 @@ class TestAuth:
             HTTP_AUTHORIZATION="Bearer abc123",
         )
         assert response.status_code == 401
-        assert "Token" in response.json()["error"]["message"]
+        assert "Invalid token" in response.json()["error"]["message"]
 
     def test_unknown_token_returns_401(self, client):
         status, body = _post(

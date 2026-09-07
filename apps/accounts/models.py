@@ -183,6 +183,12 @@ class ApiToken(models.Model):
         blank=True,
         help_text="When the user (or an admin) revoked the token; revoked tokens fail authentication",
     )
+    expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Hard expiry; null means the token never expires. Set on OAuth-issued tokens, "
+        "left null on ones the user pasted by hand",
+    )
 
     class Meta:
         verbose_name = _("API token")

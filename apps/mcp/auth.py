@@ -6,10 +6,12 @@ the calling client sends a token, the server looks up the matching
 :class:`ApiToken`, and every tool call runs as that token's owner.
 
 For stdio, the token is supplied via the ``ACTA_API_TOKEN`` env var
-in the MCP client's config (e.g. Claude Desktop's
-``~/.../claude_desktop_config.json`` ``env`` block). For HTTP it
-would arrive in the ``Authorization`` header; that path lives in a
-later step.
+in the MCP client's config. Over HTTP it arrives in the
+``Authorization`` header under either scheme: ``Token <secret>`` for a
+credential the user pasted by hand, ``Bearer <secret>`` for one this
+server issued through the OAuth flow (see :mod:`apps.mcp.models`).
+Both resolve to an :class:`ApiToken`, so everything downstream — rate
+limiting, revocation, the tools themselves — stays scheme-agnostic.
 """
 
 from __future__ import annotations
@@ -19,6 +21,7 @@ import os
 import time
 
 from django.core.cache import cache
+from django.utils import timezone
 
 from apps.accounts.models import ApiToken, User
 
@@ -95,6 +98,12 @@ def authenticate_secret(secret: str) -> AuthenticatedSession:
         raise AuthenticationError("Invalid token: no matching credential in Acta.")
     if token.revoked_at is not None:
         raise AuthenticationError("Token has been revoked. Generate a new one in /accounts/settings/.")
+    # OAuth-issued tokens carry an expiry; hand-pasted ones leave it null
+    # and never expire. The client is told to refresh rather than to go
+    # make a new token — an expired access token is the normal, expected
+    # end of an hour, not a misconfiguration.
+    if token.expires_at is not None and token.expires_at <= timezone.now():
+        raise AuthenticationError("Access token has expired. Refresh it with your refresh token.")
     if not token.user.is_active:
         raise AuthenticationError("User account is inactive.")
     return AuthenticatedSession(user=token.user, token=token)

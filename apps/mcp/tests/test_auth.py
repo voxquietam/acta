@@ -1,5 +1,7 @@
 """Tests for the MCP server's token authentication + rate-limit helpers."""
 
+import datetime
+
 from django.core.cache import cache
 from django.utils import timezone
 
@@ -50,6 +52,31 @@ class TestAuthenticateSecret:
         _, plain = ApiToken.generate(user=user, name="t")
         with pytest.raises(AuthenticationError, match="inactive"):
             authenticate_secret(plain)
+
+    def test_hand_issued_token_never_expires(self):
+        """``expires_at`` is null on tokens the user pasted themselves — they
+        stay valid until revoked, which is the behaviour that predates OAuth."""
+        user = UserFactory()
+        token, plain = ApiToken.generate(user=user, name="t")
+        assert token.expires_at is None
+        assert authenticate_secret(plain).user == user
+
+    def test_expired_token_raises(self):
+        user = UserFactory()
+        token, plain = ApiToken.generate(user=user, name="oauth")
+        token.expires_at = timezone.now() - datetime.timedelta(seconds=1)
+        token.save(update_fields=["expires_at"])
+        # Tells the client to refresh, not to go mint a new token: an hour
+        # elapsing is the expected end of an access token, not a mistake.
+        with pytest.raises(AuthenticationError, match="expired"):
+            authenticate_secret(plain)
+
+    def test_token_valid_until_the_instant_it_expires(self):
+        user = UserFactory()
+        token, plain = ApiToken.generate(user=user, name="oauth")
+        token.expires_at = timezone.now() + datetime.timedelta(seconds=30)
+        token.save(update_fields=["expires_at"])
+        assert authenticate_secret(plain).user == user
 
 
 @pytest.mark.django_db

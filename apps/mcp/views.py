@@ -83,13 +83,30 @@ async def mcp_http(request: HttpRequest) -> JsonResponse:
         response["Allow"] = "POST"
         return response
 
+    # Two schemes, one credential store: ``Token`` for a secret the user
+    # pasted into a client config, ``Bearer`` for one this server issued
+    # over OAuth to a Custom Connector. Both look up the same ApiToken.
     auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Token "):
-        return JsonResponse(
-            _error(None, -32001, "Missing or malformed Authorization header. Expected: Token <secret>."),
+    if auth_header.startswith("Token "):
+        secret = auth_header.removeprefix("Token ").strip()
+    elif auth_header.startswith("Bearer "):
+        secret = auth_header.removeprefix("Bearer ").strip()
+    else:
+        # RFC 9728: an unauthenticated request must advertise where to go
+        # and get authorised. This header is exactly how Claude Desktop
+        # discovers the OAuth flow from nothing but the endpoint URL.
+        response = JsonResponse(
+            _error(
+                None,
+                -32001,
+                "Missing or malformed Authorization header. Expected 'Token <secret>' "
+                "for a hand-issued token, or 'Bearer <secret>' from the OAuth flow.",
+            ),
             status=401,
         )
-    secret = auth_header.removeprefix("Token ").strip()
+        resource = request.build_absolute_uri("/.well-known/oauth-protected-resource")
+        response["WWW-Authenticate"] = f'Bearer resource_metadata="{resource}"'
+        return response
 
     try:
         session = await sync_to_async(authenticate_secret)(secret)
