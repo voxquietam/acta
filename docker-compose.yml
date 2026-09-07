@@ -6,6 +6,20 @@ services:
     # `<project>.<role>` convention used across the rest of the infra.
     container_name: acta.db
     restart: unless-stopped
+    # Postgres ships with ``max_connections = 100``, which this app outgrew:
+    # a streaming SSE request never finishes, so Django never returns its
+    # connection to the pool, and every page load leaves several behind for
+    # good (measured: ~4-5 per open tab, still there long after the tab is
+    # closed). At 100 the whole instance started refusing connections —
+    # every request that needed the DB answered 500 — within minutes of a
+    # restart.
+    #
+    # This is HEADROOM, NOT A FIX: the leak grows with page loads, not with
+    # the number of people, so a bigger ceiling only buys a longer day. The
+    # actual repair is to stop SSE requests pinning a connection each; see
+    # docs/decisions/0015-real-time.md. Budget ~5-10 MB of private memory
+    # per backend on top of shared_buffers when raising this further.
+    command: postgres -c max_connections=300
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
