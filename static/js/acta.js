@@ -399,9 +399,16 @@
       const search = new URL(window.location.href).search;
       const facetForm = document.getElementById("filter-form");
       const facetUrl = facetForm && facetForm.dataset.facetUrl;
+      // ``null`` on anything but a 2xx: both applies below are gated on it,
+      // so a failed refresh leaves what's on screen alone. Without the
+      // ``r.ok`` guard a 500's error page ("Server Error (500)") was read as
+      // HTML and swapped straight into the panel — the kanban board vanished
+      // and, with it, the columns Sortable was bound to, so dragging silently
+      // stopped working until something re-rendered the board.
+      const okText = (r) => (r.ok ? r.text() : null);
       const facetFetch = facetUrl
         ? fetch(facetUrl + search, { headers: { "HX-Request": "true" }, credentials: "same-origin" })
-            .then((r) => r.text())
+            .then(okText)
             .catch(() => null)
         : Promise.resolve(null);
 
@@ -414,7 +421,7 @@
           headers: { "HX-Request": "true" },
           credentials: "same-origin",
         })
-          .then((r) => r.text())
+          .then(okText)
           .catch(() => null);
       }
 
