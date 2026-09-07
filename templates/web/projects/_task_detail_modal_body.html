@@ -17,7 +17,7 @@ SSE refresh + inline-edit wiring works unchanged: the compact meta
 listens for ``refresh`` on ``#task-meta-compact``, the timeline on
 ``#task-timeline-wrap``.
 {% endcomment %}
-<div data-workspace-sse="/events/workspace/{{ task.project.workspace.id }}"
+<div data-sse-channels="workspace-{{ task.project.workspace.id }}"
      data-current-user-id="{{ request.user.id }}"
      class="space-y-5">
 

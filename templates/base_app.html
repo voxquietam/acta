@@ -554,29 +554,23 @@ Pages extend this and override the `app_main` block.
   </div>
 
   {% comment %}
-  SSE subscription marker — only the *active* workspace. Every list
-  surface (My Work / All Tasks / Dashboard) is scoped to the active
-  workspace, so events from other workspaces never change what's on
-  screen; cross-workspace notifications ride the per-user stream
-  below. Opening one EventSource per membership instead would burn a
-  browser connection slot apiece (HTTP/1.1 caps ~6 per host), and the
-  never-closing SSE streams would starve ordinary XHRs — they queue
-  behind the streams and hang with no response. Project / task detail
-  pages emit their own ``data-workspace-sse`` near the content;
-  ``acta.js`` dedupes by channel URL so the same workspace opens once.
+  Only the *active* workspace is subscribed. Every list surface (My Work
+  / All Tasks / Dashboard) is scoped to it, so events from other
+  workspaces never change what's on screen — and a broader subscription
+  would actively hurt: the ``task.created`` handler appends a card to the
+  column matching its status, so a task created elsewhere would surface
+  on a board it doesn't belong to.
+
+  One marker, both channels: the private ``user-<id>`` feed that drives
+  the inbox badge, plus the active workspace's board events. ``acta.js``
+  gathers ``data-sse-channels`` from every marker on the page (detail
+  surfaces add their own workspace) and opens a SINGLE EventSource for
+  the union — see ``initActaSse``.
   {% endcomment %}
   {% if user.is_authenticated %}
-  {% if active_workspace %}
   <span class="hidden"
-        data-workspace-sse="/events/workspace/{{ active_workspace.id }}"
+        data-sse-channels="{% if active_workspace %}workspace-{{ active_workspace.id }},{% endif %}user-{{ user.id }}"
         data-current-user-id="{{ user.id }}"></span>
-  {% endif %}
-  {% comment %}
-  Per-user notification stream — drives the live inbox badge + row
-  arrival (acta.js ``initUserSse``). One private ``user-<id>`` channel.
-  {% endcomment %}
-  <span class="hidden"
-        data-user-sse="/events/user/{{ user.id }}"></span>
   {% endif %}
 
   {% comment %}

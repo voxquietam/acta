@@ -52,7 +52,7 @@ overview tab is active.
 {% endcomment %}
 <div x-data
      class="h-full flex flex-col"
-     data-workspace-sse="/events/workspace/{{ project.workspace.id }}"
+     data-sse-channels="workspace-{{ project.workspace.id }}"
      data-current-user-id="{{ request.user.id }}">
   <div x-show="$store.viewMode.current !== 'overview'" x-cloak>
     {% include "web/_assignee_strip.html" %}

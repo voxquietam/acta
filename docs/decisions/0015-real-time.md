@@ -160,3 +160,48 @@ commit-then-broadcast rule as `log_event`), so a rolled-back request emits
 nothing. The recipient set for each notification kind is defined in
 [0021](0021-notification-inbox.md) (assignee/reporter, mentions, every member
 for `project_update.created`).
+
+
+## Amendment (2026-09-07): one stream per tab, not one per channel family
+
+The two-family topology above stayed, but the **transport** did not: a tab
+opened one `EventSource` for `workspace-<id>` and a second for
+`user-<id>`. That cost double on two budgets at once — HTTP/1.1 allows
+about six connections per host, and, far worse, **each open stream pins a
+database connection for its whole life**. A streaming request never
+finishes, so Django never runs `close_old_connections` for it; with
+`CONN_MAX_AGE > 0` the connection was not merely held for the stream but
+orphaned permanently, because the ASGI thread serving it never handles
+another request. Production reached Postgres's 100-connection ceiling and
+every request needing the database answered 500. See the `CONN_MAX_AGE`
+note in `acta/settings/prod.py` for the measurements.
+
+**Now:** one `EventSource` per tab, at `/events/stream`, carrying every
+channel the page needs. Surfaces stamp a `data-sse-channels` marker with
+comma-separated channel names — the app shell contributes the active
+workspace plus the viewer's `user-<id>`, project and task detail add their
+own workspace — and `initActaSse` in `acta.js` opens a single stream for
+the union, replacing it when the set changes.
+
+**Authorization is unchanged and still the only gate.** The channel list
+travels in the querystring (`?channel=…&channel=…`), which
+django-eventstream reads when the route declares no `format-channels`
+kwarg, and `WorkspaceChannelManager.can_read_channel` authorizes each name
+individually. A channel the viewer may not read is refused for the whole
+stream, so a hand-edited querystring buys nothing. Covered by
+`TestCombinedStreamEndpoint` in `apps/workspaces/tests/test_sse.py`.
+
+**Measured:** ten tabs cost twenty database connections before and ten
+after.
+
+**Deliberately not broadened.** It is tempting to have the server derive
+the channel set from the viewer's memberships and subscribe to every
+workspace at once. That would be wrong: the `task.created` handler appends
+a card to the column matching its status without checking the project, so
+a task created in another workspace would surface on a board it does not
+belong to. The page decides which workspaces it is showing; the server
+only decides whether it may.
+
+The two single-channel routes (`/events/workspace/<id>`,
+`/events/user/<id>`) are kept so a tab still running the previous bundle
+keeps receiving events until it reloads. No template references them.

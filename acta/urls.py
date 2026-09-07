@@ -34,6 +34,22 @@ urlpatterns = [
     # apps/mcp/views.py for protocol notes; docs/mcp.md for client setup.
     path("mcp/", include("apps.mcp.urls", namespace="mcp")),
     path("telegram/", include("apps.telegram.urls", namespace="telegram")),
+    # Real-time SSE — ONE stream per tab (ADR 0015). The client collects
+    # every channel the page needs and asks for them together via repeated
+    # ``?channel=`` params; ``WorkspaceChannelManager.can_read_channel``
+    # authorises each one, so an unauthorised name in the querystring is
+    # refused rather than trusted. django_eventstream's default channel
+    # resolution already reads ``?channel=`` when the route carries no
+    # ``format-channels`` kwarg, which is why this needs no view of its own.
+    #
+    # Why one stream: each open stream pins a database connection for its
+    # whole life (see the CONN_MAX_AGE note in settings/prod.py), and
+    # HTTP/1.1 allows only ~6 connections per host — two streams per tab
+    # spent both budgets twice over.
+    re_path(r"^events/stream", include(django_eventstream.urls)),
+    # Legacy single-channel routes, kept so a tab still running the previous
+    # bundle keeps receiving events until it reloads. Remove once no client
+    # opens them — they are not referenced by any template.
     # Real-time SSE — one stream per workspace. See ADR 0015. The
     # channel name is templated from the URL kwarg so a client
     # connecting to ``/events/workspace/3`` subscribes to the

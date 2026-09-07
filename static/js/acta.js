@@ -524,7 +524,7 @@
 
   // Freshness guarantee: a cached snapshot is only safe to restore while the
   // underlying data hasn't changed. Any data mutation — an incoming SSE event
-  // (someone else's edit, wired in ``initOneWorkspaceSse``) or our own write
+  // (someone else's edit, wired in ``bindWorkspaceHandlers``) or our own write
   // request below — drops the whole cache, so the next Back/Forward refetches
   // instead of showing a stale snapshot. Whole-cache clear is intentional: a
   // single task can appear on many pages and we can't cheaply tell which.
@@ -2826,7 +2826,7 @@
   });
 
   // Workspace SSE — opens a single EventSource per page on the
-  // ``[data-workspace-sse]`` wrapper and dispatches typed events to
+  // ``[data-sse-channels]`` markers and dispatches typed events to
   // DOM updaters. Server pre-renders the affected ``_task_card.html``
   // and puts it in ``data.card_html``; the client just swaps the
   // existing card (or moves it to a different kanban column for
@@ -2896,33 +2896,64 @@
     document.querySelectorAll(KANBAN_CARD(taskId)).forEach((el) => el.remove());
   }
 
-  // Track which SSE channels we've already subscribed to. Some pages
-  // (project / task detail) carry a specific ``data-workspace-sse``
-  // *and* the global app shell may emit a marker for the same
-  // workspace — only open the connection once per unique URL.
-  const SSE_BOUND_URLS = new Set();
+  // ONE EventSource per tab. Every surface that wants live events stamps a
+  // ``data-sse-channels`` marker holding comma-separated channel names —
+  // the app shell contributes the active workspace plus the viewer's
+  // private ``user-<id>`` feed, project / task detail add their own
+  // workspace — and this opens a single stream for the union.
+  //
+  // It used to be two streams (board events and notifications), each with
+  // its own EventSource. That spent two of the browser's ~6 connections
+  // per host and, worse, pinned two database connections for the life of
+  // the tab: a streaming request never finishes, so Django never returns
+  // its connection (see the CONN_MAX_AGE note in settings/prod.py, and the
+  // outage it caused). The channel list travels in the querystring but is
+  // authorised per channel by ``WorkspaceChannelManager.can_read_channel``,
+  // so asking for a channel you may not read is refused, not trusted.
+  let actaSseSource = null;
+  let actaSseUrl = "";
+  let actaSseUnload = null;
 
-  function initWorkspaceSse() {
-    // Bind one EventSource per ``[data-workspace-sse]`` element. Most
-    // pages have a single workspace context (project / task detail),
-    // but cross-workspace surfaces (My Work, All Tasks) emit one
-    // marker per workspace the user belongs to so SSE updates from
-    // any of them flow through. ``SSE_BOUND_URLS`` plus ``sseBound``
-    // guard keep re-init idempotent on HTMX swaps.
-    document.querySelectorAll("[data-workspace-sse]").forEach(initOneWorkspaceSse);
+  function actaSseChannels() {
+    const channels = new Set();
+    document.querySelectorAll("[data-sse-channels]").forEach((el) => {
+      (el.getAttribute("data-sse-channels") || "")
+        .split(",")
+        .map((c) => c.trim())
+        .filter(Boolean)
+        .forEach((c) => channels.add(c));
+    });
+    // Sorted so the same set always produces the same URL — that equality
+    // is what keeps a re-init from reopening an identical stream.
+    return [...channels].sort();
   }
 
-  function initOneWorkspaceSse(root) {
-    if (!root || root.dataset.sseBound === "true") return;
-    const url = root.getAttribute("data-workspace-sse");
-    if (!url || SSE_BOUND_URLS.has(url)) {
-      root.dataset.sseBound = "true";
-      return;
+  function initActaSse() {
+    const channels = actaSseChannels();
+    if (!channels.length) return;
+    const url = "/events/stream?" + channels.map((c) => "channel=" + encodeURIComponent(c)).join("&");
+    if (actaSseSource && url === actaSseUrl) return;
+    // Navigating into a different workspace changes the set. Replace the
+    // stream rather than accumulating one per workspace visited — and take
+    // its unload listeners with it, or every navigation leaves a pair
+    // behind holding a dead EventSource.
+    if (actaSseSource) {
+      try {
+        actaSseSource.close();
+      } catch (_) {
+        /* already closed */
+      }
     }
-    root.dataset.sseBound = "true";
-    SSE_BOUND_URLS.add(url);
-    const meId = root.getAttribute("data-current-user-id") || "";
+    if (actaSseUnload) {
+      window.removeEventListener("pagehide", actaSseUnload);
+      window.removeEventListener("beforeunload", actaSseUnload);
+      actaSseUnload = null;
+    }
+    const meEl = document.querySelector("[data-current-user-id]");
+    const meId = (meEl && meEl.getAttribute("data-current-user-id")) || "";
+    actaSseUrl = url;
     const source = new EventSource(url);
+    actaSseSource = source;
     // Close the stream cleanly on navigation/reload. Without this the
     // browser keeps the TCP connection half-open until the OS times it
     // out, which makes the next request to the same origin wait — most
@@ -2935,9 +2966,14 @@
         /* already closed */
       }
     };
+    actaSseUnload = closeStream;
     window.addEventListener("pagehide", closeStream);
     window.addEventListener("beforeunload", closeStream);
+    bindWorkspaceHandlers(source, meId);
+    bindUserHandlers(source);
+  }
 
+  function bindWorkspaceHandlers(source, meId) {
     const handle = (eventName, fn) => {
       source.addEventListener(eventName, (e) => {
         let data;
@@ -3475,20 +3511,19 @@
     });
   }
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initWorkspaceSse);
+    document.addEventListener("DOMContentLoaded", initActaSse);
   } else {
-    initWorkspaceSse();
+    initActaSse();
   }
-  document.body.addEventListener("htmx:afterSwap", initWorkspaceSse);
+  document.body.addEventListener("htmx:afterSwap", initActaSse);
 
-  // ----- Per-user notification stream (live inbox) ----------------
+  // ----- Per-user notifications (live inbox) ----------------------
   //
-  // A second EventSource on the private ``user-<id>`` channel. No
+  // Rides the shared stream on the private ``user-<id>`` channel. No
   // self-filter here: the server never delivers a notification to its
   // own actor, so anything arriving on this channel is genuinely for
   // me. Each ``notification.created`` event carries pre-rendered row +
   // badge HTML (see ``apps.notifications.services._broadcast_notification``).
-  const USER_SSE_BOUND = new Set();
   const INBOX_KIND_FILTER = { mentions: "mention", assigned: "assigned", due: "due", comments: "comment" };
 
   function onNotificationCreated(d) {
@@ -3542,43 +3577,19 @@
     }
   }
 
-  function initUserSse() {
-    document.querySelectorAll("[data-user-sse]").forEach((root) => {
-      if (root.dataset.sseBound === "true") return;
-      const url = root.getAttribute("data-user-sse");
-      if (!url || USER_SSE_BOUND.has(url)) {
-        root.dataset.sseBound = "true";
+  // Declared here but called from ``initActaSse`` above (hoisted), which
+  // owns the single stream both handler sets attach to.
+  function bindUserHandlers(source) {
+    source.addEventListener("notification.created", (e) => {
+      let d;
+      try {
+        d = JSON.parse(e.data);
+      } catch (_) {
         return;
       }
-      root.dataset.sseBound = "true";
-      USER_SSE_BOUND.add(url);
-      const source = new EventSource(url);
-      const close = () => {
-        try {
-          source.close();
-        } catch (_) {
-          /* already closed */
-        }
-      };
-      window.addEventListener("pagehide", close);
-      window.addEventListener("beforeunload", close);
-      source.addEventListener("notification.created", (e) => {
-        let d;
-        try {
-          d = JSON.parse(e.data);
-        } catch (_) {
-          return;
-        }
-        onNotificationCreated(d);
-      });
+      onNotificationCreated(d);
     });
   }
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initUserSse);
-  } else {
-    initUserSse();
-  }
-  document.body.addEventListener("htmx:afterSwap", initUserSse);
 
   // Themed tooltips — convert every ``title="…"`` to ``data-tooltip``
   // (+ ``aria-label`` if unset) so the CSS rule in ``main.css`` renders

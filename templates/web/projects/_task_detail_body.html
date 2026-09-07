@@ -17,7 +17,7 @@ screens while leaving enough room for the 22rem rail at the narrow
 end of the xl breakpoint (around 1280px).
 {% endcomment %}
 <div class="xl:grid xl:grid-cols-[minmax(0,1fr)_22rem] xl:gap-8 xl:items-start"
-     data-workspace-sse="/events/workspace/{{ task.project.workspace.id }}"
+     data-sse-channels="workspace-{{ task.project.workspace.id }}"
      data-current-user-id="{{ request.user.id }}">
 
   <div class="min-w-0">
