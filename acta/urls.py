@@ -9,6 +9,7 @@ import django_eventstream
 
 from apps.accounts.views import InviteAwareSignupView
 from apps.mcp.oauth import authorization_server_metadata, protected_resource_metadata
+from apps.mcp.views import mcp_http
 from apps.web.url_scoping import workspace_scoped
 from apps.web.urls import urlpatterns as web_urlpatterns
 
@@ -34,6 +35,12 @@ urlpatterns = [
     # MCP HTTP transport — single endpoint, JSON-RPC over POST. See
     # apps/mcp/views.py for protocol notes; docs/mcp.md for client setup.
     path("mcp/", include("apps.mcp.urls", namespace="mcp")),
+    # Same endpoint without the trailing slash. Not cosmetic: clients
+    # normalise the configured URL and POST to ``/mcp``, where Django's
+    # APPEND_SLASH answers 301 — and a 301 turns a POST into a GET, which
+    # this endpoint rejects with 405. The handshake never happened. Serve
+    # the slashless spelling directly instead of redirecting it.
+    path("mcp", mcp_http, name="mcp_endpoint_noslash"),
     # OAuth discovery. These must sit at the site root — a client that
     # knows only the MCP endpoint URL finds everything else by fetching
     # ``/.well-known/…`` (RFC 9728 / RFC 8414). The second spelling with

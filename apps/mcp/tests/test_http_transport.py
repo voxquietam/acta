@@ -62,6 +62,22 @@ class TestAuth:
         assert status == 401
         assert "Authorization" in body["error"]["message"]
 
+    def test_slashless_spelling_reaches_the_handler(self, client):
+        """``POST /mcp`` must be served, not redirected.
+
+        Django's APPEND_SLASH answers it with a 301 to ``/mcp/``, and a 301
+        turns a POST into a GET, which this endpoint rejects with 405 — so a
+        client that normalises the trailing slash away could never complete
+        a handshake. Cost us a live Claude Desktop connection to find.
+        """
+        response = client.post(
+            "/mcp",
+            data=json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize"}),
+            content_type="application/json",
+        )
+        assert response.status_code == 401, "301 here means APPEND_SLASH ate the POST"
+        assert "oauth-protected-resource" in response["WWW-Authenticate"]
+
     def test_unknown_scheme_returns_401_and_points_at_the_oauth_flow(self, client):
         """A scheme we don't speak must say which two we do — and where to
         get a Bearer token, per RFC 9728. That header is how Claude Desktop
