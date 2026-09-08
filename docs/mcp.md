@@ -11,16 +11,20 @@ There are two transports — pick the one that matches your situation.
 
 | Transport | When to use | Setup |
 |-----------|-------------|-------|
-| **HTTP** (recommended, multi-user) | Anyone with a deployed Acta and an API token. Just point the client at the URL — no SSH, no Docker on the client side. | [Claude Code](#quick-setup--claude-code-http) · [Claude Desktop](#quick-setup--claude-desktop-http-via-mcp-remote) |
+| **HTTP** (recommended, multi-user) | Anyone with a deployed Acta. Point the client at the URL — no SSH, no Docker on the client side. | [Claude Code](#quick-setup--claude-code-http) · [Claude Desktop](#quick-setup--claude-desktop-custom-connector) |
 | **stdio** (local-admin only) | Hacking on Acta from the same laptop the dev server runs on. Client launches `manage.py mcp_serve` as a subprocess. | [Quick setup — stdio](#quick-setup--stdio-local-dev) |
 
-**The two Claude clients are not configured the same way, and mixing
-them up is the single most common setup failure.** Claude Code speaks
-HTTP natively — a URL and a header, nothing to install. Claude Desktop's
-`claude_desktop_config.json` can only *launch a local process*
-(`command` + `args`), so reaching an HTTP server there needs the
-`mcp-remote` bridge, which needs Node.js. Same server, same token,
-different plumbing.
+**The two Claude clients authenticate differently, and mixing them up is
+the single most common setup failure.** Claude Code takes a URL and an
+`Authorization: Token <secret>` header you paste yourself. Claude Desktop
+takes only a URL, as a **Custom Connector**, and works the rest out over
+OAuth — you approve a consent screen in the browser and never see a
+token. Same server, same tools, two ways in.
+
+There is also a third, older path for Desktop: the `mcp-remote` bridge,
+which needs Node.js installed. It still works and is documented below,
+but the Custom Connector supersedes it — reach for the bridge only if
+your Desktop build predates connector support.
 
 Every tool call **re-authenticates** the token, so revoking a token in
 `/accounts/settings/` takes effect on the very next call — no caching,
@@ -81,13 +85,62 @@ The key is **`type`**, not `transport` — the CLI *flag* is
 the file leaves the server silently unusable.
 
 
-## Quick setup — Claude Desktop (HTTP via mcp-remote)
+## Quick setup — Claude Desktop (Custom Connector)
+
+The short path for Desktop: one URL, no Node.js, no config file, no
+token to copy.
+
+1. In Claude Desktop open **Settings → Connectors → Add custom
+   connector**.
+2. Paste the MCP endpoint URL — `https://actaspace.com/mcp/` — and
+   confirm.
+3. A browser window opens on Acta. Sign in if you are not already, then
+   read the consent screen: it names the app asking and what it will be
+   able to do. Press **Approve**.
+4. Desktop closes the window by itself. The Acta tools are available in
+   the next conversation.
+
+**What just happened.** Desktop asked the endpoint who guards it, found
+the OAuth metadata, registered itself, and sent you to approve the
+grant. It then received an access token that lives an hour and renews
+itself in the background. You never handle a secret, which is the point:
+nothing to paste, nothing to leak, nothing to lose.
+
+**To disconnect**, go to `/accounts/settings/` → **API tokens** and
+revoke the entry marked *connected app*. Revocation is immediate — every
+tool call re-authenticates — and it also stops the renewal, so the
+connector cannot quietly mint itself a replacement.
+
+The grant shows one line per connected app, not one per hour: the secret
+rotates in place. Its short prefix therefore changes over time, which is
+expected and not a sign that anything broke.
+
+### Troubleshooting
+
+**"Could not connect" straight after pasting the URL.** The URL must end
+in `/mcp/` and be reachable over HTTPS from your machine. Open it in a
+browser: you should get a JSON error saying the endpoint speaks POST
+only — that means it is alive.
+
+**The browser window opens but shows the login page every time.** Your
+Acta session cookie is blocked or expired. Sign in to Acta normally in
+the same browser first, then retry.
+
+**"redirect_uri does not match this client's registration."** Desktop
+re-registered against a different origin than the one you pasted — most
+often `http://` versus `https://`, or a trailing-slash difference.
+Remove the connector and add it again with the exact URL.
+
+
+## Quick setup — Claude Desktop (legacy, HTTP via mcp-remote)
+
+**Superseded by the Custom Connector above.** Use this only if your
+Desktop build has no connector support.
 
 Claude Desktop's config file only knows how to spawn a local process, so
 an HTTP server has to be reached through the `mcp-remote` bridge.
 **This requires Node.js on the machine** — that is the whole reason
-Node enters the picture. If you have a choice, use Claude Code above and
-skip this section entirely.
+Node enters the picture.
 
 1. **Install Node.js (LTS)** from [nodejs.org](https://nodejs.org/), or
    `choco install nodejs-lts -y` in an elevated PowerShell. Verify in a
@@ -272,7 +325,21 @@ ask Claude to add a comment; the comment appears live.
 - **Revocation.** Click **Revoke** on the token row in
   `/accounts/settings/`. Effect is immediate — the next MCP call fails
   with `Token has been revoked` and Claude/Cursor surfaces that to the
-  user.
+  user. Revoking a *connected app* also kills its renewal, so it cannot
+  quietly mint itself a replacement.
+- **Connected apps (OAuth).** A Custom Connector never receives a secret
+  you could leak: it gets an access token that lives one hour and rotates
+  in place, plus a refresh token that is retired the moment it is used
+  (rotation — a stolen copy dies at the connector's next refresh). Client
+  registration is open to anyone, which grants nothing on its own: a
+  registration is a name and a redirect URI, and every token still
+  requires a signed-in human to press **Approve**. Redirect URIs are
+  matched exactly, never by prefix, and PKCE with `S256` is mandatory —
+  a public client has no secret, so the verifier is the only proof that
+  the party redeeming a code is the one that requested it.
+- **The consent screen names the app, but the app names itself.** The
+  string shown is whatever the client registered, so the page frames it
+  as a claim. Approve a connection only if you started it.
 - **HTTPS only.** The HTTP transport is meant to live behind TLS — the
   Acta prod stack is fronted by Traefik with Let's Encrypt. Never
   expose `/mcp/` over plain HTTP across an untrusted network; the

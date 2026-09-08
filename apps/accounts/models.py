@@ -5,6 +5,7 @@ import uuid
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 
@@ -245,6 +246,38 @@ class ApiToken(models.Model):
             prefix=plain[:8],
         )
         return token, plain
+
+    def rotate_secret(self, *, lifetime) -> str:
+        """Replace this token's secret in place and return the new one.
+
+        Used when an OAuth refresh mints a fresh access token. Creating a
+        new row each time would be simpler but would fill the user's
+        settings list with a fresh "Claude Desktop" entry every hour —
+        one grant should read as one line they can revoke. Rotating in
+        place also retires the old secret for free: the stored hash no
+        longer matches it.
+
+        Args:
+            lifetime: ``timedelta`` the new secret stays valid for.
+
+        Returns:
+            The new plain secret; never persisted, only its hash is.
+        """
+        plain = secrets.token_urlsafe(32)
+        self.token_hash = self.hash_secret(plain)
+        self.prefix = plain[:8]
+        self.expires_at = timezone.now() + lifetime
+        self.save(update_fields=["token_hash", "prefix", "expires_at"])
+        return plain
+
+    @property
+    def is_oauth_grant(self) -> bool:
+        """True when this token was issued to a connected app, not pasted by hand.
+
+        Hand-issued tokens leave ``expires_at`` null and live until
+        revoked; only the OAuth flow sets one.
+        """
+        return self.expires_at is not None
 
     @property
     def is_active(self) -> bool:

@@ -216,13 +216,21 @@ Card / header / label / button styling matches ``web/workspaces/settings.html``.
         <ul class="divide-y divide-border">
           {% for token in api_tokens %}
           <li class="flex items-center gap-3 py-2.5 {% if token.revoked_at %}opacity-60{% endif %}">
+            {# A connected app gets the plug icon: it was never pasted by hand, #}
+            {# so "copy it again" makes no sense for it — only revoking does.   #}
             <span class="text-placeholder-foreground shrink-0">
-              {% if token.revoked_at %}{% lucide "key-round" "w-4 h-4" %}{% else %}{% lucide "key-round" "w-4 h-4 text-brand-400" %}{% endif %}
+              {% if token.is_oauth_grant %}{% lucide "plug" "w-4 h-4 text-brand-400" %}{% elif token.revoked_at %}{% lucide "key-round" "w-4 h-4" %}{% else %}{% lucide "key-round" "w-4 h-4 text-brand-400" %}{% endif %}
             </span>
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 text-sm">
                 <span class="font-medium text-foreground truncate">{{ token.name }}</span>
                 <span class="font-mono text-[10px] text-placeholder-foreground shrink-0">{{ token.prefix }}…</span>
+                {% if token.is_oauth_grant %}
+                <span class="text-[9.5px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted text-subtle-foreground shrink-0"
+                      title="{% trans 'Approved through a connected app, not pasted by hand. Its secret rotates on its own.' %}">
+                  {% trans "connected app" %}
+                </span>
+                {% endif %}
                 {% if token.revoked_at %}
                 <span class="text-[9.5px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted text-placeholder-foreground shrink-0">
                   {% trans "revoked" %}
@@ -238,6 +246,11 @@ Card / header / label / button styling matches ``web/workspaces/settings.html``.
                 {% endif %}
                 {% if token.revoked_at %}
                 · {% blocktrans with t=token.revoked_at|timesince %}revoked {{ t }} ago{% endblocktrans %}
+                {% endif %}
+                {% if token.is_oauth_grant and not token.revoked_at %}
+                {# The prefix above changes every rotation, so say so — otherwise #}
+                {# a user comparing it against a note would think it broke.        #}
+                · <span class="italic">{% trans "renews itself hourly" %}</span>
                 {% endif %}
               </div>
             </div>

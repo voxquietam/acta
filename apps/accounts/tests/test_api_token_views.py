@@ -12,6 +12,8 @@ Covered:
 * Revoke route is user-scoped (404 on someone else's token).
 """
 
+import datetime
+
 from django.urls import reverse
 from django.utils import timezone
 
@@ -133,3 +135,43 @@ class TestApiTokenViews:
         client.force_login(user)
         resp = client.get(reverse("accounts:settings"))
         assert "paste-token-here" in resp.content.decode()
+
+
+@pytest.mark.django_db
+class TestConnectedAppTokens:
+    """Tokens issued through the OAuth flow read differently in settings.
+
+    A user scanning this list is answering "what has access to my account".
+    A grant they approved in Claude Desktop and a secret they pasted into a
+    config file are not the same kind of thing, and the one they cannot
+    re-copy should not look like the one they can.
+    """
+
+    def test_hand_issued_token_is_not_marked_as_an_app(self, client):
+        user = UserFactory()
+        ApiToken.generate(user=user, name="deploy script")
+        client.force_login(user)
+        body = client.get(reverse("accounts:settings")).content.decode()
+        assert "connected app" not in body
+
+    def test_oauth_grant_is_labelled_and_says_it_rotates(self, client):
+        user = UserFactory()
+        token, _ = ApiToken.generate(user=user, name="Claude Desktop")
+        token.expires_at = timezone.now() + datetime.timedelta(hours=1)
+        token.save(update_fields=["expires_at"])
+        client.force_login(user)
+        body = client.get(reverse("accounts:settings")).content.decode()
+        assert "connected app" in body
+        # The prefix shown alongside changes on every rotation; without
+        # this line a user comparing it to a note would think it broke.
+        assert "renews itself" in body
+
+    def test_revoked_grant_stops_advertising_that_it_renews(self, client):
+        user = UserFactory()
+        token, _ = ApiToken.generate(user=user, name="Claude Desktop")
+        token.expires_at = timezone.now() + datetime.timedelta(hours=1)
+        token.revoked_at = timezone.now()
+        token.save(update_fields=["expires_at", "revoked_at"])
+        client.force_login(user)
+        body = client.get(reverse("accounts:settings")).content.decode()
+        assert "renews itself" not in body

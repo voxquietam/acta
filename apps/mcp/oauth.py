@@ -443,20 +443,20 @@ def _exchange_refresh(request: HttpRequest) -> JsonResponse:
     if row.access_token.revoked_at is not None:
         return _token_error("invalid_grant", "This grant was revoked.", status=403)
 
-    access, plain_access = _issue_access_token(user=row.user, client=row.client)
+    # Rotate the secret on the SAME row rather than minting another: one
+    # grant should be one revocable line in the user's settings, not a new
+    # "Claude Desktop" entry every hour. Rotating retires the old secret
+    # for free — the stored hash stops matching it.
+    plain_access = row.access_token.rotate_secret(lifetime=ACCESS_TOKEN_LIFETIME)
     plain_refresh = secrets.token_urlsafe(32)
     OAuthRefreshToken.objects.create(
         token_hash=_hash(plain_refresh),
         client=row.client,
         user=row.user,
-        access_token=access,
+        access_token=row.access_token,
     )
     row.replaced_at = timezone.now()
     row.save(update_fields=["replaced_at"])
-    # The superseded access token dies with its refresh token; leaving it
-    # alive would mean every refresh grew the set of working credentials.
-    row.access_token.revoked_at = timezone.now()
-    row.access_token.save(update_fields=["revoked_at"])
 
     return JsonResponse(
         {
