@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Acta 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-05 07:33+0000\n"
+"POT-Creation-Date: 2026-09-09 12:55+0000\n"
 "PO-Revision-Date: 2026-05-16 15:30+0000\n"
 "Last-Translator: Acta team\n"
 "Language-Team: Ukrainian\n"
@@ -20,35 +20,35 @@ msgstr ""
 "100 > 14) ? 1 : n % 1 == 0 && (n % 10 ==0 || (n % 10 >=5 && n % 10 <=9) || "
 "(n % 100 >=11 && n % 100 <=14 )) ? 2: 3);\n"
 
-#: acta/settings/base.py:346
+#: acta/settings/base.py:398
 msgid "English"
 msgstr "Англійська"
 
-#: acta/settings/base.py:347
+#: acta/settings/base.py:399
 msgid "Ukrainian"
 msgstr "Українська"
 
-#: acta/settings/base.py:505 apps/workspaces/models.py:270
+#: acta/settings/base.py:557 apps/workspaces/models.py:270
 #: templates/web/_create_project_modal.html:71
 #: templates/web/projects/_assignee_cell.html:113
 msgid "Workspace"
 msgstr "Робочий простір"
 
-#: acta/settings/base.py:509 apps/workspaces/models.py:271
+#: acta/settings/base.py:561 apps/workspaces/models.py:271
 #: templates/base_app.html:233
 msgid "Workspaces"
 msgstr "Робочі простори"
 
-#: acta/settings/base.py:514 templates/web/projects/_overview_panel.html:399
+#: acta/settings/base.py:566 templates/web/projects/_overview_panel.html:399
 #: templates/web/workspaces/settings.html:91
 msgid "Members"
 msgstr "Учасники"
 
-#: acta/settings/base.py:519
+#: acta/settings/base.py:571
 msgid "Invites"
 msgstr "Запрошення"
 
-#: acta/settings/base.py:526 acta/settings/base.py:530
+#: acta/settings/base.py:578 acta/settings/base.py:582
 #: apps/projects/models.py:114 apps/web/views.py:8441 apps/web/views.py:8489
 #: templates/base_app.html:165 templates/base_app.html:166
 #: templates/web/_command_palette.html:416
@@ -58,26 +58,26 @@ msgstr "Запрошення"
 msgid "Projects"
 msgstr "Проєкти"
 
-#: acta/settings/base.py:535 apps/projects/models.py:263
+#: acta/settings/base.py:587 apps/projects/models.py:263
 msgid "Project updates"
 msgstr "Оновлення проєктів"
 
-#: acta/settings/base.py:542 acta/settings/base.py:546 apps/web/views.py:8487
+#: acta/settings/base.py:594 acta/settings/base.py:598 apps/web/views.py:8487
 #: templates/web/_command_palette.html:418
 #: templates/web/_command_palette.html:421
 #: templates/web/cycles/overview.html:185
 msgid "Tasks"
 msgstr "Задачі"
 
-#: acta/settings/base.py:551 apps/comments/models.py:71 apps/web/views.py:1839
+#: acta/settings/base.py:603 apps/comments/models.py:71 apps/web/views.py:1839
 #: templates/web/_inbox_list.html:44 templates/web/_my_activity_inner.html:14
 #: templates/web/meetings/_comments.html:14
 #: templates/web/projects/_update_comments.html:14
 msgid "Comments"
 msgstr "Коментарі"
 
-#: acta/settings/base.py:556 apps/labels/models.py:110 apps/web/views.py:1838
-#: templates/web/_create_task_modal.html:276
+#: acta/settings/base.py:608 apps/labels/models.py:110 apps/web/views.py:1838
+#: templates/web/_create_task_modal.html:280
 #: templates/web/_filters_sidebar.html:198
 #: templates/web/_filters_sidebar.html:585
 #: templates/web/projects/_bulk_context_menu.html:227
@@ -89,46 +89,46 @@ msgstr "Коментарі"
 msgid "Labels"
 msgstr "Мітки"
 
-#: acta/settings/base.py:561 apps/labels/models.py:49
+#: acta/settings/base.py:613 apps/labels/models.py:49
 msgid "Label groups"
 msgstr "Групи міток"
 
-#: acta/settings/base.py:568 templates/web/_my_activity_inner.html:19
+#: acta/settings/base.py:620 templates/web/_my_activity_inner.html:19
 #: templates/web/projects/_task_detail_body.html:83
 #: templates/web/projects/_task_detail_body.html:124
 #: templates/web/projects/_task_detail_modal_body.html:82
 msgid "Activity"
 msgstr "Активність"
 
-#: acta/settings/base.py:572 apps/activity/models.py:83
+#: acta/settings/base.py:624 apps/activity/models.py:83
 msgid "Activity log"
 msgstr "Журнал активності"
 
-#: acta/settings/base.py:579 apps/notifications/models.py:33
+#: acta/settings/base.py:631 apps/notifications/models.py:33
 msgid "System"
 msgstr "Система"
 
-#: acta/settings/base.py:584 apps/accounts/models.py:89
+#: acta/settings/base.py:636 apps/accounts/models.py:90
 msgid "Users"
 msgstr "Користувачі"
 
-#: acta/settings/base.py:589
+#: acta/settings/base.py:641
 msgid "Groups"
 msgstr "Групи"
 
-#: acta/settings/base.py:595
+#: acta/settings/base.py:647
 msgid "Sites"
 msgstr "Сайти"
 
-#: acta/settings/base.py:601
+#: acta/settings/base.py:653
 msgid "Email addresses"
 msgstr "Електронні адреси"
 
-#: acta/settings/base.py:607
+#: acta/settings/base.py:659
 msgid "Social apps"
 msgstr "Соціальні застосунки"
 
-#: acta/settings/base.py:613
+#: acta/settings/base.py:665
 msgid "Social accounts"
 msgstr "Соціальні акаунти"
 
@@ -148,15 +148,15 @@ msgstr "Токен відкликано"
 msgid "User account is inactive"
 msgstr "Обліковий запис неактивний"
 
-#: apps/accounts/models.py:88
+#: apps/accounts/models.py:89
 msgid "User"
 msgstr "Користувач"
 
-#: apps/accounts/models.py:188
+#: apps/accounts/models.py:195
 msgid "API token"
 msgstr "API токен"
 
-#: apps/accounts/models.py:189 templates/accounts/settings.html:174
+#: apps/accounts/models.py:196 templates/accounts/settings.html:174
 msgid "API tokens"
 msgstr "API токени"
 
@@ -254,7 +254,7 @@ msgstr "Зображення в редакторі"
 msgid "Attachment"
 msgstr "Вкладення"
 
-#: apps/attachments/models.py:130 templates/web/_create_task_modal.html:406
+#: apps/attachments/models.py:130 templates/web/_create_task_modal.html:410
 #: templates/web/projects/_attachments_panel.html:16
 msgid "Attachments"
 msgstr "Вкладення"
@@ -431,6 +431,30 @@ msgstr "Ви не є учасником цього робочого просто
 msgid "Label group must belong to the same workspace as the label."
 msgstr ""
 "Група міток повинна належати тому ж робочому простору, що й сама мітка."
+
+#: apps/mcp/models.py:85
+msgid "OAuth client"
+msgstr ""
+
+#: apps/mcp/models.py:86
+msgid "OAuth clients"
+msgstr ""
+
+#: apps/mcp/models.py:181
+msgid "OAuth authorization code"
+msgstr ""
+
+#: apps/mcp/models.py:182
+msgid "OAuth authorization codes"
+msgstr ""
+
+#: apps/mcp/models.py:269
+msgid "OAuth refresh token"
+msgstr ""
+
+#: apps/mcp/models.py:270
+msgid "OAuth refresh tokens"
+msgstr ""
 
 #: apps/meetings/models.py:84 apps/notifications/models.py:30
 #, fuzzy
@@ -1581,10 +1605,11 @@ msgid "Confirm new password"
 msgstr "Підтвердьте новий пароль"
 
 #: templates/accounts/_password_modal.html:71
+#: templates/mcp/oauth_consent.html:82
 #: templates/web/_bulk_archive_confirm.html:105
 #: templates/web/_create_project_modal.html:140
 #: templates/web/_create_task_modal.html:66
-#: templates/web/_create_task_modal.html:435
+#: templates/web/_create_task_modal.html:439
 #: templates/web/_create_workspace_modal.html:100 templates/web/inbox.html:206
 #: templates/web/meetings/_meeting_editor.html:252
 #: templates/web/projects/_comment_edit_form.html:40
@@ -1688,7 +1713,7 @@ msgstr ""
 "показуватиметься:"
 
 #: templates/accounts/settings.html:193 templates/accounts/settings.html:194
-#: templates/accounts/settings.html:315 templates/accounts/settings.html:316
+#: templates/accounts/settings.html:328 templates/accounts/settings.html:329
 #: templates/web/meetings/_meeting_editor.html:72
 #: templates/web/meetings/_meeting_editor.html:73
 #: templates/web/meetings/call_detail.html:23
@@ -1716,44 +1741,60 @@ msgstr "напр. Claude Desktop"
 msgid "Generate"
 msgstr "Згенерувати"
 
-#: templates/accounts/settings.html:232
+#: templates/accounts/settings.html:234
+msgid ""
+"Approved through a connected app, not pasted by hand. Its secret rotates on "
+"its own."
+msgstr ""
+
+#: templates/accounts/settings.html:235
+#, fuzzy
+#| msgid "Connected"
+msgid "connected app"
+msgstr "Підключено"
+
+#: templates/accounts/settings.html:240
 msgid "revoked"
 msgstr "відкликаний"
 
-#: templates/accounts/settings.html:237
+#: templates/accounts/settings.html:245
 #: templates/web/workspaces/settings.html:63
 #, python-format
 msgid "created %(d)s"
 msgstr "створено %(d)s"
 
-#: templates/accounts/settings.html:239
+#: templates/accounts/settings.html:247
 #, python-format
 msgid "last used %(t)s ago"
 msgstr "востаннє використано %(t)s тому"
 
-#: templates/accounts/settings.html:241
+#: templates/accounts/settings.html:249
 msgid "never used"
 msgstr "не використовувався"
 
-#: templates/accounts/settings.html:244
+#: templates/accounts/settings.html:252
 #, python-format
 msgid "revoked %(t)s ago"
 msgstr "відкликано %(t)s тому"
 
 #: templates/accounts/settings.html:257
+msgid "renews itself hourly"
+msgstr ""
+
+#: templates/accounts/settings.html:270
 msgid "Revoke"
 msgstr "Відкликати"
 
-#: templates/accounts/settings.html:260
+#: templates/accounts/settings.html:273
 #: templates/web/workspaces/_settings_invites.html:70
 msgid "Revoke?"
 msgstr "Відкликати?"
 
-#: templates/accounts/settings.html:272
+#: templates/accounts/settings.html:285
 msgid "Delete token"
 msgstr "Видалити токен"
 
-#: templates/accounts/settings.html:277
+#: templates/accounts/settings.html:290
 #: templates/web/_inbox_update_preview.html:43
 #: templates/web/projects/_attachments_panel.html:75
 #: templates/web/projects/_comment_actions.html:48
@@ -1761,15 +1802,15 @@ msgstr "Видалити токен"
 msgid "Delete?"
 msgstr "Видалити?"
 
-#: templates/accounts/settings.html:287
+#: templates/accounts/settings.html:300
 msgid "No API tokens yet."
 msgstr "Поки немає жодного API токена."
 
-#: templates/accounts/settings.html:293
+#: templates/accounts/settings.html:306
 msgid "How to wire the token into Claude Desktop / Cursor"
 msgstr "Як підключити токен у Claude Desktop / Cursor"
 
-#: templates/accounts/settings.html:297
+#: templates/accounts/settings.html:310
 msgid ""
 "Acta speaks <strong>HTTP MCP</strong>. One endpoint, one token, no SSH or "
 "wrapper scripts. Paste the snippet below into your MCP client's config — for "
@@ -1785,11 +1826,11 @@ msgstr ""
 "підставляється одразу після створення (інакше замініть заглушку); потім "
 "повністю закрийте клієнта і відкрийте знову."
 
-#: templates/accounts/settings.html:315 templates/accounts/settings.html:316
+#: templates/accounts/settings.html:328 templates/accounts/settings.html:329
 msgid "Copy snippet"
 msgstr "Скопіювати фрагмент"
 
-#: templates/accounts/settings.html:322
+#: templates/accounts/settings.html:335
 msgid ""
 "For Cursor / Cline use the same URL and header in their MCP settings panel. "
 "Rate limit is 60 requests per minute per token. Revoke any token above to "
@@ -1799,7 +1840,7 @@ msgstr ""
 "налаштувань MCP. Обмеження — 60 запитів на хвилину на токен. Відкличте будь-"
 "який токен вище, щоб негайно припинити доступ."
 
-#: templates/base_app.html:15 templates/web/_create_task_modal.html:439
+#: templates/base_app.html:15 templates/web/_create_task_modal.html:443
 #: templates/web/projects/_editor_toolbar.html:125
 msgid "Create task"
 msgstr "Створити задачу"
@@ -1882,17 +1923,66 @@ msgstr "Відкрити оригінал"
 msgid "Close"
 msgstr "Закрити"
 
-#: templates/base_app.html:633 templates/web/_inbox_list.html:103
+#: templates/base_app.html:626 templates/web/_inbox_list.html:103
 msgid "selected"
 msgstr "виділено"
 
-#: templates/base_app.html:649
+#: templates/base_app.html:642
 msgid "Actions"
 msgstr "Дії"
 
-#: templates/base_app.html:656 templates/web/_inbox_list.html:121
+#: templates/base_app.html:649 templates/web/_inbox_list.html:121
 msgid "Clear selection"
 msgstr "Зняти вибір"
+
+#: templates/mcp/oauth_consent.html:26
+msgid "Authorise connection"
+msgstr "Авторизація підключення"
+
+#: templates/mcp/oauth_consent.html:29
+msgid "Connect an app to Acta"
+msgstr "Підключення застосунку до Acta"
+
+#: templates/mcp/oauth_consent.html:32
+#, python-format
+msgid ""
+"An application that says it is <strong class=\"text-foreground\">%(name)s</"
+"strong> wants to connect to your Acta account."
+msgstr ""
+"Застосунок, який називає себе <strong class=\"text-foreground\">%(name)s</"
+"strong>, хоче підключитися до вашого облікового запису Acta."
+
+#: templates/mcp/oauth_consent.html:57
+msgid "Not you?"
+msgstr "Це не ви?"
+
+#: templates/mcp/oauth_consent.html:62
+msgid "If you approve, it will be able to:"
+msgstr "Якщо ви дозволите, він зможе:"
+
+#: templates/mcp/oauth_consent.html:64
+msgid "read your workspaces, projects, tasks and comments"
+msgstr "читати ваші робочі простори, проєкти, задачі та коментарі"
+
+#: templates/mcp/oauth_consent.html:65
+msgid "create and change them on your behalf"
+msgstr "створювати та змінювати їх від вашого імені"
+
+#: templates/mcp/oauth_consent.html:68
+msgid "It acts as you, and sees exactly what you see — no more."
+msgstr "Він діє від вашого імені й бачить рівно те, що бачите ви, — не більше."
+
+#: templates/mcp/oauth_consent.html:75
+msgid ""
+"Approve this only if you started the connection yourself. You can revoke it "
+"at any time in Settings, under API tokens."
+msgstr ""
+"Дозволяйте лише тоді, коли ви самі почали підключення. Відкликати доступ "
+"можна будь-коли в налаштуваннях, у розділі API-токенів."
+
+#: templates/mcp/oauth_consent.html:84
+msgid "Approve"
+msgstr "Дозволити"
 
 #: templates/telegram/_settings.html:26
 msgid "Connected"
@@ -2285,25 +2375,25 @@ msgstr "Беклог — цикл призначається, коли зада�
 msgid "Backlog (no cycle)"
 msgstr "Беклог (без циклу)"
 
-#: templates/web/_create_task_modal.html:336
+#: templates/web/_create_task_modal.html:340
 #: templates/web/recurring/_recurring_editor.html:171
 msgid "Add labels…"
 msgstr "Додати мітки…"
 
-#: templates/web/_create_task_modal.html:367
+#: templates/web/_create_task_modal.html:371
 #: templates/web/_filters_sidebar.html:597
 #: templates/web/projects/_labels_cell.html:84
 #: templates/web/recurring/_recurring_editor.html:202
 msgid "Search labels…"
 msgstr "Пошук міток…"
 
-#: templates/web/_create_task_modal.html:421
+#: templates/web/_create_task_modal.html:425
 #: templates/web/meetings/_comment_form.html:66
 #: templates/web/projects/_comment_form.html:84
 msgid "Attach files"
 msgstr "Прикріпити файли"
 
-#: templates/web/_create_task_modal.html:430
+#: templates/web/_create_task_modal.html:434
 msgid "Open after create"
 msgstr "Відкрити після створення"
 
