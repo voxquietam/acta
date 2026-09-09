@@ -115,6 +115,27 @@ The grant shows one line per connected app, not one per hour: the secret
 rotates in place. Its short prefix therefore changes over time, which is
 expected and not a sign that anything broke.
 
+### Connecting more than one Acta account
+
+One Desktop can hold a connector for each of your Acta accounts — useful
+when a personal and a work identity live on different addresses. Two
+things get in the way, and the second one fails silently.
+
+**Desktop treats the URL as the connector's identity** and refuses a
+second one that repeats it. Give the extra connector a URL that differs
+as a string: `https://actaspace.com/mcp/?acc=work`. The label is yours to
+choose; the server ignores the query and routes on the path alone.
+
+**The consent screen binds the grant to whoever is signed in to your
+default browser**, which is where Desktop opens it — not necessarily the
+account you have in mind. The screen names the account it is about to
+grant for; if that is the wrong one, press **Not you?** to sign out and
+come straight back to the same consent screen, where you can sign in as
+the other account and approve.
+
+Afterwards, `acta_ping` on the new connector reports the `user` it
+authenticated as — worth a glance the first time.
+
 ### Troubleshooting
 
 **"Could not connect" straight after pasting the URL.** The URL must end

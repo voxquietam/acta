@@ -9,7 +9,7 @@ because that is where discovery requires them to live.
 
 from django.urls import path
 
-from apps.mcp.oauth import authorize, register, token
+from apps.mcp.oauth import authorize, register, switch_account, token
 from apps.mcp.views import mcp_http
 
 app_name = "mcp"
@@ -19,4 +19,5 @@ urlpatterns = [
     path("oauth/register/", register, name="oauth_register"),
     path("oauth/authorize/", authorize, name="oauth_authorize"),
     path("oauth/token/", token, name="oauth_token"),
+    path("oauth/switch-account/", switch_account, name="oauth_switch_account"),
 ]

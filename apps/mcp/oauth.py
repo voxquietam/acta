@@ -34,6 +34,7 @@ import json
 import secrets
 from urllib.parse import urlencode
 
+from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.http import HttpRequest, HttpResponse, HttpResponseBadRequest, JsonResponse
@@ -286,6 +287,43 @@ def authorize(request: HttpRequest) -> HttpResponse:
         out["state"] = state
     joiner = "&" if "?" in redirect_uri else "?"
     return redirect(f"{redirect_uri}{joiner}{urlencode(out)}")
+
+
+@require_http_methods(["POST"])
+def switch_account(request: HttpRequest) -> HttpResponse:
+    """Sign the visitor out and re-enter the same authorize request.
+
+    A client opens the consent screen in the default browser, so without
+    this the grant is bound to whichever account already holds a session
+    there — and the screen names that account but cannot change it. This
+    carries the authorize parameters through a logout, so the login page
+    returns the visitor to the same consent screen as somebody else.
+
+    The parameters are echoed into a URL on this host only, and
+    ``authorize`` re-validates every one of them from scratch, so none of
+    them is trusted on the way through.
+
+    Args:
+        request: POST carrying the authorize request's parameters.
+
+    Returns:
+        A redirect to ``authorize``, which sends the now-anonymous
+        visitor on to the login page.
+    """
+    params = {
+        key: value
+        for key in (
+            "client_id",
+            "redirect_uri",
+            "state",
+            "code_challenge",
+            "code_challenge_method",
+            "response_type",
+        )
+        if (value := (request.POST.get(key) or "").strip())
+    }
+    logout(request)
+    return redirect(f"{reverse('mcp:oauth_authorize')}?{urlencode(params)}")
 
 
 def _token_error(code: str, description: str, status: int = 400) -> JsonResponse:

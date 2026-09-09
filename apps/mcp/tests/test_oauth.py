@@ -11,6 +11,7 @@ import datetime
 import hashlib
 import json
 import secrets
+from urllib.parse import parse_qs, urlparse
 
 from django.urls import reverse
 from django.utils import timezone
@@ -24,6 +25,7 @@ from apps.mcp.models import OAuthAuthorizationCode, OAuthClient, OAuthRefreshTok
 REGISTER_URL = "/mcp/oauth/register/"
 AUTHORIZE_URL = "/mcp/oauth/authorize/"
 TOKEN_URL = "/mcp/oauth/token/"
+SWITCH_URL = "/mcp/oauth/switch-account/"
 REDIRECT = "https://claude.ai/api/mcp/auth_callback"
 
 
@@ -60,8 +62,6 @@ def _authorize(client, client_id, challenge, state="xyz", redirect_uri=REDIRECT)
         },
     )
     assert resp.status_code == 302
-    from urllib.parse import parse_qs, urlparse
-
     return parse_qs(urlparse(resp["Location"]).query)
 
 
@@ -225,6 +225,72 @@ class TestAuthorize:
         params = _authorize(client, cid, challenge)
         plain = params["code"][0]
         assert not OAuthAuthorizationCode.objects.filter(code_hash=plain).exists()
+
+
+@pytest.mark.django_db
+class TestAccountSwitch:
+    """Consent binds to the browser's session, so it must be swappable.
+
+    A client opens this page in the default browser, where some other
+    account of the same person is usually already signed in. Naming that
+    account is half the fix; being able to change it without abandoning
+    the flow is the other half.
+    """
+
+    def _params(self, client_id, challenge):
+        """Return a complete set of authorize parameters."""
+        return {
+            "client_id": client_id,
+            "redirect_uri": REDIRECT,
+            "state": "opaque-123",
+            "code_challenge": challenge,
+            "code_challenge_method": "S256",
+            "response_type": "code",
+        }
+
+    def test_consent_screen_names_the_signed_in_account(self, client):
+        cid = _register(client)
+        user = UserFactory(first_name="Kateryna", last_name="Levashova")
+        client.force_login(user)
+        _, challenge = _pkce()
+        resp = client.get(AUTHORIZE_URL, self._params(cid, challenge))
+        body = resp.content.decode()
+        assert "Kateryna Levashova" in body
+        assert user.email in body
+
+    def test_switch_signs_out_and_returns_to_the_same_request(self, client):
+        cid = _register(client)
+        client.force_login(UserFactory())
+        _, challenge = _pkce()
+        resp = client.post(SWITCH_URL, self._params(cid, challenge))
+        assert resp.status_code == 302
+        assert "_auth_user_id" not in client.session
+        assert resp["Location"].startswith(AUTHORIZE_URL)
+        query = parse_qs(urlparse(resp["Location"]).query)
+        assert query["client_id"] == [cid]
+        assert query["state"] == ["opaque-123"]
+        assert query["code_challenge"] == [challenge]
+        assert query["redirect_uri"] == [REDIRECT]
+
+    def test_the_grant_follows_the_second_account(self, client):
+        cid = _register(client)
+        first, second = UserFactory(), UserFactory()
+        client.force_login(first)
+        _, challenge = _pkce()
+        client.post(SWITCH_URL, self._params(cid, challenge))
+        client.force_login(second)
+        params = _authorize(client, cid, challenge, state="opaque-123")
+        row = OAuthAuthorizationCode.objects.get(code_hash=_hash(params["code"][0]))
+        assert row.user == second
+
+    def test_switch_never_redirects_off_site(self, client):
+        client.force_login(UserFactory())
+        resp = client.post(SWITCH_URL, {"client_id": "x", "redirect_uri": "https://evil.test/"})
+        assert resp["Location"].startswith(AUTHORIZE_URL)
+
+    def test_switch_refuses_get(self, client):
+        client.force_login(UserFactory())
+        assert client.get(SWITCH_URL).status_code == 405
 
 
 @pytest.mark.django_db
