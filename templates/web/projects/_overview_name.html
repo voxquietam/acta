@@ -1,0 +1,45 @@
+{% load i18n %}
+{% comment %}
+Project name in the Overview header — inline-editable for workspace
+admins and the project lead, a plain heading for everyone else.
+
+Mirrors the task-title cell (``_title_cell.html``): an always-on input
+styled as the heading, saved on blur only when the value actually
+changed, Enter blurs to save, Escape reverts to the value the server
+last rendered. An emptied field is restored silently, because the model
+requires a name and the inline editor has nowhere to surface a 400.
+
+Renaming touches ``name`` alone. URLs and task identifiers come from
+``slug_prefix``, which is entered by hand and never derived from the
+name, so nothing else moves.
+{% endcomment %}
+<div id="project-name-cell">
+  {% if viewer_can_rename_project %}
+  <form hx-post="{% url 'web:set_project_name' slug_prefix=project.slug_prefix %}"
+        hx-target="#project-name-cell"
+        hx-swap="outerHTML">
+    {% csrf_token %}
+    <input x-data
+           x-ref="input"
+           type="text"
+           name="name"
+           maxlength="120"
+           aria-label="{% trans 'Project name' %}"
+           @keydown.enter.prevent="$el.blur()"
+           @keydown.escape.prevent="$el.value = $el.defaultValue; $el.blur()"
+           @blur="
+             if (!$el.value.trim()) {
+               $el.value = $el.defaultValue;
+               return;
+             }
+             if ($el.value !== $el.defaultValue) {
+               $el.form.requestSubmit();
+             }
+           "
+           value="{{ project.name }}"
+           class="text-[22px] font-bold text-foreground leading-tight tracking-tight w-full bg-transparent border-0 outline-none focus:outline-none p-0 m-0">
+  </form>
+  {% else %}
+  <h1 class="text-[22px] font-bold text-foreground leading-tight tracking-tight truncate">{{ project.name }}</h1>
+  {% endif %}
+</div>

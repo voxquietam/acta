@@ -2426,6 +2426,9 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             WorkspaceMember.OWNER,
             WorkspaceMember.ADMIN,
         )
+        # Renaming is a lighter act than archiving, so the project's own
+        # lead gets it too. ``lead_id`` is already loaded — no extra query.
+        ctx["viewer_can_rename_project"] = ctx["viewer_is_workspace_admin"] or project.lead_id == self.request.user.id
         ctx["workspace_members"] = _project_workspace_members(project, exclude_user=None)
         ctx["picker_icons"] = PROJECT_ICONS
         ctx["picker_icon_colors"] = PROJECT_ICON_COLORS
@@ -4859,6 +4862,51 @@ def set_project_icon(request, slug_prefix):
         request=request,
     )
     return HttpResponse(thumb_html + sidebar_oob)
+
+
+@require_POST
+@login_required
+def set_project_name(request, slug_prefix):
+    """Rename a project from the overview header.
+
+    Workspace admins and the project's own lead may rename; anyone else
+    gets a 403. The name is display-only — ``slug_prefix`` carries the
+    URLs and the task identifiers, so a rename never invalidates a link
+    or renumbers a task.
+
+    An empty submission re-renders the current name unchanged. The field
+    is required at the model level, and a silent restore beats a 400 the
+    inline editor has nowhere to show.
+
+    Args:
+        request: POST carrying ``name``.
+        slug_prefix: Project slug prefix from the URL.
+
+    Returns:
+        The re-rendered name cell, plus an out-of-band copy for the
+        sidebar so the rail label follows immediately.
+    """
+    project = _get_user_project_or_404(request.user, slug_prefix)
+    if not (_user_is_workspace_admin(request.user, project.workspace) or project.lead_id == request.user.id):
+        return HttpResponseForbidden("workspace admin or project lead only")
+    new_name = (request.POST.get("name") or "").strip()[: Project._meta.get_field("name").max_length]
+    if new_name and new_name != project.name:
+        project.name = new_name
+        project.save(update_fields=["name"])
+    cell_html = render_to_string(
+        "web/projects/_overview_name.html",
+        {
+            "project": project,
+            "viewer_can_rename_project": True,
+        },
+        request=request,
+    )
+    sidebar_oob = render_to_string(
+        "web/projects/_project_name_sidebar_oob.html",
+        {"project": project},
+        request=request,
+    )
+    return HttpResponse(cell_html + sidebar_oob)
 
 
 @require_POST

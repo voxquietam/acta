@@ -37,7 +37,7 @@ Members with role badges.
             <span>{% blocktrans count counter=overview_total %}{{ counter }} task{% plural %}{{ counter }} tasks{% endblocktrans %}</span>
             {% endif %}
           </div>
-          <h1 class="text-[22px] font-bold text-foreground leading-tight tracking-tight truncate">{{ project.name }}</h1>
+          {% include "web/projects/_overview_name.html" %}
         </div>
         <div class="flex items-center gap-2 shrink-0">
         <span class="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded

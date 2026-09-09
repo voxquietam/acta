@@ -67,6 +67,7 @@ from .views import (
     set_project_description,
     set_project_icon,
     set_project_lead,
+    set_project_name,
     set_project_notify_scope,
     set_task_assignee,
     set_task_cycle,
@@ -373,6 +374,11 @@ urlpatterns = [
         "projects/<str:slug_prefix>/icon/",
         set_project_icon,
         name="set_project_icon",
+    ),
+    path(
+        "projects/<str:slug_prefix>/name/",
+        set_project_name,
+        name="set_project_name",
     ),
     path(
         "projects/<str:slug_prefix>/favourite/",

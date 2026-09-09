@@ -1,0 +1,18 @@
+{% comment %}
+Out-of-band swap targets for the project name in the sidebar rail.
+Appended to ``set_project_name`` responses so a rename shows up on the
+left immediately, the way ``_project_icon_sidebar_oob.html`` does for
+the icon.
+
+The rail renders the name twice — the inline label when the sidebar is
+open, and the hover tooltip when it is collapsed — so both carry a
+per-project marker attribute and both are replaced here. A project that
+is not starred has neither element; HTMX simply finds no target and the
+swap is a no-op.
+{% endcomment %}
+<span data-project-name-for="{{ project.slug_prefix }}"
+      hx-swap-oob="outerHTML:[data-project-name-for='{{ project.slug_prefix }}']"
+      :class="!$store.sidebar.open && 'md:hidden'" x-cloak class="truncate">{{ project.name }}</span>
+<span data-project-tip-for="{{ project.slug_prefix }}"
+      hx-swap-oob="outerHTML:[data-project-tip-for='{{ project.slug_prefix }}']"
+      x-show="!$store.sidebar.open" x-cloak class="hidden md:block acta-rail-tip">{{ project.slug_prefix }} · {{ project.name }}</span>

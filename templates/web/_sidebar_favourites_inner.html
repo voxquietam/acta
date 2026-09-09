@@ -46,8 +46,10 @@ all injected by the ``workspace_nav`` context processor.
           {% lucide project.icon|default:"folder" "w-3.5 h-3.5" %}
         </span>
         <span :class="!$store.sidebar.open && 'md:hidden'" x-cloak class="font-mono text-xs text-subtle-foreground">{{ project.slug_prefix }}</span>
-        <span :class="!$store.sidebar.open && 'md:hidden'" x-cloak class="truncate">{{ project.name }}</span>
-        <span x-show="!$store.sidebar.open" x-cloak class="hidden md:block acta-rail-tip">{{ project.slug_prefix }} · {{ project.name }}</span>
+        <span data-project-name-for="{{ project.slug_prefix }}"
+              :class="!$store.sidebar.open && 'md:hidden'" x-cloak class="truncate">{{ project.name }}</span>
+        <span data-project-tip-for="{{ project.slug_prefix }}"
+              x-show="!$store.sidebar.open" x-cloak class="hidden md:block acta-rail-tip">{{ project.slug_prefix }} · {{ project.name }}</span>
       </a>
     </div>
     {% if nested_tasks %}
