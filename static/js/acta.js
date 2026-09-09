@@ -19,7 +19,8 @@
 //   window.acta.createTaskFromText(text)    hotkey + selection-bubble create
 //   window.acta.actaLightbox(img)           image preview opener (templates use inline onclick)
 //   window.actaLoadPanels(basePath)         lazy-fetch [data-panel-slot]
-//   window.actaApplyFilters()               re-run client-side filter pass
+//   window.actaApplyFilters({force})        re-run client-side filter pass
+//                                           (force: no server refetch is coming)
 //   window.actaToast(msg, level, ms)        global toast queue; safe before alpine:init
 //   window.actaBulkPatch(updates, opts)     bulk action bar PATCH driver
 //   window.actaBulkDelete()                 bulk action bar DELETE driver
@@ -858,7 +859,12 @@
     return qs ? "?" + qs : "";
   }
 
-  function applyClientFilters() {
+  // ``opts.force`` skips the "a refetch is coming, don't bother" shortcut.
+  // Pass it from every path that injected rows on its own — an SSE push has
+  // no server response on the way, so deferring to one hides nothing and a
+  // peer's row stays on a filtered board.
+  function applyClientFilters(opts) {
+    const force = !!(opts && opts.force);
     const form = document.getElementById("filter-form");
     if (!form) return;
     // Inbox filters server-side (see ``bindFilterForm``) — never hide
@@ -877,7 +883,7 @@
     // post-swap pass (same querystring → no refetch) hides the fresh rows.
     const nextSearch = buildFilterSearch(form);
     const serverWillRefetch =
-      !!(window.history && window.history.replaceState) && nextSearch !== window.location.search;
+      !force && !!(window.history && window.history.replaceState) && nextSearch !== window.location.search;
     const rows = serverWillRefetch ? [] : document.querySelectorAll("[data-task-id]");
     let visible = 0;
     rows.forEach((row) => {
@@ -3109,7 +3115,7 @@
       // state (cancelled, or a chip that no longer matches) must drop out
       // without waiting for a reload. The list path does the same after its
       // swap; Table-only pages have no list axis to trigger it otherwise.
-      if (window.actaApplyFilters) queueMicrotask(window.actaApplyFilters);
+      if (window.actaApplyFilters) queueMicrotask(() => window.actaApplyFilters({ force: true }));
     }
 
     // The SSE broadcast pre-renders the table row with the MAXIMAL column
@@ -3230,7 +3236,7 @@
       // marked ``hidden`` from the previous chip state and the row
       // silently disappeared from the list.
       if (window.actaApplyFilters) {
-        queueMicrotask(window.actaApplyFilters);
+        queueMicrotask(() => window.actaApplyFilters({ force: true }));
       }
       return true;
     }
@@ -3424,8 +3430,10 @@
       // A peer's new card/row ignores the viewer's active filter — re-run the
       // client pass so anything not matching the chips (e.g. a different
       // assignee) hides instead of popping onto a filtered board, and the
-      // column / section counts settle.
-      if (window.actaApplyFilters) queueMicrotask(window.actaApplyFilters);
+      // column / section counts settle. Forced: nobody asked the server for
+      // anything here, so the "a refetch will sort it out" shortcut would
+      // leave the card on screen.
+      if (window.actaApplyFilters) queueMicrotask(() => window.actaApplyFilters({ force: true }));
       // ``-remote`` (NOT ``acta:task-created``): a peer's create must recount
       // columns + invalidate sibling panels, but must NOT trip the create
       // modal's ``@acta:task-created.window`` close — otherwise a coworker
