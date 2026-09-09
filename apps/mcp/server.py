@@ -29,8 +29,11 @@ ACTA_MCP_VERSION = get_version()
 _PING_TOOL = Tool(
     name="acta_ping",
     description=(
-        "Verify the MCP connection. Returns the Acta server version "
-        "and the username the session is authenticated as."
+        "Who am I? Returns the username and display name this session is "
+        "authenticated as, plus the Acta server version. Call this when the "
+        "user says 'me', 'my tasks' or 'assign it to me' and you do not yet "
+        "know which account is calling — do not infer identity from a member "
+        "roster. Also doubles as the connectivity / auth check."
     ),
     inputSchema={
         "type": "object",

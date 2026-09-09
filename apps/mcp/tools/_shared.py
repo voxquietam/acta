@@ -63,12 +63,43 @@ def resolve_project(user: User, slug_prefix: str):
         )
 
 
+SELF_USERNAME_ALIAS = "me"
+
+
 def resolve_user_by_username(username: str):
     """Look up a User by username; raise ``ValueError`` if not found."""
     try:
         return User.objects.get(username=username)
     except User.DoesNotExist:
         raise ValueError(f"User {username!r} does not exist.")
+
+
+def resolve_user_reference(actor: User, username: str):
+    """Resolve a username argument, honouring the ``me`` self-alias.
+
+    Write tools take collaborators by username, but an LLM asked to
+    "assign it to me" has no way to turn that into one — it either
+    calls ``acta_ping`` or guesses off the member roster, and guessing
+    picks whoever sorts first (the workspace owner). Accepting ``me``
+    removes the guess, and mirrors the ``assignee: "me"`` filter the
+    read tools already support.
+
+    ``me`` is a reserved word here: it wins over a real account that
+    happens to be named ``me``, exactly as it does when filtering.
+
+    Args:
+        actor: The authenticated user behind this tool call.
+        username: A username, or ``me`` for ``actor``.
+
+    Returns:
+        The resolved :class:`~apps.accounts.models.User`.
+
+    Raises:
+        ValueError: If no user with that username exists.
+    """
+    if username == SELF_USERNAME_ALIAS:
+        return actor
+    return resolve_user_by_username(username)
 
 
 def resolve_workspace(user: User, slug: str):

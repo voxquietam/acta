@@ -841,3 +841,85 @@ class TestLabelGroups:
         assert regrouped["group_name"] == "Type"
         cleared = CALLABLES["acta_label_update"](user, {"id": label["id"], "group": None})
         assert cleared["group_name"] is None
+
+
+@pytest.mark.django_db
+class TestSelfAlias:
+    """``me`` resolves to the caller wherever a username is accepted.
+
+    Regression cover for a real incident: a colleague asked his client to
+    "file an issue on me", the client had no way to express that, guessed
+    off the member roster, and assigned the workspace owner instead.
+    """
+
+    def test_create_assigns_the_caller(self, project_setup):
+        user, _, _ = project_setup
+        result = CALLABLES["acta_task_create"](
+            user,
+            {"project": "ACTA", "title": "Mine", "assignee_username": "me"},
+        )
+        assert result["assignee_username"] == user.username
+
+    def test_update_assigns_the_caller(self, project_setup):
+        user, _, project = project_setup
+        task = TaskFactory(project=project, assignee=None)
+        result = CALLABLES["acta_task_update"](user, {"slug": task.slug, "assignee_username": "me"})
+        assert result["assignee_username"] == user.username
+
+    def test_bulk_create_honours_the_alias(self, project_setup):
+        """Bulk delegates to the single-task tool, so the alias rides along."""
+        user, _, _ = project_setup
+        result = CALLABLES["acta_tasks_bulk_create"](
+            user,
+            {"tasks": [{"project": "ACTA", "title": "One", "assignee_username": "me"}]},
+        )
+        assert result["created"][0]["assignee_username"] == user.username
+
+    def test_alias_wins_over_an_account_named_me(self, project_setup):
+        """``me`` is reserved, exactly as it is in the read filters."""
+        user, ws, _ = project_setup
+        impostor = UserFactory(username="me")
+        WorkspaceMember.objects.create(user=impostor, workspace=ws)
+        result = CALLABLES["acta_task_create"](
+            user,
+            {"project": "ACTA", "title": "Mine", "assignee_username": "me"},
+        )
+        assert result["assignee_username"] == user.username
+
+    def test_unknown_username_still_errors(self, project_setup):
+        user, _, _ = project_setup
+        with pytest.raises(ValueError, match="does not exist"):
+            CALLABLES["acta_task_create"](
+                user,
+                {"project": "ACTA", "title": "t", "assignee_username": "nobody"},
+            )
+
+    def test_omitting_the_assignee_leaves_the_task_unassigned(self, project_setup):
+        """The tool never picks an assignee on its own — silence means nobody."""
+        user, _, _ = project_setup
+        result = CALLABLES["acta_task_create"](user, {"project": "ACTA", "title": "Ownerless"})
+        assert result["assignee_username"] is None
+
+    def test_project_create_leads_and_members_accept_the_alias(self):
+        user = UserFactory()
+        ws = WorkspaceFactory(owner=user)
+        result = CALLABLES["acta_project_create"](
+            user,
+            {
+                "workspace": ws.slug,
+                "name": "Scholarly",
+                "slug_prefix": "SLR",
+                "lead_username": "me",
+                "member_usernames": ["me"],
+            },
+        )
+        assert result["lead_username"] == user.username
+
+    def test_project_update_lead_accepts_the_alias(self):
+        user = UserFactory()
+        ws = WorkspaceFactory(owner=user)
+        project = ProjectFactory(workspace=ws, slug_prefix="SLR", lead=None)
+        result = CALLABLES["acta_project_update"](user, {"slug_prefix": "SLR", "lead_username": "me"})
+        assert result["lead_username"] == user.username
+        project.refresh_from_db()
+        assert project.lead_id == user.id

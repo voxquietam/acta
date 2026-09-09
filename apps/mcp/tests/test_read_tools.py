@@ -649,6 +649,19 @@ class TestWorkspaceMembersList:
         with pytest.raises(ValueError, match="not found or not accessible"):
             CALLABLES["acta_workspace_members_list"](outsider, {"workspace": ws.slug})
 
+    def test_marks_the_calling_member_with_is_you(self):
+        """Without this flag a client resolving "me" picks whoever sorts first."""
+        ws = WorkspaceFactory()
+        caller = UserFactory(first_name="Mary")
+        WorkspaceMember.objects.create(user=caller, workspace=ws, role=WorkspaceMember.MEMBER)
+
+        result = CALLABLES["acta_workspace_members_list"](caller, {"workspace": ws.slug})
+        flagged = [row["username"] for row in result if row["is_you"]]
+        assert flagged == [caller.username]
+        # The owner sorts first and is emphatically not the caller.
+        assert result[0]["username"] == ws.owner.username
+        assert result[0]["is_you"] is False
+
 
 @pytest.mark.django_db
 class TestProjectUpdatesList:

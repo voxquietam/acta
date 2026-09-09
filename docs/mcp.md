@@ -282,7 +282,7 @@ Cursor stores its MCP config in **Settings → Tools & MCP**.
 | Tool                                       | Purpose                                                    |
 |--------------------------------------------|------------------------------------------------------------|
 | **read**                                                                                                |
-| `acta_ping`                                | Connection / auth check. Returns version + username.       |
+| `acta_ping`                                | Who am I? Returns the authenticated username + version.    |
 | `acta_workspaces_list`                     | List workspaces the user can see.                          |
 | `acta_projects_list`                       | List projects (filter: workspace, archived).               |
 | `acta_tasks_list`                          | List tasks with filters (status, priority, assignee, etc.) |
@@ -303,6 +303,18 @@ Cursor stores its MCP config in **Settings → Tools & MCP**.
 | `acta_tasks_bulk_update`                   | Update N tasks atomically.                                 |
 | `acta_tasks_bulk_archive`                  | Archive N tasks atomically.                                |
 | `acta_tasks_bulk_delete`                   | Delete N tasks atomically.                                 |
+
+### Saying "me"
+
+Anywhere a tool takes a username — `assignee_username`,
+`lead_username`, `member_usernames` — the literal string `me` resolves
+to the authenticated user, matching the `assignee: "me"` filter the
+read tools already accept. `acta_workspace_members_list` also flags the
+caller's own row with `is_you: true`.
+
+Both exist so a client never has to guess who "me" is. Before they did,
+a client asked to file an issue "on me" had nothing to resolve against
+and picked the first name on the roster — the workspace owner.
 
 Every write tool emits the same activity-log events the web UI emits,
 with `actor = the authenticated user`. The web's SSE stream picks

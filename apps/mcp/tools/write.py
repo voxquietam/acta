@@ -21,7 +21,7 @@ from apps.mcp.tools._shared import (
     is_workspace_admin,
     resolve_project,
     resolve_task,
-    resolve_user_by_username,
+    resolve_user_reference,
     serialize_task_summary,
     user_workspace_ids,
 )
@@ -176,7 +176,7 @@ def task_create(user: User, arguments: dict[str, Any]) -> Any:
 
     assignee = args.get("assignee_username")
     if assignee:
-        data["assignee"] = resolve_user_by_username(assignee).id
+        data["assignee"] = resolve_user_reference(user, assignee).id
     parent_slug = args.get("parent_slug")
     if parent_slug:
         data["parent"] = resolve_task(user, parent_slug).id
@@ -248,7 +248,7 @@ def task_update(user: User, arguments: dict[str, Any]) -> Any:
 
     if "assignee_username" in args:
         assignee_value = args["assignee_username"]
-        data["assignee"] = None if assignee_value is None else resolve_user_by_username(assignee_value).id
+        data["assignee"] = None if assignee_value is None else resolve_user_reference(user, assignee_value).id
 
     if "label_names" in args:
         names = args["label_names"] or []
@@ -541,7 +541,7 @@ def project_update(user: User, arguments: dict[str, Any]) -> Any:
         if lead_value is None:
             project.lead = None
         else:
-            lead = resolve_user_by_username(lead_value)
+            lead = resolve_user_reference(user, lead_value)
             if not project.workspace.members.filter(pk=lead.pk).exists():
                 raise ValueError("Lead must be a member of the project's workspace.")
             project.lead = lead
@@ -853,7 +853,9 @@ TOOLS: list[Tool] = [
             "Optional: ``description`` (Markdown), ``status`` (default to-do), "
             "``priority`` (0=none, 1=Urgent, 2=High, 3=Medium, 4=Low), "
             "``size`` (Fibonacci integer 1/2/3/5/8/13), ``due_date`` (ISO date), "
-            "``assignee_username`` (must be a member of the project's workspace), "
+            "``assignee_username`` (must be a member of the project's workspace; "
+            "pass ``me`` to assign the authenticated user — never guess a username "
+            "off the member roster), "
             "``parent_slug`` (make this a subtask of an existing task — depth-1 limit), "
             "``label_names`` (list of label names; any name that doesn't already "
             "exist in the workspace is auto-created with a deterministic palette "
@@ -877,7 +879,10 @@ TOOLS: list[Tool] = [
                 "start_date": {"type": "string", "description": "ISO date — timeline bar start, e.g. '2026-05-30'."},
                 "end_date": {"type": "string", "description": "ISO date — planned finish (timeline bar end)."},
                 "due_date": {"type": "string", "description": "ISO date — hard deadline, e.g. '2026-05-30'."},
-                "assignee_username": {"type": "string"},
+                "assignee_username": {
+                    "type": "string",
+                    "description": "Username, or ``me`` for the authenticated user.",
+                },
                 "parent_slug": {"type": "string", "description": "Parent task slug (e.g. ACTA-128)."},
                 "label_names": {"type": "array", "items": {"type": "string"}},
             },
@@ -893,7 +898,7 @@ TOOLS: list[Tool] = [
             "``title``, ``description``, ``status`` (``cancelled`` is the "
             "terminal 'won't do' state — distinct from done), ``priority``, "
             "``size`` (Fibonacci 1/2/3/5/8/13), ``due_date``, ``assignee_username`` "
-            "(pass ``null`` to clear), ``label_names`` (replaces the full "
+            "(``me`` for the authenticated user, ``null`` to clear), ``label_names`` (replaces the full "
             "label set; missing labels are auto-created — see ``acta_task_create``), "
             "``project`` (slug prefix of a project IN THE SAME WORKSPACE to move "
             "the task to — renumbers the slug, e.g. ACTA-12 → HRW-89, and moves "
@@ -917,7 +922,10 @@ TOOLS: list[Tool] = [
                 "start_date": {"type": ["string", "null"]},
                 "end_date": {"type": ["string", "null"]},
                 "due_date": {"type": ["string", "null"]},
-                "assignee_username": {"type": ["string", "null"]},
+                "assignee_username": {
+                    "type": ["string", "null"],
+                    "description": "Username, ``me`` for the authenticated user, or null to unassign.",
+                },
                 "label_names": {"type": "array", "items": {"type": "string"}},
                 "project": {"type": "string", "description": "Target project slug prefix (same workspace)."},
                 "cycle": {
@@ -1265,7 +1273,10 @@ TOOLS: list[Tool] = [
                 "description": {"type": "string", "description": "Markdown body."},
                 "icon": {"type": "string", "description": "Curated Lucide icon name; empty clears."},
                 "icon_color": {"type": "string", "description": "Curated palette key, e.g. 'violet'; empty clears."},
-                "lead_username": {"type": ["string", "null"], "description": "Workspace member, or null to clear."},
+                "lead_username": {
+                    "type": ["string", "null"],
+                    "description": "Workspace member, ``me`` for the authenticated user, or null to clear.",
+                },
                 "archived": {"type": "boolean"},
                 "notify_members_only": {"type": "boolean"},
             },
@@ -1306,7 +1317,8 @@ TOOLS: list[Tool] = [
             "uppercase Latin letters — immutable in practice; prefixes every "
             "task slug, e.g. UI-12). Optional: ``description`` (Markdown), "
             "``icon`` (curated Lucide name), ``icon_color`` (curated palette "
-            "key), ``lead_username`` (a workspace member), ``member_usernames`` "
+            "key), ``lead_username`` (a workspace member, or ``me`` for the "
+            "authenticated user), ``member_usernames`` "
             "(list of workspace members). Returns the created project payload."
         ),
         inputSchema={
@@ -1318,8 +1330,15 @@ TOOLS: list[Tool] = [
                 "description": {"type": "string", "description": "Markdown body."},
                 "icon": {"type": "string", "description": "Curated Lucide icon name."},
                 "icon_color": {"type": "string", "description": "Curated palette key, e.g. 'violet'."},
-                "lead_username": {"type": "string"},
-                "member_usernames": {"type": "array", "items": {"type": "string"}},
+                "lead_username": {
+                    "type": "string",
+                    "description": "Workspace member, or ``me`` for the authenticated user.",
+                },
+                "member_usernames": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Workspace members; ``me`` stands for the authenticated user.",
+                },
             },
             "required": ["workspace", "name", "slug_prefix"],
             "additionalProperties": False,
@@ -1554,7 +1573,7 @@ def project_create(user: User, arguments: dict[str, Any]) -> Any:
 
     lead_username = args.get("lead_username")
     if lead_username:
-        lead = resolve_user_by_username(lead_username)
+        lead = resolve_user_reference(user, lead_username)
         if not workspace.members.filter(pk=lead.pk).exists():
             raise ValueError("Lead must be a member of the project's workspace.")
         project.lead = lead
@@ -1567,7 +1586,7 @@ def project_create(user: User, arguments: dict[str, Any]) -> Any:
 
     member_names = args.get("member_usernames") or []
     if member_names:
-        members = [resolve_user_by_username(u) for u in member_names]
+        members = [resolve_user_reference(user, u) for u in member_names]
         outsiders = [m.username for m in members if not workspace.members.filter(pk=m.pk).exists()]
         if outsiders:
             raise ValueError(f"Not members of this workspace: {outsiders}")

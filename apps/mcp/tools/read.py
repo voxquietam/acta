@@ -126,6 +126,11 @@ def workspace_members_list(user: User, arguments: dict[str, Any]) -> Any:
     usernames off task rows. Required: ``workspace`` (slug). Returns the
     roster sorted lead-agnostic by role rank (owner, admin, member) then
     display name — handy for ranking assignee pickers.
+
+    Each row carries ``is_you``, true on the caller's own membership.
+    Without it a client resolving "assign this to me" off the roster
+    has nothing to match against and picks whoever sorts first — which
+    is always the workspace owner.
     """
     from apps.workspaces.models import WorkspaceMember
 
@@ -148,6 +153,7 @@ def workspace_members_list(user: User, arguments: dict[str, Any]) -> Any:
             "display_name": m.user.display_name,
             "role": m.role,
             "is_active": m.user.is_active,
+            "is_you": m.user_id == user.id,
             "joined_at": m.joined_at.isoformat(),
         }
         for m in members
@@ -602,8 +608,10 @@ TOOLS: list[Tool] = [
             "discover who can be assigned tasks or to rank an assignee picker — "
             "instead of scraping distinct usernames off task rows. Required: "
             "``workspace`` (slug). Returns ``[{username, display_name, role "
-            "(owner/admin/member), is_active, joined_at}, …]`` ordered owner → "
-            "admin → member, then by display name."
+            "(owner/admin/member), is_active, is_you, joined_at}, …]`` ordered "
+            "owner → admin → member, then by display name. ``is_you`` marks the "
+            "caller's own row — use it, or the ``me`` alias the write tools "
+            "accept, instead of guessing which member the user means by 'me'."
         ),
         inputSchema={
             "type": "object",
