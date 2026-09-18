@@ -27,6 +27,7 @@ _EXT_CONTENT_TYPE = {
     "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "ipynb": "application/x-ipynb+json",
     "zip": "application/zip",
 }
 

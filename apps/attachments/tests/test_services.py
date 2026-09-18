@@ -8,7 +8,7 @@ import pytest
 
 from apps.attachments.models import Attachment
 from apps.attachments.services import categorize, create_task_attachment
-from apps.attachments.tests.factories import pdf_upload, png_upload, text_upload
+from apps.attachments.tests.factories import NOTEBOOK_BYTES, notebook_upload, pdf_upload, png_upload, text_upload
 from apps.tasks.tests.factories import TaskFactory
 
 
@@ -18,6 +18,9 @@ class TestCategorize:
         assert categorize(png_upload()) == "image"
         assert categorize(text_upload()) == "document"
         assert categorize(pdf_upload()) == "document"
+
+    def test_accepts_notebook(self):
+        assert categorize(notebook_upload()) == "document"
 
     def test_rejects_disallowed_extension(self):
         with pytest.raises(ValidationError):
@@ -54,6 +57,12 @@ class TestCreateTaskAttachment:
         assert att.content_type == "text/plain"
         assert att.size == len(b"hello world")
         assert att.file.open("rb").read() == b"hello world"
+
+    def test_notebook_keeps_its_own_content_type(self):
+        task = TaskFactory()
+        att = create_task_attachment(task=task, uploader=task.project.workspace.owner, uploaded_file=notebook_upload())
+        assert att.content_type == "application/x-ipynb+json"
+        assert att.file.open("rb").read() == NOTEBOOK_BYTES
 
     def test_large_image_is_downscaled(self, settings):
         settings.ATTACHMENT_IMAGE_MAX_EDGE = 2048

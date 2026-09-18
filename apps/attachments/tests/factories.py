@@ -24,6 +24,18 @@ def text_upload(name: str = "notes.txt", data: bytes = b"hello world") -> Simple
     return SimpleUploadedFile(name, data, content_type="text/plain")
 
 
+NOTEBOOK_BYTES = b'{"cells": [], "metadata": {}, "nbformat": 4, "nbformat_minor": 5}'
+
+
+def notebook_upload(name: str = "analysis.ipynb", data: bytes = NOTEBOOK_BYTES) -> SimpleUploadedFile:
+    """Return an ``UploadedFile`` holding a minimal Jupyter notebook.
+
+    Browsers send notebooks as ``application/json`` or with no type at
+    all; the stored type comes from the extension either way.
+    """
+    return SimpleUploadedFile(name, data, content_type="application/json")
+
+
 def pdf_upload(name: str = "doc.pdf", data: bytes = b"%PDF-1.4 minimal") -> SimpleUploadedFile:
     """Return an ``UploadedFile`` whose bytes start with the PDF signature."""
     return SimpleUploadedFile(name, data, content_type="application/pdf")

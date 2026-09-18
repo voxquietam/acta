@@ -132,7 +132,7 @@ md, docx, …) are stored as-is.
   | avatar          | 8 MB           | cropped + resized |
 
 - Whitelist: images (`png jpg jpeg gif webp svg`), documents
-  (`pdf txt md csv docx xlsx pptx`), archive (`zip`). No video/audio for
+  (`pdf txt md csv docx xlsx pptx ipynb`), archive (`zip`). No video/audio for
   now.
 - Caps and whitelist are **policy in settings, never a DB constraint** —
   so they change with an edit + restart (env-overridable), no migration,
