@@ -438,10 +438,19 @@
           }
           applyFacets(facetHtml);
           if (window.renderIcons) window.renderIcons();
-          // ``fetch`` bypasses HTMX, so the global afterSettle filter pass
-          // never fires — re-run it so column hides / section counts / list
-          // bucketing track the current sidebar state.
-          if (window.actaApplyFilters) window.actaApplyFilters();
+          // ``fetch`` bypasses HTMX, so NONE of the ``htmx:afterSettle``
+          // listeners fire — and the panel we just replaced is where most of
+          // them do their work. Hand-listing them is what went wrong before:
+          // only the filter pass was re-run, so a refreshed board came back
+          // with its columns unbound from Sortable (cards would not drag
+          // until some other swap re-bound them) and a refreshed table came
+          // back with no scroll listener (the virtual window froze at its
+          // first position, so scrolling past it showed blank space).
+          // Dispatching the event itself keeps every present and future
+          // listener in step. Safe to synthesise: no template subscribes to
+          // it, and the one listener that reads ``detail`` bails out when
+          // there is no ``requestConfig``.
+          document.body.dispatchEvent(new CustomEvent("htmx:afterSettle", { bubbles: true, detail: {} }));
         })
         .finally(() => {
           if (activeSlot) activeSlot.dataset.panelLoading = "false";
