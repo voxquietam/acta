@@ -79,7 +79,13 @@ reads it. See ``apps/web/views.py:1632`` for the kanban ctx builder.
         </span>
         {# Add new task in this column — pre-fills project + status. #}
         <button type="button"
-                hx-get="{% url 'web:create_task' %}?project={{ project.slug_prefix }}&status={{ col.key }}"
+                {% comment %}
+                ``epic`` rides along on an epic's board: a task added
+                from a column there belongs to the epic you are looking
+                at, and leaving it out would file it outside the thing
+                it was created in.
+                {% endcomment %}
+                hx-get="{% url 'web:create_task' %}?project={{ project.slug_prefix }}&status={{ col.key }}{% if board_epic %}&epic={{ board_epic.slug }}{% endif %}"
                 hx-target="#modal-root"
                 hx-swap="innerHTML"
                 title="{% trans 'New task' %}"

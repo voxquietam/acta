@@ -90,7 +90,12 @@ by default. Expects ``epic_columns`` / ``epic_projects`` / ``epic_done``
     board has to keep answering "how far along is this".
     {% endcomment %}
     {% if epic_total %}
-    <div id="epic-board" class="flex-1 min-h-0 flex flex-col">
+    <div id="epic-board" class="flex-1 min-h-0 flex flex-col"
+         hx-get="{{ request.path }}"
+         hx-trigger="acta:task-created from:body, acta:task-changed from:body, acta:task-moved from:body, acta:bulk-changed from:body"
+         hx-target="this"
+         hx-select="#epic-board"
+         hx-swap="outerHTML">
       {% include "web/projects/_kanban.html" %}
     </div>
     {% else %}

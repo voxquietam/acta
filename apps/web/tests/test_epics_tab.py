@@ -128,6 +128,15 @@ class TestTheTable:
         assert all(e.kind == Task.KIND_EPIC for e in epics)
         assert "Just a task" not in body
 
+    def test_the_tab_refetches_when_a_task_moves(self, client, setup):
+        workspace, _, user, _ = setup
+        client.force_login(user)
+        _, body = table(client, workspace)
+        # Every number here is read off the tasks, so a row goes stale
+        # the moment one moves — and a new epic would not appear at all.
+        assert "acta:task-created from:body" in body
+        assert "acta:task-changed from:body" in body
+
     def test_the_switch_replaces_the_table_with_an_explanation(self, client, setup):
         workspace, _, user, _ = setup
         workspace.epics_enabled = False
@@ -336,6 +345,34 @@ class TestTheEpicPage:
         assert "project" in keys
         # Status is the columns, as on any kanban.
         assert "status" not in keys
+
+    def test_the_backlog_shows_by_default_here(self, client, setup):
+        import json
+        import re
+
+        _, project, user, epic = setup
+        TaskFactory(project=project, epic=epic, status=Task.STATUS_PLANNED, title="Not started")
+        client.force_login(user)
+        _, body = self.board(client, epic)
+        payload = json.loads(
+            re.search(r'<script id="filter-dock-data" type="application/json">(.*?)</script>', body, re.S).group(1),
+        )
+        # An epic is a plan: the work it has not started is the part a
+        # person opened it to see, and the toggle is there to hide it.
+        assert payload["toggles"]["show_backlog"] is True
+        assert payload["toggles"]["backlog_toggle"] is True
+
+    def test_the_column_add_button_files_into_this_epic(self, client, setup):
+        _, _, user, epic = setup
+        client.force_login(user)
+        _, body = self.board(client, epic)
+        assert f"epic={epic.slug}" in body
+
+    def test_the_board_refetches_when_a_task_moves(self, client, setup):
+        _, _, user, epic = setup
+        client.force_login(user)
+        _, body = self.board(client, epic)
+        assert "acta:task-created from:body" in body
 
     def test_an_empty_epic_explains_itself(self, client, setup):
         workspace, project, user, _ = setup

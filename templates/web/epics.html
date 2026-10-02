@@ -40,8 +40,19 @@ out of ``Task.epic_members`` — it is not work any more. Expects
 {% endblock %}
 
 {% block app_main %}
-<div class="h-full overflow-y-auto">
-  <div class="max-w-7xl mx-auto p-4 space-y-4">
+{% comment %}
+Refetches itself when a task is created, changed or bulk-edited: every
+number on this page is read off the tasks, so an epic's row goes stale
+the moment one of them moves — and a brand-new epic would not appear at
+all until a reload.
+{% endcomment %}
+<div class="h-full overflow-y-auto"
+     hx-get="{{ request.path }}"
+     hx-trigger="acta:task-created from:body, acta:task-changed from:body, acta:bulk-changed from:body"
+     hx-target="this"
+     hx-select="#epics-body"
+     hx-swap="innerHTML">
+  <div id="epics-body" class="max-w-7xl mx-auto p-4 space-y-4">
 
     {% if not epics_enabled %}
     <div class="grid place-items-center text-center py-20">

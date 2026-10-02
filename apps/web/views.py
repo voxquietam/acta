@@ -3196,11 +3196,21 @@ def _epic_board_context(epic, request):
     # matters more: an epic is the one board whose cards come from
     # several. Status is hidden the way it is on any kanban — the columns
     # already are the status.
+    # The backlog shows by default here and the toggle is offered: an
+    # epic is a plan, and the work it has not started is the part a
+    # person opened it to see. Everywhere else the backlog is noise on a
+    # board of current work; inside one epic it is the plan's tail.
+    dock_params = request.GET.copy()
+    if "show_backlog" not in dock_params:
+        dock_params["show_backlog"] = "1"
     dock = filter_sidebar_context(
         request,
         hide_status=True,
         hide_project=False,
         hide_my_projects_toggle=True,
+        show_backlog_toggle=True,
+        backlog_tab_aware=False,
+        effective_params=dock_params,
         htmx_target="#epic-board",
         available_assignees=sorted(
             {task.assignee for task in members if task.assignee_id},
@@ -3213,6 +3223,10 @@ def _epic_board_context(epic, request):
         # The cards are the workspace's, not one project's, so they say
         # which project each came from.
         "show_project": True,
+        # Read by the kanban's per-column "+" so a task added here lands
+        # in this epic, and by the board wrapper for its own project.
+        "board_epic": epic,
+        "project": epic.project,
         "wip_mode": None,
         "epic_projects": sorted(by_project.values(), key=lambda row: -row["total"]),
         "epic_blocked_total": sum(1 for task in members if task.is_blocked),
