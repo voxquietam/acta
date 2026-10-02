@@ -51,6 +51,20 @@ needs the full path.
       <span data-graph-match-count class="font-mono ml-1 text-placeholder-foreground" hidden></span>
     </button>
 
+    {% comment %}
+    An epic's tasks land wherever their dependencies put them, so its
+    region arrives in pieces. This collects them into one — at the cost of
+    a layout that no longer reads purely as "what blocks what", which is
+    why it is a switch and not the default (design 2a).
+    {% endcomment %}
+    {% if graph_has_epics %}
+    <button type="button" data-graph-gather class="acta-gsize"
+            title="{% trans 'Lay each epic out as one block instead of letting its tasks scatter across islands' %}">
+      {% lucide "shrink" "w-3.5 h-3.5" %}{% trans "Gather epics" %}
+      <span class="font-mono ml-1 text-[9.5px] text-placeholder-foreground">G</span>
+    </button>
+    {% endif %}
+
     <span class="w-px h-5 bg-border"></span>
 
     <span class="inline-flex items-center gap-0.5 rounded-lg border border-border p-0.5"

@@ -519,7 +519,10 @@
   <path d="M3 6h18" />
   <path d="M16 10a4 4 0 0 1-8 0" /></symbol><symbol id="lu-shopping-cart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1" />
   <circle cx="19" cy="21" r="1" />
-  <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12" /></symbol><symbol id="lu-signal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 20h.01" />
+  <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12" /></symbol><symbol id="lu-shrink" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 15 6 6m-6-6v4.8m0-4.8h4.8" />
+  <path d="M9 19.8V15m0 0H4.2M9 15l-6 6" />
+  <path d="M15 4.2V9m0 0h4.8M15 9l6-6" />
+  <path d="M9 4.2V9m0 0H4.2M9 9 3 3" /></symbol><symbol id="lu-signal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 20h.01" />
   <path d="M7 20v-4" />
   <path d="M12 20v-8" />
   <path d="M17 20V8" />

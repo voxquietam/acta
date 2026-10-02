@@ -374,3 +374,13 @@ class TestGraphEpics:
 
         assert len(payload["epics"]) == 6
         assert len(large.captured_queries) == len(small.captured_queries)
+
+    def test_the_gather_switch_is_offered_only_where_there_are_epics(self, setup):
+        """The toolbar switch lays each epic out as one block — pointless
+        on a board that has none."""
+        _, project, user = setup
+        TaskFactory(project=project)
+        assert _context(project, user)["graph_has_epics"] is False
+        epic = TaskFactory(project=project, kind=Task.KIND_EPIC, status=Task.STATUS_PLANNED)
+        TaskFactory(project=project, epic=epic)
+        assert _context(project, user)["graph_has_epics"] is True

@@ -86,6 +86,14 @@
   // dimmed in place. Dropping is the default: a filtered board should show
   // the work asked for, and the dimmed context is one button away.
   let ONLY_MATCHING = true;
+  // The container's one real weakness: dagre lays the board out by
+  // dependency and knows nothing about epics, so an epic's tasks land on
+  // whichever islands their links put them on and the region arrives in
+  // four pieces. Turning this on makes membership count as connectivity
+  // for the layout, which collects the epic into one rectangle; the links
+  // that reach in from outside still reach in. Off by default, because
+  // the board's first job is to show what blocks what (design 2a).
+  let GATHER = false;
   // Links made by dragging a row onto a card. The payload in the DOM is the
   // one the server rendered, so a link created since then is replayed on
   // top of it rather than costing a refetch of the whole panel.
@@ -413,12 +421,25 @@
       return id;
     };
     linked.forEach((id) => parent.set(id, id));
-    model.edges.forEach((edge) => {
-      if (!parent.has(edge.source) || !parent.has(edge.target)) return;
-      const a = find(edge.source);
-      const b = find(edge.target);
+    const join = (left, right) => {
+      if (!parent.has(left) || !parent.has(right)) return;
+      const a = find(left);
+      const b = find(right);
       if (a !== b) parent.set(a, b);
-    });
+    };
+    model.edges.forEach((edge) => join(edge.source, edge.target));
+    // Gathering: an epic's members become one component, so dagre lays
+    // them out together instead of wherever their dependencies scattered
+    // them. This is the only place membership touches the layout.
+    if (GATHER) {
+      const first = new Map();
+      linked.forEach((id) => {
+        const node = model.byId.get(id);
+        if (!node || !node.epicId) return;
+        if (!first.has(node.epicId)) first.set(node.epicId, id);
+        join(first.get(node.epicId), id);
+      });
+    }
     const groups = new Map();
     linked.forEach((id) => {
       const key = find(id);
@@ -664,7 +685,32 @@
       const group = groups.get(find(e.source));
       if (group) group.edges.push(e);
     });
-    return [...groups.values()];
+    const parts = [...groups.values()];
+    // Gathering promised one block per epic, and the layout delivered the
+    // tasks side by side — but side by side is not joined, so without
+    // this the region would still come out in pieces with a gap between
+    // them. The closest pair of each two pieces gets a corridor of its
+    // own, which is enough to make the union one shape.
+    if (GATHER && parts.length > 1) {
+      const centre = (m) => [m.box.x + m.box.w / 2, m.box.y + m.box.h / 2];
+      while (parts.length > 1) {
+        let best = null;
+        for (let i = 1; i < parts.length; i += 1) {
+          parts[0].members.forEach((a) => {
+            parts[i].members.forEach((b) => {
+              const [ax, ay] = centre(a);
+              const [bx, by] = centre(b);
+              const d = Math.hypot(ax - bx, ay - by);
+              if (!best || d < best.d) best = { d, i, points: [centre(a), centre(b)] };
+            });
+          });
+        }
+        const other = parts.splice(best.i, 1)[0];
+        parts[0].members.push(...other.members);
+        parts[0].edges.push(...other.edges, { points: best.points });
+      }
+    }
+    return parts;
   }
 
   // One figure: a rounded box per member, plus a thick rounded stroke
@@ -679,7 +725,9 @@
         }" rx="${10 + pad / 2}" ${paint}/>`,
     );
     part.edges.forEach((edge) => {
-      const points = edgePoints(edge, pos);
+      // A gathered part carries connectors of its own, already in board
+      // coordinates: they join members the board has no edge between.
+      const points = edge.points || edgePoints(edge, pos);
       if (!points) return;
       shapes.push(
         `<path d="${roundedPath(points, 8)}" fill="none" stroke-width="${
@@ -710,7 +758,8 @@
     // reads as small rather than as filtered. Only under a filter: with
     // none on, the members missing from the board are the ones with no
     // links, and the stack inside the region already says so.
-    const sub = main && state.filtered && onCanvas < epic.total ? `${onCanvas} of ${epic.total} match` : "";
+    let sub = main && state.filtered && onCanvas < epic.total ? `${onCanvas} of ${epic.total} match` : "";
+    if (main && GATHER && !sub) sub = "gathered";
     return {
       epicId: epic.id,
       x: box.x - 12,
@@ -1757,6 +1806,11 @@
         if (card) openTask(state, Number(card.dataset.graphNode));
         return;
       }
+      if ((e.key === "g" || e.key === "G") && state.epics && state.epics.size) {
+        e.preventDefault();
+        toggleGather();
+        return;
+      }
       if (e.key.indexOf("Arrow") !== 0 || state.selected == null) return;
       e.preventDefault();
       const next = step(state, e.key);
@@ -1957,6 +2011,8 @@
     // switch's own state is restored rather than read from the markup.
     const matchBtn = G.panel.querySelector("button[data-graph-only-matching]");
     if (matchBtn) matchBtn.classList.toggle("is-on", ONLY_MATCHING);
+    const gatherBtn = G.panel && G.panel.querySelector("[data-graph-gather]");
+    if (gatherBtn) gatherBtn.classList.toggle("is-on", GATHER);
     const saved = CAMERA.get(host.dataset.project || "");
     if (saved) {
       G.zoom = saved.zoom;
@@ -2054,5 +2110,19 @@
     btn.classList.toggle("is-on", ONLY_MATCHING);
     rebuild();
   });
+
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-graph-gather]");
+    if (!btn || !G) return;
+    toggleGather();
+  });
+
+  // A relayout, so the whole board is rebuilt rather than redrawn.
+  function toggleGather() {
+    GATHER = !GATHER;
+    const btn = document.querySelector("[data-graph-gather]");
+    if (btn) btn.classList.toggle("is-on", GATHER);
+    rebuild();
+  }
 
 })();

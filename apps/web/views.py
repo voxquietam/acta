@@ -523,6 +523,9 @@ def _graph_context(scope, *, user, workspace, include_all=False):
             "activeCycleId": active_cycle.id if active_cycle else None,
             "truncated": not send_all,
         },
+        # The toolbar's "Gather epics" switch is pointless on a board with
+        # no epics on it, so it is not rendered there.
+        "graph_has_epics": bool(epics_meta),
         "graph_node_count": len(nodes),
         "graph_edge_count": len(edges),
         "graph_connected_count": len(connected),
