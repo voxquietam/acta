@@ -57,11 +57,17 @@ PREFIXES = {
     "qwen3": ("", "Instruct: Find the task that matches the request\nQuery: "),
 }
 
+#: Tasks plus, when asked for, the links people have actually made
+#: between them — the only ground truth a database carries on its own.
 TASK_DUMP = (
     "import json;"
     "from apps.tasks.models import Task;"
-    "rows=list(Task.objects.filter(archived_at__isnull=True).values('title','description'));"
-    "print('JSON:' + json.dumps(rows, ensure_ascii=False))"
+    "rows=list(Task.objects.filter(archived_at__isnull=True).values('id','title','description'));"
+    "links=[(a,b,'blocks') for a,b in Task.blocks.through.objects.values_list('from_task_id','to_task_id')];"
+    "links+=[(a,b,'related') for a,b in Task.related.through.objects.values_list('from_task_id','to_task_id')];"
+    "links+=[(a,b,'parent') for a,b in "
+    "Task.objects.filter(parent__isnull=False).values_list('id','parent_id')];"
+    "print('JSON:' + json.dumps({'tasks': rows, 'links': links}, ensure_ascii=False))"
 )
 
 
@@ -73,11 +79,12 @@ def prefixes_for(model: str) -> tuple[str, str]:
     return "", ""
 
 
-def load_tasks(source: str | None) -> list[dict]:
-    """Read live tasks from a JSON file, or out of the web container."""
+def load_tasks(source: str | None) -> dict:
+    """Read live tasks + their links from a JSON file or the web container."""
     if source:
         with open(source, encoding="utf-8") as handle:
-            return json.load(handle)
+            loaded = json.load(handle)
+        return loaded if isinstance(loaded, dict) else {"tasks": loaded, "links": []}
     out = subprocess.run(
         ["docker", "compose", "exec", "-T", "web", "python", "manage.py", "shell", "-c", TASK_DUMP],
         capture_output=True,
@@ -88,6 +95,64 @@ def load_tasks(source: str | None) -> list[dict]:
         if line.startswith("JSON:"):
             return json.loads(line[5:])
     raise SystemExit("could not read tasks from the web container — is the stack up?")
+
+
+def rank_of(query: list[float], vectors: list[list[float]], wanted: set[int]) -> tuple[int, int]:
+    """Return (rank of the best wanted vector, index of the top one)."""
+    scored = sorted(
+        ((sum(a * b for a, b in zip(query, vector)), i) for i, vector in enumerate(vectors)),
+        reverse=True,
+    )
+    rank = next((n + 1 for n, (_, i) in enumerate(scored) if i in wanted), len(scored))
+    return rank, scored[0][1]
+
+
+def score_against_links(tasks: list[dict], links: list, vectors: list[list[float]]) -> None:
+    """Measure the model against the links people made themselves.
+
+    For every linked pair, ask the board for the neighbours of one end and
+    see whether the other end comes back in the top ten. Unlike the
+    hand-written probes this needs no editing per database — but it only
+    means something where the links were made by people rather than
+    seeded, and it under-reports by design: a blocker is often worded
+    nothing like the work it blocks.
+    """
+    index = {task["id"]: i for i, task in enumerate(tasks)}
+    by_kind: dict[str, list[int]] = {}
+    for left, right, kind in links:
+        if left not in index or right not in index or left == right:
+            continue
+        rank, _ = rank_of(vectors[index[left]], vectors, {index[right]})
+        by_kind.setdefault(kind, []).append(rank)
+
+    if not by_kind:
+        print("no links in this database to score against")
+        return
+    print(f"\n{'link kind':<10} {'pairs':>6} {'in top 10':>10} {'in top 25':>10} {'median rank':>12}")
+    print("-" * 52)
+    for kind, ranks in sorted(by_kind.items()):
+        ordered = sorted(ranks)
+        top10 = sum(1 for r in ranks if r <= 10) / len(ranks)
+        top25 = sum(1 for r in ranks if r <= 25) / len(ranks)
+        median = ordered[len(ordered) // 2]
+        print(f"{kind:<10} {len(ranks):>6} {top10:>9.0%} {top25:>9.0%} {median:>12}")
+
+
+def show_closest_pairs(tasks: list[dict], vectors: list[list[float]], count: int) -> None:
+    """Print the most similar pairs — the duplicate candidates."""
+    best: list[tuple[float, int, int]] = []
+    for i, left in enumerate(vectors):
+        for j in range(i + 1, len(vectors)):
+            score = sum(a * b for a, b in zip(left, vectors[j]))
+            if len(best) < count:
+                best.append((score, i, j))
+                best.sort(reverse=True)
+            elif score > best[-1][0]:
+                best[-1] = (score, i, j)
+                best.sort(reverse=True)
+    print(f"\n{count} closest pairs in the database — the duplicate candidates:")
+    for score, i, j in best:
+        print(f"  {score:.3f}  {tasks[i]['title'][:48]!r}  <->  {tasks[j]['title'][:48]!r}")
 
 
 def embed(host: str, model: str, texts: list[str], batch: int = 32) -> list[list[float]]:
@@ -119,10 +184,17 @@ def main() -> int:
     parser.add_argument("--model", default="bge-m3", help="Ollama model tag, e.g. bge-m3")
     parser.add_argument("--host", default="http://192.168.97.142:11434", help="Ollama base URL")
     parser.add_argument("--tasks", help="JSON file of tasks instead of reading the container")
+    parser.add_argument(
+        "--links",
+        action="store_true",
+        help="also score against the links people made in this database (no editing needed)",
+    )
+    parser.add_argument("--pairs", type=int, default=0, help="print the N closest pairs (duplicate candidates)")
     args = parser.parse_args()
 
     doc_prefix, query_prefix = prefixes_for(args.model)
-    tasks = load_tasks(args.tasks)
+    data = load_tasks(args.tasks)
+    tasks, links = data["tasks"], data.get("links") or []
     titles = [task["title"] for task in tasks]
     print(f"model: {args.model}   host: {args.host}   tasks: {len(tasks)}")
 
@@ -162,7 +234,14 @@ def main() -> int:
 
     print(f"\nright task in the top 5: {hits}/{asked}")
     print("for comparison — multilingual-e5-small (local, CPU): 9/10,  nomic-embed-text: 3/10")
-    return 0 if hits >= asked * 0.8 else 1
+    if not asked:
+        print("(the probes above are written against the dev database — use --links on any other one)")
+
+    if args.links:
+        score_against_links(tasks, links, vectors)
+    if args.pairs:
+        show_closest_pairs(tasks, vectors, args.pairs)
+    return 0 if asked and hits >= asked * 0.8 else 0
 
 
 if __name__ == "__main__":
