@@ -24,7 +24,7 @@ column and the kanban cards still identify their project via the slug.
 {# "Archive is empty"), so the global "no tasks match filters" placeholder    #}
 {# should only fire on the active-task views (kanban / table / list / etc.).  #}
 {% if tasks or view_mode == "backlog" or view_mode == "archive" %}
-{% include "web/projects/_view_panel.html" with allow_backlog=True allow_archive=True %}
+{% include "web/projects/_view_panel.html" with allow_backlog=True allow_archive=True allow_graph=True %}
 {% else %}
 <div class="flex-1 min-h-0 grid place-items-center text-center">
   <div>
