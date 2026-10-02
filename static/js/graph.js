@@ -94,6 +94,10 @@
   // that reach in from outside still reach in. Off by default, because
   // the board's first job is to show what blocks what (design 2a).
   let GATHER = false;
+  // "Show only this epic" (f): the board drops to one epic's work. Not a
+  // filter-dock chip — the dock speaks in assignees and labels, and this
+  // is a question about one epic, asked from its own panel.
+  let EPIC_ONLY = null;
   // Links made by dragging a row onto a card. The payload in the DOM is the
   // one the server rendered, so a link created since then is replayed on
   // top of it rather than costing a refetch of the whole panel.
@@ -682,7 +686,12 @@
     members.forEach((m) => parent.set(m.id, m.id));
     edges.forEach((e) => join(e.source, e.target));
     const near = (a, b) => {
-      const p = REGION_FILL;
+      // Gathering put the members side by side but not touching, and a
+      // region in two pieces with a hand's gap between them is not what
+      // the switch promised. The slack is the layout's own spacing, so
+      // only neighbours merge — work that genuinely sits elsewhere still
+      // gets a part of its own.
+      const p = GATHER ? 48 : REGION_FILL;
       return (
         a.box.x - p < b.box.x + b.box.w + p &&
         b.box.x - p < a.box.x + a.box.w + p &&
@@ -706,6 +715,28 @@
       if (group) group.edges.push(e);
     });
     return [...groups.values()];
+  }
+
+  // How many separate pieces an epic's members form when only the edges
+  // between them count. Gathering collapses them into one block, and the
+  // label says how many it collapsed — a number the layout can no longer
+  // tell you once it has done so.
+  function countIslands(members, edges) {
+    const parent = new Map(members.map((m) => [m.id, m.id]));
+    const find = (id) => {
+      while (parent.get(id) !== id) {
+        parent.set(id, parent.get(parent.get(id)));
+        id = parent.get(id);
+      }
+      return id;
+    };
+    edges.forEach((e) => {
+      if (!parent.has(e.source) || !parent.has(e.target)) return;
+      const a = find(e.source);
+      const b = find(e.target);
+      if (a !== b) parent.set(a, b);
+    });
+    return new Set([...parent.keys()].map(find)).size;
   }
 
   // One figure: a rounded box per member, plus a thick rounded stroke
@@ -735,7 +766,7 @@
     return shapes.join("");
   }
 
-  function regionLabel(state, epic, part, index, onCanvas) {
+  function regionLabel(state, epic, part, index, onCanvas, islands, drawnParts) {
     const box = part.members.reduce(
       (acc, m) => ({
         x: Math.min(acc.x, m.box.x),
@@ -756,7 +787,15 @@
     // none on, the members missing from the board are the ones with no
     // links, and the stack inside the region already says so.
     let sub = main && state.filtered && onCanvas < epic.total ? `${onCanvas} of ${epic.total} match` : "";
-    if (main && GATHER && !sub) sub = "gathered";
+    // ``islands`` is what the epic would be drawn as without gathering —
+    // counted off the edges, not off the layout, so it does not need a
+    // second pass to know what it saved.
+    // Reports what gathering actually did, not what it set out to do:
+    // members too far apart to merge keep their own part, and the label
+    // would otherwise claim a single block that is not on screen.
+    if (main && GATHER && !sub) {
+      sub = islands > drawnParts ? `gathered · ${islands} parts → ${drawnParts}` : "gathered";
+    }
     return {
       epicId: epic.id,
       x: box.x - 12,
@@ -854,6 +893,10 @@
       // A stack counts for as many tasks as it folds, or a region around
       // one would claim to hold a single task.
       const onCanvas = group.reduce((sum, m) => sum + (m.node.stack ? m.node.count : 1), 0);
+      // How many pieces this epic's work sits in by dependency alone —
+      // independent of the layout, so it is the same number whether or
+      // not the board is gathered.
+      const islands = countIslands(group, inside);
       const parts = epicParts(state, group, inside);
       // The stack joins the biggest part: that is the one carrying the
       // epic's name, so the two read as one thing.
@@ -892,7 +935,7 @@
           `<g fill="${hue}" stroke="${hue}" opacity="${(focused ? 0.16 : 0.1) * faded}">` +
             `${regionShapes(part, state.pos, REGION_FILL)}</g>`,
         );
-        labels.push(regionLabel(state, epic, part, i, onCanvas));
+        labels.push(regionLabel(state, epic, part, i, onCanvas, islands, parts.length));
       });
       // Picked, and in pieces: a thin dashed curve says the pieces are one
       // epic. Thin and dashed on purpose — a corridor's width here would
@@ -1051,6 +1094,11 @@
         "shrink",
         "acta-gregion-ic",
       )}Gather epics<span class="font-mono ml-1 text-[9.5px]">G</span></button>` +
+      `<button type="button" class="acta-gsize${EPIC_ONLY != null ? " is-on" : ""}" data-graph-epic-only>${icon(
+        "filter",
+        "acta-gregion-ic",
+      )}${EPIC_ONLY != null ? "Show the rest again" : "Show only this epic"}` +
+      `<span class="font-mono ml-1 text-[9.5px]">F</span></button>` +
       `</div>`;
   }
 
@@ -1867,8 +1915,15 @@
 
   // ---- wiring --------------------------------------------------------------
 
-  function bind(state) {
-    const host = state.host;
+  function bind() {
+    const host = G.host;
+    // Bound once per board element, not once per render: the host and
+    // the panel outlive a rebuild, so re-binding stacked a second copy
+    // of every handler on each filter toggle — and a toggle that ran
+    // twice did nothing at all. The handlers read the live ``G`` rather
+    // than the state they were built with, which a rebuild replaces.
+    if (G.host.dataset.actaGraphBound === "1") return;
+    G.host.dataset.actaGraphBound = "1";
 
     // Trackpad-first, the way every canvas app behaves: two fingers move the
     // board, pinch zooms. A pinch arrives as a wheel event with ``ctrlKey``
@@ -1881,9 +1936,9 @@
         const dx = wheelDelta(e.deltaX, e.deltaMode);
         const dy = wheelDelta(e.deltaY, e.deltaMode);
         if (!e.ctrlKey && !e.metaKey) {
-          state.pan.x -= e.shiftKey && !dx ? dy : dx;
-          state.pan.y -= e.shiftKey && !dx ? 0 : dy;
-          scheduleRedraw(state);
+          G.pan.x -= e.shiftKey && !dx ? dy : dx;
+          G.pan.y -= e.shiftKey && !dx ? 0 : dy;
+          scheduleRedraw(G);
           return;
         }
         const rect = host.getBoundingClientRect();
@@ -1896,14 +1951,14 @@
         // stepper — instead of 2.7x, which is what an unclamped 100 did.
         const step = Math.max(-WHEEL_CLAMP, Math.min(WHEEL_CLAMP, dy));
         const factor = Math.exp(-step * 0.004);
-        const next = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, state.zoom * factor));
-        if (next === state.zoom) return;
+        const next = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, G.zoom * factor));
+        if (next === G.zoom) return;
         // Keep the point under the cursor fixed while the scale changes.
-        state.pan.x = px - ((px - state.pan.x) / state.zoom) * next;
-        state.pan.y = py - ((py - state.pan.y) / state.zoom) * next;
-        state.zoom = next;
-        relevel(state);
-        scheduleRedraw(state);
+        G.pan.x = px - ((px - G.pan.x) / G.zoom) * next;
+        G.pan.y = py - ((py - G.pan.y) / G.zoom) * next;
+        G.zoom = next;
+        relevel(G);
+        scheduleRedraw(G);
       },
       { passive: false },
     );
@@ -1914,30 +1969,30 @@
       // them captures the pointer here, and the click that follows is
       // then delivered to the host instead of to the thing pressed.
       if (e.button !== 0 || e.target.closest("[data-graph-node], [data-graph-epic]")) return;
-      dragging = { x: e.clientX, y: e.clientY, px: state.pan.x, py: state.pan.y, moved: false };
+      dragging = { x: e.clientX, y: e.clientY, px: G.pan.x, py: G.pan.y, moved: false };
       host.setPointerCapture(e.pointerId);
       host.classList.add("is-panning");
     });
     host.addEventListener("pointermove", (e) => {
       if (!dragging) return;
-      state.pan.x = dragging.px + (e.clientX - dragging.x);
-      state.pan.y = dragging.py + (e.clientY - dragging.y);
+      G.pan.x = dragging.px + (e.clientX - dragging.x);
+      G.pan.y = dragging.py + (e.clientY - dragging.y);
       if (Math.abs(e.clientX - dragging.x) + Math.abs(e.clientY - dragging.y) > 3) dragging.moved = true;
-      scheduleRedraw(state);
+      scheduleRedraw(G);
     });
     host.addEventListener("pointerup", (e) => {
       const was = dragging;
       dragging = null;
       host.classList.remove("is-panning");
       if (host.hasPointerCapture(e.pointerId)) host.releasePointerCapture(e.pointerId);
-      if (was && !was.moved && !e.target.closest("[data-graph-node], [data-graph-epic]")) select(state, null);
+      if (was && !was.moved && !e.target.closest("[data-graph-node], [data-graph-epic]")) select(G, null);
     });
 
     host.addEventListener("click", (e) => {
       // The label and the "no links" stack are the epic's own handles.
       const epicHandle = e.target.closest("[data-graph-epic]");
       if (epicHandle) {
-        selectEpic(state, Number(epicHandle.dataset.graphEpic));
+        selectEpic(G, Number(epicHandle.dataset.graphEpic));
         return;
       }
       const expand = e.target.closest("[data-graph-expand]");
@@ -1955,54 +2010,64 @@
       const id = Number(card.dataset.graphNode);
       // Modifier clicks keep the browser's own meaning — a new tab.
       if (e.metaKey || e.ctrlKey) {
-        const node = state.model.byId.get(id);
+        const node = G.model.byId.get(id);
         if (node && node.url) window.open(node.url, "_blank", "noopener");
         return;
       }
-      if (state.selected === id) {
-        openTask(state, id);
+      if (G.selected === id) {
+        openTask(G, id);
         return;
       }
-      select(state, id);
+      select(G, id);
     });
 
     host.addEventListener("dblclick", (e) => {
       const card = e.target.closest("[data-graph-node]");
-      if (card) openTask(state, Number(card.dataset.graphNode));
+      if (card) openTask(G, Number(card.dataset.graphNode));
     });
 
     host.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
-        if (state.epicFocus != null) {
-          selectEpic(state, state.epicFocus);
+        if (G.epicFocus != null) {
+          selectEpic(G, G.epicFocus);
           return;
         }
-        select(state, null);
+        select(G, null);
         return;
       }
       if (e.key === "Enter") {
         const card = e.target.closest("[data-graph-node]");
-        if (card) openTask(state, Number(card.dataset.graphNode));
+        if (card) openTask(G, Number(card.dataset.graphNode));
         return;
       }
-      if ((e.key === "g" || e.key === "G") && state.epics && state.epics.size) {
+      if ((e.key === "g" || e.key === "G") && G.epics && G.epics.size) {
         e.preventDefault();
         toggleGather();
         return;
       }
-      if (e.key.indexOf("Arrow") !== 0 || state.selected == null) return;
+      if ((e.key === "f" || e.key === "F") && (G.epicFocus != null || EPIC_ONLY != null)) {
+        e.preventDefault();
+        toggleEpicOnly(G.epicFocus);
+        return;
+      }
+      if (e.key.indexOf("Arrow") !== 0 || G.selected == null) return;
       e.preventDefault();
-      const next = step(state, e.key);
+      const next = step(G, e.key);
       if (next != null) {
-        select(state, next);
-        reveal(state, next);
+        select(G, next);
+        reveal(G, next);
       }
     });
 
-    const panel = state.panel;
+    const panel = G.panel;
     panel.addEventListener("click", (e) => {
       if (e.target.closest("[data-graph-epic-close]")) {
-        selectEpic(state, state.epicFocus);
+        if (EPIC_ONLY != null) toggleEpicOnly(G.epicFocus);
+        selectEpic(G, G.epicFocus);
+        return;
+      }
+      if (e.target.closest("[data-graph-epic-only]")) {
+        toggleEpicOnly(G.epicFocus);
         return;
       }
       // A blocked task named on the panel is often off screen — that is
@@ -2010,8 +2075,8 @@
       const blockedRow = e.target.closest("[data-graph-reveal]");
       if (blockedRow) {
         const id = Number(blockedRow.dataset.graphReveal);
-        select(state, id);
-        reveal(state, id);
+        select(G, id);
+        reveal(G, id);
         return;
       }
       // The selection bar carries an Expand of its own, and it sits outside
@@ -2023,79 +2088,79 @@
       }
       const kind = e.target.closest("[data-graph-link]");
       if (kind) {
-        submitLink(state, kind.dataset.graphLink);
+        submitLink(G, kind.dataset.graphLink);
         return;
       }
       if (e.target.closest("[data-graph-link-cancel]")) {
-        closeLinkMenu(state);
+        closeLinkMenu(G);
         return;
       }
-      if (e.target.closest("[data-graph-open]") && state.selected != null) {
-        openTask(state, state.selected);
+      if (e.target.closest("[data-graph-open]") && G.selected != null) {
+        openTask(G, G.selected);
         return;
       }
       const zoomBtn = e.target.closest("[data-graph-zoom-by]");
       if (zoomBtn) {
-        const next = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, state.zoom * Number(zoomBtn.dataset.graphZoomBy)));
+        const next = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, G.zoom * Number(zoomBtn.dataset.graphZoomBy)));
         // Anchored at the middle of the board, the way the pinch is
         // anchored at the cursor — stepping the zoom otherwise grows the
         // board out of its own top-left corner and walks away from
         // whatever the user was looking at.
-        const cx = state.host.clientWidth / 2;
-        const cy = state.host.clientHeight / 2;
-        state.pan.x = cx - ((cx - state.pan.x) / state.zoom) * next;
-        state.pan.y = cy - ((cy - state.pan.y) / state.zoom) * next;
-        state.zoom = next;
-        relevel(state);
-        redraw(state);
+        const cx = G.host.clientWidth / 2;
+        const cy = G.host.clientHeight / 2;
+        G.pan.x = cx - ((cx - G.pan.x) / G.zoom) * next;
+        G.pan.y = cy - ((cy - G.pan.y) / G.zoom) * next;
+        G.zoom = next;
+        relevel(G);
+        redraw(G);
         return;
       }
-      if (e.target.closest("[data-graph-fit]")) fit(state);
+      if (e.target.closest("[data-graph-fit]")) fit(G);
       if (e.target.closest("[data-graph-dock-hide]")) {
         DOCK_OPEN = false;
-        state.dockOpen = false;
-        drawDock(state);
-        redraw(state);
+        G.dockOpen = false;
+        drawDock(G);
+        redraw(G);
         return;
       }
       const row = e.target.closest("[data-graph-dock-task]");
       if (row) {
-        openTask(state, Number(row.dataset.graphDockTask));
+        openTask(G, Number(row.dataset.graphDockTask));
         return;
       }
       const size = e.target.closest("[data-graph-size]");
-      if (size) setPinned(state, size.dataset.graphSize || null);
+      if (size) setPinned(G, size.dataset.graphSize || null);
     });
 
     // Edge labels on hover. The paths opt back into hit-testing (the layer
     // itself stays transparent to the pointer) so the chip can follow the
     // line the cursor is actually over.
-    state.svg.addEventListener("pointerover", (e) => {
+    G.svg.addEventListener("pointerover", (e) => {
       const path = e.target.closest("[data-edge]");
       if (!path) return;
-      const edge = state.edgeIndex.get(Number(path.dataset.edge));
+      const edge = G.edgeIndex.get(Number(path.dataset.edge));
       if (!edge) return;
-      const chip = state.panel.querySelector("[data-graph-edge-label]");
+      const chip = G.panel.querySelector("[data-graph-edge-label]");
       if (!chip) return;
       chip.textContent = edge.resolved ? "blocked — now done" : edge.kind === "parent" ? "subtask" : edge.kind;
       chip.dataset.kind = edge.resolved ? "resolved" : edge.kind;
       chip.hidden = false;
-      const rect = state.host.getBoundingClientRect();
+      const rect = G.host.getBoundingClientRect();
       chip.style.left = `${e.clientX - rect.left + 12}px`;
       chip.style.top = `${e.clientY - rect.top + 12}px`;
     });
-    state.svg.addEventListener("pointerout", (e) => {
+    G.svg.addEventListener("pointerout", (e) => {
       if (e.target.closest("[data-edge]")) {
-        const chip = state.panel.querySelector("[data-graph-edge-label]");
+        const chip = G.panel.querySelector("[data-graph-edge-label]");
         if (chip) chip.hidden = true;
       }
     });
 
-    bindDockDrag(state);
+    bindDockDrag(G);
 
-    const ro = window.ResizeObserver ? new ResizeObserver(() => scheduleRedraw(state)) : null;
+    const ro = window.ResizeObserver ? new ResizeObserver(() => scheduleRedraw(G)) : null;
     if (ro) ro.observe(host);
-    state.observer = ro;
+    G.observer = ro;
   }
 
   // ---- entry point ---------------------------------------------------------
@@ -2135,6 +2200,7 @@
     // which reads the full payload through ``looseIds``.
     let nodes = data.nodes.filter((n) => linked.has(n.id));
     if (ONLY_MATCHING && filters && filters.active) nodes = nodes.filter((n) => matchesFilters(n, filters));
+    if (EPIC_ONLY != null) nodes = nodes.filter((n) => n.epicId === EPIC_ONLY);
     const model = foldStacks(nodes.length === data.nodes.length ? full : buildModel({ nodes, edges: data.edges }));
 
     host.innerHTML = "";
@@ -2225,7 +2291,7 @@
     drawMinimap(G);
     drawDock(G);
     drawCounter(G);
-    bind(G);
+    bind();
     try {
       G.pinned = window.localStorage.getItem(storageKey(G)) || null;
     } catch (e) {
@@ -2311,6 +2377,20 @@
     if (!btn || !G) return;
     toggleGather();
   });
+
+  // Narrowing the board changes which nodes it holds, so it is a rebuild
+  // too. The focus is kept, or the panel would close on its own board.
+  function toggleEpicOnly(epicId) {
+    EPIC_ONLY = EPIC_ONLY == null ? epicId : null;
+    const keep = epicId;
+    rebuild();
+    if (G) {
+      G.epicFocus = keep;
+      renderRegions(G);
+      renderEpicPanel(G);
+      syncCards(G);
+    }
+  }
 
   // A relayout, so the whole board is rebuilt rather than redrawn.
   function toggleGather() {
