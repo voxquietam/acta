@@ -308,6 +308,7 @@ Cursor stores its MCP config in **Settings → Tools & MCP**.
 | `acta_projects_list`                       | List projects (filter: workspace, archived).               |
 | `acta_tasks_list`                          | List tasks with filters (status, priority, assignee, etc.) |
 | `acta_task_get`                            | Full payload for one task — meta + subtasks + comments + activity + links. |
+| `acta_tasks_find_similar`                  | Tasks that already say something close to this text — by meaning, across languages. Call it before creating. |
 | `acta_activity_list`                       | Flat activity events with filters (workspace, project, task, type, actor, time range). |
 | `acta_comments_list`                       | Flat comments with filters (workspace, project, task, author, search). |
 | `acta_labels_list`                         | List labels.                                               |
@@ -324,6 +325,23 @@ Cursor stores its MCP config in **Settings → Tools & MCP**.
 | `acta_tasks_bulk_update`                   | Update N tasks atomically — same per-item shape, so a whole family can be re-parented in one call. |
 | `acta_tasks_bulk_archive`                  | Archive N tasks atomically.                                |
 | `acta_tasks_bulk_delete`                   | Delete N tasks atomically.                                 |
+
+### Not filing the same task twice
+
+`acta_tasks_find_similar` ranks tasks by meaning rather than by
+substring, which is the only way to notice that "аудит сегментации
+сети" and *Network segmentation audit* are the same job — Acta's boards
+mix Ukrainian, Russian and English freely. `acta_task_create` and
+`acta_tasks_bulk_create` both ask clients to check it first and to
+update, link or nest the existing task instead of adding a second copy.
+
+It is a suggestion, not a gate: the create tools never refuse on a near
+match. The score is a ranking between 0 and 1, and a true match has been
+measured anywhere from 0.55 to 0.88 — read the titles and decide.
+
+The feature needs `ACTA_EMBEDDING_URL` (see `docs/operations.md`). Where
+it is not configured the tool answers with an empty list and a `note`
+saying so, rather than letting a client conclude the board is empty.
 
 ### Saying "me"
 

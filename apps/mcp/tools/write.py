@@ -869,6 +869,15 @@ TOOLS: list[Tool] = [
         name="acta_task_create",
         description=(
             "Create a new task in one of the user's projects. "
+            "BEFORE CREATING, call ``acta_tasks_find_similar`` with the title you "
+            "are about to use and read what comes back: Acta's boards carry "
+            "Ukrainian, Russian and English side by side, so an existing task for "
+            "the same work is routinely invisible to a keyword search. If one of "
+            "the matches is the same piece of work, say so and update or comment on "
+            "it instead of creating a second copy. If it is adjacent rather than "
+            "the same, create the task and link it with ``acta_task_link`` "
+            "(``related``), or make it a subtask with ``parent_slug`` when the "
+            "match is plainly the umbrella it belongs under. "
             "Required: ``project`` (slug prefix), ``title``. "
             "Optional: ``description`` (Markdown), ``status`` (default to-do), "
             "``priority`` (0=none, 1=Urgent, 2=High, 3=Medium, 4=Low), "
@@ -1125,7 +1134,10 @@ TOOLS: list[Tool] = [
     Tool(
         name="acta_tasks_bulk_create",
         description=(
-            "Create multiple tasks in one atomic call. ``tasks`` is a list of "
+            "Create multiple tasks in one atomic call. Check the batch against "
+            "``acta_tasks_find_similar`` first, the way ``acta_task_create`` "
+            "describes — a bulk call is where duplicates arrive in quantity. "
+            "``tasks`` is a list of "
             "task specs — each has the same shape as ``acta_task_create`` "
             "arguments (project, title, etc.). If ANY task fails validation, "
             "the WHOLE batch rolls back — partial creates never persist. "

@@ -6,6 +6,7 @@ permission gates and shape of the payload without a stdio round-trip.
 """
 
 from django.db import connection
+from django.test import override_settings
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
@@ -754,3 +755,82 @@ class TestAmbiguousSlugPrefix:
         message = str(exc.value)
         assert "ambiguous" in message
         assert first.slug in message and second.slug in message
+
+
+@pytest.fixture
+def project_setup(db):
+    """A member, their workspace and a project to file tasks in."""
+    user = UserFactory()
+    ws = WorkspaceFactory()
+    WorkspaceMember.objects.create(user=user, workspace=ws)
+    project = ProjectFactory(workspace=ws, slug_prefix="SIM")
+    return user, ws, project
+
+
+@pytest.mark.django_db
+class TestFindSimilar:
+    """``acta_tasks_find_similar`` — the duplicate check the create tool asks for."""
+
+    settings_on = override_settings(
+        ACTA_EMBEDDING_URL="http://embed.test:11434",
+        ACTA_EMBEDDING_MODEL="test-model",
+    )
+
+    @staticmethod
+    def _stub(monkeypatch, mapping):
+        """Point the embedding call at a lookup table."""
+        from apps.tasks import similarity
+
+        similarity._CACHE.clear()
+        monkeypatch.setattr(
+            similarity,
+            "embed",
+            lambda texts, timeout=None: [mapping[text.split("\n")[0]] for text in texts],
+        )
+
+    def test_the_nearest_task_comes_back_with_its_score(self, project_setup, monkeypatch):
+        from apps.tasks import similarity
+
+        user, ws, project = project_setup
+        existing = TaskFactory(project=project, title="Налаштувати бекапи", reporter=user)
+        mapping = {"Налаштувати бекапи": [1.0, 0.0], "настроить бекапы": [1.0, 0.0]}
+        with self.settings_on:
+            self._stub(monkeypatch, mapping)
+            similarity.store([existing])
+            self._stub(monkeypatch, mapping)
+            result = CALLABLES["acta_tasks_find_similar"](
+                user,
+                {"text": "настроить бекапы", "workspace": ws.slug},
+            )
+        assert [m["slug"] for m in result["matches"]] == [existing.slug]
+        assert result["matches"][0]["score"] == pytest.approx(1.0, abs=0.01)
+
+    def test_neighbours_of_an_existing_task_exclude_itself(self, project_setup, monkeypatch):
+        from apps.tasks import similarity
+
+        user, _, project = project_setup
+        anchor = TaskFactory(project=project, title="Налаштувати бекапи", reporter=user)
+        other = TaskFactory(project=project, title="Перевірити бекапи", reporter=user)
+        mapping = {"Налаштувати бекапи": [1.0, 0.0], "Перевірити бекапи": [0.98, 0.2]}
+        with self.settings_on:
+            self._stub(monkeypatch, mapping)
+            similarity.store([anchor, other])
+            self._stub(monkeypatch, mapping)
+            result = CALLABLES["acta_tasks_find_similar"](user, {"slug": anchor.slug})
+        assert [m["slug"] for m in result["matches"]] == [other.slug]
+
+    def test_without_a_host_it_says_so_rather_than_claiming_nothing_matches(self, project_setup):
+        user, ws, project = project_setup
+        TaskFactory(project=project, title="Налаштувати бекапи", reporter=user)
+        with override_settings(ACTA_EMBEDDING_URL=""):
+            result = CALLABLES["acta_tasks_find_similar"](
+                user,
+                {"text": "настроить бекапы", "workspace": ws.slug},
+            )
+        assert result["matches"] == []
+        assert "note" in result
+
+    def test_text_or_slug_is_required(self, project_setup):
+        user, _, _ = project_setup
+        with pytest.raises(ValueError, match="text.*slug"):
+            CALLABLES["acta_tasks_find_similar"](user, {})
