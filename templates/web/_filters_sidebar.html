@@ -150,6 +150,19 @@ Section visibility flags from the view:
 
       <div class="sep"></div>
 
+      {% comment %}
+      Unlinked — graph view only. The relationship board draws links, so
+      tasks with none of them live in a side list opened from here, beside
+      the filters that drive it (design: artboard 1j).
+      {% endcomment %}
+      <button type="button" class="acta-flt-rail-btn" data-tooltip-pos="left"
+              x-show="$store.viewMode && $store.viewMode.current === 'graph'" x-cloak
+              data-graph-unlinked-toggle
+              title="{% trans 'Unlinked tasks' %}">
+        {% lucide "unlink" "w-4 h-4" %}
+        <span class="ind" data-graph-unlinked-count hidden></span>
+      </button>
+
       <button type="button" class="acta-flt-rail-btn" data-tooltip-pos="left"
               :class="$store.filters.openSection === 'search' && 'is-active'"
               title="{% trans 'Search' %}"
@@ -648,6 +661,21 @@ Section visibility flags from the view:
       {# explicit value — see resolve_show_backlog / resolve_show_archived. #}
       <div class="acta-flt-toggles-foot" data-section="toggles" data-bare>
         <div class="flex items-center justify-between gap-3 flex-wrap">
+          {% comment %}
+          Unlinked list — graph view only, and the expanded twin of the rail
+          button above. Not a filter: it opens the side area that holds the
+          tasks the board cannot draw, so it carries a count rather than a
+          form value.
+          {% endcomment %}
+          <button type="button"
+                  x-data
+                  x-show="$store.viewMode && $store.viewMode.current === 'graph'" x-cloak
+                  data-graph-unlinked-toggle
+                  class="acta-gswitch">
+            <span class="acta-gswitch-track"><span class="acta-gswitch-knob"></span></span>
+            {% trans "Unlinked tasks" %}
+            <span class="acta-gdock-total" data-graph-unlinked-count hidden></span>
+          </button>
           {% if show_backlog_toggle %}
           <div x-data
                {% if backlog_tab_aware %}x-show="!($store.viewMode && $store.viewMode.current === 'backlog')"
