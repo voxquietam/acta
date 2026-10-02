@@ -20,6 +20,8 @@ class TaskSerializer(serializers.ModelSerializer):
             "number",
             "slug",
             "parent",
+            "kind",
+            "epic",
             "title",
             "description",
             "description_html",
@@ -111,6 +113,10 @@ class TaskSerializer(serializers.ModelSerializer):
         Checks:
             * Parent and child must share a project.
             * Subtask depth is limited to one level.
+            * An epic collects plain tasks from its own workspace, is
+              never a subtask, and carries none of the fields it derives
+              from them. Unlike a parent, it reaches across projects on
+              purpose. See docs/decisions/0036-epics.md.
             * Labels (if any) must belong to the same workspace as the
               task's project.
             * Assignee (if set on this write) must be an active member
@@ -140,6 +146,42 @@ class TaskSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"parent": _("Subtasks cannot have their own subtasks (depth limit 1).")},
             )
+        kind = attrs.get("kind") or getattr(self.instance, "kind", Task.KIND_TASK)
+        epic = attrs["epic"] if "epic" in attrs else getattr(self.instance, "epic", None)
+        if kind not in Task.KIND_VALUES:
+            raise serializers.ValidationError(
+                {"kind": _("Unknown kind: %(value)s.") % {"value": kind}},
+            )
+        if (kind == Task.KIND_EPIC or epic is not None) and project and not project.workspace.epics_enabled:
+            raise serializers.ValidationError(
+                {"kind": _("Epics are turned off for this workspace.")},
+            )
+        if epic is not None:
+            if kind == Task.KIND_EPIC:
+                raise serializers.ValidationError(
+                    {"epic": _("An epic cannot belong to another epic.")},
+                )
+            if epic.kind != Task.KIND_EPIC:
+                raise serializers.ValidationError(
+                    {"epic": _("Tasks can only be collected by an epic.")},
+                )
+            if project and epic.project.workspace_id != project.workspace_id:
+                raise serializers.ValidationError(
+                    {"epic": _("Epic must be in the same workspace.")},
+                )
+        if kind == Task.KIND_EPIC:
+            if parent is not None:
+                raise serializers.ValidationError(
+                    {"parent": _("An epic cannot be a subtask.")},
+                )
+            for field, message in (
+                ("due_date", _("An epic takes its dates from its tasks.")),
+                ("size", _("An epic takes its size from its tasks.")),
+                ("cycle", _("An epic does not join a cycle.")),
+            ):
+                value = attrs[field] if field in attrs else getattr(self.instance, field, None)
+                if value is not None:
+                    raise serializers.ValidationError({field: message})
         if labels and project:
             wrong = [lab.id for lab in labels if lab.workspace_id != project.workspace_id]
             if wrong:

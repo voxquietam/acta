@@ -194,3 +194,61 @@ class TestWhatAnEpicReadsOffItsTasks:
         # the work it was over.
         assert task.epic_id is None
         assert Task.objects.filter(pk=task.pk).exists()
+
+
+@pytest.mark.django_db
+class TestTheApiEnforcesTheSameRules:
+    """The REST layer repeats the model's rules rather than trusting it.
+
+    ``Model.clean()`` is not called on ``save()``, so the serializer is
+    where an API client actually meets them.
+    """
+
+    @pytest.fixture
+    def api(self, workspace):
+        """An authenticated API client whose user owns the workspace."""
+        from rest_framework.test import APIClient
+
+        client = APIClient()
+        client.force_authenticate(user=workspace.owner)
+        return client
+
+    def post(self, api, project, **extra):
+        """POST a task payload to the API."""
+        payload = {"project": project.id, "title": "From the API"}
+        payload.update(extra)
+        return api.post("/api/v1/tasks/", payload, format="json")
+
+    def test_a_task_can_be_collected(self, api, project, epic):
+        resp = self.post(api, project, epic=epic.id)
+        assert resp.status_code == 201, resp.data
+        assert Task.objects.get(pk=resp.data["id"]).epic_id == epic.pk
+
+    def test_an_epic_can_be_created(self, api, project):
+        resp = self.post(api, project, kind=Task.KIND_EPIC)
+        assert resp.status_code == 201, resp.data
+        assert Task.objects.get(pk=resp.data["id"]).kind == Task.KIND_EPIC
+
+    def test_a_plain_task_cannot_collect(self, api, project):
+        resp = self.post(api, project, epic=TaskFactory(project=project).id)
+        assert resp.status_code == 400
+        assert "epic" in resp.data
+
+    def test_an_epic_from_another_workspace_is_refused(self, api, project):
+        foreign = ProjectFactory(workspace=WorkspaceFactory(), slug_prefix="FGN")
+        foreign_epic = TaskFactory(project=foreign, kind=Task.KIND_EPIC, status=Task.STATUS_PLANNED)
+        resp = self.post(api, project, epic=foreign_epic.id)
+        assert resp.status_code == 400
+        assert "epic" in resp.data
+
+    def test_an_epic_cannot_be_given_a_deadline(self, api, project):
+        resp = self.post(api, project, kind=Task.KIND_EPIC, due_date="2026-10-09")
+        assert resp.status_code == 400
+        assert "due_date" in resp.data
+
+    def test_the_switch_is_honoured(self, api, workspace, project):
+        workspace.epics_enabled = False
+        workspace.save(update_fields=["epics_enabled"])
+        resp = self.post(api, project, kind=Task.KIND_EPIC)
+        assert resp.status_code == 400
+        assert "kind" in resp.data
