@@ -135,6 +135,13 @@ someone twice.
       <span class="acta-dock-key">F</span>
     </button>
 
+    <button type="button" class="acta-dock-display" :class="{ 'is-open': open === 'display', 'is-on': scopeOn }"
+            @click="open === 'display' ? close() : (open = 'display')"
+            title="{% trans 'What this view shows' %}">
+      {% lucide "eye" "w-3.5 h-3.5" %}
+      {% trans "Display" %}
+    </button>
+
     <button type="button" class="acta-dock-clear" x-show="chips.length"
             @click="clearAll()">{% trans "Clear" %}</button>
 
@@ -168,18 +175,25 @@ someone twice.
       </button>
     </template>
     <p class="acta-dock-pop-empty" x-show="!matchingFields.length">{% trans "Nothing matches." %}</p>
+  </div>
 
-    {% comment %} Scope switches: not filters, but they have to live somewhere. {% endcomment %}
-    <div class="acta-dock-pop-sep"></div>
+  {% comment %}
+  ---- popover: display ----
+  Backlog and Archived are not filters: they decide which rows exist at
+  all, the way a scope does, and mixing them into "Add" made them read
+  as two more axes. Their own button, next to Add rather than inside it.
+  {% endcomment %}
+  <div class="acta-dock-pop is-fields" x-show="open === 'display'" @click.outside="close()">
+    <p class="acta-dock-pop-title">{% trans "Show in this view" %}</p>
     {% if show_backlog_toggle %}
     <button type="button" class="acta-dock-pop-row" @click="toggleScope('show_backlog')">
       <span class="acta-dock-tick" :class="{ 'is-on': toggles.show_backlog }"></span>
-      {% trans "Show backlog" %}
+      {% trans "Backlog tasks" %}
     </button>
     {% endif %}
     <button type="button" class="acta-dock-pop-row" @click="toggleScope('show_archived')">
       <span class="acta-dock-tick" :class="{ 'is-on': toggles.show_archived }"></span>
-      {% trans "Show archived" %}
+      {% trans "Archived tasks" %}
     </button>
     {% if show_my_projects_toggle %}
     <button type="button" class="acta-dock-pop-row" @click="toggleScope('show_my_projects')">

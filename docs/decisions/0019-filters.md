@@ -68,6 +68,12 @@ Consequences worth knowing:
   without one.
 - Status is dropped from the dock on the kanban, where the columns
   already group by it.
+- Backlog / Archived / Only-my-projects are **not** in the Add menu:
+  they decide which rows exist at all rather than narrowing the ones
+  that do, so they sit behind their own **Display** button. The design
+  wanted them beside grouping and sorting; grouping only exists on the
+  list view while these three apply everywhere, so they stayed on the
+  dock.
 - The live project-count refresh is gone with the rail rows it swapped
   into; counts come from the payload the page rendered with.
 

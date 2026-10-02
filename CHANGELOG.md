@@ -15,7 +15,9 @@ Automating this with `git-cliff` is deferred until `v1.0.0`.
   are gone; the bar at the bottom shows only the filters that are on, as
   chips, and everything else is behind "Add" (hotkey `F`). Dates became
   presets, and the dock is dropped onto the same hidden form the rail
-  wrote, so links to filtered views keep working unchanged. See ADR 0019.
+  wrote, so links to filtered views keep working unchanged. Backlog and
+  archived moved out of the filters into their own **Display** menu —
+  they decide what exists, not what is shown. See ADR 0019.
 - **"This already exists" suggestions.** Typing a title in the create
   dialog shows the tasks that already say something close to it — by
   meaning and across languages, so a Russian title finds its Ukrainian

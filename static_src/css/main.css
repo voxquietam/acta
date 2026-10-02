@@ -3010,6 +3010,7 @@ tr[data-vrow-hidden] {
 .acta-dock-more,
 .acta-dock-clear,
 .acta-dock-unlinked,
+.acta-dock-display,
 .acta-dock-add {
   display: inline-flex;
   align-items: center;
@@ -3035,6 +3036,22 @@ tr[data-vrow-hidden] {
 }
 .acta-dock-clear,
 .acta-dock-unlinked {
+  color: rgb(var(--placeholder-foreground));
+}
+.acta-dock-display.is-on {
+  color: #8f9dfc;
+}
+.acta-dock-display.is-open {
+  background: rgb(var(--muted));
+  color: rgb(var(--foreground));
+}
+.acta-dock-pop-title {
+  padding: 4px 8px 6px;
+  margin-bottom: 3px;
+  border-bottom: 1px solid rgb(var(--border));
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   color: rgb(var(--placeholder-foreground));
 }
 .acta-dock-clear:hover,

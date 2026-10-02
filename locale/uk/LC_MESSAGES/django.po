@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Acta 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-02 13:01+0000\n"
+"POT-Creation-Date: 2026-10-02 13:16+0000\n"
 "PO-Revision-Date: 2026-05-16 15:30+0000\n"
 "Last-Translator: Acta team\n"
 "Language-Team: Ukrainian\n"
@@ -2686,7 +2686,7 @@ msgstr "7д × 24г · кожна подія воркспейсу за годи�
 msgid "fewer"
 msgstr "менше"
 
-#: templates/web/_filter_dock.html:99 templates/web/_filter_dock.html:223
+#: templates/web/_filter_dock.html:99 templates/web/_filter_dock.html:237
 #, fuzzy
 #| msgid "Search"
 msgid "Search…"
@@ -2713,65 +2713,83 @@ msgstr "Додати"
 msgid "Filter"
 msgstr "Фільтри"
 
-#: templates/web/_filter_dock.html:144 templates/web/_filter_dock.html:213
+#: templates/web/_filter_dock.html:145
+msgid "What this view shows"
+msgstr "Що показує цей вигляд"
+
+#: templates/web/_filter_dock.html:147
+msgid "Display"
+msgstr "Вигляд"
+
+#: templates/web/_filter_dock.html:151 templates/web/_filter_dock.html:227
 msgid "Clear"
 msgstr "Очистити"
 
-#: templates/web/_filter_dock.html:154
+#: templates/web/_filter_dock.html:161
 #, fuzzy
 #| msgid "unlinked"
 msgid "Unlinked"
 msgstr "відв'язано"
 
-#: templates/web/_filter_dock.html:167
+#: templates/web/_filter_dock.html:174
 #, fuzzy
 #| msgid "Filter by size"
 msgid "Filter by…"
 msgstr "Фільтрувати за розміром"
 
-#: templates/web/_filter_dock.html:177 templates/web/_filter_dock.html:238
+#: templates/web/_filter_dock.html:184 templates/web/_filter_dock.html:252
 #, fuzzy
 #| msgid "No matches."
 msgid "Nothing matches."
 msgstr "Нічого не знайдено."
 
-#: templates/web/_filter_dock.html:185
-msgid "Show backlog"
-msgstr "Показати беклог"
-
-#: templates/web/_filter_dock.html:190 templates/web/projects/list.html:62
-msgid "Show archived"
+#: templates/web/_filter_dock.html:195
+#, fuzzy
+#| msgid "Show archived"
+msgid "Show in this view"
 msgstr "Показати архівні"
 
-#: templates/web/_filter_dock.html:195
+#: templates/web/_filter_dock.html:199
+#, fuzzy
+#| msgid "Backlog"
+msgid "Backlog tasks"
+msgstr "Беклог"
+
+#: templates/web/_filter_dock.html:204
+#, fuzzy
+#| msgid "Unarchive task"
+msgid "Archived tasks"
+msgstr "Розархівувати задачу"
+
+#: templates/web/_filter_dock.html:209
 #, fuzzy
 #| msgid "Show my projects"
 msgid "Only my projects"
 msgstr "Тільки мої проєкти"
 
-#: templates/web/_filter_dock.html:206
+#: templates/web/_filter_dock.html:220
 #, fuzzy
 #| msgid "Backlog"
 msgid "Back"
 msgstr "Беклог"
 
-#: templates/web/_filter_dock.html:217
+#: templates/web/_filter_dock.html:231
 #, fuzzy
 #| msgid "List"
 msgid "is"
 msgstr "Список"
 
-#: templates/web/_filter_dock.html:218
+#: templates/web/_filter_dock.html:232
 msgid "is not"
 msgstr "не є"
 
-#: templates/web/_filter_dock.html:242
+#: templates/web/_filter_dock.html:256
 #, fuzzy
 #| msgid "click to edit"
 msgid "shift-click to exclude"
 msgstr "клікніть, щоб редагувати"
 
-#: templates/web/_filter_dock.html:244
+#: templates/web/_filter_dock.html:258
 #, fuzzy
 #| msgid "moved to cycle"
 msgid "esc to close"
@@ -4637,6 +4655,10 @@ msgstr "Мої"
 msgid "Hide archived"
 msgstr "Сховати архівні"
 
+#: templates/web/projects/list.html:62
+msgid "Show archived"
+msgstr "Показати архівні"
+
 #: templates/web/projects/list.html:72
 msgid "You're not a member of any project yet. Switch to"
 msgstr "Ви ще не є учасником жодного проєкту. Перемкніться на"
@@ -5377,6 +5399,9 @@ msgstr[3] "%(counter)s в очікуванні"
 #: templates/web/workspaces/settings.html:217
 msgid "Danger zone"
 msgstr "Небезпечна зона"
+
+#~ msgid "Show backlog"
+#~ msgstr "Показати беклог"
 
 #~ msgid "Open filters"
 #~ msgstr "Відкрити фільтри"

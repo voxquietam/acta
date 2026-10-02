@@ -4575,6 +4575,12 @@ window.actaFilterDock = function actaFilterDock() {
       return this.expanded ? 0 : Math.max(0, this.chips.length - this.CHIP_LIMIT);
     },
 
+    // Any scope switch that is on, so the Display button can say so
+    // without opening it.
+    get scopeOn() {
+      return ["show_backlog", "show_archived", "show_my_projects"].some((k) => this.toggles[k]);
+    },
+
     get countText() {
       // Same markers the row matcher walks: a task element carries both
       // ``data-task-id`` and the filter attrs.
