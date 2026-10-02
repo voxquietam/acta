@@ -60,6 +60,11 @@ Automating this with `git-cliff` is deferred until `v1.0.0`.
 
 ### Fixed
 
+- **Panning the graph lagged on a big board.** Every frame rewrote the
+  geometry and state of every visible card, though a pan moves the stage
+  and not the cards, and recomputed which cards the viewport covers. A
+  pan frame is now one transform; the rest waits for the gesture to
+  pause, so the cost no longer grows with the number of tasks.
 - **A mouse wheel zoomed the graph 2.7x per notch.** The step was tuned
   for a trackpad pinch, where a browser reports deltas of single pixels;
   one notch of a wheel reports a hundred. Both now move about 1.2x per

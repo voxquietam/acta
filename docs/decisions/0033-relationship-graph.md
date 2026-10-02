@@ -53,6 +53,24 @@ median / 3.3 ms worst against a 16.7 ms budget. A synthetic 1500-task
 board pans just as cheaply (1.6 ms median); its one-off dagre layout
 takes 1.7 s, which is the only cost that grows with size.
 
+**Two of those bounds leaked and had to be closed again.** Packing the
+chains into a mosaic (below) made boards far denser, so many more cards
+share the viewport — and a thousand-task board on production panned like
+a slideshow. Two things were wrong. Every frame rewrote every visible
+card's transform, size and state classes, although a pan moves the stage
+and leaves the cards where they are: eleven style mutations per card per
+frame, 13 ms on a hundred cards. And the frame also recomputed which
+cards the viewport covers, building the ones that had just entered,
+which is the part whose cost grows with the board.
+
+So a card's geometry is now written only when the layout generation
+changes, and a frame spent panning writes one transform and nothing
+else: the viewport sweep and the card building wait until the gesture
+pauses (90 ms) or the board has travelled far enough to eat into the
+overscan. Panning became independent of how many cards are on screen —
+measured on the same board, a wide pan went from 10 ms of frame overhead
+to 3.2 ms, which is now the same as standing still.
+
 **Direction means one thing.** Down is "later": a parent sits above its
 subtasks, and a blocker sits above the work it blocks. Reading the board
 downwards is reading the order of work. The opposite convention — an

@@ -764,7 +764,8 @@
       const node = state.model.byId.get(id);
       const box = pos.get(id);
       let el = state.cards.get(id);
-      if (!el) {
+      const fresh = !el;
+      if (fresh) {
         el = document.createElement("div");
         el.className = "acta-gcard";
         el.dataset.graphNode = String(id);
@@ -773,11 +774,19 @@
         state.cards.set(id, el);
         frag.appendChild(el);
       }
-      el.dataset.level = state.level;
-      el.style.transform = `translate(${box.x}px, ${box.y}px)`;
-      el.style.width = `${box.w}px`;
-      el.style.height = `${box.h}px`;
-      applyCardState(el, node, state);
+      // A pan moves the stage, not the cards: their geometry is a property
+      // of the layout, which only changes when the detail level does.
+      // Writing it on every frame anyway cost eleven style mutations per
+      // visible card per frame — 13 ms on a board of a hundred cards,
+      // which is most of a frame budget spent re-stating the unchanged.
+      if (fresh || el.dataset.gen !== state.gen) {
+        el.dataset.gen = state.gen;
+        el.dataset.level = state.level;
+        el.style.transform = `translate(${box.x}px, ${box.y}px)`;
+        el.style.width = `${box.w}px`;
+        el.style.height = `${box.h}px`;
+        applyCardState(el, node, state);
+      }
     });
     if (frag.childNodes.length) state.stage.appendChild(frag);
   }
@@ -821,6 +830,7 @@
     state.height = laid.height;
     state.cards.forEach((el) => el.remove());
     state.cards.clear();
+    state.gen = String(Number(state.gen || 0) + 1);
     renderEdges(state);
     drawMinimap(state);
     return true;
@@ -880,7 +890,52 @@
     applyTransform(state);
     syncCards(state);
     drawViewport(state);
+    state.syncedAt = { x: state.pan.x, y: state.pan.y, zoom: state.zoom };
     CAMERA.set(state.host.dataset.project || "", { zoom: state.zoom, pan: { x: state.pan.x, y: state.pan.y } });
+  }
+
+  // A trackpad reports moves faster than the screen can show them, and a
+  // pan that redraws per event does the same work several times for one
+  // frame the user sees. Everything that fires from an input event goes
+  // through here; the one-shot paths (fit, relevel) stay synchronous.
+  function scheduleRedraw(state) {
+    if (state.frame) return;
+    state.frame = window.requestAnimationFrame(() => {
+      state.frame = 0;
+      panFrame(state);
+    });
+  }
+
+  // While the board is being moved, a frame writes ONE transform and
+  // nothing else. Working out which cards the viewport now covers — and
+  // building the ones that just entered — is the expensive half, and its
+  // cost grows with the size of the board: on a thousand tasks it is what
+  // turns a pan into a slideshow. The overscan already holds a screen's
+  // worth of cards beyond the edges, so that work can wait until either
+  // the gesture pauses or the board has travelled far enough to run out
+  // of buffer.
+  const RESYNC_AFTER = OVERSCAN * 0.6;
+  const SETTLE_MS = 90;
+
+  function panFrame(state) {
+    applyTransform(state);
+    drawViewport(state);
+    CAMERA.set(state.host.dataset.project || "", { zoom: state.zoom, pan: { x: state.pan.x, y: state.pan.y } });
+    const since = state.syncedAt;
+    const travelled =
+      !since ||
+      since.zoom !== state.zoom ||
+      Math.abs(since.x - state.pan.x) + Math.abs(since.y - state.pan.y) > RESYNC_AFTER;
+    if (travelled) {
+      syncCards(state);
+      state.syncedAt = { x: state.pan.x, y: state.pan.y, zoom: state.zoom };
+      return;
+    }
+    window.clearTimeout(state.settle);
+    state.settle = window.setTimeout(() => {
+      syncCards(state);
+      state.syncedAt = { x: state.pan.x, y: state.pan.y, zoom: state.zoom };
+    }, SETTLE_MS);
   }
 
   // Fitting and the detail level chase each other: a smaller zoom means
@@ -1289,7 +1344,7 @@
         if (!e.ctrlKey && !e.metaKey) {
           state.pan.x -= e.shiftKey && !dx ? dy : dx;
           state.pan.y -= e.shiftKey && !dx ? 0 : dy;
-          redraw(state);
+          scheduleRedraw(state);
           return;
         }
         const rect = host.getBoundingClientRect();
@@ -1309,7 +1364,7 @@
         state.pan.y = py - ((py - state.pan.y) / state.zoom) * next;
         state.zoom = next;
         relevel(state);
-        redraw(state);
+        scheduleRedraw(state);
       },
       { passive: false },
     );
@@ -1326,7 +1381,7 @@
       state.pan.x = dragging.px + (e.clientX - dragging.x);
       state.pan.y = dragging.py + (e.clientY - dragging.y);
       if (Math.abs(e.clientX - dragging.x) + Math.abs(e.clientY - dragging.y) > 3) dragging.moved = true;
-      redraw(state);
+      scheduleRedraw(state);
     });
     host.addEventListener("pointerup", (e) => {
       const was = dragging;
@@ -1468,7 +1523,7 @@
 
     bindDockDrag(state);
 
-    const ro = window.ResizeObserver ? new ResizeObserver(() => redraw(state)) : null;
+    const ro = window.ResizeObserver ? new ResizeObserver(() => scheduleRedraw(state)) : null;
     if (ro) ro.observe(host);
     state.observer = ro;
   }
@@ -1591,6 +1646,10 @@
 
   function rebuild() {
     if (G && G.observer) G.observer.disconnect();
+    if (G) {
+      window.clearTimeout(G.settle);
+      if (G.frame) window.cancelAnimationFrame(G.frame);
+    }
     G = null;
     render();
   }
