@@ -189,10 +189,14 @@ noise against that.
 
 ## Still open
 
-- The exact rule for undoing "turn into epic". The design says
-  "reversible while the epic has no tasks from other projects", which is
-  the right instinct — once work from elsewhere has joined, demoting the
-  epic would orphan it — but it needs stating as a condition the code
-  can check.
+- *Settled.* Undoing "turn into epic" is allowed while the epic's tasks
+  can go back to being its subtasks, which is the design's "no tasks from
+  other projects" written as two conditions the code checks: every member
+  is in the epic's own project (ADR 0007), and no member has subtasks of
+  its own (the depth-1 rule forbids a grandparent). It is a conversion
+  back rather than an undo — the deadline, size and cycle the epic
+  dropped were not kept anywhere — and the dialog says so instead of
+  implying they return. The task lands on the status its work added up
+  to, since that is what the epic was showing a moment earlier.
 - Progress percentages are shown for every epic in the picker and on the
   tab, so they come from one aggregate query, never from a loop.
