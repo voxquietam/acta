@@ -26,6 +26,9 @@ Automating this with `git-cliff` is deferred until `v1.0.0`.
   dialog beside the similar-task list. The people who took the work the
   neighbours describe — shown only when the same person turns up on at
   least two close matches, and only on a task nobody owns yet.
+- **"Similar tasks use" in the label picker**, on a task and in the
+  create dialog. Labels at least two close neighbours carry and this
+  task does not; they disappear as soon as they are attached.
 - **Relationship graph: project stacks.** Tasks from a neighbouring
   project fold into one card carrying its badge, how many of its tasks
   this board touches and how many of them block work here. Opens in
