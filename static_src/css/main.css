@@ -2443,6 +2443,10 @@ tr[data-vrow-hidden] {
   font-size: 12px;
   z-index: 3;
 }
+/* Same reason as ``.acta-gsel[hidden]`` above. */
+.acta-gepic[hidden] {
+  display: none;
+}
 .acta-gepic-head {
   display: flex;
   align-items: center;
