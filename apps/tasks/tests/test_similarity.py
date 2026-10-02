@@ -279,3 +279,58 @@ class TestLikelyAssignees:
         anchor.refresh_from_db()
         found = similarity.neighbours_of_task(anchor)
         assert [task_id for task_id, _ in found] == [other.pk]
+
+
+@pytest.mark.django_db
+class TestLikelyLabels:
+    """Which labels the near neighbours carry."""
+
+    @ENABLED
+    def test_a_label_on_two_neighbours_is_suggested(self, setup, monkeypatch):
+        from apps.labels.tests.factories import LabelFactory
+
+        workspace, project = setup
+        label = LabelFactory(workspace=workspace, name="backend")
+        first = TaskFactory(project=project, title="near")
+        second = TaskFactory(project=project, title="near-too")
+        first.labels.add(label)
+        second.labels.add(label)
+        anchor = TaskFactory(project=project, title="asking")
+        vectors = {"near": [1.0, 0.0], "near-too": [1.0, 0.0], "asking": [1.0, 0.0]}
+        embed_tasks(monkeypatch, vectors, [first, second, anchor])
+        monkeypatch.setattr(similarity, "embed", fake_embed(vectors))
+        found = similarity.neighbours_of_task(anchor, limit=12, min_score=similarity.ASSIGNEE_MIN_SCORE)
+        assert similarity.labels_of(found) == [(label.pk, 2)]
+
+    @ENABLED
+    def test_a_label_the_task_already_carries_is_not_suggested(self, setup, monkeypatch):
+        from apps.labels.tests.factories import LabelFactory
+
+        workspace, project = setup
+        label = LabelFactory(workspace=workspace, name="backend")
+        first = TaskFactory(project=project, title="near")
+        second = TaskFactory(project=project, title="near-too")
+        first.labels.add(label)
+        second.labels.add(label)
+        anchor = TaskFactory(project=project, title="asking")
+        anchor.labels.add(label)
+        vectors = {"near": [1.0, 0.0], "near-too": [1.0, 0.0], "asking": [1.0, 0.0]}
+        embed_tasks(monkeypatch, vectors, [first, second, anchor])
+        monkeypatch.setattr(similarity, "embed", fake_embed(vectors))
+        found = similarity.neighbours_of_task(anchor, limit=12, min_score=similarity.ASSIGNEE_MIN_SCORE)
+        assert similarity.labels_of(found, skip_label_ids=[label.pk]) == []
+
+    @ENABLED
+    def test_one_neighbour_with_a_label_is_not_enough(self, setup, monkeypatch):
+        from apps.labels.tests.factories import LabelFactory
+
+        workspace, project = setup
+        label = LabelFactory(workspace=workspace, name="backend")
+        only = TaskFactory(project=project, title="near")
+        only.labels.add(label)
+        anchor = TaskFactory(project=project, title="asking")
+        vectors = {"near": [1.0, 0.0], "asking": [1.0, 0.0]}
+        embed_tasks(monkeypatch, vectors, [only, anchor])
+        monkeypatch.setattr(similarity, "embed", fake_embed(vectors))
+        found = similarity.neighbours_of_task(anchor, limit=12, min_score=similarity.ASSIGNEE_MIN_SCORE)
+        assert similarity.labels_of(found) == []

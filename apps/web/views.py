@@ -3542,41 +3542,55 @@ def task_picker_context(task):
         return cached
     workspace = task.project.workspace
     members = _workspace_members(task)
+    attached_label_ids = {label.id for label in task.labels.all()}
     ctx = {
         "workspace_members": members,
         "workspace_labels": _workspace_labels(task),
         "workspace_label_groups": _workspace_label_groups(task),
         "workspace_projects": _workspace_projects(task),
         "workspace_cycles": _workspace_cycles(workspace),
-        "attached_label_ids": {label.id for label in task.labels.all()},
-        "suggested_assignees": _suggested_assignees(task, members),
+        "attached_label_ids": attached_label_ids,
+        **_task_suggestions(task, members, attached_label_ids),
     }
     task._picker_ctx = ctx
     return ctx
 
 
-def _suggested_assignees(task, members):
-    """Return the members who usually take work that reads like ``task``.
+def _task_suggestions(task, members, attached_label_ids):
+    """Return the people and labels that work like ``task`` tends to carry.
 
-    Costs no round trip to the embedding host: the task's own vector is
-    already stored, so this is one dot product against the workspace
-    matrix plus a lookup by id. Returns the member rows themselves, in
-    the shape the dropdown already renders, so the template needs no new
-    partial — and an empty list whenever the signal is too thin to mean
-    anything (see ``similarity.likely_assignees``).
+    One lookup answers both: the task's own vector is already stored, so
+    this is a dot product against the workspace matrix and two counts
+    over the result. Returns rows in the shapes the pickers already
+    render — member rows and :class:`Label` objects — and empty lists
+    whenever the signal is too thin to mean anything (see
+    ``similarity.assignees_of`` / ``labels_of``).
+
+    The assignee half is skipped for a task someone already owns, which
+    is also the only case its dropdown shows it.
     """
-    # Only an unassigned task asks the question, which is also the only
-    # case the dropdown renders — so an assigned one costs nothing at all.
-    if task.assignee_id or not similarity.is_enabled():
-        return []
+    empty = {"suggested_assignees": [], "suggested_labels": []}
+    if not similarity.is_enabled():
+        return empty
     try:
-        ranked = similarity.likely_assignees(task)
+        found = similarity.neighbours_of_task(task, limit=12, min_score=similarity.ASSIGNEE_MIN_SCORE)
     except Exception:  # pragma: no cover - a suggestion is never worth a 500
-        return []
-    if not ranked:
-        return []
-    by_user = {member.user_id: member for member in members}
-    return [by_user[user_id] for user_id, _ in ranked if user_id in by_user]
+        return empty
+    if not found:
+        return empty
+
+    people = []
+    if not task.assignee_id:
+        by_user = {member.user_id: member for member in members}
+        ranked = similarity.assignees_of(found)
+        people = [by_user[user_id] for user_id, _ in ranked if user_id in by_user]
+
+    label_ids = [label_id for label_id, _ in similarity.labels_of(found, skip_label_ids=attached_label_ids)]
+    labels = []
+    if label_ids:
+        by_id = Label.objects.in_bulk(label_ids)
+        labels = [by_id[label_id] for label_id in label_ids if label_id in by_id]
+    return {"suggested_assignees": people, "suggested_labels": labels}
 
 
 def _inline_edit_response(request, task, primary_template, primary_context):
@@ -4321,12 +4335,17 @@ def toggle_task_label(request, slug_prefix, number):
     # ``attached_label_ids`` reads from the prefetched ``task.labels.all()``
     # cache loaded by ``_user_task_qs``; ``values_list`` would bypass the
     # prefetch and issue a fresh M2M query. See Wave 2 PR-2 sweep.
+    attached_label_ids = {label.id for label in task.labels.all()}
     ctx = {
         "task": task,
         "workspace_labels": _workspace_labels(task),
         "workspace_label_groups": _workspace_label_groups(task),
-        "attached_label_ids": {label.id for label in task.labels.all()},
+        "attached_label_ids": attached_label_ids,
         "trigger_layout": trigger_layout,
+        # The dropdown comes back OOB on every toggle, so the suggestions
+        # have to be rebuilt here too — otherwise a label just attached
+        # would keep being offered.
+        **_task_suggestions(task, [], attached_label_ids),
     }
     # Primary swap: the trigger contents (chips or placeholder). Keeping
     # the outer #labels-cell intact preserves the Alpine state — the
@@ -4458,10 +4477,21 @@ def similar_tasks_hint(request):
         pk__in=[user_id for user_id, _ in similarity.assignees_of(found)],
         workspace_memberships__workspace_id=project.workspace_id,
     ).distinct()
+    # Scoped to the workspace for the same reason the people are: the
+    # picker below only offers this workspace's labels, so suggesting
+    # another's would be an unusable chip.
+    labels = Label.objects.filter(
+        pk__in=[label_id for label_id, _ in similarity.labels_of(found)],
+        workspace_id=project.workspace_id,
+    )
     return render(
         request,
         "web/_similar_tasks_hint.html",
-        {"matches": matches, "suggested_assignees": list(people)},
+        {
+            "matches": matches,
+            "suggested_assignees": list(people),
+            "suggested_labels": list(labels),
+        },
     )
 
 

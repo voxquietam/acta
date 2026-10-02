@@ -20,6 +20,32 @@ not the whole cell.
 {# is captured / restored by ``_labels_cell.html`` on the OOB swap    #}
 {# events instead (see ``dropdownScrollTop`` in its Alpine state).    #}
 <div id="labels-dropdown-inner"{% if oob %} hx-swap-oob="true"{% endif %} class="max-h-64 overflow-y-auto [overflow-x:clip]">
+  {% comment %}
+  Labels that similar tasks carry and this one does not. Above the
+  groups, because the point is to be seen before scrolling — and gone
+  the moment they are attached, since the suggestion is rebuilt from the
+  task's own neighbours on every OOB refresh.
+  {% endcomment %}
+  {% if suggested_labels %}
+  <div class="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-placeholder-foreground font-medium">
+    {% trans "Similar tasks use" %}
+  </div>
+  {% for label in suggested_labels %}
+  <form hx-post="{% url 'web:toggle_task_label' slug_prefix=task.project.slug_prefix number=task.number %}"
+        hx-target="#labels-trigger-inner"
+        hx-swap="outerHTML"
+        x-show="matches('{{ label.name|escapejs }}')">
+    {% csrf_token %}
+    <input type="hidden" name="label_id" value="{{ label.id }}">
+    <input type="hidden" name="trigger_layout" value="{{ trigger_layout|default:'row' }}">
+    <button type="submit"
+            class="w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 transition text-muted-foreground hover:bg-muted">
+      <span class="acta-label-pill-dot" style="background-color: {{ label.color }};"></span>
+      <span class="flex-1 min-w-0 truncate">{{ label.name }}</span>
+    </button>
+  </form>
+  {% endfor %}
+  {% endif %}
   {% with bucket_count=workspace_label_groups|length %}
   {% for entry in workspace_label_groups %}
   {% if entry.labels %}

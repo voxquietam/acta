@@ -269,3 +269,57 @@ class TestCreateDialogAssigneeSuggestion:
         client.force_login(user)
         body = client.get(URL, {"title": "настроить бекапы", "project": "HNT"}).content.decode()
         assert outsider.display_name not in body
+
+
+@pytest.mark.django_db
+class TestLabelSuggestions:
+    """Labels that similar tasks carry, offered in both pickers."""
+
+    @staticmethod
+    def _two_labelled_neighbours(workspace, project, monkeypatch, *, anchor_title="Відновити бекапи"):
+        """Seed two near tasks sharing a label, plus the task doing the asking."""
+        from apps.labels.tests.factories import LabelFactory
+
+        label = LabelFactory(workspace=workspace, name="infra")
+        first = TaskFactory(project=project, title="Налаштувати бекапи")
+        second = TaskFactory(project=project, title="Перевірити бекапи")
+        first.labels.add(label)
+        second.labels.add(label)
+        anchor = TaskFactory(project=project, title=anchor_title)
+        mapping = {
+            "Налаштувати бекапи": [1.0, 0.0],
+            "Перевірити бекапи": [1.0, 0.0],
+            anchor_title: [1.0, 0.0],
+            "настроить бекапы": [1.0, 0.0],
+        }
+        stub(monkeypatch, mapping)
+        similarity.store([first, second, anchor])
+        stub(monkeypatch, mapping)
+        return label, anchor
+
+    @ENABLED
+    def test_the_task_page_offers_what_its_neighbours_carry(self, client, setup, monkeypatch):
+        workspace, project, user = setup
+        label, anchor = self._two_labelled_neighbours(workspace, project, monkeypatch)
+        client.force_login(user)
+        body = client.get(f"/projects/{project.slug_prefix}/{anchor.number}/meta/").content.decode()
+        assert "Similar tasks use" in body
+        assert label.name in body
+
+    @ENABLED
+    def test_the_create_dialog_offers_them_too(self, client, setup, monkeypatch):
+        workspace, project, user = setup
+        label, _ = self._two_labelled_neighbours(workspace, project, monkeypatch)
+        client.force_login(user)
+        body = client.get(URL, {"title": "настроить бекапы", "project": "HNT"}).content.decode()
+        assert "Similar tasks use" in body
+        assert label.name in body
+
+    @ENABLED
+    def test_an_attached_label_stops_being_offered(self, client, setup, monkeypatch):
+        workspace, project, user = setup
+        label, anchor = self._two_labelled_neighbours(workspace, project, monkeypatch)
+        anchor.labels.add(label)
+        client.force_login(user)
+        body = client.get(f"/projects/{project.slug_prefix}/{anchor.number}/meta/").content.decode()
+        assert "Similar tasks use" not in body

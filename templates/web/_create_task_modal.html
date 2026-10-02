@@ -331,7 +331,10 @@ resurface in the next task's form.
              };
              document.addEventListener('scroll', onScroll, true);
            "
-           @resize.window="if (open) open = false">
+           @resize.window="if (open) open = false"
+           {# A suggestion chip under the title field lives in another   #}
+           {# Alpine scope; it asks for a toggle through a window event. #}
+           @acta:suggest-label.window="toggleLabel($event.detail.id)">
 
         {# Hidden checkboxes are the real form payload (name=labels), kept #}
         {# in sync with the visible selection via the shared x-model array. #}

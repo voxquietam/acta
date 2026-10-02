@@ -9,7 +9,7 @@ create, because the model ranks and the person decides.
 Rendered empty when there is nothing close enough, so the dialog shows no
 box at all rather than an empty one.
 {% endcomment %}
-{% if matches or suggested_assignees %}
+{% if matches or suggested_assignees or suggested_labels %}
 <div class="mt-2 rounded-lg border border-border bg-muted/40 p-2 space-y-1">
   {% if matches %}
   <p class="text-[10px] uppercase tracking-wider text-placeholder-foreground flex items-center gap-1.5">
@@ -30,6 +30,26 @@ box at all rather than an empty one.
   below rather than assigning anything — the create button is still the
   only thing that writes.
   {% endcomment %}
+  {% comment %}
+  Labels those tasks carry. The picker below owns the selection, and it
+  is a separate Alpine scope, so the chip asks it through a window event
+  rather than reaching into its state.
+  {% endcomment %}
+  {% if suggested_labels %}
+  <div class="flex items-center gap-1.5 flex-wrap pt-1 border-t border-border">
+    <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground">
+      {% trans "Similar tasks use" %}
+    </span>
+    {% for label in suggested_labels %}
+    <button type="button"
+            @click="$dispatch('acta:suggest-label', { id: '{{ label.id }}' })"
+            class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">
+      <span class="acta-label-pill-dot" style="background-color: {{ label.color }};"></span>
+      {{ label.name }}
+    </button>
+    {% endfor %}
+  </div>
+  {% endif %}
   {% if suggested_assignees %}
   <div class="flex items-center gap-1.5 flex-wrap pt-1 border-t border-border">
     <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground">

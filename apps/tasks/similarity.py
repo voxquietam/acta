@@ -352,6 +352,39 @@ def _rank(query, *, workspace_id: int, limit: int, exclude_ids: Sequence[int], m
     return found
 
 
+def labels_of(
+    found: Sequence[tuple[int, float]],
+    *,
+    limit: int = 3,
+    skip_label_ids: Sequence[int] = (),
+) -> list[tuple[int, int]]:
+    """Return ``(label_id, how many)`` for the labels the neighbours carry.
+
+    Same shape and the same caution as :func:`assignees_of`: only the
+    close end of the list counts, and a label has to appear on at least
+    two neighbours before it is worth putting in front of someone. Labels
+    the task already carries are passed in as ``skip_label_ids`` rather
+    than filtered afterwards, so the limit is spent on useful rows.
+    """
+    from apps.tasks.models import Task
+
+    close = [task_id for task_id, score in found if score >= ASSIGNEE_MIN_SCORE]
+    if not close:
+        return []
+    skip = set(skip_label_ids)
+    counts: dict[int, int] = {}
+    rows = Task.labels.through.objects.filter(task_id__in=close).values_list("label_id", flat=True)
+    for label_id in rows:
+        if label_id in skip:
+            continue
+        counts[label_id] = counts.get(label_id, 0) + 1
+    ranked = sorted(
+        ((label_id, hits) for label_id, hits in counts.items() if hits >= ASSIGNEE_MIN_HITS),
+        key=lambda pair: -pair[1],
+    )
+    return ranked[:limit]
+
+
 def stored_vector(task):
     """Return ``task``'s own vector if it is current, else ``None``.
 
