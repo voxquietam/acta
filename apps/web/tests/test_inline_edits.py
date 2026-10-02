@@ -1434,48 +1434,9 @@ class TestArchivedFilter:
         assert "dusty-task" not in resp.content.decode()
         assert resp.cookies["acta_show_archived"].value == "0"
 
-    def test_active_filter_count_badge_oob_included_in_htmx_response(self, client, setup):
-        """HTMX responses must carry the OOB-marked filter-count badges
-        so the sidebar header refreshes without re-rendering the whole
-        sidebar. Counter increments visibly when a filter activates."""
-        import re
-
-        user, project, _ = setup
-        TaskFactory(project=project, reporter=user, title="t1", status=Task.STATUS_TODO)
-        client.force_login(user)
-
-        def find_badge(body, badge_id):
-            """Return the matched ``<span id=badge_id …>…</span>`` element."""
-            return re.search(
-                r'<span\s+id="' + re.escape(badge_id) + r'"[^>]*>\s*([^<]*?)\s*</span>',
-                body,
-                re.S,
-            )
-
-        # No active filters: both badge spans exist (for OOB targeting)
-        # but carry the ``hidden`` class and empty content.
-        resp_empty = client.get(reverse("web:all_tasks"), HTTP_HX_REQUEST="true")
-        body_empty = resp_empty.content.decode()
-        assert 'hx-swap-oob="outerHTML"' in body_empty
-        collapsed_empty = find_badge(body_empty, "filter-count-collapsed")
-        expanded_empty = find_badge(body_empty, "filter-count-expanded")
-        assert collapsed_empty and "hidden" in collapsed_empty.group(0)
-        assert expanded_empty and "hidden" in expanded_empty.group(0)
-        assert collapsed_empty.group(1) == ""
-        assert expanded_empty.group(1) == ""
-
-        # Activate one filter — badges drop ``hidden`` and show the count.
-        resp = client.get(
-            reverse("web:all_tasks") + "?status=to-do",
-            HTTP_HX_REQUEST="true",
-        )
-        body = resp.content.decode()
-        collapsed = find_badge(body, "filter-count-collapsed")
-        expanded = find_badge(body, "filter-count-expanded")
-        assert collapsed and "hidden" not in collapsed.group(0)
-        assert expanded and "hidden" not in expanded.group(0)
-        assert collapsed.group(1) == "1"
-        assert expanded.group(1) == "1"
+    # The filter-count badges this used to assert belonged to the rail's
+    # header, and the rail is gone: the dock counts what is on screen
+    # client-side, so there is no server-rendered badge left to OOB-swap.
 
     def test_show_archived_hidden_input_and_checkbox_both_sent(self, client, setup):
         """Form layout sends ``show_archived`` twice — the hidden ``0``

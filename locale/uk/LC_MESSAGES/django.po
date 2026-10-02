@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Acta 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-02 10:45+0000\n"
+"POT-Creation-Date: 2026-10-02 13:01+0000\n"
 "PO-Revision-Date: 2026-05-16 15:30+0000\n"
 "Last-Translator: Acta team\n"
 "Language-Team: Ukrainian\n"
@@ -78,8 +78,6 @@ msgstr "Коментарі"
 
 #: acta/settings/base.py:631 apps/labels/models.py:110 apps/web/views.py:2115
 #: templates/web/_create_task_modal.html:294
-#: templates/web/_filters_sidebar.html:212
-#: templates/web/_filters_sidebar.html:599
 #: templates/web/projects/_bulk_context_menu.html:227
 #: templates/web/projects/_table.html:70
 #: templates/web/projects/_task_context_menu.html:349
@@ -331,22 +329,17 @@ msgstr "Ви не є учасником робочого простору ціє
 msgid "Planning"
 msgstr "Планування"
 
-#: apps/cycles/models.py:26 templates/web/_filters_sidebar.html:519
-#: templates/web/recurring/_recurring_inner.html:51
+#: apps/cycles/models.py:26 templates/web/recurring/_recurring_inner.html:51
 msgid "Active"
 msgstr "Активний"
 
 #: apps/cycles/models.py:27 apps/projects/models.py:217
-#: templates/web/_filters_sidebar.html:562
 #: templates/web/projects/insights.html:35
 msgid "Completed"
 msgstr "Завершено"
 
 #: apps/cycles/models.py:77 apps/notifications/models.py:31
-#: templates/web/_create_task_modal.html:269
-#: templates/web/_filters_sidebar.html:223
-#: templates/web/_filters_sidebar.html:508
-#: templates/web/_filters_sidebar.html:574 templates/web/_task_row.html:100
+#: templates/web/_create_task_modal.html:269 templates/web/_task_row.html:100
 #: templates/web/projects/_bulk_context_menu.html:209
 #: templates/web/projects/_table_row.html:70
 #: templates/web/projects/_task_context_menu.html:303
@@ -525,8 +518,7 @@ msgid "Slug prefix must be 2–6 uppercase Latin letters."
 msgstr "Префікс slug має містити 2–6 великих латинських літер."
 
 #: apps/projects/models.py:113 templates/web/_create_task_modal.html:125
-#: templates/web/_filters_sidebar.html:201
-#: templates/web/_filters_sidebar.html:484 templates/web/_inbox_preview.html:29
+#: templates/web/_inbox_preview.html:29
 #: templates/web/_inbox_update_preview.html:52
 #: templates/web/_project_strip.html:10
 #: templates/web/meetings/_meeting_editor.html:126
@@ -992,8 +984,7 @@ msgstr "Нещодавно завершено"
 msgid "Unassigned"
 msgstr "Без виконавця"
 
-#: apps/web/grouping.py:266 templates/web/_filters_sidebar.html:539
-#: templates/web/projects/_cycle_cell.html:18
+#: apps/web/grouping.py:266 templates/web/projects/_cycle_cell.html:18
 #: templates/web/projects/_view_tabs.html:48
 #: templates/web/projects/_view_tabs.html:68
 #: templates/web/projects/_view_tabs.html:126
@@ -1101,8 +1092,6 @@ msgid "changed a member role"
 msgstr "змінено роль учасника"
 
 #: apps/web/views.py:2111 templates/web/_create_task_modal.html:200
-#: templates/web/_filters_sidebar.html:181
-#: templates/web/_filters_sidebar.html:366
 #: templates/web/projects/_bulk_context_menu.html:121
 #: templates/web/projects/_table.html:61
 #: templates/web/projects/_task_context_menu.html:206
@@ -1111,8 +1100,6 @@ msgid "Status"
 msgstr "Статус"
 
 #: apps/web/views.py:2112 templates/web/_create_task_modal.html:214
-#: templates/web/_filters_sidebar.html:191
-#: templates/web/_filters_sidebar.html:410
 #: templates/web/projects/_bulk_context_menu.html:135
 #: templates/web/projects/_task_context_menu.html:225
 #: templates/web/projects/_task_meta.html:25
@@ -1130,8 +1117,8 @@ msgstr "Пріоритет"
 msgid "Assignee"
 msgstr "Виконавець"
 
-#: apps/web/views.py:2114 templates/web/_filters_sidebar.html:567
-#: templates/web/_inbox_list.html:40 templates/web/projects/_table.html:86
+#: apps/web/views.py:2114 templates/web/_inbox_list.html:40
+#: templates/web/projects/_table.html:86
 #: templates/web/projects/_task_card.html:127
 msgid "Due"
 msgstr "Дедлайн"
@@ -1883,8 +1870,6 @@ msgid "Show sidebar"
 msgstr "Показати бічну панель"
 
 #: templates/base_app.html:377 templates/base_app.html:379
-#: templates/web/_filters_sidebar.html:169
-#: templates/web/_filters_sidebar.html:344
 msgid "Search"
 msgstr "Пошук"
 
@@ -2072,12 +2057,12 @@ msgstr ""
 "Telegram ще не налаштовано на цьому сервері — попросіть адміна підключити "
 "бота."
 
-#: templates/web/_all_tasks_inner.html:34
+#: templates/web/_all_tasks_inner.html:32
 #: templates/web/projects/_list_axis_section.html:61
 msgid "No tasks match these filters"
 msgstr "Жодна задача не відповідає фільтрам"
 
-#: templates/web/_all_tasks_inner.html:35
+#: templates/web/_all_tasks_inner.html:33
 msgid "Try clearing some filters."
 msgstr "Спробуйте зняти частину фільтрів."
 
@@ -2334,8 +2319,6 @@ msgid "Optional details…"
 msgstr "Додаткові деталі…"
 
 #: templates/web/_create_task_modal.html:223
-#: templates/web/_filters_sidebar.html:233
-#: templates/web/_filters_sidebar.html:449
 #: templates/web/projects/_bulk_context_menu.html:176
 #: templates/web/projects/_table.html:66
 #: templates/web/projects/_task_context_menu.html:278
@@ -2382,7 +2365,6 @@ msgid "Add labels…"
 msgstr "Додати мітки…"
 
 #: templates/web/_create_task_modal.html:388
-#: templates/web/_filters_sidebar.html:611
 #: templates/web/projects/_labels_cell.html:84
 #: templates/web/recurring/_recurring_editor.html:202
 msgid "Search labels…"
@@ -2704,135 +2686,100 @@ msgstr "7д × 24г · кожна подія воркспейсу за годи�
 msgid "fewer"
 msgstr "менше"
 
-#: templates/web/_filter_project_rows.html:39
-msgid "Click to pick (hold Cmd/Ctrl to add), right-click to exclude"
-msgstr "Клік — вибрати (Cmd/Ctrl — додати), правий клік — виключити"
+#: templates/web/_filter_dock.html:99 templates/web/_filter_dock.html:223
+#, fuzzy
+#| msgid "Search"
+msgid "Search…"
+msgstr "Пошук"
 
-#: templates/web/_filters_sidebar.html:112
-msgid "Open filters"
-msgstr "Відкрити фільтри"
-
-#: templates/web/_filters_sidebar.html:115
-#: templates/web/_filters_sidebar.html:295
-msgid "Filters"
-msgstr "Фільтри"
-
-#: templates/web/_filters_sidebar.html:146
-msgid "Expand filters"
-msgstr "Розгорнути фільтри"
-
-#: templates/web/_filters_sidebar.html:162
-#: templates/web/_filters_sidebar.html:678
-msgid "Unlinked tasks"
-msgstr "Задачі без зв'язків"
-
-#: templates/web/_filters_sidebar.html:242
-#: templates/web/_filters_sidebar.html:557
-msgid "Date"
-msgstr "Дата"
-
-#: templates/web/_filters_sidebar.html:250
-msgid "Backlog / Archived"
-msgstr "Беклог / Архів"
-
-#: templates/web/_filters_sidebar.html:261
-msgid "Reset all filters"
-msgstr "Скинути всі фільтри"
-
-#: templates/web/_filters_sidebar.html:307
-msgid "Reset all"
-msgstr "Скинути все"
-
-#: templates/web/_filters_sidebar.html:312
-msgid "Collapse to rail"
-msgstr "Згорнути до панелі"
-
-#: templates/web/_filters_sidebar.html:320
-msgid "Close filters"
-msgstr "Закрити фільтри"
-
-#: templates/web/_filters_sidebar.html:353
-msgid "Search tasks…"
-msgstr "Пошук задач…"
-
-#: templates/web/_filters_sidebar.html:354
+#: templates/web/_filter_dock.html:100
 msgid "Search tasks by title or description"
 msgstr "Пошук задач за назвою або описом"
 
-#: templates/web/_filters_sidebar.html:450
-msgid "fibonacci"
-msgstr "фібоначчі"
+#: templates/web/_filter_dock.html:116
+#, fuzzy
+#| msgid "Reset filter"
+msgid "Remove filter"
+msgstr "Скинути фільтр"
 
-#: templates/web/_filters_sidebar.html:496
-#: templates/web/projects/_project_cell.html:71
-msgid "Search projects…"
-msgstr "Пошук проєктів…"
+#: templates/web/_filter_dock.html:139
+#: templates/web/projects/_overview_members.html:35
+msgid "Add"
+msgstr "Додати"
 
-#: templates/web/_filters_sidebar.html:563
-#: templates/web/projects/_task_meta.html:66
-msgid "Created"
-msgstr "Створено"
+#: templates/web/_filter_dock.html:139
+#, fuzzy
+#| msgid "Filters"
+msgid "Filter"
+msgstr "Фільтри"
 
-#: templates/web/_filters_sidebar.html:564
-#: templates/web/projects/_table.html:91
-#: templates/web/projects/_task_meta.html:67
-msgid "Updated"
-msgstr "Оновлено"
-
-#: templates/web/_filters_sidebar.html:565
-msgid "Start"
-msgstr "Початок"
-
-#: templates/web/_filters_sidebar.html:566
-msgid "End"
-msgstr "Кінець"
-
-#: templates/web/_filters_sidebar.html:570
-msgid "7d"
-msgstr "7д"
-
-#: templates/web/_filters_sidebar.html:571
-msgid "30d"
-msgstr "30д"
-
-#: templates/web/_filters_sidebar.html:576
+#: templates/web/_filter_dock.html:144 templates/web/_filter_dock.html:213
 msgid "Clear"
 msgstr "Очистити"
 
-#: templates/web/_filters_sidebar.html:579
-msgid "from"
-msgstr "з"
+#: templates/web/_filter_dock.html:154
+#, fuzzy
+#| msgid "unlinked"
+msgid "Unlinked"
+msgstr "відв'язано"
 
-#: templates/web/_filters_sidebar.html:582
-msgid "Filter: date from"
-msgstr "Фільтр: дата з"
+#: templates/web/_filter_dock.html:167
+#, fuzzy
+#| msgid "Filter by size"
+msgid "Filter by…"
+msgstr "Фільтрувати за розміром"
 
-#: templates/web/_filters_sidebar.html:586
-#: templates/web/_notification_row.html:53
-msgid "to"
-msgstr "до"
+#: templates/web/_filter_dock.html:177 templates/web/_filter_dock.html:238
+#, fuzzy
+#| msgid "No matches."
+msgid "Nothing matches."
+msgstr "Нічого не знайдено."
 
-#: templates/web/_filters_sidebar.html:589
-msgid "Filter: date to"
-msgstr "Фільтр: дата до"
-
-#: templates/web/_filters_sidebar.html:623
-#: templates/web/projects/_labels_trigger.html:33
-#: templates/web/projects/_labels_trigger.html:52
-msgid "Other"
-msgstr "Інше"
-
-#: templates/web/_filters_sidebar.html:694
+#: templates/web/_filter_dock.html:185
 msgid "Show backlog"
 msgstr "Показати беклог"
 
-#: templates/web/_filters_sidebar.html:731
-msgid "Show my projects"
-msgstr "Тільки мої проєкти"
-
-#: templates/web/_filters_sidebar.html:753 templates/web/projects/list.html:62
+#: templates/web/_filter_dock.html:190 templates/web/projects/list.html:62
 msgid "Show archived"
 msgstr "Показати архівні"
+
+#: templates/web/_filter_dock.html:195
+#, fuzzy
+#| msgid "Show my projects"
+msgid "Only my projects"
+msgstr "Тільки мої проєкти"
+
+#: templates/web/_filter_dock.html:206
+#, fuzzy
+#| msgid "Backlog"
+msgid "Back"
+msgstr "Беклог"
+
+#: templates/web/_filter_dock.html:217
+#, fuzzy
+#| msgid "List"
+msgid "is"
+msgstr "Список"
+
+#: templates/web/_filter_dock.html:218
+msgid "is not"
+msgstr "не є"
+
+#: templates/web/_filter_dock.html:242
+#, fuzzy
+#| msgid "click to edit"
+msgid "shift-click to exclude"
+msgstr "клікніть, щоб редагувати"
+
+#: templates/web/_filter_dock.html:244
+#, fuzzy
+#| msgid "moved to cycle"
+msgid "esc to close"
+msgstr "перенесено в цикл"
+
+#: templates/web/_filter_project_rows.html:39
+msgid "Click to pick (hold Cmd/Ctrl to add), right-click to exclude"
+msgstr "Клік — вибрати (Cmd/Ctrl — додати), правий клік — виключити"
 
 #: templates/web/_inbox_list.html:24 templates/web/_inbox_updates_list.html:28
 #: templates/web/projects/list.html:46 templates/web/projects/list.html:74
@@ -2996,11 +2943,11 @@ msgstr "Ваші дії в задачах зʼявлятимуться тут."
 msgid "Load more"
 msgstr "Завантажити ще"
 
-#: templates/web/_my_work_inner.html:24
+#: templates/web/_my_work_inner.html:22
 msgid "Nothing assigned to you"
 msgstr "На вас нічого не призначено"
 
-#: templates/web/_my_work_inner.html:25
+#: templates/web/_my_work_inner.html:23
 msgid "When someone assigns you a task it shows up here."
 msgstr "Коли вам призначать задачу, вона зʼявиться тут."
 
@@ -3040,6 +2987,10 @@ msgstr "оновив(ла)"
 #: templates/web/_notification_row.html:53
 msgid "to you"
 msgstr "вам"
+
+#: templates/web/_notification_row.html:53
+msgid "to"
+msgstr "до"
 
 #: templates/web/_project_strip.html:24
 msgid "click to include, right-click to exclude."
@@ -3949,6 +3900,11 @@ msgstr "порожньо"
 msgid "No labels in this workspace yet."
 msgstr "У цьому робочому просторі ще немає міток."
 
+#: templates/web/projects/_labels_trigger.html:33
+#: templates/web/projects/_labels_trigger.html:52
+msgid "Other"
+msgstr "Інше"
+
 #: templates/web/projects/_labels_trigger.html:80
 msgid "Add labels"
 msgstr "Додати мітки"
@@ -4045,10 +4001,6 @@ msgstr "Прибрати ліда"
 #: templates/web/projects/_overview_members.html:25
 msgid "Remove from project"
 msgstr "Видалити з проєкту"
-
-#: templates/web/projects/_overview_members.html:35
-msgid "Add"
-msgstr "Додати"
 
 #: templates/web/projects/_overview_members.html:62
 msgid "No more workspace members."
@@ -4248,6 +4200,10 @@ msgstr "опубліковано %(t)s тому"
 msgid "Move to another project"
 msgstr "Перемістити в інший проєкт"
 
+#: templates/web/projects/_project_cell.html:71
+msgid "Search projects…"
+msgstr "Пошук проєктів…"
+
 #: templates/web/projects/_project_favourite_star.html:28
 msgid "Unstar project"
 msgstr "Відкріпити проєкт"
@@ -4312,6 +4268,11 @@ msgstr "Прибрати дату початку"
 #: templates/web/projects/_table.html:51
 msgid "ID"
 msgstr "ID"
+
+#: templates/web/projects/_table.html:91
+#: templates/web/projects/_task_meta.html:67
+msgid "Updated"
+msgstr "Оновлено"
 
 #: templates/web/projects/_table.html:115
 #: templates/web/projects/_timeline.html:388
@@ -4424,6 +4385,10 @@ msgstr "Дата завершення"
 #: templates/web/projects/_task_meta.html:63
 msgid "Reporter"
 msgstr "Автор"
+
+#: templates/web/projects/_task_meta.html:66
+msgid "Created"
+msgstr "Створено"
 
 #: templates/web/projects/_task_meta_compact.html:88
 msgid "Delete task"
@@ -5412,6 +5377,60 @@ msgstr[3] "%(counter)s в очікуванні"
 #: templates/web/workspaces/settings.html:217
 msgid "Danger zone"
 msgstr "Небезпечна зона"
+
+#~ msgid "Open filters"
+#~ msgstr "Відкрити фільтри"
+
+#~ msgid "Expand filters"
+#~ msgstr "Розгорнути фільтри"
+
+#~ msgid "Unlinked tasks"
+#~ msgstr "Задачі без зв'язків"
+
+#~ msgid "Date"
+#~ msgstr "Дата"
+
+#~ msgid "Backlog / Archived"
+#~ msgstr "Беклог / Архів"
+
+#~ msgid "Reset all filters"
+#~ msgstr "Скинути всі фільтри"
+
+#~ msgid "Reset all"
+#~ msgstr "Скинути все"
+
+#~ msgid "Collapse to rail"
+#~ msgstr "Згорнути до панелі"
+
+#~ msgid "Close filters"
+#~ msgstr "Закрити фільтри"
+
+#~ msgid "Search tasks…"
+#~ msgstr "Пошук задач…"
+
+#~ msgid "fibonacci"
+#~ msgstr "фібоначчі"
+
+#~ msgid "Start"
+#~ msgstr "Початок"
+
+#~ msgid "End"
+#~ msgstr "Кінець"
+
+#~ msgid "7d"
+#~ msgstr "7д"
+
+#~ msgid "30d"
+#~ msgstr "30д"
+
+#~ msgid "from"
+#~ msgstr "з"
+
+#~ msgid "Filter: date from"
+#~ msgstr "Фільтр: дата з"
+
+#~ msgid "Filter: date to"
+#~ msgstr "Фільтр: дата до"
 
 #~ msgid "Fit"
 #~ msgstr "Вмістити"

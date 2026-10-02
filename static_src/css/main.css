@@ -3231,6 +3231,19 @@ tr[data-vrow-hidden] {
   }
   .acta-dock {
     width: 100%;
+    /* Chips scroll sideways rather than pushing Add off the screen. */
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .acta-dock::-webkit-scrollbar {
+    display: none;
+  }
+  /* The topbar already carries a search button on this width, and three
+     dashed suggestions leave no room for the chips they would create. */
+  .acta-dock-search,
+  .acta-dock-sugg,
+  .acta-dock-sep:first-of-type {
+    display: none;
   }
   .acta-dock-pop {
     width: 100%;

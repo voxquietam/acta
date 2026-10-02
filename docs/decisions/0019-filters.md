@@ -27,6 +27,45 @@ Several constraints shape the design:
 
 ## Decisions
 
+### The surface: a floating dock, not a rail (2026-10-02)
+
+The original layout was a 48px icon rail that expanded into a 512px
+two-column panel. It had three problems. Icons without labels have to be
+hovered to be understood, so the rail was a quiz. The expanded panel ate
+half the screen on a laptop, which is why people left it collapsed and
+then could not see what was filtered. And every axis was on display at
+once, although a filtered view usually has two or three.
+
+The dock shows only what is **on**: one chip per field and operator,
+"Status is to-do, in-progress" beside "Status is not done" in rose.
+Everything else lives behind **Add** — pick a field, pick values. Empty
+state offers three common filters rather than an empty bar. It floats at
+the bottom of the viewport on the same surface as the bulk bar, and
+swaps places with it when a selection starts.
+
+The dock is a **presentation layer over the same form**: it writes the
+hidden inputs the rail wrote, under the same names, so the query string,
+``readFilterState``, the relationship graph's own reader and the facet
+endpoint were untouched by the swap. That is what made replacing the
+entire filter UI a template-and-component change rather than a rewrite
+of the filtering.
+
+Consequences worth knowing:
+
+- Options travel as one JSON payload (``build_filter_dock_data``) rather
+  than as markup. A workspace with two hundred labels used to render two
+  hundred rows into every page; now they are a list the popover reads.
+- The six date fields with a from / to pair each became presets
+  (Overdue, Due this week, Updated last 7 days…) that still write the
+  old ``date_field`` / ``date_after`` / ``date_before`` triple.
+- Assignee is not in the dock. The avatar strip above the list owns that
+  axis, and two controls for one filter is how someone ends up narrowing
+  by a person twice.
+- Status is dropped from the dock on the kanban, where the columns
+  already group by it.
+- The live project-count refresh is gone with the rail rows it swapped
+  into; counts come from the payload the page rendered with.
+
 ### One form, many surfaces
 
 Every filter input — sidebar checkboxes, the page-top assignee /

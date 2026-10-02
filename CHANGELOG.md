@@ -11,6 +11,11 @@ Automating this with `git-cliff` is deferred until `v1.0.0`.
 
 ### Added
 
+- **Filters are a floating dock now.** The 48px rail and the 512px panel
+  are gone; the bar at the bottom shows only the filters that are on, as
+  chips, and everything else is behind "Add" (hotkey `F`). Dates became
+  presets, and the dock is dropped onto the same hidden form the rail
+  wrote, so links to filtered views keep working unchanged. See ADR 0019.
 - **"This already exists" suggestions.** Typing a title in the create
   dialog shows the tasks that already say something close to it — by
   meaning and across languages, so a Russian title finds its Ukrainian

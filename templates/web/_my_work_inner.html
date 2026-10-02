@@ -12,8 +12,6 @@ HTMX filter swaps.
 {# they'd appear inline and stretch across the layout. The sidebar  #}
 {# carries the originals from filter_sidebar.html on cold load.     #}
 {% if request.META.HTTP_HX_REQUEST %}
-{% include "web/_filter_count_badges.html" with variant="collapsed" oob=True %}
-{% include "web/_filter_count_badges.html" with variant="expanded" oob=True %}
 {% endif %}
 {% include "web/meetings/_my_work_calls.html" %}
 {% if not has_any_tasks %}

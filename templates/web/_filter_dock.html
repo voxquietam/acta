@@ -40,8 +40,12 @@ someone twice.
         hx-target="{{ filter_htmx_target }}"
         hx-swap="innerHTML"
         hx-push-url="true"
-        data-my-project-ids="{{ my_project_ids_csv }}"
-        {% if facets_enabled %}data-facet-url="{{ filter_facet_url }}"{% endif %}>
+        {% comment %}
+        No ``data-facet-url``: the live project-count refresh targeted the
+        rail's rows, and the dock reads its counts from the payload the
+        page was rendered with. The endpoint stays for the API.
+        {% endcomment %}
+        data-my-project-ids="{{ my_project_ids_csv }}">
 
     {% for name, value in filter_preserved_pairs %}
     <input type="hidden" name="{{ name }}" value="{{ value }}">

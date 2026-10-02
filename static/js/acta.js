@@ -4138,80 +4138,12 @@
       window.Alpine.store("toasts").push(t.message, t.level, t.timeoutMs);
     }
 
+    // The filter rail and its 512px panel are gone (the dock replaced
+    // them), and with them every piece of state they needed: a layout
+    // mode, an open section, a mobile sheet. What is left is the one
+    // flag the page layout still reads.
     window.Alpine.store("filters", {
-      // Legacy open/closed flag, kept for the old sidebar layout. The
-      // new v2 layout uses ``mode`` ('rail' | 'expanded') instead — the
-      // two states aren't compatible so we keep both during transition.
-      open: localStorage.getItem("filtersOpen") !== "false",
-      // New layout state. ``mode`` persists; ``openSection`` is
-      // ephemeral (popover state, drops on reload).
-      mode: localStorage.getItem("acta:filters-mode") || "rail",
-      openSection: null,
-      openTop: 0,
-      // Mobile bottom-sheet state. Below ``lg:`` the rail / popover layout
-      // doesn't fit, so the whole filter aside is hidden and a floating
-      // "Filters" button opens it as a slide-up sheet. Ephemeral — no
-      // persistence, no localStorage; closes on backdrop / Esc / submit.
-      mobileOpen: false,
-      _syncHtmlClass() {
-        const html = document.documentElement;
-        html.classList.toggle("acta-filters-open", this.open);
-        html.classList.toggle("acta-filters-closed", !this.open);
-      },
-      toggle() {
-        this.open = !this.open;
-        localStorage.setItem("filtersOpen", this.open);
-        this._syncHtmlClass();
-      },
-      set(value) {
-        this.open = !!value;
-        localStorage.setItem("filtersOpen", this.open);
-        this._syncHtmlClass();
-      },
-      // --- v2 layout ---
-      setMode(value) {
-        this.mode = value === "expanded" ? "expanded" : "rail";
-        this.openSection = null;
-        localStorage.setItem("acta:filters-mode", this.mode);
-      },
-      toggleMode() {
-        this.setMode(this.mode === "rail" ? "expanded" : "rail");
-      },
-      openOnly(section, ev) {
-        // Click on a rail icon → pop only this section. Toggle off if
-        // the same icon is clicked again. No effect in expanded mode
-        // (everything is visible). When ``ev`` is passed, the popover's
-        // top is aligned to the clicked button so the user doesn't have
-        // to chase the cursor up to the panel header for icons that sit
-        // low on the rail.
-        if (this.mode !== "rail") return;
-        if (this.openSection === section) {
-          this.openSection = null;
-          return;
-        }
-        this.openSection = section;
-        if (ev && ev.currentTarget) {
-          const btn = ev.currentTarget;
-          const aside = btn.closest(".acta-flt-aside-v2");
-          if (aside) {
-            const btnRect = btn.getBoundingClientRect();
-            const asideRect = aside.getBoundingClientRect();
-            this.openTop = Math.max(0, Math.round(btnRect.top - asideRect.top));
-          }
-        }
-      },
-      closePopover() {
-        this.openSection = null;
-      },
-      setMobileOpen(value) {
-        this.mobileOpen = !!value;
-        // While the sheet is up, lock body scroll so users don't push
-        // through to the page underneath while scrolling chip lists.
-        document.body.classList.toggle("acta-flt-mobile-locked", this.mobileOpen);
-      },
-      toggleMobileOpen() {
-        this.setMobileOpen(!this.mobileOpen);
-      },
+      open: true,
     });
 
     // Theme — three-state cycle: light → dark → midnight → light.
@@ -4674,7 +4606,16 @@ window.actaFilterDock = function actaFilterDock() {
 
     get matchingFields() {
       const q = this.search.trim().toLowerCase();
-      return this.fields.filter((f) => !q || f.name.toLowerCase().includes(q));
+      return this.visibleFields.filter((f) => !q || f.name.toLowerCase().includes(q));
+    },
+
+    // Kanban columns already group by status, so offering it here would
+    // be a filter that empties the board people are looking at.
+    get visibleFields() {
+      const kanban = window.Alpine && window.Alpine.store("viewMode")
+        ? window.Alpine.store("viewMode").current === "kanban"
+        : false;
+      return this.fields.filter((f) => !(kanban && f.key === "status"));
     },
 
     get matchingOptions() {
