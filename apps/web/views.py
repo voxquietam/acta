@@ -5783,7 +5783,15 @@ def set_workspace_general(request, slug):
     workspace.name = name[:120]
     workspace.auto_archive_done_after_days = archive_days
     workspace.allow_member_announcements = bool(request.POST.get("allow_member_announcements"))
-    workspace.save(update_fields=["name", "auto_archive_done_after_days", "allow_member_announcements"])
+    workspace.epics_enabled = bool(request.POST.get("epics_enabled"))
+    workspace.save(
+        update_fields=[
+            "name",
+            "auto_archive_done_after_days",
+            "allow_member_announcements",
+            "epics_enabled",
+        ],
+    )
     if request.headers.get("HX-Request"):
         return _settings_panel_response(
             request,

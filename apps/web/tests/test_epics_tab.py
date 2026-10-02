@@ -266,3 +266,50 @@ class TestTheEpicPage:
         client.force_login(user)
         _, body = self.board(client, empty)
         assert "This epic has no tasks yet" in body
+
+
+@pytest.mark.django_db
+class TestTheWorkspaceSwitch:
+    """The toggle in workspace settings, and what it does not do."""
+
+    def test_the_settings_page_offers_it(self, client, setup):
+        workspace, _, _, _ = setup
+        client.force_login(workspace.owner)
+        body = client.get(f"/workspaces/{workspace.slug}/settings/").content.decode()
+        assert 'name="epics_enabled"' in body
+
+    def test_saving_without_it_turns_epics_off(self, client, setup):
+        workspace, _, _, _ = setup
+        client.force_login(workspace.owner)
+        client.post(
+            f"/workspaces/{workspace.slug}/general/",
+            {"name": workspace.name},
+        )
+        workspace.refresh_from_db()
+        assert workspace.epics_enabled is False
+
+    def test_turning_it_off_keeps_the_epic_and_its_tasks(self, client, setup):
+        workspace, _, _, epic = setup
+        client.force_login(workspace.owner)
+        client.post(
+            f"/workspaces/{workspace.slug}/general/",
+            {"name": workspace.name},
+        )
+        epic.refresh_from_db()
+        # Hiding the feature must not scatter an effort someone spent a
+        # quarter assembling.
+        assert epic.kind == Task.KIND_EPIC
+        assert epic.epic_counts == (1, 2)
+
+    def test_turning_it_back_on_restores_the_tab(self, client, setup):
+        workspace, _, user, epic = setup
+        workspace.epics_enabled = False
+        workspace.save(update_fields=["epics_enabled"])
+        client.force_login(workspace.owner)
+        client.post(
+            f"/workspaces/{workspace.slug}/general/",
+            {"name": workspace.name, "epics_enabled": "on"},
+        )
+        client.force_login(user)
+        resp = client.get(f"/{workspace.slug}/epics/")
+        assert [e.pk for e in resp.context["epics"]] == [epic.pk]

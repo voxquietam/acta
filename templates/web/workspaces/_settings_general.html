@@ -55,6 +55,23 @@ transfer flow).
         </div>
       </div>
 
+      {% comment %}
+      Turning epics off hides the tab, the Epic row and the pickers, and
+      refuses new epics — but it does not unpick what exists. The work
+      comes back intact on re-enable, so a stray click here cannot scatter
+      an effort someone spent a quarter assembling. See ADR 0036.
+      {% endcomment %}
+      <div class="flex items-center gap-3 pt-3.5 border-t border-border">
+        <div class="flex-1 min-w-0">
+          <div class="text-[12.5px] text-foreground font-medium">{% trans "Group tasks under epics" %}</div>
+          <div class="text-[11px] text-placeholder-foreground mt-0.5 leading-tight">{% trans "An epic collects tasks from several projects under one effort. Turning this off hides it; existing epics keep their tasks." %}</div>
+        </div>
+        <label class="inline-flex items-center cursor-pointer shrink-0">
+          <input type="checkbox" name="epics_enabled" {% if workspace.epics_enabled %}checked{% endif %} class="peer sr-only">
+          <span class="relative w-7 h-4 rounded-full bg-muted border border-border-strong transition-colors peer-checked:bg-brand-500/25 peer-checked:border-brand-500 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-3 after:h-3 after:rounded-full after:bg-muted-foreground after:transition-transform peer-checked:after:translate-x-3 peer-checked:after:bg-brand-500"></span>
+        </label>
+      </div>
+
       <div class="flex items-center gap-3 pt-3.5 border-t border-border">
         <div class="flex-1 min-w-0">
           <div class="text-[12.5px] text-foreground font-medium">{% trans "Let members broadcast announcements" %}</div>
