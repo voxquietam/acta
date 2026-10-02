@@ -152,6 +152,41 @@ a kanban is a row that can never move on its own.
   migration" loses the project they belong to, which is the thing that
   says who maintains them afterwards.
 
+## How the region is drawn
+
+No polygon arithmetic anywhere. The figure is a padded rounded box per
+member plus a thick rounded stroke along each edge between two of them;
+the corridor following the edge's own route, rather than a hull, is what
+keeps a foreign task lying between two members out of the region.
+
+That figure is drawn twice at two paddings, and the ring between them is
+cut with a `<mask>` of the part's own — white at the outer padding, black
+at the inner. The first attempt painted the inner figure in the canvas
+colour instead, which is simpler and wrong: canvas-coloured paint also
+lands on whatever is already there, so wherever two regions met, one
+erased the other's border. A mask affects only the shape it is applied
+to. The mask needs explicit bounds, or it takes a region derived from the
+viewport and silently clips parts far along a board thousands of units
+wide.
+
+Two things hold their size against the zoom, both for the same reason —
+the region has to survive the zoom at which cards become dots:
+
+- the ring is widened by `1 / zoom`, since a width in board units would
+  be a fifth of a pixel at 15% and vanish under the cards;
+- the label counter-scales by `1 / zoom`, the text equivalent of the
+  `vector-effect="non-scaling-stroke"` the edges already use — and is
+  then clamped to the width of the region it names, or a zoomed-out board
+  ends up with a name lying across work it has nothing to do with.
+
+**Gathering** (`G`) is dagre's own clustering, not a layout hint. Merging
+the components alone hands dagre two unrelated chains in one run and it
+interleaves them across the ranks, which produced an epic drawn as a band
+with other people's work inside it. A compound graph with one cluster per
+epic keeps the members together and everyone else out. It stays off by
+default: the board's first job is what blocks what, and membership is
+noise against that.
+
 ## Still open
 
 - The exact rule for undoing "turn into epic". The design says
@@ -161,13 +196,3 @@ a kanban is a row that can never move on its own.
   can check.
 - Progress percentages are shown for every epic in the picker and on the
   tab, so they come from one aggregate query, never from a loop.
-- *Settled.* The region is drawn without any polygon arithmetic: the
-  same figure — a padded rounded box per member plus a thick rounded
-  stroke along each edge between two of them — is painted three times,
-  at padding 13.5 in the epic's hue, at 12 in the canvas colour, and at
-  12 tinted. The middle pass knocks the inside out, and what is left of
-  the first is a 1.5px outline around the union. The corridor being a
-  stroke along the edge's own route, rather than a hull, is what keeps a
-  foreign task lying between two members out of the region. The label
-  counter-scales by `1 / zoom`, which is the text equivalent of the
-  `vector-effect="non-scaling-stroke"` the edges already use.
