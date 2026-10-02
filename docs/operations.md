@@ -31,6 +31,7 @@ below.
 | `EMAIL_HOST` / `EMAIL_PORT` / `EMAIL_USE_TLS` / `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` / `DEFAULT_FROM_EMAIL` | sending **workspace invites** by email |
 | `ACTA_PUBLIC_BASE_URL=https://actaspace.com` | absolute links in invite emails + task links in Telegram |
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_BOT_USERNAME` / `TELEGRAM_WEBHOOK_SECRET` | the Telegram notification bot |
+| `ACTA_EMBEDDING_URL` / `ACTA_EMBEDDING_MODEL` *(optional)* | "this already exists" suggestions — an Ollama host on the network plus a **multilingual** model (default `bge-m3`). Empty = feature off. After setting it, run `manage.py backfill_embeddings`; see ADR 0034 |
 | `TELEGRAM_DEPLOY_CHAT_ID` *(optional)* | narrows the pre-deploy heads-up to **one** chat; unset = broadcast to every linked account (see "Deploy heads-up") |
 
 "Sign in with Google" is **not** configured via env vars — the Client ID

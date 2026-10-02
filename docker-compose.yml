@@ -73,6 +73,11 @@ services:
       TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
       TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
       ACTA_PUBLIC_BASE_URL: ${ACTA_PUBLIC_BASE_URL:-}
+      # Semantic "this already exists" suggestions. Points at an Ollama host
+      # on the network; empty (default) turns the feature off everywhere.
+      # The model must be multilingual — see docs/decisions/0034.
+      ACTA_EMBEDDING_URL: ${ACTA_EMBEDDING_URL:-}
+      ACTA_EMBEDDING_MODEL: ${ACTA_EMBEDDING_MODEL:-bge-m3}
       DJANGO_MEDIA_ROOT: ${DJANGO_MEDIA_ROOT:-/app/media}
       DJANGO_SENDFILE_BACKEND: ${DJANGO_SENDFILE_BACKEND:-simple}
       # Uvicorn worker processes (web only; qcluster ignores it). Each worker

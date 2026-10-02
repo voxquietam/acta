@@ -321,6 +321,27 @@ TELEGRAM_WEBHOOK_SECRET = os.environ.get("TELEGRAM_WEBHOOK_SECRET") or ""
 # or one person) to send only there instead.
 TELEGRAM_DEPLOY_CHAT_ID = os.environ.get("TELEGRAM_DEPLOY_CHAT_ID") or ""
 
+# Semantic neighbours — "this looks like a task you already have". Vectors
+# come from an Ollama host on the network; with the URL empty the feature is
+# simply off and every call site falls back to showing nothing (see
+# docs/decisions/0034-task-similarity.md).
+#
+# The model matters more than it looks: Acta's tasks are written in
+# Ukrainian, Russian and English at once, and an English-trained encoder
+# cannot match a Russian question to a Ukrainian title. ``bge-m3`` was
+# measured at 10/10 on that against ``nomic-embed-text``'s 3/10 — see
+# ``scripts/eval_embedding_model.py``, which is how a replacement should be
+# judged before it is set here. Changing the model invalidates every stored
+# vector: rows embedded with another model are ignored until the backfill
+# command rebuilds them.
+ACTA_EMBEDDING_URL = os.environ.get("ACTA_EMBEDDING_URL") or ""
+ACTA_EMBEDDING_MODEL = os.environ.get("ACTA_EMBEDDING_MODEL") or "bge-m3"
+# Seconds. The read path runs inside a user's request (the create dialog
+# asks on every pause in typing), so it fails fast; the batch path is for
+# the backfill command and may wait.
+ACTA_EMBEDDING_TIMEOUT = float(os.environ.get("ACTA_EMBEDDING_TIMEOUT") or 5)
+ACTA_EMBEDDING_BATCH_TIMEOUT = float(os.environ.get("ACTA_EMBEDDING_BATCH_TIMEOUT") or 120)
+
 # Public changelog link (sidebar version kicker). Override for forks.
 CHANGELOG_URL = os.environ.get("ACTA_CHANGELOG_URL") or "https://github.com/voxquietam/acta/blob/master/CHANGELOG.md"
 

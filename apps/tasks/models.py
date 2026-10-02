@@ -502,3 +502,65 @@ class Task(models.Model):
                 super().save(*args, **kwargs)
             return
         super().save(*args, **kwargs)
+
+
+class TaskEmbedding(models.Model):
+    """One task's meaning as a vector, for "what already looks like this".
+
+    Written by :mod:`apps.tasks.similarity` after the task's text changes
+    and read whenever something asks for neighbours — the create dialog,
+    the MCP tools, the task page. The vector is stored already
+    normalised, so comparing two of them is a plain dot product.
+
+    ``workspace`` is denormalised off ``task.project.workspace`` on
+    purpose: every read loads one workspace's vectors in a single query,
+    and joining through the project to do it would put a join on the hot
+    path for no gain.
+
+    A row is only comparable to rows built by the same model, which is
+    why ``model`` is stored next to the vector rather than assumed from
+    settings: swapping the model leaves the old rows in place but out of
+    every search until the backfill rebuilds them.
+    """
+
+    task = models.OneToOneField(
+        "tasks.Task",
+        on_delete=models.CASCADE,
+        related_name="embedding",
+        help_text="Task this vector describes",
+    )
+    workspace = models.ForeignKey(
+        "workspaces.Workspace",
+        on_delete=models.CASCADE,
+        related_name="task_embeddings",
+        help_text="Denormalised from the task's project so one query loads a whole workspace",
+    )
+    vector = models.BinaryField(
+        help_text="Normalised float32 vector, little-endian, as produced by the embedding model",
+    )
+    dimensions = models.PositiveSmallIntegerField(
+        help_text="Length of the vector, so a mismatched model is caught before the dot product",
+    )
+    model = models.CharField(
+        max_length=120,
+        help_text="Embedding model that produced this vector; rows from other models are ignored",
+    )
+    text_hash = models.CharField(
+        max_length=64,
+        help_text="SHA-256 of the text that was embedded, so unchanged tasks are not re-sent",
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="When the vector was last rebuilt; also stamps the in-process matrix cache",
+    )
+
+    class Meta:
+        verbose_name = "task embedding"
+        verbose_name_plural = "task embeddings"
+        indexes = [
+            models.Index(fields=["workspace", "model"]),
+        ]
+
+    def __str__(self):
+        """Return the task slug plus the model that embedded it."""
+        return f"{self.task.slug} ({self.model})"
