@@ -58,6 +58,14 @@ Automating this with `git-cliff` is deferred until `v1.0.0`.
 - Stepping the zoom from the toolbar keeps the middle of the board in
   place instead of growing out of its top-left corner.
 
+### Fixed
+
+- **A mouse wheel zoomed the graph 2.7x per notch.** The step was tuned
+  for a trackpad pinch, where a browser reports deltas of single pixels;
+  one notch of a wheel reports a hundred. Both now move about 1.2x per
+  notch, and Firefox's line-based deltas are converted instead of taken
+  as pixels (which had made panning crawl).
+
 ## [0.6.0] — 2026-10-02
 
 Four months of work on `dev`: Claude Desktop connects to Acta over OAuth

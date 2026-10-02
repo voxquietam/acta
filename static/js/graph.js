@@ -62,6 +62,14 @@
   // How far outside the viewport a card is still worth keeping in the DOM,
   // in screen pixels — a pan of less than this reveals no empty space.
   const OVERSCAN = 240;
+  // Biggest single wheel event the zoom will act on, in pixels. One mouse
+  // notch reports far more than a pinch step does, and without a ceiling
+  // the two gestures zoom at wildly different speeds.
+  const WHEEL_CLAMP = 50;
+  // Rough pixel equivalents of the other two ``deltaMode`` units, so a
+  // browser reporting lines or pages scrolls like one reporting pixels.
+  const LINE_HEIGHT = 16;
+  const PAGE_HEIGHT = 400;
 
   let G = null;
   // Whether the Unlinked list is open survives a re-render — the panel is
@@ -82,6 +90,15 @@
   // one the server rendered, so a link created since then is replayed on
   // top of it rather than costing a refetch of the whole panel.
   const ADDED_EDGES = [];
+
+  // Wheel deltas come in three units depending on the browser. Firefox
+  // reports lines, so an unconverted delta of 3 panned the board by three
+  // pixels per notch.
+  function wheelDelta(value, mode) {
+    if (mode === 1) return value * LINE_HEIGHT;
+    if (mode === 2) return value * PAGE_HEIGHT;
+    return value;
+  }
 
   function levelFor(zoom) {
     if (zoom >= 0.75) return "full";
@@ -1267,18 +1284,24 @@
       "wheel",
       (e) => {
         e.preventDefault();
+        const dx = wheelDelta(e.deltaX, e.deltaMode);
+        const dy = wheelDelta(e.deltaY, e.deltaMode);
         if (!e.ctrlKey && !e.metaKey) {
-          const dx = e.shiftKey && !e.deltaX ? e.deltaY : e.deltaX;
-          const dy = e.shiftKey && !e.deltaX ? 0 : e.deltaY;
-          state.pan.x -= dx;
-          state.pan.y -= dy;
+          state.pan.x -= e.shiftKey && !dx ? dy : dx;
+          state.pan.y -= e.shiftKey && !dx ? 0 : dy;
           redraw(state);
           return;
         }
         const rect = host.getBoundingClientRect();
         const px = e.clientX - rect.left;
         const py = e.clientY - rect.top;
-        const factor = Math.exp(-e.deltaY * 0.01);
+        // A trackpad pinch arrives as a stream of small deltas; one notch of
+        // a mouse wheel arrives as a single huge one (100 px in Chrome,
+        // three *lines* in Firefox). Clamping before scaling makes both
+        // feel the same — about 1.2x per notch, matching the toolbar's
+        // stepper — instead of 2.7x, which is what an unclamped 100 did.
+        const step = Math.max(-WHEEL_CLAMP, Math.min(WHEEL_CLAMP, dy));
+        const factor = Math.exp(-step * 0.004);
         const next = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, state.zoom * factor));
         if (next === state.zoom) return;
         // Keep the point under the cursor fixed while the scale changes.
