@@ -11,6 +11,14 @@ Automating this with `git-cliff` is deferred until `v1.0.0`.
 
 ### Added
 
+- **"This already exists" suggestions.** Typing a title in the create
+  dialog shows the tasks that already say something close to it — by
+  meaning and across languages, so a Russian title finds its Ukrainian
+  twin. Needs `ACTA_EMBEDDING_URL` (an Ollama host) and a multilingual
+  model; without it the feature is simply off. See ADR 0034 and
+  `manage.py backfill_embeddings`.
+- **MCP: `acta_tasks_find_similar`.** The same search as a tool, and
+  `acta_task_create` now asks clients to run it before filing a task.
 - **Relationship graph: project stacks.** Tasks from a neighbouring
   project fold into one card carrying its badge, how many of its tasks
   this board touches and how many of them block work here. Opens in
@@ -21,6 +29,12 @@ Automating this with `git-cliff` is deferred until `v1.0.0`.
   `acta_task_update` (and so by `acta_tasks_bulk_update`); `null`
   promotes a subtask back to top level. Previously a parent could only
   be set while creating the task.
+
+### Fixed
+
+- The **Blocked** badge on a task's topbar was dark-theme only — pale
+  pink text on pale pink in the light themes. Same for the error banner
+  on the sign-in and sign-up pages.
 
 ### Changed
 
