@@ -1,0 +1,51 @@
+{% load i18n %}
+{% load lucide %}
+{% load web_extras %}
+{% comment %}
+One task on an epic's board.
+
+Carries what the epic page needs that a kanban card does not: the
+**project**, because an epic's tasks come from several and that is the
+whole point of it; and the thing a blocked task is waiting on, named,
+because "blocked" without the blocker is a dead end.
+
+Expects ``member`` — a task with ``project``, ``assignee``,
+``blocked_by`` and ``subtasks`` loaded by ``_epic_board_context``.
+{% endcomment %}
+<a href="{% task_url member %}"
+   class="block rounded-lg border bg-card p-2 space-y-1.5 hover:border-border-strong transition
+     {% if member.is_blocked %}border-rose-500/40{% else %}border-border{% endif %}">
+
+  <div class="flex items-center gap-1.5 text-[10px] text-placeholder-foreground">
+    {% lucide member.project.icon "w-3 h-3 shrink-0" %}
+    <span class="font-mono truncate">{{ member.slug }}</span>
+  </div>
+
+  <p class="text-[11px] leading-snug line-clamp-2 {% if member.status == 'done' %}text-subtle-foreground{% else %}text-foreground{% endif %}">
+    {{ member.title }}
+  </p>
+
+  {% if member.is_blocked %}
+  <p class="text-[10px] leading-snug text-rose-300">
+    {% for blocker in member.open_blockers %}{% if forloop.first %}{% blocktrans with slug=blocker.slug %}waits on {{ slug }}{% endblocktrans %}{% endif %}{% endfor %}
+    {% if member.open_blockers|length > 1 %}
+    <span class="text-placeholder-foreground">+{{ member.open_blockers|length|add:"-1" }}</span>
+    {% endif %}
+  </p>
+  {% endif %}
+
+  <div class="flex items-center gap-2 text-[10px] text-placeholder-foreground">
+    {% if member.subtasks.all %}
+    <span class="inline-flex items-center gap-1">
+      {% lucide "list-tree" "w-2.5 h-2.5" %}{{ member.done_subtask_count }}/{{ member.subtasks.all|length }}
+    </span>
+    {% endif %}
+    {% if member.size %}<span class="font-mono">{{ member.size }}</span>{% endif %}
+    <span class="flex-1"></span>
+    {% if member.assignee %}
+    {% include "web/_user_avatar.html" with user=member.assignee class="w-4 h-4" text_class="text-[8px]" %}
+    {% else %}
+    <span class="w-4 h-4 rounded-full border border-dashed border-border-strong grid place-items-center text-[8px]">?</span>
+    {% endif %}
+  </div>
+</a>

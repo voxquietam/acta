@@ -3756,3 +3756,32 @@ tr[data-vrow-hidden] {
   white-space: nowrap;
   border-left: 1px solid rgb(var(--border));
 }
+
+/* ---- Epic page --------------------------------------------------------
+   The board an epic's page is made of: six status columns, each with its
+   own scroll so a long column never pushes the others off the screen. */
+.acta-epic-board {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(190px, 1fr));
+  gap: 10px;
+  min-width: 1180px;
+}
+.acta-epic-board > div {
+  min-height: 0;
+}
+
+/* Progress of an epic, in the one line that says what it is. */
+.acta-epic-bar {
+  display: inline-block;
+  width: 96px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgb(var(--muted));
+  overflow: hidden;
+}
+.acta-epic-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: rgb(var(--acta-st-done));
+}

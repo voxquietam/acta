@@ -1,5 +1,6 @@
 {% load i18n %}
 {% load lucide %}
+{% load web_extras %}
 {% comment %}
 Right-rail metadata + labels panels for the task detail page. Bundled
 into one partial so the SSE-driven live refresh can swap them as a
@@ -16,9 +17,23 @@ Re-included by ``task_detail.html`` and rendered standalone by
     <div class="min-w-0">{% include "web/projects/_project_cell.html" %}</div>
   </div>
 
+  {% comment %}
+  An epic's state is read off the tasks it collects, never typed: a
+  status someone can set is a second source of truth about the same
+  thing, and an epic marked done at four of fourteen is simply wrong.
+  The same goes for size, cycle and every date. See ADR 0036.
+  {% endcomment %}
   <div class="flex items-center justify-between gap-3">
     <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Status" %}</div>
-    <div class="min-w-0">{% include "web/projects/_status_cell.html" %}</div>
+    <div class="min-w-0">
+      {% if task.kind == 'epic' %}
+      <span class="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+        <span class="w-1.5 h-1.5 rounded-full {{ task.epic_status|status_dot_classes }}"></span>
+        {{ task.epic_status|status_label }}
+        {% lucide "lock" "w-3 h-3 text-placeholder-foreground" %}
+      </span>
+      {% else %}{% include "web/projects/_status_cell.html" %}{% endif %}
+    </div>
   </div>
 
   <div class="flex items-center justify-between gap-3">
@@ -26,12 +41,14 @@ Re-included by ``task_detail.html`` and rendered standalone by
     <div class="min-w-0">{% include "web/projects/_priority_cell.html" %}</div>
   </div>
 
+  {% if task.kind != 'epic' %}
   <div class="flex items-center justify-between gap-3">
     <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Size" %}</div>
     <div class="min-w-0">{% include "web/projects/_size_cell.html" %}</div>
   </div>
+  {% endif %}
 
-  {% if workspace_cycles or task.cycle_id %}
+  {% if task.kind != 'epic' and workspace_cycles or task.cycle_id %}
   <div class="flex items-center justify-between gap-3">
     <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Cycle" %}</div>
     <div class="min-w-0">{% include "web/projects/_cycle_cell.html" %}</div>
@@ -55,6 +72,25 @@ Re-included by ``task_detail.html`` and rendered standalone by
   </div>
   {% endif %}
 
+  {% if task.kind == 'epic' %}
+  <div class="flex items-center justify-between gap-3">
+    <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Progress" %}</div>
+    <div class="min-w-0 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+      {% with counts=task.epic_counts %}{{ counts.0 }} / {{ counts.1 }}{% endwith %}
+      {% lucide "lock" "w-3 h-3 text-placeholder-foreground" %}
+    </div>
+  </div>
+  <div class="flex items-center justify-between gap-3">
+    <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Dates" %}</div>
+    <div class="min-w-0 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+      {% with span=task.epic_span %}
+      {% if span.0 or span.1 %}{{ span.0|date:"M j"|default:"—" }} → {{ span.1|date:"M j"|default:"—" }}{% else %}
+      <span class="italic text-placeholder-foreground">{% trans "from its tasks" %}</span>{% endif %}
+      {% endwith %}
+      {% lucide "lock" "w-3 h-3 text-placeholder-foreground" %}
+    </div>
+  </div>
+  {% else %}
   <div class="flex items-center justify-between gap-3">
     <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Start date" %}</div>
     <div class="min-w-0">{% include "web/projects/_start_date_cell.html" %}</div>
@@ -69,6 +105,7 @@ Re-included by ``task_detail.html`` and rendered standalone by
     <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Due date" %}</div>
     <div class="min-w-0">{% include "web/projects/_due_date_cell.html" %}</div>
   </div>
+  {% endif %}
 
   <div class="pt-2 border-t border-border text-[11px] text-placeholder-foreground space-y-0.5">
     <div class="flex justify-between">
@@ -92,7 +129,7 @@ Re-included by ``task_detail.html`` and rendered standalone by
   Cancel marks the task terminal "won't do" (status → cancelled); reopen
   sends a cancelled task back to to-do. Archive is orthogonal (hide).
   {% endcomment %}
-  {% if not task.recurrence_id %}
+  {% if not task.recurrence_id and task.kind != 'epic' %}
   {# Make this task recurring — opens the rule editor seeded from it. #}
   <div class="pt-2 border-t border-border">
     <button type="button"

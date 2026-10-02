@@ -2988,6 +2988,12 @@ class TaskDetailView(LoginRequiredMixin, DetailView):
         """
         if self.request.GET.get("modal") == "1":
             return ["web/projects/task_detail_modal.html"]
+        # An epic's page is its board. The usual rail of status, size and
+        # due date would be mostly empty on one — those come from the
+        # tasks it collects — and the tasks are what a person opened it
+        # for. See docs/decisions/0036-epics.md.
+        if self.object is not None and self.object.kind == Task.KIND_EPIC:
+            return ["web/projects/epic_detail.html"]
         return [self.template_name]
 
     def get_object(self, queryset=None):
@@ -3087,7 +3093,69 @@ class TaskDetailView(LoginRequiredMixin, DetailView):
         ctx["priority_labels"] = dict(Task.PRIORITY_CHOICES)
         ctx["is_favourite_task"] = self.request.user.favourite_tasks.filter(pk=task.pk).exists()
         ctx.update(task_picker_context(task))
+        if task.kind == Task.KIND_EPIC:
+            ctx.update(_epic_board_context(task))
         return ctx
+
+
+def _epic_board_context(epic):
+    """Build the board an epic's page is made of.
+
+    Columns are the six working statuses — ``cancelled`` is out for the
+    same reason it is out of :meth:`Task.epic_members` — and each column
+    is split in two: the tasks that are waiting on something, in their
+    own lane above the rest, and everything else. A blocked task keeps
+    its status column rather than moving to a "Blocked" one, so the board
+    still answers "how far along is this" while saying what is stuck.
+
+    Args:
+        epic: The epic whose tasks to lay out.
+
+    Returns:
+        A context dict with ``epic_columns``, ``epic_projects``, the
+        rollup and the date span.
+    """
+    members = list(
+        epic.epic_members()
+        .select_related("project", "assignee")
+        .prefetch_related("blocked_by", "subtasks")
+        .order_by("project__slug_prefix", "number"),
+    )
+    columns = []
+    for status in EPIC_MATRIX_STATUSES:
+        in_status = [task for task in members if task.status == status]
+        columns.append(
+            {
+                "status": status,
+                "label": Task.STATUS_LABELS[status],
+                "blocked": [task for task in in_status if task.is_blocked],
+                "rest": [task for task in in_status if not task.is_blocked],
+                "n": len(in_status),
+            },
+        )
+    # Which teams are carrying this, and how much each. The point of an
+    # epic is that the answer spans projects, so the page says it.
+    by_project: dict[str, dict] = {}
+    for task in members:
+        row = by_project.setdefault(
+            task.project.slug_prefix,
+            {"project": task.project, "total": 0, "done": 0},
+        )
+        row["total"] += 1
+        if task.status == Task.STATUS_DONE:
+            row["done"] += 1
+    done, total = epic.epic_counts
+    start, end = epic.epic_span
+    return {
+        "epic_columns": columns,
+        "epic_projects": sorted(by_project.values(), key=lambda row: -row["total"]),
+        "epic_blocked_total": sum(len(column["blocked"]) for column in columns),
+        "epic_done": done,
+        "epic_total": total,
+        "epic_pct": round(done / total * 100) if total else None,
+        "epic_start": start,
+        "epic_end": end,
+    }
 
 
 @login_required

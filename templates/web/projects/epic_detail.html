@@ -1,0 +1,138 @@
+{% extends "base_app.html" %}
+{% load i18n %}
+{% load web_extras %}
+{% load lucide %}
+{% comment %}
+An epic's page is its board (design "Epics Rethink", artboard 1d with
+the Blocked lane from 1c).
+
+Not the task page with a different rail: an epic has no status, size or
+due date of its own — it reads them off the tasks it collects — so that
+rail would be mostly locked values, and the tasks are what a person
+opened the epic for.
+
+Columns are the six working statuses. A blocked task **keeps its status
+column** and rises into its own lane at the top of it, so the board still
+answers "how far along is this" while saying what is stuck — moving it to
+a Blocked column would lose the first answer to tell you the second.
+
+Details (description, attachments, comments, properties) live in a panel
+on the right, opened from the topbar, so the board keeps the full width
+by default. Expects ``epic_columns`` / ``epic_projects`` / ``epic_done``
+/ ``epic_total`` / ``epic_pct`` / ``epic_start`` / ``epic_end`` from
+``_epic_board_context``. See docs/decisions/0036-epics.md.
+{% endcomment %}
+
+{% block title %}{{ task.slug }} · {{ task.title }} · Acta{% endblock %}
+
+{% block topbar_left %}
+<div class="flex items-center gap-2 min-w-0 flex-1">
+  {% lucide "square-kanban" "w-4 h-4 shrink-0 text-placeholder-foreground" %}
+  <a href="{% wurl 'epics_overview' %}" class="text-xs text-placeholder-foreground hover:text-foreground shrink-0">{% trans "Epics" %}</a>
+  <span class="text-placeholder-foreground shrink-0">/</span>
+  <h1 class="text-base font-medium truncate min-w-0 flex-1">{{ task.title }}</h1>
+  <span class="font-mono text-[11px] text-placeholder-foreground shrink-0">{{ task.slug }}</span>
+</div>
+{% endblock %}
+
+{% block topbar_right_prepend %}
+<button type="button"
+        @click="$store.epicPanel.open = !$store.epicPanel.open"
+        :class="$store.epicPanel.open && 'bg-muted text-foreground'"
+        class="acta-btn-ghost inline-flex items-center gap-1.5 shrink-0">
+  {% lucide "panel-right-close" "w-3.5 h-3.5" %}{% trans "Details" %}
+</button>
+{% endblock %}
+
+{% block app_main %}
+<span class="hidden" data-acta-track-recent
+      data-task-slug="{{ task.slug }}"
+      data-task-title="{{ task.title }}"
+      data-task-project="{{ task.project.name }}"
+      data-task-url="{% task_url task %}"></span>
+
+<div class="h-full flex min-h-0" x-data>
+  <div class="flex-1 min-w-0 flex flex-col gap-3 p-4 overflow-hidden">
+
+    {# ---- what this epic is, in one line ---- #}
+    <div class="flex items-center gap-3 flex-wrap text-xs text-subtle-foreground shrink-0">
+      <span class="text-foreground font-medium">
+        {% if epic_total %}{% blocktrans %}{{ epic_done }} of {{ epic_total }} done{% endblocktrans %}{% else %}{% trans "No tasks yet" %}{% endif %}
+      </span>
+      {% if epic_pct is not None %}
+      <span class="acta-epic-bar" title="{{ epic_pct }}%">
+        <span class="acta-epic-bar-fill" style="width: {{ epic_pct }}%"></span>
+      </span>
+      {% endif %}
+      {% if epic_start and epic_end %}
+      <span class="text-placeholder-foreground">{{ epic_start|date:"M j" }} → {{ epic_end|date:"M j" }}</span>
+      {% endif %}
+      {% if epic_blocked_total %}
+      <span class="inline-flex items-center gap-1 text-rose-400">
+        {% lucide "octagon-alert" "w-3 h-3" %}{% blocktrans count counter=epic_blocked_total %}{{ counter }} blocked{% plural %}{{ counter }} blocked{% endblocktrans %}
+      </span>
+      {% endif %}
+      {% for row in epic_projects %}
+      <span class="inline-flex items-center gap-1.5 text-placeholder-foreground">
+        {% lucide row.project.icon "w-3 h-3" %}{{ row.project.name }}
+        <span class="font-mono text-[10px]">{{ row.done }}/{{ row.total }}</span>
+      </span>
+      {% endfor %}
+    </div>
+
+    {# ---- the board ---- #}
+    {% if epic_total %}
+    <div class="flex-1 min-h-0 overflow-x-auto">
+      <div class="acta-epic-board h-full">
+        {% for column in epic_columns %}
+        <div class="flex flex-col gap-2 min-w-0">
+          <div class="flex items-center gap-2 h-8 px-2.5 rounded-lg border border-border bg-card shrink-0"
+               style="border-top: 2px solid rgb(var(--acta-st-{{ column.status }}));">
+            <span class="text-xs text-muted-foreground truncate">{{ column.label }}</span>
+            <span class="font-mono text-[10px] text-placeholder-foreground">{{ column.n }}</span>
+          </div>
+
+          <div class="flex-1 min-h-0 overflow-y-auto space-y-2 pr-0.5">
+            {% if column.blocked %}
+            {# Blocked stays in its status column and rises to the top of #}
+            {# it: the board must keep answering "how far along", not     #}
+            {# trade that answer for "what is stuck".                     #}
+            <div class="rounded-lg bg-rose-500/5 p-1.5 space-y-1.5">
+              <p class="flex items-center gap-1.5 text-[10px] text-rose-400 px-0.5">
+                {% lucide "octagon-alert" "w-3 h-3" %}{% trans "Blocked" %}
+              </p>
+              {% for member in column.blocked %}
+              {% include "web/projects/_epic_card.html" with member=member %}
+              {% endfor %}
+            </div>
+            {% endif %}
+            {% for member in column.rest %}
+            {% include "web/projects/_epic_card.html" with member=member %}
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% else %}
+    <div class="flex-1 grid place-items-center text-center">
+      <div>
+        <p class="text-sm text-foreground">{% trans "This epic has no tasks yet." %}</p>
+        <p class="text-xs text-placeholder-foreground mt-1 max-w-sm">
+          {% trans "Open a task and pick this epic in its rail, or add the Epic row while creating one." %}
+        </p>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ---- details panel ---- #}
+  <aside x-show="$store.epicPanel.open" x-cloak
+         class="w-[360px] shrink-0 border-l border-border bg-card overflow-y-auto p-4 space-y-4">
+    {% include "web/projects/_description_cell.html" %}
+    {% include "web/projects/_task_meta.html" %}
+    {% include "web/projects/_attachments_panel.html" %}
+    {% include "web/projects/_activity_list.html" %}
+  </aside>
+</div>
+{% endblock %}

@@ -4804,6 +4804,15 @@ window.actaFilterDock = function actaFilterDock() {
   };
 };
 
+// The epic page's details panel. A store rather than component state
+// because the toggle lives in the topbar and the panel in the main
+// column, which are siblings in the page shell, not in one subtree.
+document.addEventListener("alpine:init", () => {
+  window.Alpine.store("epicPanel", {
+    open: false,
+  });
+});
+
 /**
  * Create-task dialog — two columns, content left and a property rail
  * right (design "Create Task Rethink", artboard 1a), so the dialog and

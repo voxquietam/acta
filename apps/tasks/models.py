@@ -498,6 +498,18 @@ class Task(models.Model):
         """
         return any(t.status != self.STATUS_DONE and t.archived_at is None for t in self.blocks.all())
 
+    @property
+    def done_subtask_count(self) -> int:
+        """Return how many of this task's subtasks are done.
+
+        Reads the prefetched ``subtasks`` cache, so a board rendering
+        many cards pays nothing extra for it.
+
+        Returns:
+            The number of subtasks in ``done``.
+        """
+        return sum(1 for sub in self.subtasks.all() if sub.status == self.STATUS_DONE)
+
     # ---- epic rollup -----------------------------------------------------
     #
     # Everything an epic says about its own state is read off the tasks it

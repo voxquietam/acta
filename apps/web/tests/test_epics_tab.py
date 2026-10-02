@@ -181,3 +181,88 @@ class TestMakingAnEpicFromTheTab:
             {"project": project.slug_prefix, "title": "Access audit", "kind": "epic"},
         )
         assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+class TestTheEpicPage:
+    """An epic's page is its board, not the task page with a locked rail."""
+
+    def board(self, client, epic):
+        """Fetch the epic page and return its context + body."""
+        resp = client.get(f"/projects/{epic.project.slug_prefix}/{epic.number}/")
+        assert resp.status_code == 200
+        return resp.context, resp.content.decode()
+
+    def test_an_epic_renders_its_own_template(self, client, setup):
+        _, _, user, epic = setup
+        client.force_login(user)
+        resp = client.get(f"/projects/{epic.project.slug_prefix}/{epic.number}/")
+        assert "web/projects/epic_detail.html" in [t.name for t in resp.templates]
+
+    def test_a_plain_task_still_renders_the_task_page(self, client, setup):
+        _, project, user, _ = setup
+        task = TaskFactory(project=project)
+        client.force_login(user)
+        resp = client.get(f"/projects/{project.slug_prefix}/{task.number}/")
+        assert "web/projects/task_detail.html" in [t.name for t in resp.templates]
+
+    def test_the_columns_are_the_working_statuses(self, client, setup):
+        _, _, user, epic = setup
+        client.force_login(user)
+        ctx, _ = self.board(client, epic)
+        assert [c["status"] for c in ctx["epic_columns"]] == list(Task.KANBAN_STATUS_VALUES)
+
+    def test_a_task_lands_in_its_own_column(self, client, setup):
+        _, _, user, epic = setup
+        client.force_login(user)
+        ctx, _ = self.board(client, epic)
+        by_status = {c["status"]: c for c in ctx["epic_columns"]}
+        assert by_status[Task.STATUS_DONE]["n"] == 1
+        assert by_status[Task.STATUS_IN_PROGRESS]["n"] == 1
+
+    def test_a_blocked_task_keeps_its_column_and_rises(self, client, setup):
+        _, project, user, epic = setup
+        blocker = TaskFactory(project=project, status=Task.STATUS_TODO)
+        stuck = TaskFactory(project=project, epic=epic, status=Task.STATUS_TODO)
+        stuck.blocked_by.add(blocker)
+        client.force_login(user)
+        ctx, _ = self.board(client, epic)
+        todo = next(c for c in ctx["epic_columns"] if c["status"] == Task.STATUS_TODO)
+        # Its own lane, inside the status column — the board must keep
+        # answering "how far along", not trade that for "what is stuck".
+        assert [t.pk for t in todo["blocked"]] == [stuck.pk]
+        assert todo["rest"] == []
+        assert ctx["epic_blocked_total"] == 1
+
+    def test_the_page_says_which_projects_carry_it(self, client, setup):
+        workspace, _, user, epic = setup
+        other = ProjectFactory(workspace=workspace, slug_prefix="OTH")
+        TaskFactory(project=other, epic=epic, status=Task.STATUS_TODO)
+        client.force_login(user)
+        ctx, _ = self.board(client, epic)
+        # The point of an epic is that the answer spans projects.
+        assert {row["project"].slug_prefix for row in ctx["epic_projects"]} == {"EPT", "OTH"}
+
+    def test_the_rollup_is_on_the_page(self, client, setup):
+        _, _, user, epic = setup
+        client.force_login(user)
+        ctx, _ = self.board(client, epic)
+        assert (ctx["epic_done"], ctx["epic_total"], ctx["epic_pct"]) == (1, 2, 50)
+
+    def test_the_rail_locks_what_an_epic_derives(self, client, setup):
+        _, _, user, epic = setup
+        client.force_login(user)
+        _, body = self.board(client, epic)
+        # Size, cycle and the three dates are gone; progress and the span
+        # take their place, read-only.
+        assert "Set size" not in body
+        assert "Set deadline" not in body
+        assert "Progress" in body
+        assert "Make recurring" not in body
+
+    def test_an_empty_epic_explains_itself(self, client, setup):
+        workspace, project, user, _ = setup
+        empty = TaskFactory(project=project, kind=Task.KIND_EPIC, status=Task.STATUS_PLANNED, title="Nothing in me")
+        client.force_login(user)
+        _, body = self.board(client, empty)
+        assert "This epic has no tasks yet" in body
