@@ -1900,7 +1900,10 @@
 
     let dragging = null;
     host.addEventListener("pointerdown", (e) => {
-      if (e.button !== 0 || e.target.closest("[data-graph-node]")) return;
+      // Cards and the epic handles are not the canvas: starting a pan on
+      // them captures the pointer here, and the click that follows is
+      // then delivered to the host instead of to the thing pressed.
+      if (e.button !== 0 || e.target.closest("[data-graph-node], [data-graph-epic]")) return;
       dragging = { x: e.clientX, y: e.clientY, px: state.pan.x, py: state.pan.y, moved: false };
       host.setPointerCapture(e.pointerId);
       host.classList.add("is-panning");
@@ -1917,7 +1920,7 @@
       dragging = null;
       host.classList.remove("is-panning");
       if (host.hasPointerCapture(e.pointerId)) host.releasePointerCapture(e.pointerId);
-      if (was && !was.moved && !e.target.closest("[data-graph-node]")) select(state, null);
+      if (was && !was.moved && !e.target.closest("[data-graph-node], [data-graph-epic]")) select(state, null);
     });
 
     host.addEventListener("click", (e) => {
