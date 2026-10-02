@@ -109,6 +109,11 @@ code, kbd, pre, samp, .font-mono {
     /* Surfaces */
     --background: 255 255 255;      /* white — body */
     --card: 255 255 255;            /* white — panels and cards */
+    /* Graph board — must read as a surface the cards sit ON, so it is a
+       step away from ``--card``. Light's page is white, same as the card,
+       hence the subtle grey here and the page background in the dark
+       themes. */
+    --graph-canvas: 250 250 250;    /* zinc-50 */
     --muted: 244 244 245;           /* zinc-100 — chips, inline blocks, hover */
     --subtle: 250 250 250;          /* zinc-50 — section backgrounds */
 
@@ -131,6 +136,7 @@ code, kbd, pre, samp, .font-mono {
     color-scheme: dark;
     --background: 9 9 11;           /* zinc-950 */
     --card: 24 24 27;               /* zinc-900 */
+    --graph-canvas: 9 9 11;         /* zinc-950 — darker than the cards */
     --muted: 39 39 42;              /* zinc-800 */
     --subtle: 24 24 27;             /* zinc-900 (same as card; subtle is mostly a light-mode distinction) */
 
@@ -152,6 +158,7 @@ code, kbd, pre, samp, .font-mono {
        cycle: light → dark → midnight → light. */
     --background: 12 13 23;         /* #0c0d17 — very dark, indigo undertone */
     --card: 22 24 38;               /* #161826 */
+    --graph-canvas: 12 13 23;       /* #0c0d17 — darker than the cards */
     --muted: 33 36 53;              /* #212435 */
     --subtle: 18 20 32;             /* #141420 */
 
@@ -2046,4 +2053,660 @@ select:-webkit-autofill {
    containment does not apply to ``<tr>``, so browsers ignore it. */
 tr[data-vrow-hidden] {
   display: none !important;
+}
+
+/* ---- Relationship graph (project Graph tab) -----------------------------
+   Cards are DOM, edges are one SVG layer, and both ride a single stage
+   transform — pan and zoom therefore never relayout anything. Only the
+   cards the viewport can see exist at all (see static/js/graph.js), and
+   ``contain`` bounds what a hover may invalidate: the lesson from the
+   task table (ADR 0032), applied where containment actually works. */
+.acta-graph-host {
+  /* No ``position`` here on purpose: the panel places the host with
+     ``absolute inset-0`` and this rule, being later in the bundle, would
+     win and collapse it to zero height. ``size`` containment is left out
+     for the same reason — the height comes from the inset, not content. */
+  overflow: hidden;
+  touch-action: none;
+  cursor: grab;
+  background: rgb(var(--graph-canvas));
+  contain: layout paint style;
+  /* A drag across the board is a pan, not a text selection — without this
+     the card titles highlight as the pointer crosses them. */
+  user-select: none;
+  -webkit-user-select: none;
+}
+.acta-graph-host.is-panning {
+  cursor: grabbing;
+}
+.acta-gstage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+.acta-gedges {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+.acta-gedges [data-edge] {
+  transition: opacity 120ms ease;
+}
+.acta-gedges.is-focused [data-edge].is-dim {
+  opacity: 0.25;
+}
+
+.acta-gcard {
+  position: absolute;
+  left: 0;
+  top: 0;
+  box-sizing: border-box;
+  /* ``layout`` and ``style`` only. Paint containment on a rounded box
+     inside a scaled, will-change'd stage gets rasterised as a rectangle,
+     which shows up as little square nicks in the four corners — and the
+     clipping it would buy is already covered by ``overflow: hidden``. */
+  contain: layout style;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid rgb(var(--border));
+  background: rgb(var(--card));
+  color: rgb(var(--foreground));
+  cursor: pointer;
+  outline: none;
+  transition: opacity 120ms ease, border-color 120ms ease;
+}
+.acta-gcard[data-level="full"] {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+}
+.acta-gcard[data-level="compact"],
+.acta-gcard[data-level="mini"] {
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+}
+.acta-gcard:hover,
+.acta-gcard:focus-visible {
+  border-color: rgb(var(--border-strong));
+}
+/* One stroke only. A border plus a 1px ring land on different device
+   pixels once the stage is scaled, which reads as a double outline at some
+   zooms and a thick smear at others. */
+.acta-gcard.is-selected {
+  border-color: #4f46e5;
+}
+.acta-gcard.is-dim {
+  opacity: 0.25;
+}
+.acta-gcard.is-cancelled {
+  opacity: 0.5;
+}
+.acta-gcard.is-external {
+  border-style: dashed;
+  border-color: rgb(var(--border-strong));
+}
+.acta-gcard.is-blocked::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 8px 0 0 8px;
+  background: #f43f5e;
+}
+
+.acta-gcard-ic {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+.acta-gcard-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+.acta-gcard-glyph {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+.acta-gcard-glyph .acta-gcard-ic {
+  width: 14px;
+  height: 14px;
+}
+.acta-gcard-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: rgb(var(--subtle-foreground));
+  flex-shrink: 0;
+}
+.acta-gcard-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 18px;
+  min-width: 0;
+}
+.acta-gcard-gap {
+  flex: 1;
+}
+.acta-gcard-proj,
+.acta-gcard-prio,
+.acta-gcard-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: rgb(var(--muted));
+  font-size: 11px;
+  color: rgb(var(--muted-foreground));
+  white-space: nowrap;
+}
+.acta-gcard-lock {
+  display: inline-flex;
+  color: #f43f5e;
+}
+.acta-gcard-title {
+  margin-top: 8px;
+  height: 40px;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.acta-gcard.is-done .acta-gcard-title,
+.acta-gcard.is-cancelled .acta-gcard-title {
+  color: rgb(var(--placeholder-foreground));
+  text-decoration: line-through;
+}
+.acta-gcard-labels {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  height: 18px;
+  overflow: hidden;
+}
+.acta-gcard-lab {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 18px;
+  box-sizing: border-box;
+  padding: 0 6px;
+  border-radius: 8px;
+  font-size: 11px;
+  color: rgb(var(--muted-foreground));
+  background: color-mix(in srgb, var(--lab) 13%, rgb(var(--card)));
+  border: 1px solid color-mix(in srgb, var(--lab) 38%, transparent);
+  white-space: nowrap;
+}
+.acta-gcard-labdot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--lab);
+}
+.acta-gcard-foot {
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid rgb(var(--border));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: rgb(var(--subtle-foreground));
+  min-width: 0;
+}
+.acta-gcard-av {
+  width: 20px;
+  height: 20px;
+  border-radius: 9999px;
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.acta-gcard-av-none {
+  box-sizing: border-box;
+  border: 1px dashed rgb(var(--border-strong));
+  color: rgb(var(--placeholder-foreground));
+  background: transparent;
+}
+.acta-gcard-who {
+  color: rgb(var(--muted-foreground));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.acta-gcard-due,
+.acta-gcard-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.acta-gcard-due.is-today {
+  color: #f59e0b;
+}
+.acta-gcard-due.is-overdue {
+  color: #f43f5e;
+}
+.acta-gcard[data-level="compact"] .acta-gcard-ttl {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.acta-gcard[data-level="compact"] .acta-gcard-av {
+  width: 16px;
+  height: 16px;
+  font-size: 9px;
+}
+
+/* ``display:flex`` below would beat the user-agent's ``[hidden]`` rule and
+   leave an empty pill floating in the corner, so hiding is spelled out. */
+.acta-gsel[hidden] {
+  display: none;
+}
+.acta-gsel {
+  position: absolute;
+  left: 16px;
+  top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 6px 0 10px;
+  border-radius: 8px;
+  border: 1px solid rgb(var(--border-strong));
+  background: rgb(var(--card));
+  font-size: 12px;
+  color: rgb(var(--muted-foreground));
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.2);
+}
+.acta-gsel-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: rgb(var(--foreground));
+}
+.acta-gsel-count {
+  color: rgb(var(--subtle-foreground));
+}
+.acta-gsel-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: #4f46e5;
+  color: #fff;
+}
+
+.acta-gsize {
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  color: rgb(var(--subtle-foreground));
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.acta-gsize:hover {
+  color: rgb(var(--foreground));
+}
+.acta-gsize.is-on {
+  background: rgb(var(--card));
+  color: rgb(var(--foreground));
+}
+.acta-gedge-label {
+  position: absolute;
+  z-index: 10;
+  pointer-events: none;
+  padding: 1px 6px;
+  border-radius: 8px;
+  border: 1px solid rgb(var(--border-strong));
+  background: rgb(var(--card));
+  font-size: 10px;
+  color: rgb(var(--subtle-foreground));
+}
+.acta-gedge-label[data-kind="blocks"] {
+  color: #f43f5e;
+}
+.acta-gedge-label[data-kind="related"] {
+  color: #0ea5e9;
+}
+.acta-gminimap {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  width: 200px;
+  height: 120px;
+  border-radius: 8px;
+  border: 1px solid rgb(var(--border-strong));
+  background: rgb(var(--card));
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.2);
+  overflow: hidden;
+  pointer-events: none;
+}
+/* Edges opt back into hit-testing so the hover label can find them; the
+   layer itself stays transparent so cards below keep their clicks. */
+.acta-gedges [data-edge] {
+  pointer-events: stroke;
+}
+.acta-gcard.is-filtered-out {
+  opacity: 0.28;
+}
+
+.acta-gswitch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: rgb(var(--muted-foreground));
+}
+.acta-gswitch-track {
+  position: relative;
+  width: 28px;
+  height: 16px;
+  border-radius: 9999px;
+  background: rgb(var(--muted));
+  transition: background-color 120ms ease;
+}
+.acta-gswitch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  background: rgb(var(--subtle-foreground));
+  transition: left 120ms ease, background-color 120ms ease;
+}
+.acta-gswitch[aria-checked="true"] .acta-gswitch-track {
+  background: #4f46e5;
+}
+.acta-gswitch[aria-checked="true"] .acta-gswitch-knob {
+  left: 14px;
+  background: #fff;
+}
+.acta-gsize {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.acta-gstep {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 26px;
+  color: rgb(var(--muted-foreground));
+}
+.acta-gstep:hover {
+  background: rgb(var(--muted));
+  color: rgb(var(--foreground));
+}
+.acta-gfit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid rgb(var(--border));
+  font-size: 12px;
+  color: rgb(var(--muted-foreground));
+}
+.acta-gfit:hover {
+  color: rgb(var(--foreground));
+  border-color: rgb(var(--border-strong));
+}
+.acta-gcounter {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid rgb(var(--border));
+  background: rgb(var(--card));
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: rgb(var(--subtle-foreground));
+  pointer-events: none;
+}
+
+.acta-gshelf {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 20px;
+  padding: 0 40px;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+.acta-gshelf-title {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgb(var(--subtle-foreground));
+}
+.acta-gshelf-count {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  color: rgb(var(--placeholder-foreground));
+}
+.acta-gshelf-rule {
+  flex: 1;
+  height: 0;
+  border-top: 1px dashed rgb(var(--border-strong));
+}
+.acta-gshelf-hint {
+  font-size: 13px;
+  color: rgb(var(--placeholder-foreground));
+}
+
+/* Docked list of unlinked tasks — the design's "at scale" answer: a few
+   stragglers sit on the shelf under the graph, hundreds would bury it. */
+.acta-gdock {
+  width: 320px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid rgb(var(--border));
+  background: rgb(var(--card));
+  font-size: 12px;
+  min-height: 0;
+}
+.acta-gdock[hidden] {
+  display: none;
+}
+.acta-gdock-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 12px 8px;
+}
+.acta-gdock-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgb(var(--subtle-foreground));
+}
+.acta-gdock-total {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: rgb(var(--muted));
+  color: rgb(var(--foreground));
+}
+.acta-gdock-controls {
+  padding: 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.acta-gdock-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 8px;
+  border: 1px solid rgb(var(--border-strong));
+  background: rgb(var(--background));
+  color: rgb(var(--placeholder-foreground));
+}
+.acta-gdock-search input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  outline: none;
+  font-size: 12px;
+  color: rgb(var(--foreground));
+}
+.acta-gdock-group-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.acta-gdock-grouplabel {
+  color: rgb(var(--placeholder-foreground));
+}
+.acta-gdock-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  border: 1px solid rgb(var(--border));
+}
+.acta-gdock-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin-top: 8px;
+  border-top: 1px solid rgb(var(--border));
+  padding: 4px 0;
+}
+.acta-gdock-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+}
+.acta-gdock-key {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: rgb(var(--subtle-foreground));
+}
+.acta-gdock-name {
+  color: rgb(var(--foreground));
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.acta-gdock-count {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: rgb(var(--placeholder-foreground));
+}
+.acta-gdock-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 30px;
+  padding: 0 12px 0 30px;
+  border-radius: 6px;
+  text-align: left;
+}
+.acta-gdock-row:hover {
+  background: rgb(var(--muted));
+}
+.acta-gdock-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: rgb(var(--subtle-foreground));
+  flex-shrink: 0;
+}
+.acta-gdock-ttl {
+  flex: 1;
+  min-width: 0;
+  color: rgb(var(--muted-foreground));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.acta-gdock-row .acta-gcard-av {
+  width: 16px;
+  height: 16px;
+  font-size: 9px;
+}
+.acta-gdock-more,
+.acta-gdock-empty {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 12px 0 30px;
+  color: rgb(var(--placeholder-foreground));
+  font-size: 11px;
+}
+.acta-gdock-pic {
+  display: inline-flex;
+  color: rgb(var(--subtle-foreground));
+}
+.acta-gdock-filtered {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 12px 0;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgb(var(--muted));
+  color: rgb(var(--subtle-foreground));
+  font-size: 11px;
+}
+.acta-gdock-of {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: rgb(var(--placeholder-foreground));
+}
+.acta-gdock-show {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid rgb(var(--border-strong));
+  background: rgb(var(--card));
+  font-size: 11px;
+  color: rgb(var(--muted-foreground));
+}
+.acta-gdock-show[hidden] {
+  display: none;
 }

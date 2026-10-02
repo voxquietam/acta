@@ -1,0 +1,133 @@
+{% load i18n %}
+{% load static %}
+{% load lucide %}
+{% comment %}
+Relationship graph — tasks as cards, links and parent/subtask as edges.
+Built by ``_graph_context`` in apps/web/views.py, drawn by
+static/js/graph.js. See docs/decisions/0033-relationship-graph.md.
+
+The payload carries EVERY live task, with ``connected`` telling the two
+apart; the toggle below reveals the isolated ones without another
+request. Default is connected-only, because a project's unlinked tasks
+are the majority and drawing them turns the view into confetti.
+
+``data-task-graph`` is the marker the loader in base.html watches — dagre
+is injected only once this panel exists, the same way the description
+editor bundle is handled. The sprite URL rides on the host because the
+cards build their icons in JS and a ``<use>`` into an external sprite
+needs the full path.
+{% endcomment %}
+<div data-graph-panel class="flex-1 min-h-0 flex flex-col bg-card border border-border rounded-lg">
+
+  <div class="flex items-center gap-3 px-3 py-2 border-b border-border shrink-0 flex-wrap">
+    <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground">
+      {% blocktrans count counter=graph_edge_count %}{{ counter }} link{% plural %}{{ counter }} links{% endblocktrans %}
+    </span>
+
+    {% comment %} Legend — mirrors the stroke colours used on the canvas. {% endcomment %}
+    <span class="inline-flex items-center gap-1.5 text-xs text-subtle-foreground"
+          title="{% trans 'The task above must finish first' %}">
+      <span class="w-4 border-t-2 border-rose-500"></span>{% trans "blocks" %}
+    </span>
+    <span class="inline-flex items-center gap-1.5 text-xs text-subtle-foreground">
+      <span class="w-4 border-t-2 border-dashed border-sky-500"></span>{% trans "related" %}
+    </span>
+    <span class="inline-flex items-center gap-1.5 text-xs text-subtle-foreground">
+      <span class="w-4 border-t-2 border-zinc-500"></span>{% trans "subtask" %}
+    </span>
+
+    {% comment %}
+    No "show all" switch here: unlinked tasks are not a mode of the board,
+    they are their own side area opened from the filter rail (design 1j).
+    {% endcomment %}
+    <button type="button" data-graph-only-matching class="acta-gsize ml-auto">
+      {% trans "Only matching" %}
+      <span data-graph-match-count class="font-mono ml-1 text-placeholder-foreground" hidden></span>
+    </button>
+
+    <span class="w-px h-5 bg-border"></span>
+
+    <span class="inline-flex items-center gap-0.5 rounded-lg border border-border p-0.5"
+          title="{% trans 'Card size — Auto follows the zoom: full cards above 75%' %}">
+      <button type="button" data-graph-size="" class="acta-gsize is-on">
+        {% lucide "scan-search" "w-3.5 h-3.5" %}{% trans "Auto" %}
+      </button>
+      <button type="button" data-graph-size="full" class="acta-gsize">
+        {% lucide "rectangle-horizontal" "w-3.5 h-3.5" %}{% trans "Full" %}
+      </button>
+      <button type="button" data-graph-size="compact" class="acta-gsize">
+        {% lucide "rows-3" "w-3.5 h-3.5" %}{% trans "Compact" %}
+      </button>
+    </span>
+
+    {% comment %} Zoom reads as one control: step down, the value, step up. {% endcomment %}
+    <span class="inline-flex items-center h-7 rounded-lg border border-border overflow-hidden">
+      <button type="button" data-graph-zoom-by="0.8" class="acta-gstep" aria-label="{% trans 'Zoom out' %}">
+        {% lucide "minus" "w-3.5 h-3.5" %}
+      </button>
+      <span data-graph-zoom class="w-11 text-center font-mono text-[11px] text-foreground border-x border-border leading-[26px]">100%</span>
+      <button type="button" data-graph-zoom-by="1.25" class="acta-gstep" aria-label="{% trans 'Zoom in' %}">
+        {% lucide "plus" "w-3.5 h-3.5" %}
+      </button>
+    </span>
+
+    <button type="button" data-graph-fit class="acta-gfit">
+      {% lucide "scan" "w-3.5 h-3.5" %}{% trans "Fit to screen" %}
+    </button>
+  </div>
+
+  <div class="flex-1 min-h-0 flex">
+    <div class="relative flex-1 min-w-0">
+    {% if graph_edge_count == 0 %}
+    <div class="absolute inset-0 grid place-items-center p-6 text-center">
+      <div class="flex flex-col items-center gap-3">
+        <span class="w-10 h-10 rounded-lg border border-border bg-card grid place-items-center text-subtle-foreground">
+          {% lucide "network" "w-4.5 h-4.5" %}
+        </span>
+        <span class="text-sm font-medium text-foreground">{% trans "Nothing is linked in this project yet" %}</span>
+        <span class="text-xs text-placeholder-foreground max-w-[360px]">
+          {% trans "Open a task and add a link under Links — blocks, related or a subtask." %}
+        </span>
+      </div>
+    </div>
+    {% else %}
+    <div data-task-graph
+         data-sprite="{% static 'sprites/lucide.svg' %}"
+         data-project="{{ project.slug_prefix }}"
+         class="acta-graph-host absolute inset-0"></div>
+    {% comment %} Edge kind, shown where the pointer crosses a line. {% endcomment %}
+    <span data-graph-edge-label class="acta-gedge-label" hidden></span>
+    {% comment %}
+    What the board is currently showing — the design's bottom-left counter.
+    Reads "N linked · M unlinked hidden" until the switch is flipped.
+    {% endcomment %}
+    <span data-graph-counter class="acta-gcounter"></span>
+    {% comment %}
+    Minimap — one rect per task plus the viewport. Only the viewport moves
+    while panning, so it costs nothing to keep on screen.
+    {% endcomment %}
+    <div data-graph-minimap class="acta-gminimap"></div>
+    {% comment %}
+    Selection bar — filled in by the renderer when a card is picked, and
+    the only place that offers "open", because a click on the board
+    explores instead of navigating.
+    {% endcomment %}
+    <div data-graph-selection class="acta-gsel" hidden></div>
+    {% endif %}
+    </div>
+
+    {% comment %}
+    Unlinked tasks, docked. A handful of them sit on the shelf under the
+    graph; hundreds would bury it, so past a threshold they move here —
+    searchable and grouped, the way the design calls for at scale.
+    {% endcomment %}
+    <aside data-graph-dock class="acta-gdock" hidden></aside>
+  </div>
+
+  {% comment %}
+  Nodes and edges as data, never as markup: the renderer reads this
+  verbatim, and keeping it out of the DOM means a 500-task project costs
+  one <script> rather than 500 elements.
+  {% endcomment %}
+  {{ graph_data|json_script:"task-graph-data" }}
+</div>

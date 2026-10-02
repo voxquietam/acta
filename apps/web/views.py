@@ -25,6 +25,7 @@ from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
+from django.utils.formats import date_format
 from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_POST
 from django.views.generic import DetailView, ListView, TemplateView
@@ -55,6 +56,7 @@ from apps.notifications.services import (
     notify_project_update_created,
     notify_task_created,
 )
+from apps.projects.icons import color_class
 from apps.projects.models import Project, ProjectUpdate
 from apps.reactions.services import TARGET_TYPES, attach_reactions, summarize_reactions, toggle_reaction
 from apps.tasks.events import broadcast_link_change, broadcast_task_events, emit_task_diff_events, snapshot_task
@@ -111,7 +113,7 @@ _MY_WORK_BACKLOG_STATUSES = [
 ]
 
 
-_VIEW_MODES = {"overview", "kanban", "table", "list", "timeline", "backlog", "archive"}
+_VIEW_MODES = {"overview", "kanban", "table", "list", "timeline", "graph", "backlog", "archive"}
 
 
 def _is_htmx_partial(request):
@@ -242,6 +244,231 @@ def _cycle_banner(request):
     return {"cycle": cycle, **cycle_summary(cycle)}
 
 
+def _iso_day(value):
+    """Return ``YYYY-MM-DD`` for a date or datetime, or ``None``."""
+    if value is None:
+        return None
+    return (value.date() if hasattr(value, "date") else value).isoformat()
+
+
+# Above this many tasks in scope, the isolated ones are left out of the
+# payload and the "show all" switch pays for a refetch instead. A project
+# never reaches it; a busy workspace does, and nobody wants a third of a
+# megabyte of JSON for a board they may not even scroll.
+GRAPH_FULL_PAYLOAD_LIMIT = 400
+
+
+def _graph_context(scope, *, user, workspace, include_all=False):
+    """Build the relationship-graph payload for a project or a workspace.
+
+    Nodes are the live tasks in ``scope`` plus any task on the far end of
+    a link that the user can also see — a blocker sitting in a
+    neighbouring project is exactly what this view exists to surface, so
+    it is drawn and marked ``external``. Edges are the two link kinds plus
+    parent/subtask.
+
+    Isolated tasks normally travel too, so the client's "show all" switch
+    costs no round-trip. Past ``GRAPH_FULL_PAYLOAD_LIMIT`` tasks that
+    stops being a bargain and only the connected ones are sent, with
+    ``truncated`` telling the client to come back for the rest.
+
+    Query count is flat whatever the size of the scope: the edges come
+    straight off the through tables, and the nodes, their labels and their
+    assignees are each fetched by id in one pass.
+
+    Args:
+        scope: Queryset of the tasks the board is about (already limited
+            to live ones).
+        user: Acting user; nodes outside their workspaces are dropped,
+            along with any edge that would dangle as a result.
+        workspace: Workspace whose running cycle the ``active`` filter
+            chip refers to.
+        include_all: Force every task into the payload regardless of the
+            limit — set when the client asks for the full board.
+
+    Returns:
+        Context with ``graph_data`` (nodes + edges, ready for the
+        client), plus the node / edge / connected counts.
+    """
+    live = scope
+    project_ids = set(live.values_list("id", flat=True))
+
+    def _link_rows(manager):
+        """Return ``(from_id, to_id)`` pairs touching this project."""
+        return list(
+            manager.through.objects.filter(
+                Q(from_task_id__in=project_ids) | Q(to_task_id__in=project_ids),
+            ).values_list("from_task_id", "to_task_id"),
+        )
+
+    blocks_rows = _link_rows(Task.blocks)
+    related_rows = _link_rows(Task.related)
+    parent_rows = list(live.filter(parent__isnull=False).values_list("id", "parent_id"))
+
+    wanted = set(project_ids)
+    for pairs in (blocks_rows, related_rows, parent_rows):
+        for left, right in pairs:
+            wanted.add(left)
+            wanted.add(right)
+
+    # ``distinct`` because the membership join multiplies a row per
+    # membership the user holds in that workspace.
+    rows = (
+        Task.objects.filter(
+            id__in=wanted,
+            archived_at__isnull=True,
+            project__workspace__memberships__user=user,
+        )
+        .values(
+            "id",
+            "number",
+            "title",
+            "status",
+            "priority",
+            "size",
+            "due_date",
+            "start_date",
+            "end_date",
+            "completed_at",
+            "created_at",
+            "updated_at",
+            "cycle_id",
+            "assignee_id",
+            "project_id",
+            "project__slug_prefix",
+            "project__name",
+            "project__icon",
+            "project__icon_color",
+            "project__workspace__slug",
+        )
+        .distinct()
+    )
+    rows = list(rows)
+
+    # Labels and assignees ride along because the card shows them — two
+    # lookups by id, not one per card.
+    labels_by_task = {}
+    label_ids_by_task = {}
+    for task_id, label_id, name, color in Task.labels.through.objects.filter(
+        task_id__in=[row["id"] for row in rows],
+    ).values_list("task_id", "label_id", "label__name", "label__color"):
+        labels_by_task.setdefault(task_id, []).append({"n": name, "c": color})
+        label_ids_by_task.setdefault(task_id, []).append(label_id)
+
+    people = {
+        person.id: {
+            "name": person.display_name,
+            "i": (person.display_name or person.username)[:1].upper(),
+            "c": person.avatar_color,
+        }
+        for person in User.objects.filter(id__in={row["assignee_id"] for row in rows if row["assignee_id"]})
+    }
+
+    today = timezone.localdate()
+    nodes = {
+        row["id"]: {
+            "id": row["id"],
+            "slug": f"{row['project__slug_prefix']}-{row['number']}",
+            "title": row["title"],
+            "status": row["status"],
+            "priority": row["priority"] or 0,
+            "project": row["project__name"],
+            "projectKey": row["project__slug_prefix"],
+            "projectIcon": row["project__icon"] or "folder",
+            "projectIconClass": color_class(row["project__icon_color"]),
+            "external": row["id"] not in project_ids,
+            "size": row["size"],
+            "due": date_format(row["due_date"], "M j") if row["due_date"] else "",
+            # Overdue and due-today are the two the card colours; working
+            # them out here keeps the client free of date maths.
+            "dueToday": row["due_date"] == today,
+            "overdue": bool(row["due_date"] and row["due_date"] < today and row["status"] not in ("done", "cancelled")),
+            "labels": labels_by_task.get(row["id"], []),
+            "who": people.get(row["assignee_id"]),
+            # Raw ids so the board can answer the filter sidebar, which
+            # speaks in ids rather than names.
+            "assigneeId": row["assignee_id"],
+            "projectId": row["project_id"],
+            "cycleId": row["cycle_id"],
+            "labelIds": label_ids_by_task.get(row["id"], []),
+            # The sidebar's date filter picks one of these by name, so all
+            # six travel — as plain ISO days, which is what a range check
+            # on the client needs.
+            "dates": {
+                "created": _iso_day(row["created_at"]),
+                "updated": _iso_day(row["updated_at"]),
+                "completed": _iso_day(row["completed_at"]),
+                "start": _iso_day(row["start_date"]),
+                "end": _iso_day(row["end_date"]),
+                "due": _iso_day(row["due_date"]),
+            },
+            # Built here rather than client-side: the canonical path is
+            # workspace-scoped, and a node can belong to another workspace.
+            "url": reverse(
+                "web_ws:task_detail",
+                kwargs={
+                    "workspace": row["project__workspace__slug"],
+                    "slug_prefix": row["project__slug_prefix"],
+                    "number": row["number"],
+                },
+            ),
+        }
+        for row in rows
+    }
+
+    edges = []
+    seen = set()
+
+    def _add_edge(source, target, kind):
+        """Record one edge, skipping dangling and duplicate pairs."""
+        if source not in nodes or target not in nodes or source == target:
+            return
+        # ``related`` is symmetrical, so Django stores both directions and
+        # the pair must collapse to one undirected edge.
+        key = (kind, frozenset((source, target))) if kind == "related" else (kind, source, target)
+        if key in seen:
+            return
+        seen.add(key)
+        edges.append({"source": source, "target": target, "kind": kind})
+
+    for source, target in blocks_rows:
+        _add_edge(source, target, "blocks")
+    for source, target in related_rows:
+        _add_edge(source, target, "related")
+    for child, parent in parent_rows:
+        _add_edge(parent, child, "parent")
+
+    connected = {node_id for edge in edges for node_id in (edge["source"], edge["target"])}
+    for node_id, node in nodes.items():
+        node["connected"] = node_id in connected
+
+    active_cycle = (
+        workspace.cycles.filter(
+            start_date__lte=timezone.localdate(),
+            end_date__gte=timezone.localdate(),
+        ).first()
+        if workspace
+        else None
+    )
+
+    send_all = include_all or len(project_ids) <= GRAPH_FULL_PAYLOAD_LIMIT
+    sent = list(nodes.values()) if send_all else [node for node in nodes.values() if node["connected"]]
+
+    return {
+        # Handed to ``json_script`` in the template, which does the encoding —
+        # passing a pre-dumped string there would escape it a second time.
+        "graph_data": {
+            "nodes": sent,
+            "edges": edges,
+            "activeCycleId": active_cycle.id if active_cycle else None,
+            "truncated": not send_all,
+        },
+        "graph_node_count": len(nodes),
+        "graph_edge_count": len(edges),
+        "graph_connected_count": len(connected),
+    }
+
+
 _BACKLOG_STALE_DAYS = 90
 
 
@@ -361,7 +588,15 @@ def _list_axis_options(option_keys, active_key):
     return [{"key": key, "label": _LIST_AXIS_LABELS[key], "active": key == active_key} for key in option_keys]
 
 
-def _resolve_view_mode(request, *, default, allow_overview=False, allow_backlog=False, allow_archive=False):
+def _resolve_view_mode(
+    request,
+    *,
+    default,
+    allow_overview=False,
+    allow_backlog=False,
+    allow_archive=False,
+    allow_graph=False,
+):
     """Resolve view_mode in the canonical order.
 
     Order: ``?view=`` querystring → ``acta_view_mode`` cookie → page
@@ -380,10 +615,13 @@ def _resolve_view_mode(request, *, default, allow_overview=False, allow_backlog=
             (project detail's grooming tab). All Tasks rejects it.
         allow_archive: When True ``"archive"`` is a valid value
             (the read-only browser for archived tasks).
+        allow_graph: When True ``"graph"`` is a valid value (the
+            relationship map) — scoped to the project on project detail
+            and to the active workspace on All Tasks.
 
     Returns:
         One of ``"overview"`` / ``"kanban"`` / ``"table"`` / ``"list"`` /
-        ``"timeline"`` / ``"backlog"`` / ``"archive"``.
+        ``"timeline"`` / ``"graph"`` / ``"backlog"`` / ``"archive"``.
     """
     allowed = {"kanban", "table", "list", "timeline"}
     if allow_overview:
@@ -392,6 +630,8 @@ def _resolve_view_mode(request, *, default, allow_overview=False, allow_backlog=
         allowed.add("backlog")
     if allow_archive:
         allowed.add("archive")
+    if allow_graph:
+        allowed.add("graph")
     view_mode = request.GET.get("view")
     if view_mode in allowed:
         return view_mode
@@ -770,6 +1010,8 @@ class AllTasksView(LoginRequiredMixin, ListView):
             return ["web/projects/_list_panel.html"]
         if self.request.GET.get("panel") == "timeline":
             return ["web/projects/_timeline.html"]
+        if self.request.GET.get("panel") == "graph":
+            return ["web/projects/_graph_panel.html"]
         if self.request.GET.get("panel") == "backlog":
             return ["web/projects/_backlog_panel.html"]
         if self.request.GET.get("panel") == "archive":
@@ -777,6 +1019,26 @@ class AllTasksView(LoginRequiredMixin, ListView):
         if _is_htmx_partial(self.request):
             return ["web/_all_tasks_inner.html"]
         return ["web/all_tasks.html"]
+
+    def _graph_ctx(self):
+        """Relationship-graph context for the whole active workspace.
+
+        Unlike the project board this one can be large, so the payload
+        limit in ``_graph_context`` usually trims it to the connected
+        tasks and the client refetches when the user asks for everything.
+        """
+        active = resolve_active_workspace(self.request)
+        scope = (
+            _user_task_qs(self.request.user).filter(project__workspace=active, archived_at__isnull=True)
+            if active
+            else Task.objects.none()
+        )
+        return _graph_context(
+            scope,
+            user=self.request.user,
+            workspace=active,
+            include_all=self.request.GET.get("graph_all") == "1",
+        )
 
     def get_queryset(self):
         """Filter the user's accessible tasks by querystring params.
@@ -954,8 +1216,15 @@ class AllTasksView(LoginRequiredMixin, ListView):
         Assignee lives in the top strip, not in the sidebar.
         """
         ctx = super().get_context_data(**kwargs)
-        view_mode = _resolve_view_mode(self.request, default="table", allow_backlog=True, allow_archive=True)
+        view_mode = _resolve_view_mode(
+            self.request,
+            default="table",
+            allow_backlog=True,
+            allow_archive=True,
+            allow_graph=True,
+        )
         ctx["view_mode"] = view_mode
+        ctx["allow_graph"] = True
         ctx["view_panel_target"] = "#task-list-wrapper"
         ctx["show_project"] = True
         ctx["show_labels"] = True
@@ -995,6 +1264,11 @@ class AllTasksView(LoginRequiredMixin, ListView):
         if self.request.GET.get("panel") == "timeline":
             return ctx
 
+        # ``?panel=graph`` — lazy fetch of just the relationship board.
+        if self.request.GET.get("panel") == "graph":
+            ctx.update(self._graph_ctx())
+            return ctx
+
         # ``?panel=backlog`` — lazy fetch of just the grooming body.
         if self.request.GET.get("panel") == "backlog":
             ctx.update(_backlog_context(self._backlog_tasks(), today=ctx["today"]))
@@ -1032,6 +1306,8 @@ class AllTasksView(LoginRequiredMixin, ListView):
             ctx.update(self._kanban_columns_ctx(table_tasks))
         elif view_mode == "list":
             ctx.update(self._list_axes_ctx(table_tasks))
+        elif view_mode == "graph":
+            ctx.update(self._graph_ctx())
         elif view_mode == "backlog":
             ctx.update(_backlog_context(self._backlog_tasks(), today=ctx["today"]))
         elif view_mode == "archive":
@@ -2230,6 +2506,15 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         params["show_archived"] = "1"
         return list(apply_task_filters(qs, params, request_user=self.request.user))
 
+    def _graph_ctx(self, project):
+        """Relationship-graph context for this project."""
+        return _graph_context(
+            Task.objects.filter(project=project, archived_at__isnull=True),
+            user=self.request.user,
+            workspace=project.workspace,
+            include_all=self.request.GET.get("graph_all") == "1",
+        )
+
     def get_template_names(self):
         """Full page on cold load; only the panel fragment for HTMX swaps.
 
@@ -2248,6 +2533,8 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             return ["web/projects/_list_panel.html"]
         if self.request.GET.get("panel") == "timeline":
             return ["web/projects/_timeline.html"]
+        if self.request.GET.get("panel") == "graph":
+            return ["web/projects/_graph_panel.html"]
         if self.request.GET.get("panel") == "backlog":
             return ["web/projects/_backlog_panel.html"]
         if self.request.GET.get("panel") == "archive":
@@ -2401,8 +2688,10 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             allow_overview=True,
             allow_backlog=True,
             allow_archive=True,
+            allow_graph=True,
         )
         ctx["view_mode"] = view_mode
+        ctx["allow_graph"] = True
         # Common per-task display dicts — needed by both the full page
         # and the lazy ``?panel=list`` fragment (``_task_row.html`` uses
         # them via ``status_labels|get_item:...``).
@@ -2574,6 +2863,9 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         if panel == "timeline":
             ctx.update(_timeline_context(table_tasks, today))
             return ctx
+        if panel == "graph":
+            ctx.update(self._graph_ctx(project))
+            return ctx
         if panel == "backlog":
             ctx.update(_backlog_context(list(base), today=today))
             return ctx
@@ -2603,6 +2895,8 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
                 ctx.update(self._list_axes_ctx(table_tasks=table_tasks, project=project))
             elif view_mode == "timeline":
                 ctx.update(_timeline_context(table_tasks, today))
+            elif view_mode == "graph":
+                ctx.update(self._graph_ctx(project))
             elif view_mode == "backlog":
                 ctx.update(_backlog_context(list(base), today=today))
             elif view_mode == "archive":

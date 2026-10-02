@@ -300,6 +300,59 @@
     })();
   </script>
   {% comment %}
+  Graph bundle — dagre (63 KB gzip, layout only) plus our own renderer.
+  Same marker-driven lazy load as the editor above: nothing is fetched
+  until a ``[data-task-graph]`` panel exists, which happens only on the
+  project Graph tab. Order matters — the renderer calls dagre on load.
+  ``afterSettle`` is listened to as well as ``afterSwap``: the panel
+  refresh path swaps by hand and only dispatches the former.
+  {% endcomment %}
+  <script>
+    (function () {
+      var SRCS = [
+        "{% static 'vendor/dagre.min.js' %}",
+        "{% static 'js/graph.min.js' %}",
+      ];
+      var state = "idle";
+      function draw() {
+        if (window.actaRenderTaskGraph) window.actaRenderTaskGraph();
+      }
+      function loadFrom(i) {
+        if (i >= SRCS.length) {
+          state = "ready";
+          draw();
+          return;
+        }
+        var s = document.createElement("script");
+        s.src = SRCS[i];
+        s.onload = function () {
+          loadFrom(i + 1);
+        };
+        s.onerror = function () {
+          state = "idle"; // let a later panel try again
+        };
+        document.head.appendChild(s);
+      }
+      function ensureLoaded() {
+        if (!document.querySelector("[data-task-graph]")) return;
+        if (state === "ready") {
+          draw();
+          return;
+        }
+        if (state === "loading") return;
+        state = "loading";
+        loadFrom(0);
+      }
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", ensureLoaded);
+      } else {
+        ensureLoaded();
+      }
+      document.body.addEventListener("htmx:afterSwap", ensureLoaded);
+      document.body.addEventListener("htmx:afterSettle", ensureLoaded);
+    })();
+  </script>
+  {% comment %}
   Reactions bundle — registers the <emoji-picker> web component used by
   the reaction-bar popovers (templates/web/_reaction_bar.html). Separate,
   tiny entry from the editor bundle; built alongside it by
