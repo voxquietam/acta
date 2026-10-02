@@ -6,13 +6,26 @@
 // risking staleness:
 //   * navigations (top-level HTML)  -> network-first, offline page only on
 //     a true network failure;
-//   * versioned /static/ assets     -> cache-first (filenames are content-
-//     hashed in prod, so a cached entry can never be stale);
+//   * versioned /static/ assets     -> cache-first, but ONLY where the
+//     filenames are content-hashed. In production they are
+//     (``CompressedManifestStaticFilesStorage``), so a cached entry can
+//     never be stale. In development they are not: ``main.bundle.css``
+//     and ``acta.min.js`` keep their names forever, and cache-first there
+//     pins whatever version the worker saw first — a soft reload keeps
+//     serving it and only a hard reload (which bypasses the worker) gets
+//     the new one. ``HASHED_STATIC`` is rendered from the storage backend
+//     so the strategy follows the deployment instead of an assumption.
 //   * everything else (HTMX/XHR, /api/, /events/ SSE, /admin/, /mcp/) ->
 //     untouched, straight to the network.
 //
-// Bump CACHE to invalidate the static cache across a breaking deploy.
-const CACHE = "acta-static-v1";
+// Bump CACHE to invalidate the static cache across a breaking deploy. The
+// activate handler drops every cache whose key is not this one, so a bump
+// is also how an already-registered worker sheds entries it should never
+// have stored — which is what v1 did to every unhashed dev asset.
+const CACHE = "acta-static-v2";
+
+// Rendered server-side: true when static filenames carry a content hash.
+const HASHED_STATIC = {{ hashed_static|yesno:"true,false" }};
 
 const OFFLINE_HTML = `<!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -67,7 +80,9 @@ self.addEventListener("fetch", (event) => {
   }
 
   // Content-hashed static assets — cache-first, populate on first hit.
-  if (url.pathname.startsWith("/static/")) {
+  // Unhashed ones go to the network: a stale stylesheet or bundle is far
+  // worse than a cache miss, and in development that is every edit.
+  if (HASHED_STATIC && url.pathname.startsWith("/static/")) {
     event.respondWith(
       (async () => {
         const cached = await caches.match(req);

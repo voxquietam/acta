@@ -9044,9 +9044,18 @@ def service_worker(request):
     Returns:
         The worker script with the ``application/javascript`` content type.
     """
+    from django.contrib.staticfiles.storage import staticfiles_storage
+
     response = render(
         request,
         "web/service_worker.js",
+        {
+            # Cache-first for ``/static/`` is only safe while the filenames
+            # carry a content hash. A manifest-backed storage rewrites them;
+            # the plain dev one does not, and caching there pins the first
+            # build the worker ever saw until a hard reload.
+            "hashed_static": hasattr(staticfiles_storage, "stored_name"),
+        },
         content_type="application/javascript",
     )
     response["Cache-Control"] = "no-cache"
