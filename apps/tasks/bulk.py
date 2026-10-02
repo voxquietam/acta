@@ -50,6 +50,9 @@ ALLOWED_UPDATE_FIELDS = {
     "labels_remove",
     "project",
     "cycle",
+    # Collect a selection under one epic (or take it out with null).
+    # Scalar like the rest: the epic is a column on the task.
+    "epic",
     "archived",
 }
 
@@ -62,6 +65,7 @@ SCALAR_UPDATE_KEYS = {
     "size",
     "assignee",
     "cycle",
+    "epic",
     "archived",
 }
 
@@ -208,8 +212,8 @@ def _bulk_apply_scalars(ids: list[int], updates: dict[str, Any]) -> None:
     only fires on ``save()``.
 
     Scalar fields handled: ``status``, ``start_date``, ``end_date``,
-    ``due_date``, ``priority``, ``size``, ``assignee`` (mapped to
-    ``assignee_id``). Label add/remove are M2M and handled separately in
+    ``due_date``, ``priority``, ``size``, ``assignee`` and ``epic`` (the
+    last two mapped to their ``_id`` columns). Label add/remove are M2M and handled separately in
     :func:`_bulk_apply_labels`.
 
     Args:
@@ -243,6 +247,8 @@ def _bulk_apply_scalars(ids: list[int], updates: dict[str, Any]) -> None:
         payload["size"] = updates["size"]
     if "assignee" in updates:
         payload["assignee_id"] = updates["assignee"]
+    if "epic" in updates:
+        payload["epic_id"] = updates["epic"]
     # ``cycle`` is intentionally NOT applied here — it's handled by
     # :func:`_bulk_apply_cycle` so an explicit assignment can skip planned
     # (backlog) tasks, which the cadence policy keeps cycle-free.
@@ -256,6 +262,34 @@ def _bulk_apply_scalars(ids: list[int], updates: dict[str, Any]) -> None:
         return
     payload["updated_at"] = now
     Task.objects.filter(id__in=ids).update(**payload)
+
+
+def _resolve_target_epic(epic_id, user):
+    """Resolve the epic a bulk update collects tasks into.
+
+    Args:
+        epic_id: Primary key of the target epic.
+        user: The acting user; the epic must be in a workspace they
+            belong to.
+
+    Returns:
+        The :class:`~apps.tasks.models.Task` epic.
+
+    Raises:
+        serializers.ValidationError: When it is missing, not an epic, or
+            in a workspace the user cannot see.
+    """
+    epic = (
+        Task.objects.epics()
+        .filter(pk=epic_id, project__workspace__memberships__user=user)
+        .select_related("project__workspace")
+        .first()
+    )
+    if epic is None:
+        raise serializers.ValidationError({"epic": _("Epic %(id)s not found.") % {"id": epic_id}})
+    if not epic.project.workspace.epics_enabled:
+        raise serializers.ValidationError({"epic": _("Epics are turned off for this workspace.")})
+    return epic
 
 
 def _resolve_target_project(target_id: int, user) -> Project:
@@ -552,6 +586,20 @@ def _run_bulk_update(*, user, ids: list[int], updates: dict[str, Any]) -> tuple[
                 {
                     "project": _("Cross-workspace bulk move not allowed for tasks: %(ids)s") % {"ids": sorted(bad)},
                 },
+            )
+
+    if updates.get("epic") is not None:
+        target_epic = _resolve_target_epic(updates["epic"], user)
+        bad = [t.id for t in pre_requested if t.project.workspace_id != target_epic.project.workspace_id]
+        if bad:
+            raise serializers.ValidationError(
+                {"epic": _("Epic is in another workspace; tasks: %(ids)s") % {"ids": sorted(bad)}},
+            )
+        # An epic cannot collect itself or another epic.
+        bad_kind = [t.id for t in pre_requested if t.kind == Task.KIND_EPIC]
+        if bad_kind:
+            raise serializers.ValidationError(
+                {"epic": _("An epic cannot belong to another epic: %(ids)s") % {"ids": sorted(bad_kind)}},
             )
 
     if updates.get("cycle") is not None:

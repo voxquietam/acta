@@ -1222,7 +1222,8 @@ TOOLS: list[Tool] = [
             "Update multiple tasks in one atomic call. ``updates`` is a list of "
             "patch specs — each has the same shape as ``acta_task_update`` "
             "arguments (``slug`` is required, every other field is optional), "
-            "including ``parent_slug`` to re-parent existing tasks in bulk. "
+            "including ``parent_slug`` to re-parent existing tasks in bulk and "
+            "``epic_slug`` to collect a batch under one epic. "
             "Atomic — if any patch fails, the whole batch rolls back. Returns "
             "``{count, updated: [<task summary>, …]}``."
         ),
@@ -1257,6 +1258,12 @@ TOOLS: list[Tool] = [
                             "parent_slug": {
                                 "type": ["string", "null"],
                                 "description": "Parent task slug in the same project, or null to promote.",
+                            },
+                            "epic_slug": {
+                                "type": ["string", "null"],
+                                "description": (
+                                    "Epic slug anywhere in the workspace, or null to take the task out of its epic."
+                                ),
                             },
                         },
                         "required": ["slug"],

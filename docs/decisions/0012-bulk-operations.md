@@ -34,7 +34,8 @@ Request body for `PATCH`:
     "labels_add": [10, 11],
     "labels_remove": [12],
     "project": 7,
-    "parent": null
+    "parent": null,
+    "epic": 42
   }
 }
 ```
@@ -51,6 +52,7 @@ Request body for `DELETE`:
 - **Labels are add/remove only**, not replace. `labels_add` and `labels_remove` operate on the existing set; both lists may be empty or omitted independently. The single-task `PATCH /api/tasks/{id}/` continues to support full `labels: [...]` replacement.
 - **`parent: null`** detaches a subtask from its parent (becomes top-level in the same project).
 - **`project` field** moves tasks across projects within the same workspace (see "Cross-project moves" below).
+- **`epic` field** collects the batch under one epic, `null` takes it out. This is the main way an epic is filled, so it is deliberately a scalar like the rest — the epic is a column on the task ([0036](0036-epics.md)) and not a membership table. Two rules on top: the target must itself be an epic in a workspace the user belongs to with epics enabled, and no task in the selection may be an epic, because an epic never belongs to another one. Either violation rejects the whole batch.
 
 ### Transactionality — all-or-nothing
 

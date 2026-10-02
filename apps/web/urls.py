@@ -110,6 +110,7 @@ from .views import (
     toggle_task_favourite,
     toggle_task_label,
     transfer_workspace_ownership,
+    turn_into_epic,
     update_card_fragment,
     update_edit_form,
     update_label,
@@ -447,6 +448,11 @@ urlpatterns = [
         "projects/<str:slug_prefix>/<int:number>/epic/",
         set_task_epic,
         name="set_task_epic",
+    ),
+    path(
+        "projects/<str:slug_prefix>/<int:number>/turn-into-epic/",
+        turn_into_epic,
+        name="turn_into_epic",
     ),
     path(
         "projects/<str:slug_prefix>/<int:number>/cancel/",

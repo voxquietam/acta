@@ -337,3 +337,96 @@ class TestBulkDatePermission:
         tasks[0].save()  # tasks[1] stays unassigned
         bulk_id, count = _run_bulk_update(user=user, ids=[t.id for t in tasks], updates={"end_date": "2026-06-02"})
         assert count == 2
+
+
+@pytest.mark.django_db
+class TestBulkEpicGrouping:
+    """``updates.epic`` collects a selection under one epic, or releases it.
+
+    The epic is a plain column on the task, so grouping is a scalar
+    update like status — what it needs on top is the two rules the model
+    states: an epic never belongs to another epic, and it only collects
+    tasks from its own workspace. See docs/decisions/0036-epics.md.
+    """
+
+    def test_grouping_sets_the_epic_and_logs_it(self):
+        ws, project, user, tasks = _seed_workspace_with_tasks(3)
+        epic = TaskFactory(project=project, kind=Task.KIND_EPIC, status=Task.STATUS_PLANNED, reporter=user)
+        ids = [t.id for t in tasks]
+        bulk_id, count = _run_bulk_update(user=user, ids=ids, updates={"epic": epic.id})
+        assert count == 3
+        for task in tasks:
+            task.refresh_from_db()
+            assert task.epic_id == epic.id
+        events = ActivityLog.objects.filter(bulk_id=bulk_id)
+        assert set(events.values_list("event_type", flat=True)) == {"task.epic_changed"}
+        assert {e.payload["to_task_id"] for e in events} == {epic.id}
+
+    def test_null_takes_tasks_out_of_their_epic(self):
+        ws, project, user, tasks = _seed_workspace_with_tasks(2)
+        epic = TaskFactory(project=project, kind=Task.KIND_EPIC, status=Task.STATUS_PLANNED, reporter=user)
+        Task.objects.filter(id__in=[t.id for t in tasks]).update(epic=epic)
+        _run_bulk_update(user=user, ids=[t.id for t in tasks], updates={"epic": None})
+        for task in tasks:
+            task.refresh_from_db()
+            assert task.epic_id is None
+
+    def test_grouping_spans_projects_of_the_same_workspace(self):
+        ws, project, user, tasks = _seed_workspace_with_tasks(1)
+        other = ProjectFactory(workspace=ws)
+        elsewhere = TaskFactory(project=other, reporter=user)
+        epic = TaskFactory(project=project, kind=Task.KIND_EPIC, status=Task.STATUS_PLANNED, reporter=user)
+        _, count = _run_bulk_update(user=user, ids=[tasks[0].id, elsewhere.id], updates={"epic": epic.id})
+        assert count == 2
+        elsewhere.refresh_from_db()
+        assert elsewhere.epic_id == epic.id
+
+    def test_an_epic_in_the_selection_is_rejected(self):
+        ws, project, user, tasks = _seed_workspace_with_tasks(1)
+        epic = TaskFactory(project=project, kind=Task.KIND_EPIC, status=Task.STATUS_PLANNED, reporter=user)
+        nested = TaskFactory(project=project, kind=Task.KIND_EPIC, status=Task.STATUS_PLANNED, reporter=user)
+        with pytest.raises(serializers.ValidationError):
+            _run_bulk_update(user=user, ids=[tasks[0].id, nested.id], updates={"epic": epic.id})
+        tasks[0].refresh_from_db()
+        assert tasks[0].epic_id is None  # nothing applied (atomic)
+
+    def test_an_epic_from_another_workspace_is_rejected(self):
+        ws, project, user, tasks = _seed_workspace_with_tasks(1)
+        other_ws = WorkspaceFactory()
+        WorkspaceMemberFactory(user=user, workspace=other_ws, role=WorkspaceMember.MEMBER)
+        foreign = TaskFactory(
+            project=ProjectFactory(workspace=other_ws),
+            kind=Task.KIND_EPIC,
+            status=Task.STATUS_PLANNED,
+            reporter=user,
+        )
+        with pytest.raises(serializers.ValidationError):
+            _run_bulk_update(user=user, ids=[tasks[0].id], updates={"epic": foreign.id})
+        tasks[0].refresh_from_db()
+        assert tasks[0].epic_id is None
+
+    def test_a_plain_task_as_the_target_is_rejected(self):
+        ws, project, user, tasks = _seed_workspace_with_tasks(2)
+        with pytest.raises(serializers.ValidationError):
+            _run_bulk_update(user=user, ids=[tasks[0].id], updates={"epic": tasks[1].id})
+        tasks[0].refresh_from_db()
+        assert tasks[0].epic_id is None
+
+    def test_an_invisible_epic_is_rejected(self):
+        ws, project, user, tasks = _seed_workspace_with_tasks(1)
+        foreign_ws = WorkspaceFactory()
+        hidden = TaskFactory(
+            project=ProjectFactory(workspace=foreign_ws),
+            kind=Task.KIND_EPIC,
+            status=Task.STATUS_PLANNED,
+        )
+        with pytest.raises(serializers.ValidationError):
+            _run_bulk_update(user=user, ids=[tasks[0].id], updates={"epic": hidden.id})
+
+    def test_rejected_when_epics_are_off_for_the_workspace(self):
+        ws, project, user, tasks = _seed_workspace_with_tasks(1)
+        epic = TaskFactory(project=project, kind=Task.KIND_EPIC, status=Task.STATUS_PLANNED, reporter=user)
+        ws.epics_enabled = False
+        ws.save(update_fields=["epics_enabled"])
+        with pytest.raises(serializers.ValidationError):
+            _run_bulk_update(user=user, ids=[tasks[0].id], updates={"epic": epic.id})

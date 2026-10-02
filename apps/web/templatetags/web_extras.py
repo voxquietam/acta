@@ -455,6 +455,7 @@ _EVENT_LABELS = {
     "task.labels_changed": _("changed labels"),
     "task.parent_changed": _("changed parent"),
     "task.epic_changed": _("changed epic"),
+    "task.turned_into_epic": _("turned into an epic"),
     "task.updated": _("updated fields"),
     "task.archived": _("archived the task"),
     "task.unarchived": _("unarchived the task"),

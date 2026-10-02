@@ -1,0 +1,95 @@
+{% extends "web/_modal_shell.html" %}
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+"Turn into epic" confirmation (design "Epics Rethink", artboard C3).
+
+It asks because this is not a flag flip. Three things change and a
+person should see all three before any of them happen: the subtasks stop
+being subtasks and become the epic's first tasks, the fields an epic
+derives from its tasks are dropped, and the task leaves the board for the
+Epics tab. Listing what is *kept* matters as much — the usual fear is
+that the comments and the file go with it.
+
+Expects ``task``, ``blockers``, ``subtasks``, ``comment_count``,
+``attachment_count`` and ``loses_epic``.
+{% endcomment %}
+
+{% block root_attrs %}
+x-data="{ close() { const root = document.getElementById('modal-root'); if (root) root.innerHTML = ''; } }"
+{% endblock %}
+
+{% block panel_class %}sm:max-w-lg{% endblock %}
+
+{% block title %}
+<h2 class="text-sm font-medium text-foreground">
+  {% blocktrans with slug=task.slug %}Turn {{ slug }} into an epic?{% endblocktrans %}
+</h2>
+{% endblock %}
+
+{% block body %}
+<div class="p-4 space-y-3 text-xs">
+
+  {% if blockers %}
+  <div class="rounded-lg border border-rose-500/40 bg-rose-500/5 p-3 space-y-1.5">
+    {% for reason in blockers %}
+    <p class="flex items-start gap-2 text-rose-300">
+      {% lucide "octagon-alert" "w-3.5 h-3.5 shrink-0 mt-0.5" %}<span>{{ reason }}</span>
+    </p>
+    {% endfor %}
+  </div>
+
+  {% else %}
+  <p class="flex items-start gap-2.5 leading-relaxed">
+    {% lucide "check" "w-3.5 h-3.5 shrink-0 mt-0.5 text-emerald-400" %}
+    <span class="text-muted-foreground">
+      <span class="text-foreground">{% trans "Kept:" %}</span>
+      {% trans "description, links, owner and labels" %}{% if comment_count %}, {% blocktrans count counter=comment_count %}{{ counter }} comment{% plural %}{{ counter }} comments{% endblocktrans %}{% endif %}{% if attachment_count %}, {% blocktrans count counter=attachment_count %}{{ counter }} file{% plural %}{{ counter }} files{% endblocktrans %}{% endif %}.
+    </span>
+  </p>
+
+  {% if subtasks %}
+  <p class="flex items-start gap-2.5 leading-relaxed">
+    {% lucide "git-fork" "w-3.5 h-3.5 shrink-0 mt-0.5 text-brand-400" %}
+    <span class="text-muted-foreground">
+      <span class="text-foreground">{% blocktrans count counter=subtasks|length %}{{ counter }} subtask{% plural %}{{ counter }} subtasks{% endblocktrans %}</span>
+      {% trans "become the epic's first tasks." %}
+    </span>
+  </p>
+  {% endif %}
+
+  <p class="flex items-start gap-2.5 leading-relaxed">
+    {% lucide "minus" "w-3.5 h-3.5 shrink-0 mt-0.5 text-rose-400" %}
+    <span class="text-muted-foreground">
+      <span class="text-foreground">{% trans "Dropped:" %}</span>
+      {% trans "deadline, size and cycle — an epic takes those from its tasks. Status starts as Planned and is computed from there on." %}
+      {% if loses_epic %}{% blocktrans with title=loses_epic.title %}It also leaves the epic {{ title }}.{% endblocktrans %}{% endif %}
+    </span>
+  </p>
+
+  <p class="flex items-start gap-2.5 leading-relaxed">
+    {% lucide "eye-off" "w-3.5 h-3.5 shrink-0 mt-0.5 text-placeholder-foreground" %}
+    <span class="text-muted-foreground">
+      <span class="text-foreground">{% trans "Hidden" %}</span>
+      {% trans "from the board, the table and the list — it moves to the Epics tab." %}
+    </span>
+  </p>
+  {% endif %}
+</div>
+
+<footer class="flex items-center justify-end gap-2 px-4 py-3 border-t border-border bg-subtle/60">
+  <button type="button" @click="close()" class="acta-btn-ghost">{% trans "Cancel" %}</button>
+  {% if not blockers %}
+  {# A form, not a bare button: the CSRF token rides on the form, and #}
+  {# an ``hx-post`` on the button alone would be rejected with a 403. #}
+  <form hx-post="{% url 'web:turn_into_epic' slug_prefix=task.project.slug_prefix number=task.number %}"
+        hx-trigger="submit"
+        hx-swap="none">
+    {% csrf_token %}
+    <button type="submit" class="acta-btn-primary inline-flex items-center gap-1.5">
+      {% lucide "square-kanban" "w-3.5 h-3.5" %}{% trans "Turn into epic" %}
+    </button>
+  </form>
+  {% endif %}
+</footer>
+{% endblock %}

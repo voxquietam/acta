@@ -115,9 +115,21 @@ a kanban is a row that can never move on its own.
   the web layer. MCP's `parent_slug` keeps its same-project rule
   untouched; `epic_slug` is a separate argument with its own.
 - **"Turn into epic" is a real operation**, not a flag flip: subtasks
-  become the epic's first tasks, due / size / cycle are dropped, and the
-  task leaves the board for the Epics tab. The confirmation has to say
-  all of that before it happens.
+  become the epic's first tasks, due / size / cycle are dropped, status
+  restarts at planned because it is computed from here on, and the task
+  leaves the board for the Epics tab. The confirmation has to say all of
+  that before it happens — including what is *kept*, since the usual
+  fear is that the comments and the files go with it. It is refused
+  rather than adapted in three cases: the task is already an epic, it is
+  a subtask (promoting it would change its parent's board behind
+  someone's back), or the workspace turned epics off. The dialog states
+  them as sentences, not as a 400.
+- **An epic is filled in bulk**, through the one universal endpoint
+  ([0012](0012-bulk-operations.md)) rather than a dedicated route:
+  `epic` is a scalar update like `status`, because the epic is a column
+  on the task. The selection context menu is the everyday way an epic
+  gets its tasks, so this is the path that has to be cheap, and "No
+  epic" in the same menu is the same call with `null`.
 
 ## Alternatives considered
 

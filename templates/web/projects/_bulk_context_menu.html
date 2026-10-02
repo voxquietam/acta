@@ -30,6 +30,7 @@ workspace (not a task). Expects ``status_labels``, ``priority_labels``,
            if (k === 'l') { e.preventDefault(); this.view = 'label'; }
            else if (k === 'd') { e.preventDefault(); this.view = 'due'; }
            else if (k === 'm') { e.preventDefault(); this.view = 'project'; }
+           {% if epics_enabled %}else if (k === 'e') { e.preventDefault(); this.view = 'epic'; }{% endif %}
            else if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); this.confirmDelete = true; }
            return;
          }
@@ -84,6 +85,18 @@ workspace (not a task). Expects ``status_labels``, ``priority_labels``,
       <span class="flex-1">{% trans "Move to project…" %}</span>
       <span class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-muted border border-border text-placeholder-foreground">M</span>
     </button>
+    {% comment %}
+    Group into epic — the entry for work that already exists. An epic
+    reaches across projects, so this is the one bulk action that can
+    gather a selection the project filter would have split.
+    {% endcomment %}
+    {% if epics_enabled %}
+    <button type="button" @click="view = 'epic'" class="group w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left hover:bg-muted/40 hover:text-foreground transition">
+      <span class="text-placeholder-foreground group-hover:text-foreground inline-flex shrink-0">{% lucide "square-kanban" "w-3.5 h-3.5" %}</span>
+      <span class="flex-1">{% trans "Group into epic…" %}</span>
+      <span class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-muted border border-border text-placeholder-foreground">E</span>
+    </button>
+    {% endif %}
     {% if workspace_cycles %}
     <button type="button" @click="view = 'cycle'" class="group w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left hover:bg-muted/40 hover:text-foreground transition">
       <span class="text-placeholder-foreground group-hover:text-foreground inline-flex shrink-0">{% lucide "iteration-cw" "w-3.5 h-3.5" %}</span>
@@ -218,6 +231,31 @@ workspace (not a task). Expects ``status_labels``, ``priority_labels``,
       <span class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-muted border border-border text-placeholder-foreground">{{ forloop.counter }}</span>
     </button>
     {% endfor %}
+  </div>
+  {% endif %}
+
+  {# ============ EPIC ============ #}
+  {% if epics_enabled %}
+  <div x-show="view === 'epic'" x-cloak data-view="epic">
+    <button type="button" @click="view = 'root'" class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[11px] text-placeholder-foreground hover:bg-muted/40 hover:text-foreground mb-1">
+      {% lucide "chevron-left" "w-3 h-3" %}<span class="text-subtle-foreground"><span x-text="$store.selection.size"></span> {% trans "tasks" %} <span class="text-placeholder-foreground">›</span> <b class="text-foreground font-medium">{% trans "Epic" %}</b></span>
+    </button>
+    <button type="button" @click="bulk({ epic: null })" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left text-xs hover:bg-muted/40 text-muted-foreground hover:text-foreground">
+      <span class="flex-1">{% trans "No epic" %}</span>
+    </button>
+    <div class="max-h-60 overflow-y-auto">
+      {% for epic in workspace_epics %}
+      <button type="button" @click="bulk({ epic: {{ epic.id }} })" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left text-xs hover:bg-muted/40 text-muted-foreground hover:text-foreground">
+        <span class="text-placeholder-foreground inline-flex shrink-0">{% lucide "square-kanban" "w-3 h-3" %}</span>
+        <span class="flex-1 truncate">{{ epic.title }}</span>
+        {# Progress, so a person can tell a finished epic from a fresh one #}
+        {# without leaving the menu.                                       #}
+        <span class="font-mono text-[9.5px] text-placeholder-foreground">{{ epic.member_done }}/{{ epic.member_total }}</span>
+      </button>
+      {% empty %}
+      <p class="px-2.5 py-2 text-[11px] text-placeholder-foreground">{% trans "No epics in this workspace yet." %}</p>
+      {% endfor %}
+    </div>
   </div>
   {% endif %}
 

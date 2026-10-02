@@ -4364,6 +4364,100 @@ def set_task_epic(request, slug_prefix, number):
     )
 
 
+def _turn_into_epic_blockers(task):
+    """Return why this task cannot become an epic, or an empty list.
+
+    The rules are the model's, stated as sentences a person can act on
+    rather than as a 400.
+
+    Args:
+        task: The candidate :class:`~apps.tasks.models.Task`.
+
+    Returns:
+        A list of human-readable reasons; empty when the change is legal.
+    """
+    reasons = []
+    if task.kind == Task.KIND_EPIC:
+        reasons.append(_("This is already an epic."))
+    if not task.project.workspace.epics_enabled:
+        reasons.append(_("Epics are turned off for this workspace."))
+    if task.parent_id is not None:
+        # An epic is never a subtask, and silently promoting it would
+        # change the parent's board behind someone's back.
+        reasons.append(_("It is a subtask — promote it to a top-level task first."))
+    return reasons
+
+
+@login_required
+def turn_into_epic(request, slug_prefix, number):
+    """Turn a task into an epic — confirmation (GET) or the change (POST).
+
+    A task that outgrew itself becomes the umbrella over the work it
+    spawned. This is not a flag flip, which is why it asks first: its
+    subtasks become the epic's first tasks, the fields an epic derives
+    are dropped, and it leaves the board for the Epics tab. The dialog
+    names all three before anything happens.
+
+    Returns:
+        The confirmation modal (GET), or ``204`` with
+        ``HX-Redirect`` to the new epic's page (POST).
+    """
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    blockers = _turn_into_epic_blockers(task)
+    subtasks = list(task.subtasks.select_related("project").order_by("number"))
+    if request.method != "POST":
+        return HttpResponse(
+            render_to_string(
+                "web/projects/_turn_into_epic_modal.html",
+                {
+                    "task": task,
+                    "blockers": blockers,
+                    "subtasks": subtasks,
+                    "comment_count": task.comments.count(),
+                    "attachment_count": task.attachments.count(),
+                    "loses_epic": task.epic,
+                },
+                request=request,
+            ),
+        )
+    if blockers:
+        return HttpResponseBadRequest("; ".join(str(reason) for reason in blockers))
+    with transaction.atomic():
+        before = snapshot_task(task)
+        task.kind = Task.KIND_EPIC
+        # Everything an epic derives from its tasks goes; the status
+        # starts at planned because an epic's is computed from here on.
+        task.due_date = None
+        task.size = None
+        task.cycle = None
+        task.epic = None
+        task.status = Task.STATUS_PLANNED
+        task.save(
+            update_fields=["kind", "due_date", "size", "cycle", "epic", "status", "updated_at"],
+        )
+        # Its subtasks become its first tasks: the hierarchy it had is
+        # exactly the work it collects.
+        if subtasks:
+            Task.objects.filter(pk__in=[s.pk for s in subtasks]).update(
+                parent=None,
+                epic=task,
+                updated_at=timezone.now(),
+            )
+        emit_task_diff_events(task=task, old_state=before, actor=request.user)
+        log_event(
+            workspace=task.project.workspace,
+            project=task.project,
+            actor=request.user,
+            event_type="task.turned_into_epic",
+            target_type=ActivityLog.TARGET_TASK,
+            target_id=task.id,
+            payload={"title": task.title, "tasks": len(subtasks)},
+        )
+    response = HttpResponse(status=204)
+    response["HX-Redirect"] = task_path(task)
+    return response
+
+
 @require_POST
 @login_required
 def set_task_project(request, slug_prefix, number):
@@ -6857,6 +6951,7 @@ def bulk_context_menu(request):
     workspace = resolve_active_workspace(request)
     members, projects, labels = [], [], []
     cycles = []
+    epics = []
     if workspace:
         members = list(
             WorkspaceMember.objects.filter(workspace=workspace).select_related("user").order_by("user__username"),
@@ -6865,10 +6960,13 @@ def bulk_context_menu(request):
         labels = list(Label.objects.filter(workspace=workspace).order_by("position", "name"))
         label_groups_ctx = grouped_labels(workspace)
         cycles = _workspace_cycles(workspace)
+        epics = _workspace_epics(workspace) if workspace.epics_enabled else []
     return HttpResponse(
         render_to_string(
             "web/projects/_bulk_context_menu.html",
             {
+                "epics_enabled": bool(workspace and workspace.epics_enabled),
+                "workspace_epics": epics,
                 "status_labels": Task.STATUS_LABELS,
                 "priority_labels": dict(Task.PRIORITY_CHOICES),
                 "size_values": Task.SIZE_VALUES,
