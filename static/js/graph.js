@@ -712,20 +712,24 @@
   // along each edge between two of them. The stroke is the corridor —
   // which is why a foreign task sitting between two members is not
   // swallowed by the region, the way a convex hull would swallow it.
-  function regionShapes(part, pos, pad, paint) {
+  // Colour is the enclosing group's: the same figure is drawn into a mask
+  // in black and white and onto the board in the epic's hue.
+  function regionShapes(part, pos, pad) {
     const shapes = part.members.map(
       (m) =>
         `<rect x="${m.box.x - pad}" y="${m.box.y - pad}" width="${m.box.w + pad * 2}" height="${
           m.box.h + pad * 2
-        }" rx="${10 + pad / 2}" ${paint}/>`,
+        }" rx="${10 + pad / 2}"/>`,
     );
     part.edges.forEach((edge) => {
       const points = edgePoints(edge, pos);
       if (!points) return;
+      // ``fill`` would close the corridor into a blob; it is a stroke
+      // along the route and nothing else.
       shapes.push(
         `<path d="${roundedPath(points, 8)}" fill="none" stroke-width="${
           12 + pad * 2
-        }" stroke-linejoin="round" stroke-linecap="round" ${paint}/>`,
+        }" stroke-linejoin="round" stroke-linecap="round"/>`,
       );
     });
     return shapes.join("");
@@ -833,7 +837,7 @@
     });
 
     const outline = [];
-    const mask = [];
+    const masks = [];
     const tint = [];
     const labels = [];
     const stacks = [];
@@ -860,31 +864,32 @@
         stacks.push({ epicId, hue, hidden, ...spot });
       }
       parts.forEach((part, i) => {
-        outline.push(
-          `<g opacity="${(focused ? 0.95 : 0.55) * faded}">${regionShapes(
-            part,
-            state.pos,
-            REGION_FILL + REGION_RING / state.zoom,
-            `fill="${hue}" stroke="${hue}"`,
-          )}</g>`,
+        // The ring is the outer figure minus the inner one, cut by a mask
+        // of this part's own. Painting the inner figure in the canvas
+        // colour instead — which is what this did first — also paints over
+        // whatever was already there, so a neighbouring region's outline
+        // came out with pieces missing wherever the two met.
+        const id = `acta-region-${epicId}-${i}`;
+        // Bounds spelled out: a mask without them takes a region derived
+        // from the viewport, which silently clips anything far along the
+        // board — and this board is thousands of units wide.
+        masks.push(
+          `<mask id="${id}" maskUnits="userSpaceOnUse" x="0" y="0" width="${state.width}" height="${state.height}">` +
+            `<g fill="#fff" stroke="#fff">${regionShapes(
+              part,
+              state.pos,
+              REGION_FILL + REGION_RING / state.zoom,
+            )}</g>` +
+            `<g fill="#000" stroke="#000">${regionShapes(part, state.pos, REGION_FILL)}</g>` +
+            "</mask>",
         );
-        // Knocked out in the canvas colour rather than with a mask: the
-        // colour has to be the board's own, so it rides on the variable.
-        mask.push(
-          `<g>${regionShapes(
-            part,
-            state.pos,
-            REGION_FILL,
-            'style="fill: rgb(var(--graph-canvas)); stroke: rgb(var(--graph-canvas))"',
-          )}</g>`,
+        outline.push(
+          `<g mask="url(#${id})" fill="${hue}" stroke="${hue}" opacity="${(focused ? 0.95 : 0.55) * faded}">` +
+            `${regionShapes(part, state.pos, REGION_FILL + REGION_RING / state.zoom)}</g>`,
         );
         tint.push(
-          `<g opacity="${(focused ? 0.16 : 0.1) * faded}">${regionShapes(
-            part,
-            state.pos,
-            REGION_FILL,
-            `fill="${hue}" stroke="${hue}"`,
-          )}</g>`,
+          `<g fill="${hue}" stroke="${hue}" opacity="${(focused ? 0.16 : 0.1) * faded}">` +
+            `${regionShapes(part, state.pos, REGION_FILL)}</g>`,
         );
         labels.push(regionLabel(state, epic, part, i, onCanvas));
       });
@@ -892,7 +897,9 @@
 
     host.setAttribute("width", state.width);
     host.setAttribute("height", state.height);
-    host.innerHTML = outline.join("") + mask.join("") + tint.join("");
+    // Tint first, ring on top: the ring is what has to survive a
+    // neighbouring region overlapping it.
+    host.innerHTML = `<defs>${masks.join("")}</defs>` + tint.join("") + outline.join("");
     state.regionZoom = state.zoom;
     state.regionLabels = labels;
     state.labelLayer.innerHTML = labels.map((l) => l.html).join("");
