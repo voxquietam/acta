@@ -1248,7 +1248,10 @@ class TestContextMenu:
         client.force_login(user)
         # task + members + projects + labels + attached-ids + auth/session/
         # workspace-context queries — all constant, none scaling with rows.
-        with django_assert_max_num_queries(15):
+        # 16 rather than 15 since the menu gained "Move to epic": the epic
+        # list with its progress rollup is one aggregate query for the
+        # whole submenu, not one per row.
+        with django_assert_max_num_queries(16):
             resp = client.get(self._url(project, task))
         assert resp.status_code == 200
 

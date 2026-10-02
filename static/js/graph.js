@@ -1292,6 +1292,16 @@
         el = document.createElement("div");
         el.className = "acta-gcard";
         el.dataset.graphNode = String(id);
+        // The board borrows the app's own right-click menu rather than
+        // growing one: the global handler opens it for anything carrying
+        // these two attributes, which is how a card on the canvas gets
+        // status, labels and "Move to epic" for free (design 2e). A stack
+        // is several tasks, so it is left out.
+        if (!node.stack) {
+          const cut = node.slug.lastIndexOf("-");
+          el.dataset.taskId = String(id);
+          el.dataset.contextMenuUrl = `/projects/${node.slug.slice(0, cut)}/${node.slug.slice(cut + 1)}/context-menu/`;
+        }
         el.tabIndex = 0;
         el.innerHTML = cardHtml(node, state.level);
         state.cards.set(id, el);
