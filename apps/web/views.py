@@ -4648,6 +4648,56 @@ def remove_task_link(request, slug_prefix, number):
     return _links_panel_response(request, task)
 
 
+@require_POST
+@login_required
+def graph_add_link(request):
+    """Link two tasks from the relationship graph, answering in JSON.
+
+    The board speaks task ids rather than slugs (its payload carries them),
+    and it needs the new edge back as data so it can redraw without
+    refetching the whole panel — which is why this is not
+    :func:`add_task_link`, whose answer is the task detail's links panel.
+
+    Form fields: ``source`` and ``target`` task ids plus ``kind``
+    (blocks / blocked_by / related). Validation, the activity event and the
+    SSE broadcast are all :func:`_apply_one_link`'s, so a link made here is
+    indistinguishable from one made on a task page.
+
+    Returns:
+        ``{"ok": true, "edge": {...}}`` with the edge in the payload's own
+        shape — source above target, ``blocked_by`` already flipped — or
+        400 with ``{"ok": false, "error": "..."}``.
+    """
+    kind = (request.POST.get("kind") or "").strip()
+    if kind not in _LINK_KINDS:
+        return HttpResponseBadRequest("invalid kind")
+
+    def _task(field):
+        """Resolve one id field to a task the user may see."""
+        try:
+            pk = int(request.POST.get(field) or "")
+        except (TypeError, ValueError):
+            return None
+        return _user_task_qs(request.user).filter(pk=pk).first()
+
+    source = _task("source")
+    if source is None:
+        return JsonResponse({"ok": False, "error": "source not found"}, status=400)
+
+    with transaction.atomic():
+        ok, error = _apply_one_link(source, kind, _task("target"), request.user)
+    if not ok:
+        return JsonResponse({"ok": False, "error": error}, status=400)
+
+    target_id = int(request.POST["target"])
+    edge = (
+        {"source": target_id, "target": source.pk, "kind": "blocks"}
+        if kind == "blocked_by"
+        else {"source": source.pk, "target": target_id, "kind": kind}
+    )
+    return JsonResponse({"ok": True, "edge": edge})
+
+
 def _attachments_panel_response(request, task, *, error=None, with_activity=True):
     """Render the task attachments panel, optionally + OOB activity refresh.
 

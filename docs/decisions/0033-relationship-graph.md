@@ -72,18 +72,49 @@ a project does not) only the connected ones travel, the payload says so,
 and the switch pays for a refetch rather than shipping a third of a
 megabyte of JSON to a board nobody may scroll.
 
-**Filters dim, they do not remove.** The sidebar is client-side, so the
-board reads the form itself and greys what does not match while leaving
-it in place: a blocker filtered out of view still has to explain the lock
-on the task below it. A toolbar switch drops the dimmed cards for the
-times that clutter is worse. One catch worth remembering — the chips that
-never reach the URL stop the `change` event at their own handler, so the
-board listens in the capture phase or the size and cycle filters look
-dead while the rest work.
+**Filters remove; dimming is the opt-in.** The sidebar is client-side,
+so the board reads the form itself. A filtered board draws what was asked
+for and nothing else — that is what a filter means everywhere else in the
+app, and the first cut (dim in place, drop on request) made a filtered
+board look like an unfiltered one with the lights down. The toolbar's
+"Only matching" switch turns the dimming back on for the times the chain
+matters more than the filter: a blocker filtered out of view still
+explains the lock on the task below it. One catch worth remembering —
+the chips that never reach the URL stop the `change` event at their own
+handler, so the board listens in the capture phase or the size and cycle
+filters look dead while the rest work.
 
 **Links that leave the project are drawn, hollow.** A blocker in a
 neighbouring project is exactly what the view exists to surface. Nodes
 the viewer cannot reach are dropped along with their edges.
+
+**A neighbouring project arrives as one card, not as its tasks.** Two or
+more foreign tasks fold into a stack carrying the project's badge, how
+many of its tasks the board touches and how many of them block work
+here. The board is about this project; the neighbours are context, and
+context that spreads across six cards stops being context. A stack opens
+in place (and folds again from the project chip on any of its cards),
+which is cheaper than it sounds: the payload already carries every node,
+so folding is a view state and never a request. Nothing else changes —
+a stack is a node like any other, with a negative id so the renderer's
+``Number(dataset.graphNode)`` keeps working.
+
+**Each chain is laid out on its own and the chains are then packed.**
+Dagre, handed the whole board, interleaves nodes from unrelated chains
+inside one rank and lines every component up left to right: a project
+with fifty small chains came back 25 000 pixels wide and five tiers tall,
+where "fit to screen" meant 12% and nothing was readable. The components
+are found first, dagre runs per component, and the results are
+shelf-packed tallest-first towards a 16:9 box. Same total layout work,
+a board shaped like a screen.
+
+**A link can be made from the board.** Dragging a row out of the Unlinked
+list onto a card asks which kind of link it is — a drag cannot say, and
+guessing would write the wrong relationship — and posts it to a small
+JSON endpoint of the graph's own, since the task page's link endpoint
+answers with the task page's links panel. The new edge is replayed on top
+of the payload already in the DOM, so the board redraws without
+refetching.
 
 ## Consequences
 

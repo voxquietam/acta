@@ -40,8 +40,14 @@ needs the full path.
     No "show all" switch here: unlinked tasks are not a mode of the board,
     they are their own side area opened from the filter rail (design 1j).
     {% endcomment %}
-    <button type="button" data-graph-only-matching class="acta-gsize ml-auto">
-      {% trans "Only matching" %}
+    {% comment %}
+    On by default: a filtered board shows the work that was asked for.
+    Switching it off brings the rest back dimmed, for when the chain
+    matters more than the filter.
+    {% endcomment %}
+    <button type="button" data-graph-only-matching class="acta-gsize ml-auto is-on"
+            title="{% trans 'Draw only the tasks the filters match — off keeps the rest on the board, dimmed' %}">
+      {% lucide "filter" "w-3.5 h-3.5" %}{% trans "Only matching" %}
       <span data-graph-match-count class="font-mono ml-1 text-placeholder-foreground" hidden></span>
     </button>
 
@@ -94,7 +100,13 @@ needs the full path.
     <div data-task-graph
          data-sprite="{% static 'sprites/lucide.svg' %}"
          data-project="{{ project.slug_prefix }}"
+         data-link-url="{% url 'web:graph_add_link' %}"
          class="acta-graph-host absolute inset-0"></div>
+    {% comment %}
+    Where a row dropped on a card asks what kind of link it should be —
+    the one thing a drag cannot say on its own. Filled in by the renderer.
+    {% endcomment %}
+    <div data-graph-linkmenu class="acta-glinkmenu" hidden></div>
     {% comment %} Edge kind, shown where the pointer crosses a line. {% endcomment %}
     <span data-graph-edge-label class="acta-gedge-label" hidden></span>
     {% comment %}

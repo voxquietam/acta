@@ -223,3 +223,70 @@ class TestGraphScope:
         body = resp.content.decode()
         assert "data-task-graph" in body
         assert a.slug in body
+
+
+@pytest.mark.django_db
+class TestGraphLink:
+    """Links made by dropping a row from the Unlinked list onto a card.
+
+    The board speaks ids and wants the new edge back as data, so this is
+    its own endpoint — but the writing, the validation and the activity
+    event are the task page's.
+    """
+
+    url = "/graph/link/"
+
+    def test_blocks_comes_back_as_the_edge_the_board_draws(self, client, setup):
+        _, project, user = setup
+        source = TaskFactory(project=project)
+        target = TaskFactory(project=project)
+        client.force_login(user)
+        resp = client.post(self.url, {"kind": "blocks", "source": source.pk, "target": target.pk})
+        assert resp.status_code == 200
+        assert resp.json() == {"ok": True, "edge": {"source": source.pk, "target": target.pk, "kind": "blocks"}}
+        assert source.blocks.filter(pk=target.pk).exists()
+
+    def test_blocked_by_is_flipped_before_it_is_drawn(self, client, setup):
+        _, project, user = setup
+        source = TaskFactory(project=project)
+        target = TaskFactory(project=project)
+        client.force_login(user)
+        resp = client.post(self.url, {"kind": "blocked_by", "source": source.pk, "target": target.pk})
+        # Down means later on this board, so the blocker is the source.
+        assert resp.json()["edge"] == {"source": target.pk, "target": source.pk, "kind": "blocks"}
+        assert target.blocks.filter(pk=source.pk).exists()
+
+    def test_a_circular_block_is_refused(self, client, setup):
+        _, project, user = setup
+        source = TaskFactory(project=project)
+        target = TaskFactory(project=project)
+        target.blocks.add(source)
+        client.force_login(user)
+        resp = client.post(self.url, {"kind": "blocks", "source": source.pk, "target": target.pk})
+        assert resp.status_code == 400
+        assert resp.json()["ok"] is False
+        assert not source.blocks.filter(pk=target.pk).exists()
+
+    def test_a_task_from_a_foreign_workspace_is_not_reachable(self, client, setup):
+        _, project, user = setup
+        source = TaskFactory(project=project)
+        stranger = TaskFactory(project=ProjectFactory())
+        client.force_login(user)
+        resp = client.post(self.url, {"kind": "related", "source": source.pk, "target": stranger.pk})
+        assert resp.status_code == 400
+        assert not source.related.exists()
+
+    def test_an_unknown_kind_is_refused(self, client, setup):
+        _, project, user = setup
+        source = TaskFactory(project=project)
+        target = TaskFactory(project=project)
+        client.force_login(user)
+        resp = client.post(self.url, {"kind": "parent", "source": source.pk, "target": target.pk})
+        assert resp.status_code == 400
+
+    def test_anonymous_callers_are_sent_to_the_login_page(self, client, setup):
+        _, project, _ = setup
+        source = TaskFactory(project=project)
+        target = TaskFactory(project=project)
+        resp = client.post(self.url, {"kind": "related", "source": source.pk, "target": target.pk})
+        assert resp.status_code == 302

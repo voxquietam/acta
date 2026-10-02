@@ -2417,6 +2417,167 @@ tr[data-vrow-hidden] {
   opacity: 0.28;
 }
 
+/* A stack: one card standing in for a whole neighbouring project. Dashed
+   like any external card (it is one), on the muted surface so it reads as
+   a container rather than a task. No layered ::after shadow — an offset
+   border on a scaled stage lands on different device pixels per zoom,
+   which is the artefact the selected ring was taken out for. */
+.acta-gcard.is-stack {
+  border-style: dashed;
+  border-color: rgb(var(--border-strong));
+  background: rgb(var(--muted));
+  cursor: pointer;
+}
+.acta-gstack-pic {
+  display: inline-flex;
+  color: rgb(var(--subtle-foreground));
+}
+.acta-gstack-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgb(var(--placeholder-foreground));
+}
+.acta-gstack-name {
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgb(var(--foreground));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.acta-gstack-meta {
+  margin-top: 2px;
+  font-size: 11px;
+  color: rgb(var(--subtle-foreground));
+}
+.acta-gstack-block {
+  color: #f43f5e;
+}
+.acta-gstack-dots {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.acta-gstack-n {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  color: rgb(var(--placeholder-foreground));
+}
+.acta-gstack-exp {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid rgb(var(--border-strong));
+  background: rgb(var(--card));
+  font-size: 11px;
+  color: rgb(var(--muted-foreground));
+}
+.acta-gstack-exp:hover {
+  color: rgb(var(--foreground));
+  border-color: rgb(var(--foreground));
+}
+/* The project chip doubles as "fold this back up" once a stack is open. */
+.acta-gcard-proj.is-fold:hover {
+  color: rgb(var(--foreground));
+}
+
+/* Dragging a row from the Unlinked list onto a card. */
+.acta-gcard.is-droptarget {
+  border-color: #4f46e5;
+  border-style: solid;
+  background: rgb(79 70 229 / 0.12);
+}
+.acta-graph-host.is-linking {
+  cursor: copy;
+}
+.acta-gdrag {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 260px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid rgb(var(--border-strong));
+  background: rgb(var(--card));
+  font-size: 12px;
+  color: rgb(var(--muted-foreground));
+  box-shadow: 0 6px 16px rgb(0 0 0 / 0.3);
+  pointer-events: none;
+}
+.acta-glinkmenu {
+  position: absolute;
+  z-index: 30;
+  width: 240px;
+  padding: 6px;
+  border-radius: 8px;
+  border: 1px solid rgb(var(--border-strong));
+  background: rgb(var(--card));
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
+  font-size: 12px;
+}
+.acta-glinkmenu[hidden] {
+  display: none;
+}
+.acta-glinkmenu-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px 6px;
+  border-bottom: 1px solid rgb(var(--border));
+  color: rgb(var(--subtle-foreground));
+}
+.acta-glinkmenu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 28px;
+  margin-top: 2px;
+  padding: 0 6px;
+  border-radius: 6px;
+  text-align: left;
+  color: rgb(var(--muted-foreground));
+}
+.acta-glinkmenu button:hover {
+  background: rgb(var(--muted));
+  color: rgb(var(--foreground));
+}
+.acta-glinkmenu button b {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 400;
+  color: rgb(var(--foreground));
+}
+.acta-glinkmenu-cancel {
+  color: rgb(var(--placeholder-foreground));
+}
+.acta-gdock-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 12px 0;
+  color: rgb(var(--placeholder-foreground));
+  font-size: 11px;
+}
+.acta-gdock-row {
+  cursor: grab;
+  touch-action: none;
+}
+
 .acta-gswitch {
   display: inline-flex;
   align-items: center;

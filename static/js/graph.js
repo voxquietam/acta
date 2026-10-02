@@ -48,6 +48,15 @@
   // Card footprint per detail level. Layout is recomputed when the level
   // changes, never on every zoom tick.
   const SIZES = { full: { w: 280, h: 152 }, compact: { w: 180, h: 32 }, mini: { w: 104, h: 26 } };
+  // A stack stands in for a whole neighbouring project, so it is shorter
+  // than a task card — there is no title to wrap — and keeps the same
+  // width, which holds the tiers on one grid.
+  const STACK_SIZES = { full: { w: 280, h: 104 }, compact: { w: 180, h: 32 }, mini: { w: 104, h: 26 } };
+  // Below this a foreign project is drawn as its own cards: a stack
+  // standing in for a single task hides the task and says nothing new.
+  const STACK_MIN = 2;
+  // Status dots a full-size stack shows before it starts counting.
+  const STACK_DOTS = 10;
   const MIN_ZOOM = 0.12;
   const MAX_ZOOM = 1.6;
   // How far outside the viewport a card is still worth keeping in the DOM,
@@ -62,6 +71,17 @@
   // (the sidebar refetches it), and snapping back to "fit" every time threw
   // away wherever the user had navigated to.
   const CAMERA = new Map();
+  // Foreign projects whose stack the user has opened. Also survives a
+  // re-render, for the same reason the camera does.
+  const EXPANDED = new Set();
+  // Whether the board drops the cards a filter does not match or keeps them
+  // dimmed in place. Dropping is the default: a filtered board should show
+  // the work asked for, and the dimmed context is one button away.
+  let ONLY_MATCHING = true;
+  // Links made by dragging a row onto a card. The payload in the DOM is the
+  // one the server rendered, so a link created since then is replayed on
+  // top of it rather than costing a refetch of the whole panel.
+  const ADDED_EDGES = [];
 
   function levelFor(zoom) {
     if (zoom >= 0.75) return "full";
@@ -86,10 +106,10 @@
 
   // ---- model ---------------------------------------------------------------
 
-  function buildModel(data) {
-    const byId = new Map();
-    data.nodes.forEach((n) => byId.set(n.id, Object.assign({}, n)));
-    const edges = data.edges.filter((e) => byId.has(e.source) && byId.has(e.target));
+  // Adjacency, both ways. Kept as one helper because the board is indexed
+  // twice: once for the tasks the server sent, once again after the foreign
+  // projects fold into stacks.
+  function indexEdges(edges) {
     const out = new Map();
     const into = new Map();
     edges.forEach((e) => {
@@ -98,6 +118,14 @@
       out.get(e.source).push(e);
       into.get(e.target).push(e);
     });
+    return { out, into };
+  }
+
+  function buildModel(data) {
+    const byId = new Map();
+    data.nodes.forEach((n) => byId.set(n.id, Object.assign({}, n)));
+    const edges = data.edges.filter((e) => byId.has(e.source) && byId.has(e.target));
+    const { out, into } = indexEdges(edges);
     // A task is blocked when something that blocks it is still open. The
     // server could compute it, but it is one pass over edges we already
     // hold, and it has to be redone whenever the board is refiltered.
@@ -113,6 +141,96 @@
       e.resolved = e.kind === "blocks" && (source.status === "done" || source.status === "cancelled");
     });
     return { byId, edges, out, into };
+  }
+
+  // Neighbouring projects fold into one card each (design 1h). A board that
+  // reaches into four other projects is mostly other people's work: the
+  // stack keeps the link visible and the tiers readable, and opens in place
+  // when that work is what you came for. Only foreign tasks fold — the
+  // project the board is about is never a stack.
+  function foldStacks(model) {
+    const groups = new Map();
+    model.byId.forEach((node) => {
+      if (!node.external || node.projectId == null) return;
+      if (!groups.has(node.projectId)) groups.set(node.projectId, []);
+      groups.get(node.projectId).push(node);
+    });
+
+    const folded = new Map();
+    const stacks = [];
+    groups.forEach((members, projectId) => {
+      // Marked even when the group is open, because that is what tells an
+      // expanded card it can fold itself back up.
+      members.forEach((node) => {
+        node.foldable = members.length >= STACK_MIN;
+      });
+      if (members.length < STACK_MIN || EXPANDED.has(projectId)) return;
+      const head = members[0];
+      const blocking = members.filter((node) =>
+        (model.out.get(node.id) || []).some((e) => {
+          const target = model.byId.get(e.target);
+          return e.kind === "blocks" && !e.resolved && target && !target.external;
+        }),
+      ).length;
+      stacks.push({
+        // Negative on purpose: the whole renderer reads a card's identity
+        // through ``Number(dataset.graphNode)``, so a stack has to be a
+        // number too — and no task id can collide with it.
+        id: -projectId,
+        stack: true,
+        projectId: projectId,
+        project: head.project,
+        projectKey: head.projectKey,
+        projectIcon: head.projectIcon,
+        projectIconClass: head.projectIconClass,
+        slug: head.projectKey,
+        title: head.project,
+        external: true,
+        connected: true,
+        blocked: false,
+        count: members.length,
+        blocking: blocking,
+        members: members.map((node) => node.id),
+        statuses: members.map((node) => node.status),
+      });
+      members.forEach((node) => folded.set(node.id, -projectId));
+    });
+    if (!stacks.length) return model;
+
+    const byId = new Map();
+    model.byId.forEach((node, id) => {
+      if (!folded.has(id)) byId.set(id, node);
+    });
+    stacks.forEach((stack) => byId.set(stack.id, stack));
+
+    // Several links into the same project arrive as one line on the stack.
+    // A merged block is only spent when every link behind it is.
+    const merged = new Map();
+    model.edges.forEach((edge) => {
+      const source = folded.has(edge.source) ? folded.get(edge.source) : edge.source;
+      const target = folded.has(edge.target) ? folded.get(edge.target) : edge.target;
+      // A link between two tasks of the same folded project is the stack's
+      // own business and has nowhere to go on this board.
+      if (source === target) return;
+      const key =
+        edge.kind === "related"
+          ? `related|${Math.min(source, target)}|${Math.max(source, target)}`
+          : `${edge.kind}|${source}|${target}`;
+      const seen = merged.get(key);
+      if (seen) {
+        seen.resolved = seen.resolved && !!edge.resolved;
+        return;
+      }
+      merged.set(key, { source: source, target: target, kind: edge.kind, resolved: !!edge.resolved });
+    });
+
+    const edges = [...merged.values()];
+    const { out, into } = indexEdges(edges);
+    return { byId: byId, edges: edges, out: out, into: into };
+  }
+
+  function cardSize(node, level) {
+    return (node && node.stack ? STACK_SIZES : SIZES)[level];
   }
 
   // The filter sidebar is client-side (it never round-trips), so the board
@@ -246,41 +364,123 @@
   const DOCK_ROWS_PER_GROUP = 8;
 
   function layout(model, level) {
-    const size = SIZES[level];
     const linked = new Set();
     model.edges.forEach((e) => {
       linked.add(e.source);
       linked.add(e.target);
     });
+    return packComponents(
+      components(model, linked).map((ids) => layoutComponent(model, ids, level)),
+      level,
+    );
+  }
 
+  // Weakly connected groups of the linked work. Each one is a separate
+  // dagre run: handing dagre the whole board instead lets it interleave
+  // nodes from unrelated chains inside one rank, which is both unreadable
+  // and impossible to re-pack afterwards (a chain's bounding box ends up
+  // spanning the entire board).
+  function components(model, linked) {
+    const parent = new Map();
+    const find = (id) => {
+      while (parent.get(id) !== id) {
+        parent.set(id, parent.get(parent.get(id)));
+        id = parent.get(id);
+      }
+      return id;
+    };
+    linked.forEach((id) => parent.set(id, id));
+    model.edges.forEach((edge) => {
+      if (!parent.has(edge.source) || !parent.has(edge.target)) return;
+      const a = find(edge.source);
+      const b = find(edge.target);
+      if (a !== b) parent.set(a, b);
+    });
+    const groups = new Map();
+    linked.forEach((id) => {
+      const key = find(id);
+      if (!groups.has(key)) groups.set(key, new Set());
+      groups.get(key).add(id);
+    });
+    return [...groups.values()];
+  }
+
+  function layoutComponent(model, ids, level) {
     const g = new window.dagre.graphlib.Graph({ multigraph: true });
     g.setGraph({
       rankdir: "TB",
       nodesep: level === "full" ? 36 : 20,
       ranksep: level === "full" ? 76 : 44,
-      marginx: 40,
-      marginy: 40,
+      marginx: 0,
+      marginy: 0,
     });
     g.setDefaultEdgeLabel(() => ({}));
-    linked.forEach((id) => g.setNode(String(id), { width: size.w, height: size.h }));
+    ids.forEach((id) => {
+      const box = cardSize(model.byId.get(id), level);
+      g.setNode(String(id), { width: box.w, height: box.h });
+    });
     model.edges.forEach((e, i) => {
       // Related edges are symmetrical — letting them influence the ranking
       // drags unrelated work into tiers it does not belong to.
-      if (e.kind === "related") return;
+      if (e.kind === "related" || !ids.has(e.source) || !ids.has(e.target)) return;
       g.setEdge(String(e.source), String(e.target), { weight: e.kind === "parent" ? 2 : 1 }, "e" + i);
     });
     window.dagre.layout(g);
 
     const pos = new Map();
+    let w = 0;
+    let h = 0;
     g.nodes().forEach((id) => {
       const n = g.node(id);
-      if (n) pos.set(Number(id), { x: n.x - size.w / 2, y: n.y - size.h / 2, w: size.w, h: size.h });
+      if (!n) return;
+      // Per-node, not per-level: a stack is a different shape to the task
+      // cards it stands in for.
+      const box = { x: n.x - n.width / 2, y: n.y - n.height / 2, w: n.width, h: n.height };
+      pos.set(Number(id), box);
+      w = Math.max(w, box.x + box.w);
+      h = Math.max(h, box.y + box.h);
     });
-    const graph = g.graph();
-    const width = graph.width || size.w + 80;
-    const height = graph.height || 0;
+    return { pos, w, h };
+  }
 
-    return { pos, width, height };
+  // Shelf packing, tallest first. Dagre would otherwise line every chain up
+  // left to right: a project with forty of them comes back as a ribbon
+  // thousands of pixels wide and five tiers tall, where "fit to screen"
+  // means 12% and nothing is readable. The mosaic aims at the shape of a
+  // screen instead.
+  function packComponents(parts, level) {
+    const gap = level === "full" ? 72 : 40;
+    const margin = 40;
+    const pos = new Map();
+    if (!parts.length) return { pos, width: SIZES[level].w + margin * 2, height: 0 };
+
+    parts.sort((a, b) => b.h - a.h || b.w - a.w);
+    const area = parts.reduce((sum, part) => sum + (part.w + gap) * (part.h + gap), 0);
+    const widest = parts.reduce((max, part) => Math.max(max, part.w), 0);
+    // 16:9 — the shape of the thing the board is looked at on.
+    const target = Math.max(widest, Math.sqrt((area * 16) / 9));
+
+    let x = 0;
+    let y = 0;
+    let rowHeight = 0;
+    let width = 0;
+    parts.forEach((part) => {
+      if (x > 0 && x + part.w > target) {
+        x = 0;
+        y += rowHeight + gap;
+        rowHeight = 0;
+      }
+      part.pos.forEach((box, id) => {
+        box.x += x + margin;
+        box.y += y + margin;
+        pos.set(id, box);
+      });
+      x += part.w + gap;
+      width = Math.max(width, x - gap);
+      rowHeight = Math.max(rowHeight, part.h);
+    });
+
+    return { pos, width: width + margin * 2, height: y + rowHeight + margin * 2 };
   }
 
   // ---- edges ---------------------------------------------------------------
@@ -374,7 +574,45 @@
 
   // ---- cards ---------------------------------------------------------------
 
+  // One folded project. The counts answer the only two questions a stack
+  // has to answer before it is worth opening: how much of this project the
+  // board touches, and how much of it is holding work here up.
+  function stackHtml(node, level) {
+    const badge = `<span class="acta-gstack-pic ${esc(node.projectIconClass || "")}">${icon(node.projectIcon || "folder", "acta-gcard-ic")}</span>`;
+    const expand = `<button type="button" class="acta-gstack-exp" data-graph-expand="${node.projectId}" title="Draw this project's tasks">${icon("maximize-2", "acta-gcard-ic")}Expand</button>`;
+
+    if (level === "mini") {
+      return `${badge}<span class="acta-gcard-id">${esc(node.projectKey)}</span><span class="acta-gstack-n">${node.count}</span>`;
+    }
+    if (level === "compact") {
+      return (
+        `${badge}<span class="acta-gcard-id">${esc(node.projectKey)}</span>` +
+        `<span class="acta-gcard-ttl">${esc(node.project)}</span>` +
+        `<span class="acta-gstack-n">${node.count}</span>`
+      );
+    }
+
+    const shown = node.statuses.slice(0, STACK_DOTS);
+    const rest = node.statuses.length - shown.length;
+    const dots = shown
+      .map((s) => `<span class="acta-gcard-dot" style="background:${STATUS_COLOR[s] || STATUS_COLOR.planned}"></span>`)
+      .join("");
+    const blocking = node.blocking
+      ? ` · <span class="acta-gstack-block">${node.blocking} blocking here</span>`
+      : "";
+    return (
+      `<div class="acta-gcard-top">${badge}<span class="acta-gcard-id">${esc(node.projectKey)}</span>` +
+      `<span class="acta-gcard-gap"></span>` +
+      `<span class="acta-gstack-tag">${icon("layers", "acta-gcard-ic")}stack</span></div>` +
+      `<div class="acta-gstack-name">${esc(node.project)}</div>` +
+      `<div class="acta-gstack-meta">${node.count} linked task${node.count === 1 ? "" : "s"}${blocking}</div>` +
+      `<div class="acta-gstack-dots">${dots}${rest > 0 ? `<span class="acta-gstack-n">+${rest}</span>` : ""}</div>` +
+      `<span class="acta-gcard-gap"></span>${expand}`
+    );
+  }
+
   function cardHtml(node, level) {
+    if (node.stack) return stackHtml(node, level);
     const status = STATUS_COLOR[node.status] || STATUS_COLOR.planned;
     const done = node.status === "done";
     const cancelled = node.status === "cancelled";
@@ -409,9 +647,13 @@
       )
       .join("");
     const overflow = more > 0 ? `<span class="acta-gcard-more">+${more}</span>` : "";
-    const project = node.external
-      ? `<span class="acta-gcard-proj">${icon("folder", "acta-gcard-ic")}${esc(node.projectKey)}</span>`
-      : "";
+    // On an expanded stack the project chip is how you fold it back up —
+    // the affordance sits where the card already says which project it is.
+    const project = !node.external
+      ? ""
+      : node.foldable
+        ? `<button type="button" class="acta-gcard-proj is-fold" data-graph-collapse="${node.projectId}" title="Fold ${esc(node.projectKey)} back into one card">${icon("layers", "acta-gcard-ic")}${esc(node.projectKey)}</button>`
+        : `<span class="acta-gcard-proj">${icon("folder", "acta-gcard-ic")}${esc(node.projectKey)}</span>`;
     const lock = node.blocked ? `<span class="acta-gcard-lock" title="Blocked by open work">${icon("lock", "acta-gcard-ic")}</span>` : "";
     const due = node.due
       ? `<span class="acta-gcard-due${node.overdue ? " is-overdue" : node.dueToday ? " is-today" : ""}">${icon("calendar", "acta-gcard-ic")}${esc(node.due)}</span>`
@@ -440,7 +682,14 @@
       node.matches = matchesFilters(node, filters);
     });
     state.model.byId.forEach((node) => {
-      node.matches = matchesFilters(node, filters);
+      // A stack matches when anything inside it does — folding work away
+      // must not also filter it away.
+      node.matches = node.stack
+        ? node.members.some((id) => {
+            const member = state.allById && state.allById.get(id);
+            return member ? member.matches !== false : true;
+          })
+        : matchesFilters(node, filters);
       if (node.matches) matched += 1;
     });
     state.matched = matched;
@@ -452,6 +701,7 @@
   }
 
   function applyCardState(el, node, state) {
+    el.classList.toggle("is-stack", !!node.stack);
     el.classList.toggle("is-blocked", !!node.blocked && node.status !== "done" && node.status !== "cancelled");
     el.classList.toggle("is-done", node.status === "done");
     el.classList.toggle("is-cancelled", node.status === "cancelled");
@@ -722,7 +972,159 @@
       icon("x", "acta-gcard-ic") +
       `</button></div>` +
       banner +
+      `<p class="acta-gdock-hint">${icon("link", "acta-gcard-ic")}Drag a row onto a card to link it</p>` +
       `<div class="acta-gdock-body">${body || '<p class="acta-gdock-empty">Nothing here matches the filters.</p>'}</div>`;
+  }
+
+  // ---- drag a row onto a card to link it ----------------------------------
+
+  // The side list is the only place a task with no links can be grabbed, so
+  // dragging a row onto a card is the board's own way to give it one. A
+  // drag cannot say WHICH kind of link it means, so the drop asks instead
+  // of guessing — nothing is written until that is answered.
+  function bindDockDrag(state) {
+    const dock = state.panel.querySelector("[data-graph-dock]");
+    if (!dock) return;
+    let drag = null;
+
+    const highlight = (card) => {
+      if (drag.over === card) return;
+      if (drag.over) drag.over.classList.remove("is-droptarget");
+      drag.over = card;
+      if (card) card.classList.add("is-droptarget");
+    };
+
+    const finish = (pointerId) => {
+      const was = drag;
+      drag = null;
+      if (!was) return null;
+      if (was.row.hasPointerCapture(pointerId)) was.row.releasePointerCapture(pointerId);
+      if (was.ghost) was.ghost.remove();
+      if (was.over) was.over.classList.remove("is-droptarget");
+      state.host.classList.remove("is-linking");
+      return was;
+    };
+
+    dock.addEventListener("pointerdown", (e) => {
+      const row = e.target.closest("[data-graph-dock-task]");
+      if (!row || e.button !== 0) return;
+      drag = { id: Number(row.dataset.graphDockTask), x: e.clientX, y: e.clientY, row: row, moved: false, over: null };
+      // Capture on the row, so the moves keep arriving here once the
+      // pointer leaves the list — no listeners on the document, which
+      // would outlive the panel the sidebar replaces on every filter.
+      row.setPointerCapture(e.pointerId);
+    });
+
+    dock.addEventListener("pointermove", (e) => {
+      if (!drag) return;
+      if (!drag.moved) {
+        if (Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y) < 4) return;
+        drag.moved = true;
+        const node = state.allById.get(drag.id);
+        drag.ghost = document.createElement("div");
+        drag.ghost.className = "acta-gdrag";
+        drag.ghost.innerHTML =
+          `${icon("link", "acta-gcard-ic")}<span class="acta-gdock-id">${esc(node ? node.slug : "")}</span>` +
+          `<span class="acta-gdock-ttl">${esc(node ? node.title : "")}</span>`;
+        document.body.appendChild(drag.ghost);
+        state.host.classList.add("is-linking");
+      }
+      drag.ghost.style.transform = `translate(${e.clientX + 14}px, ${e.clientY + 14}px)`;
+      // The ghost must not shadow the card underneath the cursor.
+      drag.ghost.style.visibility = "hidden";
+      const under = document.elementFromPoint(e.clientX, e.clientY);
+      drag.ghost.style.visibility = "";
+      const card = under && under.closest ? under.closest("[data-graph-node]") : null;
+      const node = card && state.model.byId.get(Number(card.dataset.graphNode));
+      // A stack is several tasks at once — there is no single task to link.
+      highlight(node && !node.stack ? card : null);
+    });
+
+    dock.addEventListener("pointerup", (e) => {
+      const was = finish(e.pointerId);
+      if (!was || !was.moved) return;
+      // The browser follows this pointerup with a click; without swallowing
+      // it the drag would also open the row's task.
+      const swallow = (ev) => {
+        ev.stopPropagation();
+        ev.preventDefault();
+      };
+      window.addEventListener("click", swallow, { capture: true, once: true });
+      window.setTimeout(() => window.removeEventListener("click", swallow, true), 400);
+      if (was.over) openLinkMenu(state, was.id, Number(was.over.dataset.graphNode), e.clientX, e.clientY);
+    });
+
+    dock.addEventListener("pointercancel", (e) => finish(e.pointerId));
+  }
+
+  function openLinkMenu(state, sourceId, targetId, clientX, clientY) {
+    const menu = state.panel.querySelector("[data-graph-linkmenu]");
+    const source = state.allById.get(sourceId);
+    const target = state.model.byId.get(targetId);
+    if (!menu || !source || !target) return;
+    const rect = state.panel.getBoundingClientRect();
+    menu.hidden = false;
+    menu.style.left = `${Math.max(8, Math.min(clientX - rect.left, rect.width - 260))}px`;
+    menu.style.top = `${Math.max(8, Math.min(clientY - rect.top, rect.height - 170))}px`;
+    menu.innerHTML =
+      `<p class="acta-glinkmenu-head"><span class="acta-gdock-id">${esc(source.slug)}</span>` +
+      `<span class="acta-gdock-ttl">${esc(source.title)}</span></p>` +
+      `<button type="button" data-graph-link="blocks">${icon("lock", "acta-gcard-ic")}` +
+      `blocks <b>${esc(target.slug)}</b></button>` +
+      `<button type="button" data-graph-link="blocked_by">${icon("lock", "acta-gcard-ic")}` +
+      `blocked by <b>${esc(target.slug)}</b></button>` +
+      `<button type="button" data-graph-link="related">${icon("link", "acta-gcard-ic")}` +
+      `related to <b>${esc(target.slug)}</b></button>` +
+      `<button type="button" data-graph-link-cancel class="acta-glinkmenu-cancel">Cancel</button>`;
+    state.pendingLink = { source: sourceId, target: targetId };
+  }
+
+  function closeLinkMenu(state) {
+    const menu = state.panel && state.panel.querySelector("[data-graph-linkmenu]");
+    if (menu) {
+      menu.hidden = true;
+      menu.innerHTML = "";
+    }
+    state.pendingLink = null;
+  }
+
+  function toast(message, level) {
+    if (window.actaToast) window.actaToast(message, level);
+  }
+
+  function submitLink(state, kind) {
+    const pending = state.pendingLink;
+    const url = state.host.dataset.linkUrl;
+    if (!pending || !url) return;
+    closeLinkMenu(state);
+    const body = new URLSearchParams({
+      kind: kind,
+      source: String(pending.source),
+      target: String(pending.target),
+    });
+    window
+      .fetch(url, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "X-CSRFToken": (window.acta && window.acta.csrfToken()) || "",
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: body.toString(),
+      })
+      .then((res) => res.json().catch(() => ({ ok: false })))
+      .then((data) => {
+        if (!data || !data.ok || !data.edge) {
+          toast(data && data.error ? data.error : "Could not link those tasks", "error");
+          return;
+        }
+        // The board redraws from the payload the server rendered, so the
+        // new edge is replayed on top of it rather than refetched.
+        ADDED_EDGES.push(data.edge);
+        toast("Link added", "success");
+        rebuild();
+      })
+      .catch(() => toast("Could not link those tasks", "error"));
   }
 
   // ---- selection -----------------------------------------------------------
@@ -767,6 +1169,15 @@
     }
     const node = state.model.byId.get(state.selected);
     bar.hidden = false;
+    if (node.stack) {
+      bar.innerHTML =
+        `<span class="acta-gstack-pic ${esc(node.projectIconClass || "")}">${icon(node.projectIcon || "folder", "acta-gcard-ic")}</span>` +
+        `<span class="acta-gsel-id">${esc(node.projectKey)}</span>` +
+        `<span class="acta-gsel-count">${node.count} linked · ${node.blocking} blocking here</span>` +
+        `<button type="button" class="acta-gsel-open" data-graph-expand="${node.projectId}">` +
+        `${icon("maximize-2", "acta-gcard-ic")}Expand</button>`;
+      return;
+    }
     bar.innerHTML =
       `<span class="acta-gcard-dot" style="background:${STATUS_COLOR[node.status] || STATUS_COLOR.planned}"></span>` +
       `<span class="acta-gsel-id">${esc(node.slug)}</span>` +
@@ -818,9 +1229,23 @@
     redraw(state);
   }
 
+  // Folding is a view state, not a server one: the set of open projects
+  // lives in the module, so a panel refetch keeps whatever the user opened.
+  function setFolded(projectId, expanded) {
+    if (expanded) EXPANDED.add(projectId);
+    else EXPANDED.delete(projectId);
+    rebuild();
+  }
+
   function openTask(state, id) {
     const node = state.model.byId.get(id);
-    if (!node || !node.url) return;
+    if (!node) return;
+    // A stack has nothing to open but itself.
+    if (node.stack) {
+      setFolded(node.projectId, true);
+      return;
+    }
+    if (!node.url) return;
     if (window.htmx) {
       const url = node.url + (node.url.indexOf("?") === -1 ? "?" : "&") + "modal=1";
       window.htmx.ajax("GET", url, { target: "#modal-root", swap: "innerHTML" });
@@ -889,6 +1314,16 @@
     });
 
     host.addEventListener("click", (e) => {
+      const expand = e.target.closest("[data-graph-expand]");
+      if (expand) {
+        setFolded(Number(expand.dataset.graphExpand), true);
+        return;
+      }
+      const collapse = e.target.closest("[data-graph-collapse]");
+      if (collapse) {
+        setFolded(Number(collapse.dataset.graphCollapse), false);
+        return;
+      }
       const card = e.target.closest("[data-graph-node]");
       if (!card) return;
       const id = Number(card.dataset.graphNode);
@@ -931,6 +1366,22 @@
 
     const panel = state.panel;
     panel.addEventListener("click", (e) => {
+      // The selection bar carries an Expand of its own, and it sits outside
+      // the board — the stage's own handler never sees it.
+      const expand = e.target.closest("[data-graph-expand]");
+      if (expand) {
+        setFolded(Number(expand.dataset.graphExpand), true);
+        return;
+      }
+      const kind = e.target.closest("[data-graph-link]");
+      if (kind) {
+        submitLink(state, kind.dataset.graphLink);
+        return;
+      }
+      if (e.target.closest("[data-graph-link-cancel]")) {
+        closeLinkMenu(state);
+        return;
+      }
       if (e.target.closest("[data-graph-open]") && state.selected != null) {
         openTask(state, state.selected);
         return;
@@ -938,6 +1389,14 @@
       const zoomBtn = e.target.closest("[data-graph-zoom-by]");
       if (zoomBtn) {
         const next = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, state.zoom * Number(zoomBtn.dataset.graphZoomBy)));
+        // Anchored at the middle of the board, the way the pinch is
+        // anchored at the cursor — stepping the zoom otherwise grows the
+        // board out of its own top-left corner and walks away from
+        // whatever the user was looking at.
+        const cx = state.host.clientWidth / 2;
+        const cy = state.host.clientHeight / 2;
+        state.pan.x = cx - ((cx - state.pan.x) / state.zoom) * next;
+        state.pan.y = cy - ((cy - state.pan.y) / state.zoom) * next;
         state.zoom = next;
         relevel(state);
         redraw(state);
@@ -984,6 +1443,8 @@
       }
     });
 
+    bindDockDrag(state);
+
     const ro = window.ResizeObserver ? new ResizeObserver(() => redraw(state)) : null;
     if (ro) ro.observe(host);
     state.observer = ro;
@@ -1007,16 +1468,26 @@
     }
     if (!data || !data.nodes || !data.nodes.length) return;
 
+    // Links made since the server rendered this payload.
+    if (ADDED_EDGES.length) {
+      const have = new Set(data.edges.map((e) => `${e.kind}|${e.source}|${e.target}`));
+      ADDED_EDGES.forEach((edge) => {
+        const key = `${edge.kind}|${edge.source}|${edge.target}`;
+        if (have.has(key)) return;
+        have.add(key);
+        data.edges.push(edge);
+      });
+    }
+
     const full = buildModel(data);
     const linked = connectedIds(full);
-    const onlyMatching = host.dataset.graphMatching === "1";
     const filters = readFilters();
     if (filters) filters.activeCycleId = data.activeCycleId;
     // The board is the linked structure. Everything else is the side list,
     // which reads the full payload through ``looseIds``.
     let nodes = data.nodes.filter((n) => linked.has(n.id));
-    if (onlyMatching && filters && filters.active) nodes = nodes.filter((n) => matchesFilters(n, filters));
-    const model = nodes.length === data.nodes.length ? full : buildModel({ nodes, edges: data.edges });
+    if (ONLY_MATCHING && filters && filters.active) nodes = nodes.filter((n) => matchesFilters(n, filters));
+    const model = foldStacks(nodes.length === data.nodes.length ? full : buildModel({ nodes, edges: data.edges }));
 
     host.innerHTML = "";
     const stage = document.createElement("div");
@@ -1057,6 +1528,10 @@
     G.looseIds = data.nodes.filter((n) => !linked.has(n.id)).map((n) => n.id);
 
     applyFilters(G);
+    // The panel comes back from the server on every filter change, so the
+    // switch's own state is restored rather than read from the markup.
+    const matchBtn = G.panel.querySelector("button[data-graph-only-matching]");
+    if (matchBtn) matchBtn.classList.toggle("is-on", ONLY_MATCHING);
     const saved = CAMERA.get(host.dataset.project || "");
     if (saved) {
       G.zoom = saved.zoom;
@@ -1112,7 +1587,9 @@
       const owned =
         (e.target.form && e.target.form.id === "filter-form") || (e.target.closest && e.target.closest("#filter-form"));
       if (!G || !owned) return;
-      if (G.host.dataset.graphMatching === "1") {
+      if (ONLY_MATCHING) {
+        // Dropping the unmatched cards changes the node set, so this is a
+        // fresh layout rather than a class toggle per card.
         rebuild();
         return;
       }
@@ -1134,9 +1611,12 @@
     }
     const btn = e.target.closest("button[data-graph-only-matching]");
     if (!btn || !G) return;
-    const on = G.host.dataset.graphMatching !== "1";
-    G.host.dataset.graphMatching = on ? "1" : "0";
-    btn.classList.toggle("is-on", on);
+    // On (the default) draws only what the filters match; off brings the
+    // rest back dimmed, for the times the chain matters more than the
+    // filter — a blocker filtered out of view still explains the lock
+    // under it.
+    ONLY_MATCHING = !ONLY_MATCHING;
+    btn.classList.toggle("is-on", ONLY_MATCHING);
     rebuild();
   });
 

@@ -43,6 +43,7 @@ from .views import (
     export_project_tasks_json,
     export_workspace_members_csv,
     filter_facets,
+    graph_add_link,
     inbox_update_preview,
     mention_search,
     my_work_facets,
@@ -137,6 +138,9 @@ urlpatterns = [
     path("my-work/", MyWorkView.as_view(), name="my_work"),
     path("my-work/export.json", export_my_work_json, name="export_my_work_json"),
     path("my-work/facets", my_work_facets, name="my_work_facets"),
+    # Links made by dragging a row onto a card on the relationship graph.
+    # Not under a task path: the board speaks ids and wants JSON back.
+    path("graph/link/", graph_add_link, name="graph_add_link"),
     path("recurring/", recurring_list, name="recurring_list"),
     path("recurring/new/", recurring_editor, name="recurring_new"),
     path("recurring/<int:pk>/edit/", recurring_editor, name="recurring_edit"),
