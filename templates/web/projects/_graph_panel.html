@@ -139,6 +139,13 @@ needs the full path.
     explores instead of navigating.
     {% endcomment %}
     <div data-graph-selection class="acta-gsel" hidden></div>
+    {% comment %}
+    The selected epic. Everything in it is what the canvas cannot say on
+    its own: how the work splits across projects, what the blocked tasks
+    are actually waiting for, and which members never made it onto the
+    board. Filled by the renderer (design 2b).
+    {% endcomment %}
+    <aside data-graph-epic-panel class="acta-gepic" hidden></aside>
     {% endif %}
     </div>
 

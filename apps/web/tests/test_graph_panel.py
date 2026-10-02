@@ -375,6 +375,35 @@ class TestGraphEpics:
         assert len(payload["epics"]) == 6
         assert len(large.captured_queries) == len(small.captured_queries)
 
+    def test_the_epic_carries_the_span_its_tasks_give_it(self, setup):
+        """An epic has no dates of its own — the panel reads them off its
+        tasks, so they travel with the metadata."""
+        import datetime
+
+        _, project, user = setup
+        epic = TaskFactory(project=project, kind=Task.KIND_EPIC, status=Task.STATUS_PLANNED)
+        TaskFactory(
+            project=project,
+            epic=epic,
+            start_date=datetime.date(2026, 9, 15),
+            end_date=datetime.date(2026, 10, 1),
+        )
+        TaskFactory(
+            project=project,
+            epic=epic,
+            start_date=datetime.date(2026, 9, 20),
+            end_date=datetime.date(2026, 11, 14),
+        )
+        meta = _payload(project, user)["epics"][0]
+        assert (meta["start"], meta["end"]) == ("2026-09-15", "2026-11-14")
+
+    def test_an_epic_without_dated_tasks_has_no_span(self, setup):
+        _, project, user = setup
+        epic = TaskFactory(project=project, kind=Task.KIND_EPIC, status=Task.STATUS_PLANNED)
+        TaskFactory(project=project, epic=epic)
+        meta = _payload(project, user)["epics"][0]
+        assert (meta["start"], meta["end"]) == (None, None)
+
     def test_the_gather_switch_is_offered_only_where_there_are_epics(self, setup):
         """The toolbar switch lays each epic out as one block — pointless
         on a board that has none."""

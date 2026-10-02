@@ -2234,6 +2234,11 @@ tr[data-vrow-hidden] {
 .acta-gcard.is-dim {
   opacity: 0.25;
 }
+/* An epic is picked: the rest of the board steps back but stays legible,
+   because the epic is read against the work around it (design 2b). */
+.acta-gcard.is-epic-dim {
+  opacity: 0.45;
+}
 .acta-gcard.is-cancelled {
   opacity: 0.5;
 }
@@ -2417,6 +2422,110 @@ tr[data-vrow-hidden] {
    leave an empty pill floating in the corner, so hiding is spelled out. */
 .acta-gsel[hidden] {
   display: none;
+}
+/* The selected epic's panel (design 2b). Everything on it is what the
+   canvas cannot say: the split across projects, what the blocked tasks
+   wait for, and the members that never reached the board. */
+.acta-gepic {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 320px;
+  box-sizing: border-box;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  background: rgb(var(--card));
+  border-left: 1px solid rgb(var(--border-strong));
+  font-size: 12px;
+  z-index: 3;
+}
+.acta-gepic-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: rgb(var(--subtle-foreground));
+}
+.acta-gepic-chip {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--epic-hue);
+  flex-shrink: 0;
+}
+.acta-gepic-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: rgb(var(--foreground));
+  line-height: 1.3;
+}
+.acta-gepic-bar {
+  display: flex;
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  gap: 1px;
+  background: rgb(var(--muted));
+}
+.acta-gepic-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: rgb(var(--subtle-foreground));
+}
+.acta-gepic-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgb(var(--placeholder-foreground));
+  padding-bottom: 4px;
+}
+.acta-gepic-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  font-size: 11px;
+  color: rgb(var(--muted-foreground));
+  width: 100%;
+  text-align: left;
+}
+.acta-gepic-row .acta-gepic-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: rgb(var(--subtle-foreground));
+  flex-shrink: 0;
+}
+.acta-gepic-row .acta-gepic-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+button.acta-gepic-row:hover .acta-gepic-name {
+  color: rgb(var(--foreground));
+}
+.acta-gdot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.acta-gepic-wait {
+  font-size: 10px;
+  color: rgb(var(--placeholder-foreground));
+  flex-shrink: 0;
+}
+.acta-gepic-acts {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
 }
 .acta-gsel {
   position: absolute;

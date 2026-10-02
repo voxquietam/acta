@@ -841,6 +841,7 @@
     const tint = [];
     const labels = [];
     const stacks = [];
+    const tethers = [];
     state.epicOrder.forEach((epicId) => {
       const group = members.get(epicId);
       if (!group) return;
@@ -893,13 +894,30 @@
         );
         labels.push(regionLabel(state, epic, part, i, onCanvas));
       });
+      // Picked, and in pieces: a thin dashed curve says the pieces are one
+      // epic. Thin and dashed on purpose — a corridor's width here would
+      // claim the work it passes over, which is a different statement.
+      if (focused && parts.length > 1) {
+        const anchor = (part) =>
+          part.members.reduce(
+            (acc, m) => [acc[0] + (m.box.x + m.box.w / 2) / part.members.length, acc[1] + (m.box.y + m.box.h / 2) / part.members.length],
+            [0, 0],
+          );
+        for (let i = 1; i < parts.length; i += 1) {
+          const [ax, ay] = anchor(parts[i - 1]);
+          const [bx, by] = anchor(parts[i]);
+          tethers.push(
+            `<path d="M${ax} ${ay} C${ax} ${(ay + by) / 2} ${bx} ${(ay + by) / 2} ${bx} ${by}" fill="none" stroke="${hue}" stroke-width="1.25" stroke-dasharray="3 4" vector-effect="non-scaling-stroke" opacity="0.8"/>`,
+          );
+        }
+      }
     });
 
     host.setAttribute("width", state.width);
     host.setAttribute("height", state.height);
     // Tint first, ring on top: the ring is what has to survive a
     // neighbouring region overlapping it.
-    host.innerHTML = `<defs>${masks.join("")}</defs>` + tint.join("") + outline.join("");
+    host.innerHTML = `<defs>${masks.join("")}</defs>` + tint.join("") + outline.join("") + tethers.join("");
     state.regionZoom = state.zoom;
     state.regionLabels = labels;
     state.labelLayer.innerHTML = labels.map((l) => l.html).join("");
@@ -913,6 +931,141 @@
       )
       .join("");
     placeRegionLabels(state);
+  }
+
+  // ---- the selected epic ---------------------------------------------------
+
+  // What the canvas cannot answer by itself. Three questions, in the order
+  // someone looking at an epic asks them: how is it split, what is stuck
+  // and on what, and what is not here at all (design 2b).
+  function epicPanelData(state, epicId) {
+    const epic = state.epics.get(epicId);
+    if (!epic) return null;
+    const onBoard = [];
+    state.pos.forEach((box, id) => {
+      const node = state.model.byId.get(id);
+      if (node && node.epicId === epicId) onBoard.push(node);
+    });
+    const drawn = new Set(onBoard.map((n) => n.id));
+
+    const byProject = new Map();
+    onBoard.forEach((node) => {
+      byProject.set(node.projectId, (byProject.get(node.projectId) || 0) + (node.stack ? node.count : 1));
+    });
+    const projects = epic.projects.map((p) => ({
+      name: p.name,
+      total: p.total,
+      here: byProject.get(p.id) || 0,
+    }));
+
+    // Blocked, and by what: the board draws the arrow, but the name on
+    // the far end of it is behind a card the viewport may not hold.
+    const blocked = [];
+    onBoard.forEach((node) => {
+      (state.model.into.get(node.id) || []).forEach((edge) => {
+        if (edge.kind !== "blocks" || edge.resolved) return;
+        const source = state.model.byId.get(edge.source);
+        if (!source) return;
+        blocked.push({ id: node.id, slug: node.slug, title: node.title, waits: source.slug });
+      });
+    });
+
+    // Members that never reached the board. They live in the full payload
+    // (the side list reads it), so they can be named rather than counted.
+    const loose = (state.allData.nodes || [])
+      .filter((n) => n.epicId === epicId && !drawn.has(n.id))
+      .map((n) => ({ id: n.id, slug: n.slug, title: n.title, status: n.status }));
+
+    return { epic, projects, blocked, loose, here: onBoard.length };
+  }
+
+  function renderEpicPanel(state) {
+    const host = state.panel && state.panel.querySelector("[data-graph-epic-panel]");
+    if (!host) return;
+    if (state.epicFocus == null) {
+      host.hidden = true;
+      host.innerHTML = "";
+      return;
+    }
+    const data = epicPanelData(state, state.epicFocus);
+    if (!data) {
+      host.hidden = true;
+      return;
+    }
+    const { epic, projects, blocked, loose } = data;
+    const hue = epicHue(state, epic.id);
+    const done = epic.total ? Math.round((epic.done / epic.total) * 100) : 0;
+    const span =
+      epic.start || epic.end
+        ? `${epic.start ? shortDay(epic.start) : "—"} → ${epic.end ? shortDay(epic.end) : "—"}`
+        : "";
+
+    const section = (label, rows) =>
+      rows.length ? `<div><div class="acta-gepic-label">${label}</div>${rows.join("")}</div>` : "";
+
+    host.hidden = false;
+    host.style.setProperty("--epic-hue", hue);
+    host.innerHTML =
+      `<div class="acta-gepic-head"><span class="acta-gepic-chip"></span>` +
+      `<span class="font-mono">${esc(epic.slug)}</span><span>Epic</span><span style="flex:1"></span>` +
+      `<button type="button" data-graph-epic-close aria-label="Close">${icon("x", "acta-gregion-ic")}</button></div>` +
+      `<div class="acta-gepic-title">${esc(epic.title)}</div>` +
+      `<div><div class="acta-gepic-bar"><span style="flex:${epic.done}; background:${
+        STATUS_COLOR.done
+      }"></span><span style="flex:${Math.max(0, epic.total - epic.done)}; background:transparent"></span></div>` +
+      `<div class="acta-gepic-meta"><span>${epic.done} / ${epic.total} done · ${done}%</span><span>${esc(
+        span,
+      )}</span></div></div>` +
+      section(
+        `on canvas · ${data.here}`,
+        projects.map(
+          (p) =>
+            `<div class="acta-gepic-row">${icon("folder", "acta-gregion-ic")}` +
+            `<span class="acta-gepic-name">${esc(p.name)}</span>` +
+            `<span class="acta-gepic-wait">${p.here} of ${p.total}</span></div>`,
+        ),
+      ) +
+      section(
+        `blocked · ${blocked.length}`,
+        blocked.map(
+          (b) =>
+            `<button type="button" class="acta-gepic-row" data-graph-reveal="${b.id}">` +
+            `<span class="acta-gepic-id">${esc(b.slug)}</span>` +
+            `<span class="acta-gepic-name">${esc(b.title)}</span>` +
+            `<span class="acta-gepic-wait">waits on ${esc(b.waits)}</span></button>`,
+        ),
+      ) +
+      section(
+        `no links · ${loose.length}`,
+        loose.map(
+          (l) =>
+            `<div class="acta-gepic-row"><span class="acta-gdot" style="background:${
+              STATUS_COLOR[l.status] || STATUS_COLOR.planned
+            }"></span><span class="acta-gepic-id">${esc(l.slug)}</span>` +
+            `<span class="acta-gepic-name">${esc(l.title)}</span></div>`,
+        ),
+      ) +
+      `<div class="acta-gepic-acts">` +
+      `<a class="acta-btn-primary" href="${esc(epic.url)}">${icon("maximize-2", "acta-gregion-ic")}Open epic</a>` +
+      `<button type="button" class="acta-gsize" data-graph-gather>${icon(
+        "shrink",
+        "acta-gregion-ic",
+      )}Gather epics<span class="font-mono ml-1 text-[9.5px]">G</span></button>` +
+      `</div>`;
+  }
+
+  function shortDay(iso) {
+    const d = new Date(iso + "T00:00:00");
+    if (isNaN(d)) return iso;
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  }
+
+  function selectEpic(state, epicId) {
+    state.epicFocus = state.epicFocus === epicId ? null : epicId;
+    renderRegions(state);
+    renderEpicPanel(state);
+    state.host.classList.toggle("is-epic-focused", state.epicFocus != null);
+    syncCards(state);
   }
 
   // The label keeps its size as the board zooms out — the whole point of
@@ -1094,6 +1247,9 @@
     // A filtered-out card stays in place and dims — pulling it out would
     // break the chain it sits in, which is the whole point of the board.
     el.classList.toggle("is-filtered-out", node.matches === false);
+    // Picking an epic pushes everything else back without hiding it: the
+    // work around it is what the epic has to be read against.
+    el.classList.toggle("is-epic-dim", state.epicFocus != null && node.epicId !== state.epicFocus);
     if (state.selected == null) {
       el.classList.remove("is-dim", "is-path");
       return;
@@ -1765,6 +1921,12 @@
     });
 
     host.addEventListener("click", (e) => {
+      // The label and the "no links" stack are the epic's own handles.
+      const epicHandle = e.target.closest("[data-graph-epic]");
+      if (epicHandle) {
+        selectEpic(state, Number(epicHandle.dataset.graphEpic));
+        return;
+      }
       const expand = e.target.closest("[data-graph-expand]");
       if (expand) {
         setFolded(Number(expand.dataset.graphExpand), true);
@@ -1798,6 +1960,10 @@
 
     host.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
+        if (state.epicFocus != null) {
+          selectEpic(state, state.epicFocus);
+          return;
+        }
         select(state, null);
         return;
       }
@@ -1822,6 +1988,19 @@
 
     const panel = state.panel;
     panel.addEventListener("click", (e) => {
+      if (e.target.closest("[data-graph-epic-close]")) {
+        selectEpic(state, state.epicFocus);
+        return;
+      }
+      // A blocked task named on the panel is often off screen — that is
+      // why it is on the panel at all, so the row goes to it.
+      const blockedRow = e.target.closest("[data-graph-reveal]");
+      if (blockedRow) {
+        const id = Number(blockedRow.dataset.graphReveal);
+        select(state, id);
+        reveal(state, id);
+        return;
+      }
       // The selection bar carries an Expand of its own, and it sits outside
       // the board — the stage's own handler never sees it.
       const expand = e.target.closest("[data-graph-expand]");

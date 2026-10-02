@@ -18,7 +18,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
-from django.db.models import Count, Exists, F, Max, OuterRef, Prefetch, Q, Subquery
+from django.db.models import Count, Exists, F, Max, Min, OuterRef, Prefetch, Q, Subquery
 from django.http import Http404, HttpResponse, HttpResponseBadRequest, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
@@ -465,6 +465,10 @@ def _graph_context(scope, *, user, workspace, include_all=False):
             .annotate(
                 total=Count("id"),
                 done=Count("id", filter=Q(status=Task.STATUS_DONE)),
+                # The epic's span is its tasks' — it has no dates of its
+                # own (ADR 0036), and the panel shows it next to progress.
+                span_start=Min("start_date"),
+                span_end=Max("end_date"),
             )
         ):
             rollup.setdefault(member["epic_id"], []).append(member)
@@ -481,6 +485,8 @@ def _graph_context(scope, *, user, workspace, include_all=False):
                     "slug": f"{epic['project__slug_prefix']}-{epic['number']}",
                     "done": sum(m["done"] for m in members),
                     "total": sum(m["total"] for m in members),
+                    "start": _iso_day(min((m["span_start"] for m in members if m["span_start"]), default=None)),
+                    "end": _iso_day(max((m["span_end"] for m in members if m["span_end"]), default=None)),
                     # Per project, so the panel can say "4 on canvas · 6
                     # total" without a second request.
                     "projects": [
