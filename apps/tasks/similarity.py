@@ -74,6 +74,12 @@ HINT_MIN_SCORE = 0.55
 ASSIGNEE_MIN_SCORE = 0.62
 ASSIGNEE_MIN_HITS = 2
 
+#: A label on a single neighbour counts when that neighbour is this
+#: close. Labels are cheaper to be wrong about than people — ignoring a
+#: suggested label costs a glance — and demanding two carriers made the
+#: suggestion almost never fire on boards that label sparsely.
+LABEL_STRONG_SCORE = 0.8
+
 
 class EmbeddingUnavailable(RuntimeError):
     """The embedding host could not be reached or refused the request."""
@@ -360,27 +366,39 @@ def labels_of(
 ) -> list[tuple[int, int]]:
     """Return ``(label_id, how many)`` for the labels the neighbours carry.
 
-    Same shape and the same caution as :func:`assignees_of`: only the
-    close end of the list counts, and a label has to appear on at least
-    two neighbours before it is worth putting in front of someone. Labels
-    the task already carries are passed in as ``skip_label_ids`` rather
-    than filtered afterwards, so the limit is spent on useful rows.
+    Only the close end of the list counts, as in :func:`assignees_of`,
+    but the bar is lower in one specific way: a label qualifies either by
+    appearing on two neighbours or by sitting on a single one that is
+    very close (:data:`LABEL_STRONG_SCORE`). Being handed the wrong label
+    costs a glance; being handed none because the board labels sparsely
+    costs the whole feature.
+
+    Labels the task already carries are passed in as ``skip_label_ids``
+    rather than filtered afterwards, so the limit is spent on useful rows.
     """
     from apps.tasks.models import Task
 
-    close = [task_id for task_id, score in found if score >= ASSIGNEE_MIN_SCORE]
+    close = {task_id: score for task_id, score in found if score >= ASSIGNEE_MIN_SCORE}
     if not close:
         return []
     skip = set(skip_label_ids)
     counts: dict[int, int] = {}
-    rows = Task.labels.through.objects.filter(task_id__in=close).values_list("label_id", flat=True)
-    for label_id in rows:
+    best: dict[int, float] = {}
+    rows = Task.labels.through.objects.filter(task_id__in=close).values_list("task_id", "label_id")
+    for task_id, label_id in rows:
         if label_id in skip:
             continue
         counts[label_id] = counts.get(label_id, 0) + 1
+        best[label_id] = max(best.get(label_id, 0.0), close[task_id])
     ranked = sorted(
-        ((label_id, hits) for label_id, hits in counts.items() if hits >= ASSIGNEE_MIN_HITS),
-        key=lambda pair: -pair[1],
+        (
+            (label_id, hits)
+            for label_id, hits in counts.items()
+            if hits >= ASSIGNEE_MIN_HITS or best[label_id] >= LABEL_STRONG_SCORE
+        ),
+        # Shared by several neighbours first, then by how close the best
+        # carrier was — a label two tasks agree on beats one lucky match.
+        key=lambda pair: (-pair[1], -best[pair[0]]),
     )
     return ranked[:limit]
 

@@ -108,9 +108,12 @@ own sibling at cosine 1.000.
   the dropdown shows it, so an assigned task pays nothing. The create
   dialog answers the same question off the lookup it already made for
   the similar-task list, rather than asking the host twice per keystroke.
-  Labels are suggested the same way and under the same two-neighbour
-  rule, minus the "unassigned only" condition — a task with labels can
-  still be missing one.
+  Labels are suggested the same way, minus the "unassigned only"
+  condition — a task with labels can still be missing one — and under a
+  looser rule: two neighbours carrying it, *or* one that is very close.
+  Two carriers alone made the suggestion almost never fire on a board
+  that labels sparsely, and a wrong label costs a glance where a wrong
+  name costs more.
 - An existing task's own vector is already stored, so asking for its
   neighbours costs no round trip: the task page and the link picker do
   one dot product and a lookup by id.

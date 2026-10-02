@@ -321,7 +321,24 @@ class TestLikelyLabels:
         assert similarity.labels_of(found, skip_label_ids=[label.pk]) == []
 
     @ENABLED
-    def test_one_neighbour_with_a_label_is_not_enough(self, setup, monkeypatch):
+    def test_one_middling_neighbour_is_not_enough(self, setup, monkeypatch):
+        from apps.labels.tests.factories import LabelFactory
+
+        workspace, project = setup
+        label = LabelFactory(workspace=workspace, name="backend")
+        only = TaskFactory(project=project, title="near")
+        only.labels.add(label)
+        anchor = TaskFactory(project=project, title="asking")
+        # Close enough to be a neighbour, not close enough to carry a
+        # label on its own (cos ≈ 0.71 against LABEL_STRONG_SCORE).
+        vectors = {"near": [0.71, 0.71], "asking": [1.0, 0.0]}
+        embed_tasks(monkeypatch, vectors, [only, anchor])
+        monkeypatch.setattr(similarity, "embed", fake_embed(vectors))
+        found = similarity.neighbours_of_task(anchor, limit=12, min_score=similarity.ASSIGNEE_MIN_SCORE)
+        assert similarity.labels_of(found) == []
+
+    @ENABLED
+    def test_one_very_close_neighbour_is_enough(self, setup, monkeypatch):
         from apps.labels.tests.factories import LabelFactory
 
         workspace, project = setup
@@ -333,4 +350,6 @@ class TestLikelyLabels:
         embed_tasks(monkeypatch, vectors, [only, anchor])
         monkeypatch.setattr(similarity, "embed", fake_embed(vectors))
         found = similarity.neighbours_of_task(anchor, limit=12, min_score=similarity.ASSIGNEE_MIN_SCORE)
-        assert similarity.labels_of(found) == []
+        # A near-identical task is evidence on its own; a person would
+        # still be held to the two-task rule.
+        assert similarity.labels_of(found) == [(label.pk, 1)]
