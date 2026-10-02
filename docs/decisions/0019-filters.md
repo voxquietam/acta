@@ -61,6 +61,11 @@ Consequences worth knowing:
 - Assignee is not in the dock. The avatar strip above the list owns that
   axis, and two controls for one filter is how someone ends up narrowing
   by a person twice.
+- Search **stays in the dock**, at its left end. The design argued it
+  belongs in the toolbar — it is a primary action rather than a filter —
+  and that is a fair reading, but in use it sits well where it is, next
+  to the chips it narrows. Vox's call, 2026-10-02; don't move it back
+  without one.
 - Status is dropped from the dock on the kanban, where the columns
   already group by it.
 - The live project-count refresh is gone with the rail rows it swapped
