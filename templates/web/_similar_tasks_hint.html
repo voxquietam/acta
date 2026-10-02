@@ -9,11 +9,13 @@ create, because the model ranks and the person decides.
 Rendered empty when there is nothing close enough, so the dialog shows no
 box at all rather than an empty one.
 {% endcomment %}
-{% if matches %}
+{% if matches or suggested_assignees %}
 <div class="mt-2 rounded-lg border border-border bg-muted/40 p-2 space-y-1">
+  {% if matches %}
   <p class="text-[10px] uppercase tracking-wider text-placeholder-foreground flex items-center gap-1.5">
     {% lucide "copy-check" "w-3 h-3" %}{% trans "Already in this workspace" %}
   </p>
+  {% endif %}
   {% for match in matches %}
   <a href="{% task_url match.task %}"
      class="flex items-center gap-2 rounded-md px-1.5 py-1 text-xs hover:bg-muted group">
@@ -23,5 +25,25 @@ box at all rather than an empty one.
     <span class="text-[11px] text-placeholder-foreground shrink-0">{{ match.task.project.slug_prefix }}</span>
   </a>
   {% endfor %}
+  {% comment %}
+  Who took the work those tasks describe. Clicking it fills the picker
+  below rather than assigning anything — the create button is still the
+  only thing that writes.
+  {% endcomment %}
+  {% if suggested_assignees %}
+  <div class="flex items-center gap-1.5 flex-wrap pt-1 border-t border-border">
+    <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground">
+      {% trans "Usually does this" %}
+    </span>
+    {% for person in suggested_assignees %}
+    <button type="button"
+            @click="$el.closest('form').querySelector('select[name=assignee]').value = '{{ person.id }}'"
+            class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">
+      {% include "web/_user_avatar.html" with user=person class="w-4 h-4" text_class="text-[9px]" %}
+      {{ person.display_name }}
+    </button>
+    {% endfor %}
+  </div>
+  {% endif %}
 </div>
 {% endif %}

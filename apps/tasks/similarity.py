@@ -408,24 +408,35 @@ def likely_assignees(task, *, limit: int = 2, pool: int = 12) -> list[tuple[int,
         ``(user_id, count)`` pairs, or an empty list when nothing is
         frequent enough to mean anything.
     """
+    found = neighbours_of_task(task, limit=pool, min_score=ASSIGNEE_MIN_SCORE)
+    return assignees_of(found, limit=limit, skip_user_id=task.assignee_id)
+
+
+def assignees_of(
+    found: Sequence[tuple[int, float]],
+    *,
+    limit: int = 2,
+    skip_user_id: int | None = None,
+) -> list[tuple[int, int]]:
+    """Count who owns the tasks in ``found`` and return the recurring names.
+
+    Split out from :func:`likely_assignees` because the create dialog has
+    no task yet: it already holds the neighbours of what is being typed
+    and must not pay for a second lookup to ask who usually takes them.
+    Pairs below :data:`ASSIGNEE_MIN_SCORE` are dropped here rather than
+    by the caller, so every entry point applies the same stricter cut.
+    """
     from apps.tasks.models import Task
 
-    found = neighbours_of_task(task, limit=pool, min_score=ASSIGNEE_MIN_SCORE)
-    if not found:
+    close = [task_id for task_id, score in found if score >= ASSIGNEE_MIN_SCORE]
+    if not close:
         return []
     counts: dict[int, int] = {}
-    rows = Task.objects.filter(
-        pk__in=[task_id for task_id, _ in found],
-        assignee__isnull=False,
-    ).values_list("assignee_id", flat=True)
+    rows = Task.objects.filter(pk__in=close, assignee__isnull=False).values_list("assignee_id", flat=True)
     for assignee_id in rows:
         counts[assignee_id] = counts.get(assignee_id, 0) + 1
     ranked = sorted(
-        (
-            (user_id, hits)
-            for user_id, hits in counts.items()
-            if hits >= ASSIGNEE_MIN_HITS and user_id != task.assignee_id
-        ),
+        ((user_id, hits) for user_id, hits in counts.items() if hits >= ASSIGNEE_MIN_HITS and user_id != skip_user_id),
         key=lambda pair: -pair[1],
     )
     return ranked[:limit]

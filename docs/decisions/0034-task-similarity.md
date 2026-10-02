@@ -105,7 +105,9 @@ own sibling at cosine 1.000.
   closer neighbours, and the same person on at least two of them —
   because a wrong name beside someone's work is worse than no name. It
   is only computed for an unassigned task, which is also the only case
-  the dropdown shows it, so an assigned task pays nothing.
+  the dropdown shows it, so an assigned task pays nothing. The create
+  dialog answers the same question off the lookup it already made for
+  the similar-task list, rather than asking the host twice per keystroke.
 - An existing task's own vector is already stored, so asking for its
   neighbours costs no round trip: the task page and the link picker do
   one dot product and a lookup by id.

@@ -4437,10 +4437,14 @@ def similar_tasks_hint(request):
     if project is None:
         return HttpResponse("")
 
+    # One lookup serves both answers: the three closest tasks to show, and
+    # — from the closer end of the same list — who usually takes work like
+    # this. Asking twice would mean two trips to the embedding host on
+    # every pause in typing.
     found = similarity.neighbours_of_text(
         title,
         workspace_id=project.workspace_id,
-        limit=3,
+        limit=12,
         min_score=similarity.HINT_MIN_SCORE,
     )
     by_id = {
@@ -4449,8 +4453,16 @@ def similar_tasks_hint(request):
         .filter(pk__in=[task_id for task_id, _ in found])
         .select_related("project__workspace")
     }
-    matches = [{"task": by_id[task_id], "score": score} for task_id, score in found if task_id in by_id]
-    return render(request, "web/_similar_tasks_hint.html", {"matches": matches})
+    matches = [{"task": by_id[task_id], "score": score} for task_id, score in found if task_id in by_id][:3]
+    people = User.objects.filter(
+        pk__in=[user_id for user_id, _ in similarity.assignees_of(found)],
+        workspace_memberships__workspace_id=project.workspace_id,
+    ).distinct()
+    return render(
+        request,
+        "web/_similar_tasks_hint.html",
+        {"matches": matches, "suggested_assignees": list(people)},
+    )
 
 
 def task_link_search(request, slug_prefix, number):

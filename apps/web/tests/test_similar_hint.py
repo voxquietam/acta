@@ -217,3 +217,55 @@ class TestAssigneeSuggestion:
         body = client.get(f"/projects/{project.slug_prefix}/{anchor.number}/meta/").content.decode()
         # Someone already owns it; the guess would only be noise.
         assert "Usually does this" not in body
+
+
+@pytest.mark.django_db
+class TestCreateDialogAssigneeSuggestion:
+    """The create dialog names a likely assignee from the same lookup."""
+
+    @ENABLED
+    def test_a_repeat_assignee_is_offered_while_typing(self, client, setup, monkeypatch):
+        from apps.accounts.tests.factories import UserFactory
+        from apps.workspaces.models import WorkspaceMember
+
+        workspace, project, user = setup
+        regular = UserFactory()
+        WorkspaceMember.objects.create(user=regular, workspace=workspace)
+        first = TaskFactory(project=project, title="Налаштувати бекапи", assignee=regular)
+        second = TaskFactory(project=project, title="Перевірити бекапи", assignee=regular)
+        mapping = {
+            "Налаштувати бекапи": [1.0, 0.0],
+            "Перевірити бекапи": [1.0, 0.0],
+            "настроить бекапы": [1.0, 0.0],
+        }
+        stub(monkeypatch, mapping)
+        similarity.store([first, second])
+        stub(monkeypatch, mapping)
+
+        client.force_login(user)
+        body = client.get(URL, {"title": "настроить бекапы", "project": "HNT"}).content.decode()
+        assert "Usually does this" in body
+        assert regular.display_name in body
+
+    @ENABLED
+    def test_a_stranger_from_another_workspace_is_never_offered(self, client, setup, monkeypatch):
+        from apps.accounts.tests.factories import UserFactory
+
+        _, project, user = setup
+        outsider = UserFactory()
+        # Assigned before they lost access; the picker below only lists
+        # members, so neither may the suggestion name them.
+        first = TaskFactory(project=project, title="Налаштувати бекапи", assignee=outsider)
+        second = TaskFactory(project=project, title="Перевірити бекапи", assignee=outsider)
+        mapping = {
+            "Налаштувати бекапи": [1.0, 0.0],
+            "Перевірити бекапи": [1.0, 0.0],
+            "настроить бекапы": [1.0, 0.0],
+        }
+        stub(monkeypatch, mapping)
+        similarity.store([first, second])
+        stub(monkeypatch, mapping)
+
+        client.force_login(user)
+        body = client.get(URL, {"title": "настроить бекапы", "project": "HNT"}).content.decode()
+        assert outsider.display_name not in body
