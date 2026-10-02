@@ -297,6 +297,7 @@ def _graph_context(scope, *, user, workspace, include_all=False):
     """
     live = scope
     project_ids = set(live.values_list("id", flat=True))
+    epics_on = bool(workspace and workspace.epics_enabled)
 
     def _link_rows(manager):
         """Return ``(from_id, to_id)`` pairs touching this project."""
@@ -340,6 +341,7 @@ def _graph_context(scope, *, user, workspace, include_all=False):
             "updated_at",
             "cycle_id",
             "assignee_id",
+            "epic_id",
             "project_id",
             "project__slug_prefix",
             "project__name",
@@ -394,6 +396,9 @@ def _graph_context(scope, *, user, workspace, include_all=False):
             # Raw ids so the board can answer the filter sidebar, which
             # speaks in ids rather than names.
             "assigneeId": row["assignee_id"],
+            # The epic is a region on the canvas rather than a node: it has
+            # no edges of its own, so it rides on its tasks (ADR 0036).
+            "epicId": row["epic_id"] if epics_on else None,
             "projectId": row["project_id"],
             "cycleId": row["cycle_id"],
             "labelIds": label_ids_by_task.get(row["id"], []),
@@ -444,6 +449,54 @@ def _graph_context(scope, *, user, workspace, include_all=False):
     for child, parent in parent_rows:
         _add_edge(parent, child, "parent")
 
+    # Epics travel as metadata, not as nodes: the canvas draws each one as
+    # a region around its tasks (ADR 0036), and the numbers it shows are
+    # the epic's whole progress — not the part that fits on screen, which
+    # is what tells a filtered region to say "2 of 12 match".
+    epics_meta = []
+    epic_ids = {row["epic_id"] for row in rows if row["epic_id"]} if epics_on else set()
+    if epic_ids:
+        rollup = {}
+        for member in (
+            Task.objects.work()
+            .filter(epic_id__in=epic_ids, archived_at__isnull=True)
+            .exclude(status=Task.STATUS_CANCELLED)
+            .values("epic_id", "project_id", "project__name")
+            .annotate(
+                total=Count("id"),
+                done=Count("id", filter=Q(status=Task.STATUS_DONE)),
+            )
+        ):
+            rollup.setdefault(member["epic_id"], []).append(member)
+        for epic in (
+            Task.objects.epics()
+            .filter(id__in=epic_ids)
+            .values("id", "title", "number", "project__slug_prefix", "project__workspace__slug")
+        ):
+            members = rollup.get(epic["id"], [])
+            epics_meta.append(
+                {
+                    "id": epic["id"],
+                    "title": epic["title"],
+                    "slug": f"{epic['project__slug_prefix']}-{epic['number']}",
+                    "done": sum(m["done"] for m in members),
+                    "total": sum(m["total"] for m in members),
+                    # Per project, so the panel can say "4 on canvas · 6
+                    # total" without a second request.
+                    "projects": [
+                        {"id": m["project_id"], "name": m["project__name"], "total": m["total"]} for m in members
+                    ],
+                    "url": reverse(
+                        "web_ws:task_detail",
+                        kwargs={
+                            "workspace": epic["project__workspace__slug"],
+                            "slug_prefix": epic["project__slug_prefix"],
+                            "number": epic["number"],
+                        },
+                    ),
+                },
+            )
+
     connected = {node_id for edge in edges for node_id in (edge["source"], edge["target"])}
     for node_id, node in nodes.items():
         node["connected"] = node_id in connected
@@ -466,6 +519,7 @@ def _graph_context(scope, *, user, workspace, include_all=False):
         "graph_data": {
             "nodes": sent,
             "edges": edges,
+            "epics": epics_meta,
             "activeCycleId": active_cycle.id if active_cycle else None,
             "truncated": not send_all,
         },

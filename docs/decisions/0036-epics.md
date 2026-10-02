@@ -161,8 +161,13 @@ a kanban is a row that can never move on its own.
   can check.
 - Progress percentages are shown for every epic in the picker and on the
   tab, so they come from one aggregate query, never from a loop.
-- The graph's regions want one thing the canvas does not do yet: a label
-  that keeps its size as the view zooms out. Edges already hold their
-  width that way (`vector-effect="non-scaling-stroke"`); the region's
-  name has to resist the zoom the same way, or the blobs that make a
-  zoomed-out graph readable lose the only thing that identifies them.
+- *Settled.* The region is drawn without any polygon arithmetic: the
+  same figure — a padded rounded box per member plus a thick rounded
+  stroke along each edge between two of them — is painted three times,
+  at padding 13.5 in the epic's hue, at 12 in the canvas colour, and at
+  12 tinted. The middle pass knocks the inside out, and what is left of
+  the first is a 1.5px outline around the union. The corridor being a
+  stroke along the edge's own route, rather than a hull, is what keeps a
+  foreign task lying between two members out of the region. The label
+  counter-scales by `1 / zoom`, which is the text equivalent of the
+  `vector-effect="non-scaling-stroke"` the edges already use.

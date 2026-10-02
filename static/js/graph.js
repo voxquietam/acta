@@ -209,6 +209,12 @@
         blocking: blocking,
         members: members.map((node) => node.id),
         statuses: members.map((node) => node.status),
+        // A stack made entirely of one epic's tasks is part of that epic
+        // on the canvas (design 2d); a mixed one stays outside, because a
+        // region around it would claim work that is not the epic's.
+        epicId: members.every((node) => node.epicId && node.epicId === members[0].epicId)
+          ? members[0].epicId
+          : null,
       });
       members.forEach((node) => folded.set(node.id, -projectId));
     });
@@ -589,6 +595,317 @@
     state.svg.innerHTML = parts.join("") + arrows.join("");
   }
 
+  // ---- epic regions --------------------------------------------------------
+
+  // Six hues that collide with neither the status colours nor the edge
+  // ones, so a region never reads as a state or a dependency.
+  const EPIC_HUES = ["#2dd4bf", "#e879f9", "#a3e635", "#fdba74", "#c4b5fd", "#f9a8d4"];
+  // Two paddings, one shape. Painting the union at the outer padding,
+  // again at FILL in the canvas colour, then a third time tinted, leaves
+  // a ring around the whole figure — which is how the region gets a
+  // border without anyone computing a polygon union.
+  //
+  // The ring's width is in board units, so at 15% zoom a flat 1.5 would
+  // land on a fifth of a screen pixel and the region would vanish under
+  // the cards — which is exactly how it failed. It is widened by the zoom
+  // instead, the way ``vector-effect="non-scaling-stroke"`` holds the
+  // edges: 1.5px on screen at every zoom.
+  const REGION_FILL = 12;
+  const REGION_RING = 1.5;
+
+  function epicHue(state, epicId) {
+    const i = state.epicOrder.indexOf(epicId);
+    return EPIC_HUES[(i < 0 ? 0 : i) % EPIC_HUES.length];
+  }
+
+  // An epic's tasks rarely sit together: dagre lays the board out by
+  // dependency and knows nothing about membership. So the region is split
+  // into parts — members joined by an edge inside the epic, or close
+  // enough that their padded boxes already touch, belong to the same one.
+  // The alternative, one hull around everything, is a tinted bar across
+  // half the board that contains mostly other people's work.
+  function epicParts(state, members, edges) {
+    const parent = new Map();
+    const find = (id) => {
+      while (parent.get(id) !== id) {
+        parent.set(id, parent.get(parent.get(id)));
+        id = parent.get(id);
+      }
+      return id;
+    };
+    const join = (a, b) => {
+      const ra = find(a);
+      const rb = find(b);
+      if (ra !== rb) parent.set(ra, rb);
+    };
+    members.forEach((m) => parent.set(m.id, m.id));
+    edges.forEach((e) => join(e.source, e.target));
+    const near = (a, b) => {
+      const p = REGION_FILL;
+      return (
+        a.box.x - p < b.box.x + b.box.w + p &&
+        b.box.x - p < a.box.x + a.box.w + p &&
+        a.box.y - p < b.box.y + b.box.h + p &&
+        b.box.y - p < a.box.y + a.box.h + p
+      );
+    };
+    for (let i = 0; i < members.length; i += 1) {
+      for (let j = i + 1; j < members.length; j += 1) {
+        if (near(members[i], members[j])) join(members[i].id, members[j].id);
+      }
+    }
+    const groups = new Map();
+    members.forEach((m) => {
+      const key = find(m.id);
+      if (!groups.has(key)) groups.set(key, { members: [], edges: [] });
+      groups.get(key).members.push(m);
+    });
+    edges.forEach((e) => {
+      const group = groups.get(find(e.source));
+      if (group) group.edges.push(e);
+    });
+    return [...groups.values()];
+  }
+
+  // One figure: a rounded box per member, plus a thick rounded stroke
+  // along each edge between two of them. The stroke is the corridor —
+  // which is why a foreign task sitting between two members is not
+  // swallowed by the region, the way a convex hull would swallow it.
+  function regionShapes(part, pos, pad, paint) {
+    const shapes = part.members.map(
+      (m) =>
+        `<rect x="${m.box.x - pad}" y="${m.box.y - pad}" width="${m.box.w + pad * 2}" height="${
+          m.box.h + pad * 2
+        }" rx="${10 + pad / 2}" ${paint}/>`,
+    );
+    part.edges.forEach((edge) => {
+      const points = edgePoints(edge, pos);
+      if (!points) return;
+      shapes.push(
+        `<path d="${roundedPath(points, 8)}" fill="none" stroke-width="${
+          12 + pad * 2
+        }" stroke-linejoin="round" stroke-linecap="round" ${paint}/>`,
+      );
+    });
+    return shapes.join("");
+  }
+
+  function regionLabel(state, epic, part, index, onCanvas) {
+    const box = part.members.reduce(
+      (acc, m) => ({
+        x: Math.min(acc.x, m.box.x),
+        y: Math.min(acc.y, m.box.y),
+        right: Math.max(acc.right, m.box.x + m.box.w),
+      }),
+      { x: Infinity, y: Infinity, right: -Infinity },
+    );
+    // The first part carries the name and the count; the others carry
+    // just enough to say which epic they belong to, because four full
+    // pills on one board is the epic shouting over the work.
+    const main = index === 0;
+    const title = main ? epic.title : epic.title.split(" ")[0];
+    const count = main && epic.total ? `${epic.done}/${epic.total}` : "";
+    // A filtered board draws the region around what survived the filter,
+    // so the label has to say that it is a fragment — otherwise the epic
+    // reads as small rather than as filtered. Only under a filter: with
+    // none on, the members missing from the board are the ones with no
+    // links, and the stack inside the region already says so.
+    const sub = main && state.filtered && onCanvas < epic.total ? `${onCanvas} of ${epic.total} match` : "";
+    return {
+      epicId: epic.id,
+      x: box.x - 12,
+      y: box.y - 34,
+      // How wide the thing it names actually is, in board units — the
+      // label is clamped to it so a zoomed-out board does not end up with
+      // a name lying across work it has nothing to do with.
+      width: box.right - box.x,
+      html:
+        `<span class="acta-gregion-label" style="--epic-hue: ${epicHue(state, epic.id)}"` +
+        ` data-graph-epic="${epic.id}">${icon("square-kanban", "acta-gregion-ic")}` +
+        `<span class="acta-gregion-name">${esc(title)}</span>` +
+        (count ? `<span class="acta-gregion-count">${esc(count)}</span>` : "") +
+        (sub ? `<span class="acta-gregion-sub">· ${esc(sub)}</span>` : "") +
+        "</span>",
+    };
+  }
+
+  // An epic whose tasks have no links between them has nothing on the
+  // canvas to draw a region around — and most epics start that way. The
+  // members that did not make it onto the board (no links, or filtered
+  // out) come back as one small stack sitting inside the region, which is
+  // what keeps the epic visible instead of silently absent.
+  const STACK_BOX = { w: 110, h: 32 };
+
+  function placeHiddenStack(state, part) {
+    const bounds = part.members.reduce(
+      (acc, m) => ({
+        x0: Math.min(acc.x0, m.box.x),
+        y0: Math.min(acc.y0, m.box.y),
+        x1: Math.max(acc.x1, m.box.x + m.box.w),
+        y1: Math.max(acc.y1, m.box.y + m.box.h),
+      }),
+      { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity },
+    );
+    const gap = 28;
+    const spots = [
+      { x: bounds.x0, y: bounds.y1 + gap },
+      { x: bounds.x0, y: bounds.y0 - gap - STACK_BOX.h },
+      { x: bounds.x1 + gap, y: bounds.y0 },
+      { x: bounds.x0 - gap - STACK_BOX.w, y: bounds.y0 },
+    ];
+    const clear = (spot) => {
+      let free = true;
+      state.pos.forEach((box) => {
+        if (!free) return;
+        const p = 10;
+        if (
+          spot.x - p < box.x + box.w &&
+          box.x < spot.x + STACK_BOX.w + p &&
+          spot.y - p < box.y + box.h &&
+          box.y < spot.y + STACK_BOX.h + p
+        ) {
+          free = false;
+        }
+      });
+      return free;
+    };
+    return spots.find(clear) || spots[0];
+  }
+
+  function renderRegions(state) {
+    const host = state.regions;
+    if (!host) return;
+    state.regionLabels = [];
+    if (!state.epics || !state.epics.size) {
+      host.innerHTML = "";
+      state.labelLayer.innerHTML = "";
+      state.stackLayer.innerHTML = "";
+      return;
+    }
+    const members = new Map();
+    state.pos.forEach((box, id) => {
+      const node = state.model.byId.get(id);
+      if (!node || !node.epicId || !state.epics.has(node.epicId)) return;
+      if (!members.has(node.epicId)) members.set(node.epicId, []);
+      members.get(node.epicId).push({ id, box, node });
+    });
+
+    const outline = [];
+    const mask = [];
+    const tint = [];
+    const labels = [];
+    const stacks = [];
+    state.epicOrder.forEach((epicId) => {
+      const group = members.get(epicId);
+      if (!group) return;
+      const epic = state.epics.get(epicId);
+      const ids = new Set(group.map((m) => m.id));
+      const inside = state.model.edges.filter((e) => ids.has(e.source) && ids.has(e.target));
+      const hue = epicHue(state, epicId);
+      const focused = state.epicFocus === epicId;
+      const faded = state.epicFocus && !focused ? 0.4 : 1;
+      // A stack counts for as many tasks as it folds, or a region around
+      // one would claim to hold a single task.
+      const onCanvas = group.reduce((sum, m) => sum + (m.node.stack ? m.node.count : 1), 0);
+      const parts = epicParts(state, group, inside);
+      // The stack joins the biggest part: that is the one carrying the
+      // epic's name, so the two read as one thing.
+      const hidden = Math.max(0, epic.total - onCanvas);
+      if (hidden && parts.length) {
+        const host2 = parts.reduce((a, b) => (b.members.length > a.members.length ? b : a), parts[0]);
+        const spot = placeHiddenStack(state, host2);
+        host2.members.push({ id: `hidden-${epicId}`, box: { ...spot, w: STACK_BOX.w, h: STACK_BOX.h } });
+        stacks.push({ epicId, hue, hidden, ...spot });
+      }
+      parts.forEach((part, i) => {
+        outline.push(
+          `<g opacity="${(focused ? 0.95 : 0.55) * faded}">${regionShapes(
+            part,
+            state.pos,
+            REGION_FILL + REGION_RING / state.zoom,
+            `fill="${hue}" stroke="${hue}"`,
+          )}</g>`,
+        );
+        // Knocked out in the canvas colour rather than with a mask: the
+        // colour has to be the board's own, so it rides on the variable.
+        mask.push(
+          `<g>${regionShapes(
+            part,
+            state.pos,
+            REGION_FILL,
+            'style="fill: rgb(var(--graph-canvas)); stroke: rgb(var(--graph-canvas))"',
+          )}</g>`,
+        );
+        tint.push(
+          `<g opacity="${(focused ? 0.16 : 0.1) * faded}">${regionShapes(
+            part,
+            state.pos,
+            REGION_FILL,
+            `fill="${hue}" stroke="${hue}"`,
+          )}</g>`,
+        );
+        labels.push(regionLabel(state, epic, part, i, onCanvas));
+      });
+    });
+
+    host.setAttribute("width", state.width);
+    host.setAttribute("height", state.height);
+    host.innerHTML = outline.join("") + mask.join("") + tint.join("");
+    state.regionZoom = state.zoom;
+    state.regionLabels = labels;
+    state.labelLayer.innerHTML = labels.map((l) => l.html).join("");
+    // Unlike the label, the stack is a thing on the board: it sits where
+    // the cards sit and scales with them.
+    state.stackLayer.innerHTML = stacks
+      .map(
+        (s) =>
+          `<span class="acta-gregion-stack" style="--epic-hue: ${s.hue}; left: ${s.x}px; top: ${s.y}px; width: ${STACK_BOX.w}px; height: ${STACK_BOX.h}px" data-graph-epic="${s.epicId}">` +
+          `${icon("unlink", "acta-gregion-ic")}<b>+${s.hidden}</b><span>no links</span></span>`,
+      )
+      .join("");
+    placeRegionLabels(state);
+  }
+
+  // The label keeps its size as the board zooms out — the whole point of
+  // the region is to survive the zoom at which cards become dots, and a
+  // name that shrinks with them survives nothing. Counter-scaling here is
+  // the text equivalent of ``vector-effect="non-scaling-stroke"`` on the
+  // edges.
+  function placeRegionLabels(state) {
+    if (!state.regionLabels || !state.regionLabels.length) return;
+    const scale = 1 / state.zoom;
+    const els = state.labelLayer.children;
+    // Because the labels do not shrink with the board, zooming out drives
+    // them into each other — two epics whose regions are far apart can
+    // have touching names. Resolved in screen space, where the collision
+    // actually happens, then converted back to board units.
+    const placed = [];
+    for (let i = 0; i < els.length; i += 1) {
+      const label = state.regionLabels[i];
+      if (!label) continue;
+      // Never wider than the region on screen, with a floor so the name
+      // does not disappear entirely: past that the name truncates and the
+      // icon and the count — the two things still readable at a glance —
+      // keep their place.
+      const name = els[i].querySelector(".acta-gregion-name");
+      if (name) {
+        const budget = Math.max(72, label.width * state.zoom) - 46;
+        name.style.maxWidth = `${Math.round(Math.max(28, budget))}px`;
+      }
+      const w = els[i].offsetWidth;
+      const h = els[i].offsetHeight || 20;
+      let sx = label.x * state.zoom;
+      let sy = label.y * state.zoom;
+      for (let guard = 0; guard < placed.length + 1; guard += 1) {
+        const hit = placed.find((p) => sx < p.x + p.w + 4 && p.x < sx + w + 4 && sy < p.y + p.h + 2 && p.y < sy + h + 2);
+        if (!hit) break;
+        sy = hit.y + hit.h + 4;
+      }
+      placed.push({ x: sx, y: sy, w, h });
+      els[i].style.transform = `translate(${sx * scale}px, ${sy * scale}px) scale(${scale})`;
+    }
+  }
+
   // ---- cards ---------------------------------------------------------------
 
   // One folded project. The counts answer the only two questions a stack
@@ -692,6 +1009,7 @@
     const filters = readFilters();
     if (filters) filters.activeCycleId = state.activeCycleId;
     state.filters = filters;
+    state.filtered = !!(ONLY_MATCHING && filters && filters.active);
     let matched = 0;
     // The same pass marks the board's cards and the side list's rows — one
     // filter set drives both (design 1i).
@@ -793,6 +1111,11 @@
 
   function applyTransform(state) {
     state.stage.style.transform = `translate(${state.pan.x}px, ${state.pan.y}px) scale(${state.zoom})`;
+    // The ring is drawn in board units against the current zoom, so a
+    // material zoom change has to redraw it. Panning never does, and the
+    // threshold keeps a continuous pinch from rebuilding every frame.
+    if (state.regionZoom && Math.abs(state.regionZoom - state.zoom) > state.zoom * 0.08) renderRegions(state);
+    placeRegionLabels(state);
     const label = state.panel && state.panel.querySelector("[data-graph-zoom]");
     if (label) label.textContent = `${Math.round(state.zoom * 100)}%`;
   }
@@ -832,6 +1155,7 @@
     state.cards.clear();
     state.gen = String(Number(state.gen || 0) + 1);
     renderEdges(state);
+    renderRegions(state);
     drawMinimap(state);
     return true;
   }
@@ -1570,16 +1894,39 @@
     host.innerHTML = "";
     const stage = document.createElement("div");
     stage.className = "acta-gstage";
+    // Under the edges and the cards: a region is the ground the work sits
+    // on, and anything drawn over a card would hide what it is there for.
+    const regions = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    regions.setAttribute("class", "acta-gregions");
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("class", "acta-gedges");
+    const labelLayer = document.createElement("div");
+    labelLayer.className = "acta-gregion-labels";
+    const stackLayer = document.createElement("div");
+    stackLayer.className = "acta-gregion-stacks";
+    stage.appendChild(regions);
+    stage.appendChild(stackLayer);
     stage.appendChild(svg);
+    stage.appendChild(labelLayer);
     host.appendChild(stage);
+
+    const epics = new Map((data.epics || []).map((e) => [e.id, e]));
 
     G = {
       host,
       panel: host.closest("[data-graph-panel]") || host.parentElement,
       stage,
       svg,
+      regions,
+      labelLayer,
+      stackLayer,
+      epics,
+      // Payload order fixes each epic's hue, so it stays the same colour
+      // across a relayout, a filter and a reload.
+      epicOrder: [...epics.keys()],
+      epicFocus: null,
+      filtered: !!(ONLY_MATCHING && filters && filters.active),
+      regionLabels: [],
       model,
       allData: data,
       activeCycleId: data.activeCycleId,
@@ -1621,6 +1968,12 @@
     G.width = laid.width;
     G.height = laid.height;
     renderEdges(G);
+    // The first paint lays the board out here rather than through
+    // ``relevel`` — which, with the level already set, returns early and
+    // draws nothing. Anything drawn per layout has to be drawn in BOTH
+    // places or it only ever appears after something else forces a
+    // relayout, which is how the regions came back only on a filter.
+    renderRegions(G);
     drawMinimap(G);
     drawDock(G);
     drawCounter(G);

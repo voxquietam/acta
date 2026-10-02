@@ -290,3 +290,87 @@ class TestGraphLink:
         target = TaskFactory(project=project)
         resp = client.post(self.url, {"kind": "related", "source": source.pk, "target": target.pk})
         assert resp.status_code == 302
+
+
+@pytest.mark.django_db
+class TestGraphEpics:
+    """An epic reaches the canvas as a region, so it travels as metadata.
+
+    It is never a node: it has no blocks / related / parent edges of its
+    own, so drawing it would put an isolated dot on the board. What the
+    client needs instead is each task's epic plus the epic's whole
+    progress — the numbers a region's label shows, including the ones the
+    filter has hidden. See docs/decisions/0036-epics.md.
+    """
+
+    def test_an_epic_is_not_a_node(self, setup):
+        _, project, user = setup
+        epic = TaskFactory(project=project, kind=Task.KIND_EPIC, status=Task.STATUS_PLANNED)
+        TaskFactory(project=project, epic=epic)
+        payload = _payload(project, user)
+        assert epic.id not in {n["id"] for n in payload["nodes"]}
+
+    def test_a_task_carries_its_epic(self, setup):
+        _, project, user = setup
+        epic = TaskFactory(project=project, kind=Task.KIND_EPIC, status=Task.STATUS_PLANNED)
+        member = TaskFactory(project=project, epic=epic)
+        loose = TaskFactory(project=project)
+        nodes = {n["id"]: n for n in _payload(project, user)["nodes"]}
+        assert nodes[member.id]["epicId"] == epic.id
+        assert nodes[loose.id]["epicId"] is None
+
+    def test_the_epic_travels_with_its_whole_progress(self, setup):
+        """Not just the part on the board — that is what "N of M match" needs."""
+        _, project, user = setup
+        epic = TaskFactory(project=project, kind=Task.KIND_EPIC, status=Task.STATUS_PLANNED, title="Billing")
+        TaskFactory(project=project, epic=epic, status=Task.STATUS_DONE)
+        TaskFactory(project=project, epic=epic, status=Task.STATUS_TODO)
+        elsewhere = ProjectFactory(workspace=project.workspace, slug_prefix="FAR")
+        TaskFactory(project=elsewhere, epic=epic, status=Task.STATUS_TODO)
+        meta = _payload(project, user)["epics"]
+        assert len(meta) == 1
+        assert (meta[0]["title"], meta[0]["done"], meta[0]["total"]) == ("Billing", 1, 3)
+        assert sorted(p["name"] for p in meta[0]["projects"]) == sorted([project.name, elsewhere.name])
+
+    def test_cancelled_and_archived_members_leave_the_count(self, setup):
+        from django.utils import timezone
+
+        _, project, user = setup
+        epic = TaskFactory(project=project, kind=Task.KIND_EPIC, status=Task.STATUS_PLANNED)
+        TaskFactory(project=project, epic=epic, status=Task.STATUS_TODO)
+        TaskFactory(project=project, epic=epic, status=Task.STATUS_CANCELLED)
+        TaskFactory(project=project, epic=epic, archived_at=timezone.now())
+        assert _payload(project, user)["epics"][0]["total"] == 1
+
+    def test_an_epicless_board_sends_no_metadata(self, setup):
+        _, project, user = setup
+        TaskFactory(project=project)
+        assert _payload(project, user)["epics"] == []
+
+    def test_a_workspace_with_epics_off_draws_none(self, setup):
+        ws, project, user = setup
+        epic = TaskFactory(project=project, kind=Task.KIND_EPIC, status=Task.STATUS_PLANNED)
+        member = TaskFactory(project=project, epic=epic)
+        ws.epics_enabled = False
+        ws.save(update_fields=["epics_enabled"])
+        payload = _payload(project, user)
+        assert payload["epics"] == []
+        assert {n["id"]: n for n in payload["nodes"]}[member.id]["epicId"] is None
+
+    def test_query_count_does_not_grow_with_the_epics(self, setup):
+        _, project, user = setup
+        first = TaskFactory(project=project)
+        epic = TaskFactory(project=project, kind=Task.KIND_EPIC, status=Task.STATUS_PLANNED)
+        TaskFactory(project=project, epic=epic, reporter=user)
+        with CaptureQueriesContext(connection) as small:
+            _context(project, user)
+
+        for _ in range(5):
+            another = TaskFactory(project=project, kind=Task.KIND_EPIC, status=Task.STATUS_PLANNED)
+            for _ in range(4):
+                first.related.add(TaskFactory(project=project, epic=another))
+        with CaptureQueriesContext(connection) as large:
+            payload = _payload(project, user)
+
+        assert len(payload["epics"]) == 6
+        assert len(large.captured_queries) == len(small.captured_queries)

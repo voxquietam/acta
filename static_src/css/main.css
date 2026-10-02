@@ -2093,6 +2093,95 @@ tr[data-vrow-hidden] {
   overflow: visible;
   pointer-events: none;
 }
+/* Epic regions: the ground the work sits on, so under both the edges and
+   the cards. The figure is painted three times (outline, knock-out in the
+   canvas colour, tint) — see ``renderRegions`` in graph.js. */
+.acta-gregions {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+.acta-gregion-labels {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+.acta-gregion-label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  /* Counter-scaled per frame against the stage's zoom, so the name stays
+     readable at the zoom where the cards are already dots. */
+  transform-origin: 0 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 6px;
+  background: var(--epic-hue);
+  color: rgb(var(--graph-canvas));
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.acta-gregion-ic {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+}
+/* Clamped to the region's own width by the renderer; the icon and the
+   count sit outside it and stay whatever the zoom. */
+.acta-gregion-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The epic's members that never reached the canvas — no links, or the
+   filter took them. Drawn inside the region so the epic is visible even
+   when nothing of it is linked. */
+.acta-gregion-stacks {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+.acta-gregion-stack {
+  position: absolute;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid rgb(var(--border-strong));
+  border-radius: 8px;
+  background: rgb(var(--card));
+  color: rgb(var(--muted-foreground));
+  font-size: 11px;
+  white-space: nowrap;
+}
+.acta-gregion-stack b {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 500;
+  color: var(--epic-hue);
+}
+.acta-gregion-stack span {
+  color: rgb(var(--subtle-foreground));
+}
+.acta-gregion-count {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  font-weight: 400;
+  opacity: 0.85;
+}
+.acta-gregion-sub {
+  font-weight: 400;
+  opacity: 0.85;
+}
 .acta-gedges [data-edge] {
   transition: opacity 120ms ease;
 }
