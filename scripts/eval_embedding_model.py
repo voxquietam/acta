@@ -139,20 +139,37 @@ def score_against_links(tasks: list[dict], links: list, vectors: list[list[float
 
 
 def show_closest_pairs(tasks: list[dict], vectors: list[list[float]], count: int) -> None:
-    """Print the most similar pairs — the duplicate candidates."""
+    """Print the most similar pairs — the duplicate candidates.
+
+    At most one pair per task. Five copies of the same title would
+    otherwise fill the whole list with the same ten pairs and say nothing
+    about the rest of the database.
+    """
+    pool = count * 50
     best: list[tuple[float, int, int]] = []
     for i, left in enumerate(vectors):
         for j in range(i + 1, len(vectors)):
             score = sum(a * b for a, b in zip(left, vectors[j]))
-            if len(best) < count:
+            if len(best) < pool:
                 best.append((score, i, j))
                 best.sort(reverse=True)
             elif score > best[-1][0]:
                 best[-1] = (score, i, j)
                 best.sort(reverse=True)
-    print(f"\n{count} closest pairs in the database — the duplicate candidates:")
+
+    print("\nclosest pairs in the database — the duplicate candidates:")
+    shown = 0
+    seen: set[int] = set()
     for score, i, j in best:
+        if i in seen or j in seen:
+            continue
+        seen.update((i, j))
+        shown += 1
         print(f"  {score:.3f}  {tasks[i]['title'][:48]!r}  <->  {tasks[j]['title'][:48]!r}")
+        if shown >= count:
+            return
+    if not shown:
+        print("  (nothing to show)")
 
 
 def embed(host: str, model: str, texts: list[str], batch: int = 32) -> list[list[float]]:
