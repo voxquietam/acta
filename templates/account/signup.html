@@ -52,7 +52,7 @@ Renders the Acta-themed form for the invite flow:
   {% csrf_token %}
 
   {% if form.non_field_errors %}
-  <div class="text-xs text-rose-400 bg-rose-950/40 border border-rose-900 rounded-md px-2 py-1.5">
+  <div class="text-xs text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-md px-2 py-1.5">
     {{ form.non_field_errors|join:" " }}
   </div>
   {% endif %}

@@ -31,7 +31,14 @@ duplication.
 {% include "web/projects/_topbar_task_title.html" %}
 
 {% if task.is_blocked %}
-<span class="inline-flex items-center gap-1 shrink-0 px-1.5 py-0.5 rounded-md text-[11px] font-medium bg-rose-950/40 text-rose-300 border border-rose-900"
+{% comment %}
+Both themes spelled out. The dark-only palette this used to carry
+(``rose-950/40`` behind ``rose-300``) turned into pale pink text on pale
+pink in the light themes — the pattern here matches ``_health_pill.html``.
+{% endcomment %}
+<span class="inline-flex items-center gap-1 shrink-0 px-1.5 py-0.5 rounded-md text-[11px] font-medium
+             bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300
+             border border-rose-200 dark:border-rose-900"
       data-tooltip="{% trans 'Has open blockers' %}">
   {% lucide "lock" "w-3 h-3" %}{% trans "Blocked" %}
 </span>
