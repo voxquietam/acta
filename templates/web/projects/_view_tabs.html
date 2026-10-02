@@ -9,6 +9,13 @@ tab is visible regardless of scroll. Clicking a tab updates the
 highlighted state is data-bound to the store so reverting via browser
 back/forward keeps the active tab in sync.
 
+Below ``2xl:`` the tabs keep their icon and drop the label, which the
+tooltip carries instead. Eight labelled tabs are ~716px wide, and with
+the sidebar open the topbar runs out of room below a ~1500px viewport —
+the right-hand icons then go past the edge. The strip is the only
+section that can give: the heading truncates to nothing long before it
+matters, and the right is icons at a fixed size.
+
 Layout per ``acta-design-system/preview/comp-tabs.html`` — segmented
 pill: card-coloured wrapper with thin padding holds each tab; the
 active tab is brand-tinted with a 1px inset ring and Lucide icons.
@@ -119,9 +126,10 @@ visible with a ``lock`` glyph.
      :class="$store.viewMode.current === 'backlog'
        ? 'bg-brand-500/15 text-brand-300 ring-1 ring-brand-500/30 ring-inset border-transparent'
        : 'bg-card text-subtle-foreground hover:text-foreground hover:bg-muted/50'"
-     class="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg border border-border transition text-sm">
+     class="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg border border-border transition text-sm"
+     data-tooltip="{% trans "Backlog" %}" data-tooltip-pos="below">
     {% lucide "layers" "w-3.5 h-3.5" %}
-    {% trans "Backlog" %}
+    <span class="hidden 2xl:inline">{% trans "Backlog" %}</span>
   </a>
   {% endif %}
 
@@ -138,9 +146,10 @@ visible with a ``lock`` glyph.
      :class="$store.viewMode.current === 'overview'
        ? 'bg-brand-500/15 text-brand-300 ring-1 ring-brand-500/30 ring-inset'
        : 'text-subtle-foreground hover:text-foreground hover:bg-muted/50'"
-     class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md transition">
+     class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md transition"
+     data-tooltip="{% trans "Overview" %}" data-tooltip-pos="below">
     {% lucide "layout-grid" "w-3.5 h-3.5" %}
-    {% trans "Overview" %}
+    <span class="hidden 2xl:inline">{% trans "Overview" %}</span>
   </a>
   {% else %}
   {% comment %}
@@ -152,7 +161,7 @@ visible with a ``lock`` glyph.
   <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-placeholder-foreground cursor-not-allowed select-none opacity-60"
         title="{% trans 'Coming soon' %}">
     {% lucide "layout-grid" "w-3.5 h-3.5" %}
-    {% trans "Overview" %}
+    <span class="hidden 2xl:inline">{% trans "Overview" %}</span>
   </span>
   {% endif %}
   <a href="?view=kanban"
@@ -166,9 +175,10 @@ visible with a ``lock`` glyph.
      :class="$store.viewMode.current === 'kanban'
        ? 'bg-brand-500/15 text-brand-300 ring-1 ring-brand-500/30 ring-inset'
        : 'text-subtle-foreground hover:text-foreground hover:bg-muted/50'"
-     class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md transition">
+     class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md transition"
+     data-tooltip="{% trans "Kanban" %}" data-tooltip-pos="below">
     {% lucide "kanban" "w-3.5 h-3.5" %}
-    {% trans "Kanban" %}
+    <span class="hidden 2xl:inline">{% trans "Kanban" %}</span>
   </a>
   <a href="?view=table"
      @click.prevent="
@@ -181,9 +191,10 @@ visible with a ``lock`` glyph.
      :class="$store.viewMode.current === 'table'
        ? 'bg-brand-500/15 text-brand-300 ring-1 ring-brand-500/30 ring-inset'
        : 'text-subtle-foreground hover:text-foreground hover:bg-muted/50'"
-     class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md transition">
+     class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md transition"
+     data-tooltip="{% trans "Table" %}" data-tooltip-pos="below">
     {% lucide "table-2" "w-3.5 h-3.5" %}
-    {% trans "Table" %}
+    <span class="hidden 2xl:inline">{% trans "Table" %}</span>
   </a>
   <a href="?view=list"
      @click.prevent="
@@ -195,9 +206,10 @@ visible with a ``lock`` glyph.
      :class="$store.viewMode.current === 'list'
        ? 'bg-brand-500/15 text-brand-300 ring-1 ring-brand-500/30 ring-inset'
        : 'text-subtle-foreground hover:text-foreground hover:bg-muted/50'"
-     class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md transition">
+     class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md transition"
+     data-tooltip="{% trans "List" %}" data-tooltip-pos="below">
     {% lucide "list" "w-3.5 h-3.5" %}
-    {% trans "List" %}
+    <span class="hidden 2xl:inline">{% trans "List" %}</span>
   </a>
 
   <a href="?view=timeline"
@@ -211,9 +223,10 @@ visible with a ``lock`` glyph.
      :class="$store.viewMode.current === 'timeline'
        ? 'bg-brand-500/15 text-brand-300 ring-1 ring-brand-500/30 ring-inset'
        : 'text-subtle-foreground hover:text-foreground hover:bg-muted/50'"
-     class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md transition">
+     class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md transition"
+     data-tooltip="{% trans "Timeline" %}" data-tooltip-pos="below">
     {% lucide "chart-gantt" "w-3.5 h-3.5" %}
-    {% trans "Timeline" %}
+    <span class="hidden 2xl:inline">{% trans "Timeline" %}</span>
   </a>
 
   {% if allow_graph %}
@@ -228,9 +241,10 @@ visible with a ``lock`` glyph.
      :class="$store.viewMode.current === 'graph'
        ? 'bg-brand-500/15 text-brand-300 ring-1 ring-brand-500/30 ring-inset'
        : 'text-subtle-foreground hover:text-foreground hover:bg-muted/50'"
-     class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md transition">
+     class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md transition"
+     data-tooltip="{% trans "Graph" %}" data-tooltip-pos="below">
     {% lucide "share-2" "w-3.5 h-3.5" %}
-    {% trans "Graph" %}
+    <span class="hidden 2xl:inline">{% trans "Graph" %}</span>
   </a>
   {% endif %}
   </nav>
@@ -252,9 +266,10 @@ visible with a ``lock`` glyph.
      :class="$store.viewMode.current === 'archive'
        ? 'bg-brand-500/15 text-brand-300 ring-1 ring-brand-500/30 ring-inset border-transparent'
        : 'bg-card text-subtle-foreground hover:text-foreground hover:bg-muted/50'"
-     class="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg border border-border transition text-sm">
+     class="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg border border-border transition text-sm"
+     data-tooltip="{% trans "Archive" %}" data-tooltip-pos="below">
     {% lucide "archive" "w-3.5 h-3.5" %}
-    {% trans "Archive" %}
+    <span class="hidden 2xl:inline">{% trans "Archive" %}</span>
   </a>
   {% endif %}
 </div>

@@ -338,15 +338,18 @@ Pages extend this and override the `app_main` block.
       </div>
 
       {% comment %}
-      Below md: ``shrink-0`` keeps the right cluster at content width so
-      it doesn't compete with topbar_left's ``flex-1`` (otherwise on a
-      393 px phone the right's natural ~130 px overflowed its half and
-      crashed the search icon into the view-picker dropdown — fix in
-      aa9d23f). At md:+ we restore ``flex-1 justify-end`` so left and
-      right both expand symmetrically and push topbar_mid (the view
-      tabs) to the visual centre of the header on desktop.
+      ``shrink-0`` keeps the right cluster at content width at every
+      width (otherwise on a 393 px phone the right's natural ~130 px
+      overflowed its half and crashed the search icon into the
+      view-picker dropdown — fix in aa9d23f). At md:+ ``grow`` lets it
+      expand symmetrically with topbar_left so topbar_mid sits at the
+      visual centre on a wide header — ``grow`` and not ``flex-1``,
+      because ``flex-1`` also sets ``flex-shrink: 1`` and the children
+      here refuse to shrink: the cluster then collapsed below its own
+      content and the icons spilled leftwards over the view tabs, which
+      is how the export icon ended up sitting on top of Archive.
       {% endcomment %}
-      <div class="flex items-center gap-3 shrink-0 md:flex-1 md:justify-end md:shrink">
+      <div class="flex items-center gap-3 shrink-0 md:grow md:justify-end">
         {% block topbar_right_prepend %}{% endblock %}
         {% comment %}
         Global command palette opener (Cmd/Ctrl+K). Dispatches the
