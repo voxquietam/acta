@@ -13,6 +13,7 @@ import pytest
 from apps.accounts.tests.factories import UserFactory
 from apps.projects.tests.factories import ProjectFactory
 from apps.tasks import similarity
+from apps.tasks.models import Task
 from apps.tasks.tests.factories import TaskFactory
 from apps.workspaces.tests.factories import WorkspaceFactory
 
@@ -107,3 +108,112 @@ class TestSimilarTasksHint:
 
     def test_anonymous_callers_are_sent_to_the_login_page(self, client, setup):
         assert client.get(URL, {"title": "настроить бекапы", "project": "HNT"}).status_code == 302
+
+
+@pytest.mark.django_db
+class TestLinkPickerSuggestions:
+    """An empty search box offers what looks related instead of nothing."""
+
+    @ENABLED
+    def test_an_empty_query_answers_with_neighbours(self, client, setup, monkeypatch):
+        _, project, user = setup
+        anchor = TaskFactory(project=project, title="Налаштувати бекапи")
+        near = TaskFactory(project=project, title="Перевірити бекапи")
+        TaskFactory(project=project, title="Купити каву")
+        mapping = {
+            "Налаштувати бекапи": [1.0, 0.0],
+            "Перевірити бекапи": [0.99, 0.14],
+            "Купити каву": [0.0, 1.0],
+        }
+        stub(monkeypatch, mapping)
+        similarity.store([anchor, near, Task.objects.get(title="Купити каву")])
+
+        client.force_login(user)
+        payload = client.get(
+            f"/projects/{project.slug_prefix}/{anchor.number}/links/search/",
+            {"q": ""},
+        ).json()
+        assert payload["suggested"] is True
+        assert [row["slug"] for row in payload["results"]] == [near.slug]
+
+    @ENABLED
+    def test_an_already_linked_task_is_not_suggested(self, client, setup, monkeypatch):
+        _, project, user = setup
+        anchor = TaskFactory(project=project, title="Налаштувати бекапи")
+        near = TaskFactory(project=project, title="Перевірити бекапи")
+        anchor.related.add(near)
+        mapping = {"Налаштувати бекапи": [1.0, 0.0], "Перевірити бекапи": [0.99, 0.14]}
+        stub(monkeypatch, mapping)
+        similarity.store([anchor, near])
+
+        client.force_login(user)
+        payload = client.get(
+            f"/projects/{project.slug_prefix}/{anchor.number}/links/search/",
+            {"q": ""},
+        ).json()
+        assert payload["results"] == []
+
+    def test_without_a_host_an_empty_query_stays_empty(self, client, setup):
+        _, project, user = setup
+        anchor = TaskFactory(project=project, title="Налаштувати бекапи")
+        TaskFactory(project=project, title="Перевірити бекапи")
+        client.force_login(user)
+        payload = client.get(
+            f"/projects/{project.slug_prefix}/{anchor.number}/links/search/",
+            {"q": ""},
+        ).json()
+        assert payload["results"] == []
+        assert payload["suggested"] is False
+
+
+@pytest.mark.django_db
+class TestAssigneeSuggestion:
+    """The assignee dropdown's "usually does this" group."""
+
+    @ENABLED
+    def test_a_repeat_assignee_is_offered_on_an_unassigned_task(self, client, setup, monkeypatch):
+        from apps.accounts.tests.factories import UserFactory
+        from apps.workspaces.models import WorkspaceMember
+
+        workspace, project, user = setup
+        regular = UserFactory()
+        WorkspaceMember.objects.create(user=regular, workspace=workspace)
+        first = TaskFactory(project=project, title="Налаштувати бекапи", assignee=regular)
+        second = TaskFactory(project=project, title="Перевірити бекапи", assignee=regular)
+        anchor = TaskFactory(project=project, title="Відновити бекапи")
+        mapping = {
+            "Налаштувати бекапи": [1.0, 0.0],
+            "Перевірити бекапи": [1.0, 0.0],
+            "Відновити бекапи": [1.0, 0.0],
+        }
+        stub(monkeypatch, mapping)
+        similarity.store([first, second, anchor])
+
+        client.force_login(user)
+        body = client.get(f"/projects/{project.slug_prefix}/{anchor.number}/meta/").content.decode()
+        assert "Usually does this" in body
+        assert regular.display_name in body
+
+    @ENABLED
+    def test_an_assigned_task_is_not_second_guessed(self, client, setup, monkeypatch):
+        from apps.accounts.tests.factories import UserFactory
+        from apps.workspaces.models import WorkspaceMember
+
+        workspace, project, user = setup
+        regular = UserFactory()
+        WorkspaceMember.objects.create(user=regular, workspace=workspace)
+        first = TaskFactory(project=project, title="Налаштувати бекапи", assignee=regular)
+        second = TaskFactory(project=project, title="Перевірити бекапи", assignee=regular)
+        anchor = TaskFactory(project=project, title="Відновити бекапи", assignee=user)
+        mapping = {
+            "Налаштувати бекапи": [1.0, 0.0],
+            "Перевірити бекапи": [1.0, 0.0],
+            "Відновити бекапи": [1.0, 0.0],
+        }
+        stub(monkeypatch, mapping)
+        similarity.store([first, second, anchor])
+
+        client.force_login(user)
+        body = client.get(f"/projects/{project.slug_prefix}/{anchor.number}/meta/").content.decode()
+        # Someone already owns it; the guess would only be noise.
+        assert "Usually does this" not in body

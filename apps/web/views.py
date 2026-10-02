@@ -3541,16 +3541,42 @@ def task_picker_context(task):
     if cached is not None:
         return cached
     workspace = task.project.workspace
+    members = _workspace_members(task)
     ctx = {
-        "workspace_members": _workspace_members(task),
+        "workspace_members": members,
         "workspace_labels": _workspace_labels(task),
         "workspace_label_groups": _workspace_label_groups(task),
         "workspace_projects": _workspace_projects(task),
         "workspace_cycles": _workspace_cycles(workspace),
         "attached_label_ids": {label.id for label in task.labels.all()},
+        "suggested_assignees": _suggested_assignees(task, members),
     }
     task._picker_ctx = ctx
     return ctx
+
+
+def _suggested_assignees(task, members):
+    """Return the members who usually take work that reads like ``task``.
+
+    Costs no round trip to the embedding host: the task's own vector is
+    already stored, so this is one dot product against the workspace
+    matrix plus a lookup by id. Returns the member rows themselves, in
+    the shape the dropdown already renders, so the template needs no new
+    partial — and an empty list whenever the signal is too thin to mean
+    anything (see ``similarity.likely_assignees``).
+    """
+    # Only an unassigned task asks the question, which is also the only
+    # case the dropdown renders — so an assigned one costs nothing at all.
+    if task.assignee_id or not similarity.is_enabled():
+        return []
+    try:
+        ranked = similarity.likely_assignees(task)
+    except Exception:  # pragma: no cover - a suggestion is never worth a 500
+        return []
+    if not ranked:
+        return []
+    by_user = {member.user_id: member for member in members}
+    return [by_user[user_id] for user_id, _ in ranked if user_id in by_user]
 
 
 def _inline_edit_response(request, task, primary_template, primary_context):
@@ -4434,6 +4460,13 @@ def task_link_search(request, slug_prefix, number):
     ranked by relevance then recency. Matching rules live in
     :mod:`apps.tasks.search` and are shared with the meeting task picker.
 
+    With an empty query the picker used to show nothing at all, which
+    left the person to guess what might be worth linking. It now answers
+    with the tasks that read like this one — the same semantic search the
+    create dialog uses — flagged ``suggested`` so the dropdown can label
+    them. Typing anything goes back to ordinary matching, and a
+    deployment without an embedding host simply sees the old emptiness.
+
     Optional ``status`` filter narrows by task status. JSON payload feeds
     the Alpine autocomplete in the links panel.
     """
@@ -4456,8 +4489,17 @@ def task_link_search(request, slug_prefix, number):
     if status in Task.STATUS_VALUES:
         qs = qs.filter(status=status)
 
+    suggested = False
+    if q:
+        found = search_tasks(qs, q)
+    else:
+        neighbours = similarity.neighbours_of_task(task, limit=6)
+        by_id = {row.pk: row for row in qs.filter(pk__in=[task_id for task_id, _ in neighbours])}
+        found = [by_id[task_id] for task_id, _ in neighbours if task_id in by_id]
+        suggested = bool(found)
+
     results = []
-    for t in search_tasks(qs, q):
+    for t in found:
         assignee = None
         if t.assignee_id:
             assignee = {
@@ -4480,7 +4522,7 @@ def task_link_search(request, slug_prefix, number):
                 "assignee": assignee,
             }
         )
-    return JsonResponse({"results": results})
+    return JsonResponse({"results": results, "suggested": suggested})
 
 
 @login_required
@@ -4940,7 +4982,7 @@ def set_task_assignee(request, slug_prefix, number):
         "web/projects/_assignee_cell.html",
         {
             "task": task,
-            "workspace_members": _workspace_members(task),
+            **task_picker_context(task),
         },
     )
 

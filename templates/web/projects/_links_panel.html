@@ -20,6 +20,7 @@ blocker that's still open (the thing actually blocking this task).
        selected: [],
        open: false,
        loading: false,
+       suggested: false,
        coords: { top: 0, left: 0, width: 0 },
        position() {
          // ``position: fixed`` so the dropdown escapes the rail's
@@ -34,7 +35,8 @@ blocker that's still open (the thing actually blocking this task).
          // the trailing space vanished, gluing the next word onto it
          // (``звіт `` + ``двв`` -> ``звітдвв``), which matched nothing.
          const term = this.q.trim();
-         if (!term && !this.statusFilter) { this.results = []; this.open = false; return; }
+         // An empty box no longer means an empty dropdown: the server
+         // answers with tasks that read like this one, flagged ``suggested``.
          this.loading = true;
          const base = '{% url 'web:task_link_search' slug_prefix=task.project.slug_prefix number=task.number %}';
          const url = base + '?q=' + encodeURIComponent(term) + '&status=' + encodeURIComponent(this.statusFilter);
@@ -42,8 +44,9 @@ blocker that's still open (the thing actually blocking this task).
            const r = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
            const data = await r.json();
            this.results = data.results || [];
+           this.suggested = !!data.suggested;
            this.position();
-           this.open = true;
+           this.open = this.results.length > 0 || !!term || !!this.statusFilter;
          } finally {
            this.loading = false;
          }
@@ -101,7 +104,7 @@ blocker that's still open (the thing actually blocking this task).
     <div class="relative">
       <input type="text" x-ref="searchInput" x-model="q"
              @input.debounce.250ms="search()"
-             @focus="if (q || statusFilter) search()"
+             @focus="search()"
              placeholder="{% trans 'Search by slug, title or assignee…' %}"
              class="acta-input text-xs w-full">
       {% comment %}
@@ -124,6 +127,13 @@ blocker that's still open (the thing actually blocking this task).
       <template x-if="open">
         <div :style="`top: ${coords.top}px; left: ${coords.left}px; width: ${coords.width}px;`"
              class="fixed z-40 max-h-56 overflow-y-auto bg-card border border-border rounded-lg shadow-lg">
+        {# Says where the rows came from: a guess at what belongs together, #}
+        {# not something the person typed.                                  #}
+        <template x-if="suggested && results.length">
+          <div class="px-2 py-1 text-[10px] uppercase tracking-wider text-placeholder-foreground border-b border-border">
+            {% trans "Looks related" %}
+          </div>
+        </template>
         <template x-for="r in results" :key="r.slug">
           <button type="button" @click.stop="toggle(r.slug)"
                   :class="selected.includes(r.slug) ? 'bg-brand-500/10' : 'hover:bg-muted'"

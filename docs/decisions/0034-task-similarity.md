@@ -95,9 +95,20 @@ own sibling at cosine 1.000.
   why the design leans on ranking and a short list instead.
 - Recall against links people made themselves, on production: 70% of
   `related` pairs in the top ten (median rank 5), 52% of `blocks`, and
-  27% of `parent`. The last number is why nothing suggests a parent from
-  text: a parent is an umbrella ("Модуль кадри"), a subtask is specific
-  ("Експорт у CSV"), and they are not supposed to read alike.
+  27% of `parent`. That first number is what the link picker is built
+  on — an empty search box now offers neighbours instead of nothing.
+  The last one is why nothing suggests a parent from text: a parent is
+  an umbrella ("Модуль кадри"), a subtask is specific ("Експорт у CSV"),
+  and they are not supposed to read alike.
+- The same ranking answers "who usually does this", by counting the
+  assignees of the near neighbours. It is the strictest consumer —
+  closer neighbours, and the same person on at least two of them —
+  because a wrong name beside someone's work is worse than no name. It
+  is only computed for an unassigned task, which is also the only case
+  the dropdown shows it, so an assigned task pays nothing.
+- An existing task's own vector is already stored, so asking for its
+  neighbours costs no round trip: the task page and the link picker do
+  one dot product and a lookup by id.
 - numpy becomes a hard dependency. A pure-Python cosine over a thousand
   tasks costs ~0.2 s per query against numpy's ~0.2 ms, and the lookup
   runs on every pause in typing.
