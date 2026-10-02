@@ -22,9 +22,10 @@ Automating this with `git-cliff` is deferred until `v1.0.0`.
 - **The link picker suggests what looks related.** Opening it with an
   empty search box now offers the tasks that read like this one instead
   of nothing at all.
-- **"Usually does this" in the assignee picker.** On an unassigned task,
-  the people who took the work its neighbours describe — shown only when
-  the same person turns up on at least two close matches.
+- **"Usually does this" in the assignee picker**, and in the create
+  dialog beside the similar-task list. The people who took the work the
+  neighbours describe — shown only when the same person turns up on at
+  least two close matches, and only on a task nobody owns yet.
 - **Relationship graph: project stacks.** Tasks from a neighbouring
   project fold into one card carrying its badge, how many of its tasks
   this board touches and how many of them block work here. Opens in
