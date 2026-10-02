@@ -159,11 +159,16 @@ someone twice.
 
   {% comment %}
 ---- popover: which field ----
+Each popover carries its own ``x-cloak`` as well as the wrapper's. The
+rule lives in an inline ``<style>`` in ``base.html``, so it holds even
+before the stylesheet lands — and if this component ever fails to
+initialise, the popovers stay shut instead of all three unfolding into
+the page at once.
 ``:style`` is the OBJECT form on purpose. The string form rewrites the
 whole style attribute, which wipes the ``display:none`` ``x-show`` had
 just written — the same trap the links panel documents.
 {% endcomment %}
-  <div class="acta-dock-pop is-fields" x-show="open === 'fields'" :style="{ left: popLeft + 'px' }" @click.outside="close()">
+  <div class="acta-dock-pop is-fields" x-cloak x-show="open === 'fields'" :style="{ left: popLeft + 'px' }" @click.outside="close()">
     <label class="acta-dock-pop-h">
       {% lucide "search" "w-3 h-3" %}
       <input type="text" x-model="search" x-ref="fieldSearch"
@@ -188,7 +193,7 @@ just written — the same trap the links panel documents.
   all, the way a scope does, and mixing them into "Add" made them read
   as two more axes. Their own button, next to Add rather than inside it.
   {% endcomment %}
-  <div class="acta-dock-pop is-fields" x-show="open === 'display'" :style="{ left: popLeft + 'px' }" @click.outside="close()">
+  <div class="acta-dock-pop is-fields" x-cloak x-show="open === 'display'" :style="{ left: popLeft + 'px' }" @click.outside="close()">
     <p class="acta-dock-pop-title">{% trans "Show in this view" %}</p>
     {% if show_backlog_toggle %}
     <button type="button" class="acta-dock-pop-row" @click="toggleScope('show_backlog')">
@@ -209,7 +214,7 @@ just written — the same trap the links panel documents.
   </div>
 
   {% comment %} ---- popover: which values ---- {% endcomment %}
-  <div class="acta-dock-pop is-values" x-show="openedField" :style="{ left: popLeft + 'px' }" @click.outside="close()">
+  <div class="acta-dock-pop is-values" x-cloak x-show="openedField" :style="{ left: popLeft + 'px' }" @click.outside="close()">
     <template x-if="openedField">
       <div>
         <div class="acta-dock-pop-back">
