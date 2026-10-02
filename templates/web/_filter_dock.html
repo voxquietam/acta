@@ -104,7 +104,7 @@ someone twice.
     <template x-for="(chip, i) in shownChips" :key="chip.key">
       <button type="button" class="acta-dock-chip"
               :class="{ 'is-ex': chip.ex, 'is-open': open === chip.field }"
-              @click="openField(chip.field)">
+              @click.stop="openField(chip.field, $event.currentTarget)">
         <span class="acta-dock-chip-ic" x-html="icon(chip.icon)"></span>
         <span class="acta-dock-chip-f" x-text="chip.label"></span>
         <span x-text="chip.text"></span>
@@ -128,15 +128,15 @@ someone twice.
 
     <span class="acta-dock-sep"></span>
 
-    <button type="button" class="acta-dock-add" :class="{ 'is-open': open === 'fields' }"
-            @click="open === 'fields' ? close() : openFields()">
+    <button type="button" class="acta-dock-add" x-ref="addBtn" :class="{ 'is-open': open === 'fields' }"
+            @click.stop="open === 'fields' ? close() : openFields($event.currentTarget)">
       {% lucide "plus" "w-3.5 h-3.5" %}
       <span x-text="chips.length ? '{% trans "Add" %}' : '{% trans "Filter" %}'"></span>
       <span class="acta-dock-key">F</span>
     </button>
 
     <button type="button" class="acta-dock-display" :class="{ 'is-open': open === 'display', 'is-on': scopeOn }"
-            @click="open === 'display' ? close() : (open = 'display')"
+            @click.stop="open === 'display' ? close() : (open = 'display', anchorAt($event.currentTarget, 240))"
             title="{% trans 'What this view shows' %}">
       {% lucide "eye" "w-3.5 h-3.5" %}
       {% trans "Display" %}
@@ -157,8 +157,13 @@ someone twice.
     </button>
   </div>
 
-  {% comment %} ---- popover: which field ---- {% endcomment %}
-  <div class="acta-dock-pop is-fields" x-show="open === 'fields'" @click.outside="close()">
+  {% comment %}
+---- popover: which field ----
+``:style`` is the OBJECT form on purpose. The string form rewrites the
+whole style attribute, which wipes the ``display:none`` ``x-show`` had
+just written — the same trap the links panel documents.
+{% endcomment %}
+  <div class="acta-dock-pop is-fields" x-show="open === 'fields'" :style="{ left: popLeft + 'px' }" @click.outside="close()">
     <label class="acta-dock-pop-h">
       {% lucide "search" "w-3 h-3" %}
       <input type="text" x-model="search" x-ref="fieldSearch"
@@ -167,7 +172,7 @@ someone twice.
              placeholder="{% trans 'Filter by…' %}">
     </label>
     <template x-for="f in matchingFields" :key="f.key">
-      <button type="button" class="acta-dock-pop-row" @click="openField(f.key)">
+      <button type="button" class="acta-dock-pop-row" @click="openField(f.key, $event.currentTarget)">
         <span class="acta-dock-chip-ic" x-html="icon(f.icon)"></span>
         <span x-text="f.name"></span>
         <span class="acta-dock-gap"></span>
@@ -183,7 +188,7 @@ someone twice.
   all, the way a scope does, and mixing them into "Add" made them read
   as two more axes. Their own button, next to Add rather than inside it.
   {% endcomment %}
-  <div class="acta-dock-pop is-fields" x-show="open === 'display'" @click.outside="close()">
+  <div class="acta-dock-pop is-fields" x-show="open === 'display'" :style="{ left: popLeft + 'px' }" @click.outside="close()">
     <p class="acta-dock-pop-title">{% trans "Show in this view" %}</p>
     {% if show_backlog_toggle %}
     <button type="button" class="acta-dock-pop-row" @click="toggleScope('show_backlog')">
@@ -204,11 +209,11 @@ someone twice.
   </div>
 
   {% comment %} ---- popover: which values ---- {% endcomment %}
-  <div class="acta-dock-pop is-values" x-show="openedField" @click.outside="close()">
+  <div class="acta-dock-pop is-values" x-show="openedField" :style="{ left: popLeft + 'px' }" @click.outside="close()">
     <template x-if="openedField">
       <div>
         <div class="acta-dock-pop-back">
-          <button type="button" @click="openFields()" aria-label="{% trans 'Back' %}">
+          <button type="button" @click="openFields($refs.addBtn)" aria-label="{% trans 'Back' %}">
             {% lucide "chevron-left" "w-3 h-3" %}
           </button>
           <span class="acta-dock-chip-ic" x-html="icon(openedField.icon)"></span>

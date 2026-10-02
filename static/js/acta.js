@@ -4505,6 +4505,7 @@ window.actaFilterDock = function actaFilterDock() {
     op: "in",
     expanded: false,
     sprite: "",
+    popLeft: 0,
     CHIP_LIMIT: 4,
 
     init() {
@@ -4637,17 +4638,35 @@ window.actaFilterDock = function actaFilterDock() {
       return options.filter((o) => !q || o.n.toLowerCase().includes(q));
     },
 
-    openFields() {
+    openFields(anchor) {
       this.open = "fields";
       this.search = "";
+      this.anchorAt(anchor, 240);
       this.$nextTick(() => this.$refs.fieldSearch && this.$refs.fieldSearch.focus());
     },
 
-    openField(key) {
+    openField(key, anchor) {
       if (!key) return;
       this.open = key;
       this.search = "";
       this.op = "in";
+      this.anchorAt(anchor, 260);
+    },
+
+    // A menu belongs over the thing that opened it. Measured against the
+    // dock rather than the page, because that is what the popover is
+    // positioned inside, and clamped so a chip near the right edge does
+    // not push its menu off the screen.
+    anchorAt(el, width) {
+      if (!el || window.innerWidth < 768) {
+        this.popLeft = 0;
+        return;
+      }
+      const wrap = this.$root.getBoundingClientRect();
+      const rect = el.getBoundingClientRect();
+      const min = 8 - wrap.left;
+      const max = window.innerWidth - width - 8 - wrap.left;
+      this.popLeft = Math.round(Math.max(min, Math.min(rect.left - wrap.left, max)));
     },
 
     close() {

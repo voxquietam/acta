@@ -3084,9 +3084,12 @@ tr[data-vrow-hidden] {
   border-color: rgb(var(--foreground));
 }
 
-/* Menus open upwards: the dock sits at the bottom of the viewport. */
+/* Menus open upwards, over whatever opened them: the dock sits at the
+   bottom of the viewport and ``left`` is written by the component from
+   the trigger's rect. */
 .acta-dock-pop {
-  order: -1;
+  position: absolute;
+  bottom: calc(100% + 8px);
   width: 260px;
   max-height: min(420px, 60vh);
   overflow-y: auto;
