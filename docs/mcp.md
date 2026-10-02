@@ -313,7 +313,7 @@ Cursor stores its MCP config in **Settings → Tools & MCP**.
 | `acta_labels_list`                         | List labels.                                               |
 | **write**                                                                                               |
 | `acta_task_create`                         | Create one task. Validation matches the web UI.            |
-| `acta_task_update`                         | PATCH one task (partial; pass `null` to clear).            |
+| `acta_task_update`                         | PATCH one task (partial; pass `null` to clear). Includes `parent_slug` — re-parent an existing task, or `null` to promote it. |
 | `acta_task_archive`                        | Soft-delete (set `archived_at`).                           |
 | `acta_task_link`                           | Link two tasks (`blocks` / `blocked_by` / `related`).      |
 | `acta_task_unlink`                         | Remove a link between two tasks.                           |
@@ -321,7 +321,7 @@ Cursor stores its MCP config in **Settings → Tools & MCP**.
 | `acta_comment_create`                      | Post a Markdown comment.                                   |
 | `acta_label_create` / `_update` / `_delete`| Label CRUD.                                                |
 | `acta_tasks_bulk_create`                   | Create N tasks atomically (any failure rolls back).        |
-| `acta_tasks_bulk_update`                   | Update N tasks atomically.                                 |
+| `acta_tasks_bulk_update`                   | Update N tasks atomically — same per-item shape, so a whole family can be re-parented in one call. |
 | `acta_tasks_bulk_archive`                  | Archive N tasks atomically.                                |
 | `acta_tasks_bulk_delete`                   | Delete N tasks atomically.                                 |
 

@@ -255,6 +255,26 @@ def task_update(user: User, arguments: dict[str, Any]) -> Any:
         labels = _resolve_or_create_labels(task.project.workspace, names)
         data["labels"] = [lab.id for lab in labels]
 
+    # Re-parenting. ``null`` promotes a subtask back to a top-level task.
+    # The depth-1 rule has two sides and the serializer only guards one of
+    # them: it refuses a parent that is itself a subtask, but nothing stops
+    # a task that already HAS subtasks from being handed a parent — which
+    # is only reachable on update, since a task is created childless.
+    if "parent_slug" in args:
+        parent_value = args["parent_slug"]
+        if parent_value is None:
+            data["parent"] = None
+        else:
+            parent = resolve_task(user, parent_value)
+            if parent.pk == task.pk:
+                raise ValueError("A task cannot be its own parent.")
+            if task.subtasks.exists():
+                raise ValueError(
+                    "This task has subtasks of its own, and subtasks cannot have subtasks (depth limit 1). "
+                    "Re-parent its subtasks first.",
+                )
+            data["parent"] = parent.id
+
     # Resolve a project move up front so an invalid target fails before we
     # touch anything. Workspace-only for now (cross-workspace moves would
     # orphan labels / assignee — see the move-task ADR note).
@@ -904,7 +924,11 @@ TOOLS: list[Tool] = [
             "the task to — renumbers the slug, e.g. ACTA-12 → HRW-89, and moves "
             "any subtasks along; only top-level tasks can be moved); ``cycle`` "
             "(commit the task to a workspace cycle by its number, 'current' for "
-            "the active cycle, or null for the backlog). "
+            "the active cycle, or null for the backlog); ``parent_slug`` "
+            "(re-parent an EXISTING task — pass a task slug in the same project "
+            "to make this a subtask of it, or null to promote it back to a "
+            "top-level task; depth is limited to one level, so the new parent "
+            "must not itself be a subtask and this task must have no subtasks). "
             "Same validation as create. Returns the updated task summary."
         ),
         inputSchema={
@@ -931,6 +955,13 @@ TOOLS: list[Tool] = [
                 "cycle": {
                     "type": ["integer", "string", "null"],
                     "description": "Cycle number, 'current', or null to clear to the backlog.",
+                },
+                "parent_slug": {
+                    "type": ["string", "null"],
+                    "description": (
+                        "Parent task slug in the same project (e.g. ACTA-128), or null to promote "
+                        "this task back to top level. Depth limit 1."
+                    ),
                 },
             },
             "required": ["slug"],
@@ -1140,7 +1171,8 @@ TOOLS: list[Tool] = [
         description=(
             "Update multiple tasks in one atomic call. ``updates`` is a list of "
             "patch specs — each has the same shape as ``acta_task_update`` "
-            "arguments (``slug`` is required, every other field is optional). "
+            "arguments (``slug`` is required, every other field is optional), "
+            "including ``parent_slug`` to re-parent existing tasks in bulk. "
             "Atomic — if any patch fails, the whole batch rolls back. Returns "
             "``{count, updated: [<task summary>, …]}``."
         ),
@@ -1168,6 +1200,14 @@ TOOLS: list[Tool] = [
                             "assignee_username": {"type": ["string", "null"]},
                             "label_names": {"type": "array", "items": {"type": "string"}},
                             "project": {"type": "string", "description": "Target project slug prefix."},
+                            "cycle": {
+                                "type": ["integer", "string", "null"],
+                                "description": "Cycle number, 'current', or null for the backlog.",
+                            },
+                            "parent_slug": {
+                                "type": ["string", "null"],
+                                "description": "Parent task slug in the same project, or null to promote.",
+                            },
                         },
                         "required": ["slug"],
                         "additionalProperties": False,

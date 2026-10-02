@@ -219,6 +219,99 @@ class TestTaskUpdate:
 
 
 @pytest.mark.django_db
+class TestTaskReparent:
+    """``parent_slug`` on update — the one relationship that used to be
+    settable only while creating the task."""
+
+    def test_existing_task_becomes_a_subtask(self, project_setup):
+        user, _, project = project_setup
+        parent = TaskFactory(project=project, reporter=user)
+        task = TaskFactory(project=project, reporter=user)
+        CALLABLES["acta_task_update"](user, {"slug": task.slug, "parent_slug": parent.slug})
+        task.refresh_from_db()
+        assert task.parent_id == parent.pk
+
+    def test_null_promotes_a_subtask_back_to_top_level(self, project_setup):
+        user, _, project = project_setup
+        parent = TaskFactory(project=project, reporter=user)
+        task = TaskFactory(project=project, reporter=user, parent=parent)
+        CALLABLES["acta_task_update"](user, {"slug": task.slug, "parent_slug": None})
+        task.refresh_from_db()
+        assert task.parent_id is None
+
+    def test_reparenting_emits_the_activity_event(self, project_setup):
+        from apps.activity.models import ActivityLog
+
+        user, _, project = project_setup
+        parent = TaskFactory(project=project, reporter=user)
+        task = TaskFactory(project=project, reporter=user)
+        CALLABLES["acta_task_update"](user, {"slug": task.slug, "parent_slug": parent.slug})
+        event = ActivityLog.objects.filter(event_type="task.parent_changed", target_id=task.pk).first()
+        assert event is not None
+        assert event.payload["to_task_id"] == parent.pk
+
+    def test_a_task_with_subtasks_cannot_be_given_a_parent(self, project_setup):
+        user, _, project = project_setup
+        task = TaskFactory(project=project, reporter=user)
+        TaskFactory(project=project, reporter=user, parent=task)
+        other = TaskFactory(project=project, reporter=user)
+        with pytest.raises(ValueError, match="depth limit 1"):
+            CALLABLES["acta_task_update"](user, {"slug": task.slug, "parent_slug": other.slug})
+
+    def test_a_subtask_cannot_be_the_new_parent(self, project_setup):
+        user, _, project = project_setup
+        parent = TaskFactory(project=project, reporter=user)
+        sub = TaskFactory(project=project, reporter=user, parent=parent)
+        task = TaskFactory(project=project, reporter=user)
+        with pytest.raises(ValueError, match="depth limit 1"):
+            CALLABLES["acta_task_update"](user, {"slug": task.slug, "parent_slug": sub.slug})
+
+    def test_a_task_cannot_be_its_own_parent(self, project_setup):
+        user, _, project = project_setup
+        task = TaskFactory(project=project, reporter=user)
+        with pytest.raises(ValueError, match="own parent"):
+            CALLABLES["acta_task_update"](user, {"slug": task.slug, "parent_slug": task.slug})
+
+    def test_parent_from_another_project_is_rejected(self, project_setup):
+        user, ws, project = project_setup
+        other = ProjectFactory(workspace=ws, slug_prefix="HRW")
+        parent = TaskFactory(project=other, reporter=user)
+        task = TaskFactory(project=project, reporter=user)
+        with pytest.raises(ValueError, match="same project"):
+            CALLABLES["acta_task_update"](user, {"slug": task.slug, "parent_slug": parent.slug})
+
+    def test_bulk_reparents_a_whole_family_at_once(self, project_setup):
+        user, _, project = project_setup
+        parent = TaskFactory(project=project, reporter=user)
+        kids = [TaskFactory(project=project, reporter=user) for _ in range(3)]
+        result = CALLABLES["acta_tasks_bulk_update"](
+            user,
+            {"updates": [{"slug": kid.slug, "parent_slug": parent.slug} for kid in kids]},
+        )
+        assert result["count"] == 3
+        assert all(Task.objects.get(pk=kid.pk).parent_id == parent.pk for kid in kids)
+
+    def test_bulk_rolls_back_when_one_item_breaks_the_depth_limit(self, project_setup):
+        user, _, project = project_setup
+        parent = TaskFactory(project=project, reporter=user)
+        ok = TaskFactory(project=project, reporter=user)
+        has_child = TaskFactory(project=project, reporter=user)
+        TaskFactory(project=project, reporter=user, parent=has_child)
+        with pytest.raises(ValueError, match="Bulk update failed at index 1"):
+            CALLABLES["acta_tasks_bulk_update"](
+                user,
+                {
+                    "updates": [
+                        {"slug": ok.slug, "parent_slug": parent.slug},
+                        {"slug": has_child.slug, "parent_slug": parent.slug},
+                    ],
+                },
+            )
+        ok.refresh_from_db()
+        assert ok.parent_id is None
+
+
+@pytest.mark.django_db
 class TestTaskArchive:
     def test_archive_sets_archived_at(self, project_setup):
         user, _, project = project_setup
