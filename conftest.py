@@ -1,7 +1,7 @@
 """Project-wide pytest fixtures.
 
-Currently one job: make the default ``client`` follow the canonical-URL
-redirects introduced in ADR 0031.
+Two jobs: make the default ``client`` follow the canonical-URL redirects
+introduced in ADR 0031, and keep the suite away from the embedding host.
 """
 
 from django.test import Client
@@ -47,3 +47,15 @@ class FollowingClient(Client):
 def client():
     """Override pytest-django's client with the redirect-following one."""
     return FollowingClient()
+
+
+@pytest.fixture(autouse=True)
+def embeddings_off(settings):
+    """Run every test as if no embedding host were configured.
+
+    A developer with ``ACTA_EMBEDDING_URL`` in their ``.env`` would
+    otherwise get a different suite from CI: extra queries on the task
+    page, and lookups that try to reach a box on their network. Tests
+    that exercise the feature turn it back on with ``override_settings``.
+    """
+    settings.ACTA_EMBEDDING_URL = ""

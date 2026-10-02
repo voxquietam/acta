@@ -218,3 +218,64 @@ class TestRebuildTrigger:
         with override_settings(ACTA_EMBEDDING_URL=""):
             similarity.on_task_saved(Task, task, created=True)
         assert queued == []
+
+
+@pytest.mark.django_db
+class TestLikelyAssignees:
+    """Who usually takes work like this — counted off the near neighbours."""
+
+    @ENABLED
+    def test_a_person_who_did_two_similar_tasks_is_suggested(self, setup, monkeypatch):
+        from apps.accounts.tests.factories import UserFactory
+
+        _, project = setup
+        regular = UserFactory()
+        first = TaskFactory(project=project, title="near", assignee=regular)
+        second = TaskFactory(project=project, title="near-too", assignee=regular)
+        anchor = TaskFactory(project=project, title="asking")
+        vectors = {"near": [1.0, 0.0], "near-too": [1.0, 0.0], "asking": [1.0, 0.0]}
+        embed_tasks(monkeypatch, vectors, [first, second, anchor])
+        monkeypatch.setattr(similarity, "embed", fake_embed(vectors))
+        assert similarity.likely_assignees(anchor) == [(regular.pk, 2)]
+
+    @ENABLED
+    def test_one_coincidence_is_not_a_pattern(self, setup, monkeypatch):
+        from apps.accounts.tests.factories import UserFactory
+
+        _, project = setup
+        once = TaskFactory(project=project, title="near", assignee=UserFactory())
+        anchor = TaskFactory(project=project, title="asking")
+        vectors = {"near": [1.0, 0.0], "asking": [1.0, 0.0]}
+        embed_tasks(monkeypatch, vectors, [once, anchor])
+        monkeypatch.setattr(similarity, "embed", fake_embed(vectors))
+        assert similarity.likely_assignees(anchor) == []
+
+    @ENABLED
+    def test_distant_tasks_do_not_count(self, setup, monkeypatch):
+        from apps.accounts.tests.factories import UserFactory
+
+        _, project = setup
+        stranger = UserFactory()
+        far_one = TaskFactory(project=project, title="far", assignee=stranger)
+        far_two = TaskFactory(project=project, title="far-too", assignee=stranger)
+        anchor = TaskFactory(project=project, title="asking")
+        vectors = {"far": [0.0, 1.0], "far-too": [0.0, 1.0], "asking": [1.0, 0.0]}
+        embed_tasks(monkeypatch, vectors, [far_one, far_two, anchor])
+        monkeypatch.setattr(similarity, "embed", fake_embed(vectors))
+        assert similarity.likely_assignees(anchor) == []
+
+    @ENABLED
+    def test_neighbours_of_a_stored_task_cost_no_round_trip(self, setup, monkeypatch):
+        _, project = setup
+        anchor = TaskFactory(project=project, title="asking")
+        other = TaskFactory(project=project, title="near")
+        vectors = {"asking": [1.0, 0.0], "near": [0.99, 0.14]}
+        embed_tasks(monkeypatch, vectors, [anchor, other])
+
+        def _never(texts, timeout=None):
+            raise AssertionError("the task's own vector is already stored")
+
+        monkeypatch.setattr(similarity, "embed", _never)
+        anchor.refresh_from_db()
+        found = similarity.neighbours_of_task(anchor)
+        assert [task_id for task_id, _ in found] == [other.pk]

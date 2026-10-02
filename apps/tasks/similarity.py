@@ -68,6 +68,12 @@ MIN_SCORE = 0.45
 #: weak guesses under the title field is noise on every keystroke.
 HINT_MIN_SCORE = 0.55
 
+#: Suggesting a person is the strictest of the three. Being told the
+#: wrong colleague usually does this is worse than being told nothing,
+#: so the neighbours have to be close and the person has to recur.
+ASSIGNEE_MIN_SCORE = 0.62
+ASSIGNEE_MIN_HITS = 2
+
 
 class EmbeddingUnavailable(RuntimeError):
     """The embedding host could not be reached or refused the request."""
@@ -314,11 +320,24 @@ def neighbours_of_text(
         logger.info("similarity lookup skipped: %s", exc)
         return []
 
+    return _rank(
+        np.asarray(query, dtype=np.float32),
+        workspace_id=workspace_id,
+        limit=limit,
+        exclude_ids=exclude_ids,
+        min_score=min_score,
+    )
+
+
+def _rank(query, *, workspace_id: int, limit: int, exclude_ids: Sequence[int], min_score: float):
+    """Score one vector against a workspace's matrix and take the top of it."""
+    import numpy as np
+
     ids, matrix = _matrix(workspace_id)
     if not ids or matrix.shape[1] != len(query):
         return []
 
-    scores = matrix @ np.asarray(query, dtype=np.float32)
+    scores = matrix @ query
     skip = set(exclude_ids)
     order = np.argsort(-scores)[: limit + len(skip)]
     found = []
@@ -333,8 +352,34 @@ def neighbours_of_text(
     return found
 
 
+def stored_vector(task):
+    """Return ``task``'s own vector if it is current, else ``None``.
+
+    An existing task has already been through the model, so asking for
+    its neighbours should cost no round trip at all — which matters,
+    because the task page asks on every load.
+    """
+    import numpy as np
+
+    row = getattr(task, "embedding", None)
+    if row is None or row.model != settings.ACTA_EMBEDDING_MODEL:
+        return None
+    if row.text_hash != digest(text_for(task)):
+        return None
+    return np.frombuffer(row.vector, dtype="<f4")
+
+
 def neighbours_of_task(task, *, limit: int = 5, min_score: float = MIN_SCORE) -> list[tuple[int, float]]:
     """Return the tasks closest to ``task``, itself excluded."""
+    vector = stored_vector(task)
+    if vector is not None:
+        return _rank(
+            vector,
+            workspace_id=task.project.workspace_id,
+            limit=limit,
+            exclude_ids=[task.pk],
+            min_score=min_score,
+        )
     return neighbours_of_text(
         text_for(task),
         workspace_id=task.project.workspace_id,
@@ -342,6 +387,48 @@ def neighbours_of_task(task, *, limit: int = 5, min_score: float = MIN_SCORE) ->
         exclude_ids=[task.pk],
         min_score=min_score,
     )
+
+
+def likely_assignees(task, *, limit: int = 2, pool: int = 12) -> list[tuple[int, int]]:
+    """Return ``(user_id, how many)`` for the people who do work like this.
+
+    Derived from who the near neighbours were given to. One shared
+    assignee on one similar task is a coincidence, so a person has to
+    appear at least twice before they are worth suggesting, and the
+    neighbours themselves are taken at a stricter cut than the board
+    uses — a wrong name next to someone's work is more annoying than no
+    name at all.
+
+    Args:
+        task: The task being assigned.
+        limit: How many people to return, most frequent first.
+        pool: How many neighbours to count over.
+
+    Returns:
+        ``(user_id, count)`` pairs, or an empty list when nothing is
+        frequent enough to mean anything.
+    """
+    from apps.tasks.models import Task
+
+    found = neighbours_of_task(task, limit=pool, min_score=ASSIGNEE_MIN_SCORE)
+    if not found:
+        return []
+    counts: dict[int, int] = {}
+    rows = Task.objects.filter(
+        pk__in=[task_id for task_id, _ in found],
+        assignee__isnull=False,
+    ).values_list("assignee_id", flat=True)
+    for assignee_id in rows:
+        counts[assignee_id] = counts.get(assignee_id, 0) + 1
+    ranked = sorted(
+        (
+            (user_id, hits)
+            for user_id, hits in counts.items()
+            if hits >= ASSIGNEE_MIN_HITS and user_id != task.assignee_id
+        ),
+        key=lambda pair: -pair[1],
+    )
+    return ranked[:limit]
 
 
 # ---- keeping the vectors current -----------------------------------------
