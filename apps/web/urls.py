@@ -87,6 +87,7 @@ from .views import (
     set_workspace_member_role,
     set_workspace_required_fields,
     set_workspace_wip,
+    similar_tasks_hint,
     switch_workspace,
     task_activity_fragment,
     task_comments_fragment,
@@ -141,6 +142,9 @@ urlpatterns = [
     # Links made by dragging a row onto a card on the relationship graph.
     # Not under a task path: the board speaks ids and wants JSON back.
     path("graph/link/", graph_add_link, name="graph_add_link"),
+    # "Does this already exist?" under the create dialog's title field.
+    # Workspace-wide and read-only; see apps/tasks/similarity.py.
+    path("tasks/similar/", similar_tasks_hint, name="similar_tasks_hint"),
     path("recurring/", recurring_list, name="recurring_list"),
     path("recurring/new/", recurring_editor, name="recurring_new"),
     path("recurring/<int:pk>/edit/", recurring_editor, name="recurring_edit"),

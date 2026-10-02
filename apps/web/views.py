@@ -59,6 +59,7 @@ from apps.notifications.services import (
 from apps.projects.icons import color_class
 from apps.projects.models import Project, ProjectUpdate
 from apps.reactions.services import TARGET_TYPES, attach_reactions, summarize_reactions, toggle_reaction
+from apps.tasks import similarity
 from apps.tasks.events import broadcast_link_change, broadcast_task_events, emit_task_diff_events, snapshot_task
 from apps.tasks.metrics import compute_bottlenecks, compute_cfd, compute_flow_metrics
 from apps.tasks.models import Task
@@ -4382,6 +4383,50 @@ def task_links_fragment(request, slug_prefix, number):
 
 
 @login_required
+@login_required
+def similar_tasks_hint(request):
+    """Answer the create dialog's "does this already exist?" as a fragment.
+
+    Driven by the title field on every pause in typing, so it is a GET,
+    it is cheap, and it fails quietly: an unreachable embedding host or a
+    deployment with none configured both render nothing, which is also
+    the empty state. Nothing here can block a create — the model ranks,
+    the person decides.
+
+    Scoped to the whole workspace rather than the chosen project,
+    because a duplicate is most often filed in the project next door.
+    """
+    title = (request.GET.get("title") or "").strip()
+    if len(title) < 4:
+        return HttpResponse("")
+
+    project = (
+        Project.objects.filter(
+            slug_prefix=(request.GET.get("project") or "").strip(),
+            workspace__memberships__user=request.user,
+        )
+        .select_related("workspace")
+        .first()
+    )
+    if project is None:
+        return HttpResponse("")
+
+    found = similarity.neighbours_of_text(
+        title,
+        workspace_id=project.workspace_id,
+        limit=3,
+        min_score=similarity.HINT_MIN_SCORE,
+    )
+    by_id = {
+        task.pk: task
+        for task in _user_task_qs(request.user)
+        .filter(pk__in=[task_id for task_id, _ in found])
+        .select_related("project__workspace")
+    }
+    matches = [{"task": by_id[task_id], "score": score} for task_id, score in found if task_id in by_id]
+    return render(request, "web/_similar_tasks_hint.html", {"matches": matches})
+
+
 def task_link_search(request, slug_prefix, number):
     """Typeahead search for the link-target picker.
 

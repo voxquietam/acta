@@ -1,0 +1,27 @@
+{% load i18n %}
+{% load lucide %}
+{% load web_extras %}
+{% comment %}
+"Looks like you already have this" — semantic neighbours of the title
+being typed in the create dialog. Advisory only: nothing here blocks the
+create, because the model ranks and the person decides.
+
+Rendered empty when there is nothing close enough, so the dialog shows no
+box at all rather than an empty one.
+{% endcomment %}
+{% if matches %}
+<div class="mt-2 rounded-lg border border-border bg-muted/40 p-2 space-y-1">
+  <p class="text-[10px] uppercase tracking-wider text-placeholder-foreground flex items-center gap-1.5">
+    {% lucide "copy-check" "w-3 h-3" %}{% trans "Already in this workspace" %}
+  </p>
+  {% for match in matches %}
+  <a href="{% task_url match.task %}"
+     class="flex items-center gap-2 rounded-md px-1.5 py-1 text-xs hover:bg-muted group">
+    <span class="w-[7px] h-[7px] rounded-full shrink-0 {{ match.task.status|status_dot_classes }}"></span>
+    <span class="font-mono text-[11px] text-subtle-foreground shrink-0">{{ match.task.slug }}</span>
+    <span class="flex-1 min-w-0 truncate text-muted-foreground group-hover:text-foreground">{{ match.task.title }}</span>
+    <span class="text-[11px] text-placeholder-foreground shrink-0">{{ match.task.project.slug_prefix }}</span>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}

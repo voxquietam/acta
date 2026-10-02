@@ -141,10 +141,23 @@ resurface in the next task's form.
 
     <div>
       <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Title" %}</label>
+      {% comment %}
+      The title also asks "does this already exist?" on every pause in
+      typing. A GET, so no CSRF dance and no write semantics; the answer
+      lands in the box below and is purely advisory — nothing here can
+      stop the task being created. Empty response when the deployment has
+      no embedding host, which is also the empty state.
+      {% endcomment %}
       <input type="text" name="title" maxlength="200" required x-ref="title"
              value="{{ pre_title|default:'' }}"
              class="mt-1 acta-input"
-             placeholder="{% trans 'What needs to be done?' %}">
+             placeholder="{% trans 'What needs to be done?' %}"
+             hx-get="{% url 'web:similar_tasks_hint' %}"
+             hx-trigger="keyup changed delay:500ms, change"
+             hx-include="[name='project']"
+             hx-target="#create-task-similar"
+             hx-swap="innerHTML">
+      <div id="create-task-similar"></div>
       {% if link_related_task %}
       {# Carried from "Create task from comment / selection": the new task #}
       {# is linked as a related task to this origin on save. #}
