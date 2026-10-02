@@ -9,6 +9,134 @@ Automating this with `git-cliff` is deferred until `v1.0.0`.
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-10-02
+
+Four months of work on `dev`: Claude Desktop connects to Acta over OAuth
+without a bridge, the workspace moved into the URL, meetings and
+recurring tasks became first-class, and a production outage drove a
+round of SSE and database-connection fixes. 112 commits.
+
+### ⚠ Breaking / migrations
+
+Run migrations after deploying. Existing data is preserved.
+
+- New apps: `mcp` (OAuth client / code / refresh-token tables),
+  `meetings`, `recurring`. Plus `accounts.0009`, `activity.0004`,
+  `comments.0004`, `notifications.0005`, `tasks.0013`,
+  `workspaces.0009` — `migrate` applies them in dependency order.
+- **Every URL is now workspace-scoped** (`/ksu24/projects/ST/5/`).
+  Legacy paths answer `301` to the canonical form, so existing links and
+  bookmarks keep working, but anything that *constructs* Acta URLs
+  outside the app needs updating.
+- **Workspace slugs are frozen after creation** and a set of root
+  section names is reserved, so a workspace can no longer shadow an app
+  route.
+- MCP tool responses carry an **absolute task URL**; clients that built
+  links from the slug should read the field instead.
+
+### Added
+
+- **MCP over OAuth 2.1** — Claude Desktop connects by pasting
+  `https://actaspace.com/mcp/`: discovery, dynamic client registration,
+  a consent screen and PKCE, with no Node bridge and no token to copy.
+  Access tokens live an hour and refresh in place, so one connection is
+  one revocable line in settings. Claude Code keeps its hand-issued
+  `Token` header — both schemes resolve to the same `ApiToken`. See
+  `docs/decisions/` and `docs/mcp.md`.
+- **Consent screen names the account** it is about to grant for, with a
+  "Not you?" switch that signs out and returns to the same request —
+  needed once one person runs two Acta accounts in one Desktop.
+- **`me` resolves to the caller** in every MCP tool that takes a
+  username, so "assign it to me" stops picking the workspace owner.
+- **MCP coverage widened** — project create, label groups, project and
+  member reads, status updates, comment writes.
+- **Workspace in the URL path** with a disambiguation page when a
+  project key exists in two workspaces.
+- **Meetings / calls** — a Meeting model with its own list, detail and
+  editor, comments as a third comment target, participant notifications
+  in-app and over Telegram, and a My Work strip. ADR 0030.
+- **Recurring tasks** — a rule entity with a daily materializer, the
+  `/recurring/` page with filters and a schedule editor, pause / run /
+  delete, a "make recurring" action from a task, and assignee
+  notification on each occurrence. ADR 0028.
+- **Installable PWA** — manifest, service worker and icons. ADR 0029.
+- **Faceted filters** — project and assignee facets with live counts and
+  hide-zeros, served by one facet endpoint; the assignee strip is
+  single-pick by default (Cmd / Ctrl / Shift to add).
+- **Multi-select** — checkboxes in the list view across My Work, All
+  Tasks and project detail, and multi-select in the task link picker.
+- **Create-task modal** gained size, attachments and a cycle picker.
+- **Inline project rename** on the Overview tab, for workspace admins
+  and the project lead.
+- **Linked tasks and subtasks open in the modal** instead of a full
+  navigation.
+- **Telegram deploy heads-up** — a "system update" notice to linked
+  chats ahead of a deploy, with a per-user mute.
+- **`.ipynb` uploads** are allowed as attachments.
+- **Ukrainian translations** for the recurring UI, filters, the
+  workspace chooser, calls and the OAuth consent screen.
+
+### Changed
+
+- The Status filter is hidden on kanban (the columns *are* the statuses)
+  and cleared when switching into that view.
+- The task modal closes on × or Esc only, no longer on a backdrop click.
+- Task detail content column widened; "show my projects" now defaults to
+  off, matching the server.
+
+### Fixed
+
+- **Kanban cards would not drag** after a filter change or a live
+  update: the panel refresh swaps HTML without HTMX, so nothing re-bound
+  Sortable until some other swap happened. The same gap froze the task
+  table's virtual window, which read as "half my tasks are missing".
+- **A peer's new task appeared on a filtered board** — the client filter
+  pass skipped every row when the chip querystring and the form
+  disagreed, waiting on a refetch that an SSE push never triggers.
+- **A 500 response was swapped into the panel**, wiping the board and
+  with it the columns Sortable was bound to.
+- **Two projects sharing a slug prefix in different workspaces** 500'd;
+  both the web UI and MCP now disambiguate instead.
+- **Kanban drag in Safari**, stuck table label popovers, the emoji
+  picker flipping off-screen, duplicate command-palette keys, and
+  meeting comment threads colliding by id.
+- **Link-picker search** now matches partially typed task numbers, title
+  words, slug prefixes and assignees, and stops hiding its own results.
+- **Task delete from the context menu** posts reliably, and delete is
+  available in the detail modal and page.
+- **Telegram DMs to deactivated users** are no longer attempted.
+- Long unbreakable URLs wrap in comment and inbox bodies; the
+  "copy link" action in the modal copies the task's URL, not the page's.
+- A long tail of filter-toggle, cold-load and cross-view SSE sync fixes
+  across My Work, All Tasks and project detail.
+
+### Performance
+
+- **Task table virtualisation** — hovering went quadratic with the size
+  of the render tree, not the row count; rows now leave layout outside a
+  quantised window with spacers holding the scrollbar. ADR 0032.
+- **Row checkboxes reveal with `visibility`**, not an animated opacity
+  that Safari was layer-promoting per row: 12 fps → 60.
+- **One SSE stream per tab** instead of two, halving the connection cost
+  of an open tab.
+- **On-demand panel loading** — only the active view's panel is fetched,
+  and chip toggles refresh it instead of prefetching everything cold.
+- Delegated modal-open and row-filter handlers drop roughly seven Alpine
+  bindings per row; bulk-table partials inlined; `task.recurrence`
+  preloaded on detail.
+
+### Infrastructure
+
+- **`CONN_MAX_AGE = 0`** — persistent connections under ASGI pinned one
+  database connection per open SSE stream until Postgres refused new
+  ones and every request answered 500. `max_connections` raised to 300
+  for headroom.
+- **Request errors log to stderr.** Production had no `LOGGING` config
+  at all, so every traceback went nowhere.
+- Telegram DMs are delivered through django-q, so a write never blocks
+  on `api.telegram.org`.
+- Built JS and CSS bundles are copied into the runtime image.
+
 ## [0.5.1] — 2026-05-31
 
 Hot-fix to unbreak the production image build.
