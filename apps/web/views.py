@@ -316,7 +316,8 @@ def _graph_context(scope, *, user, workspace, include_all=False):
     # ``distinct`` because the membership join multiplies a row per
     # membership the user holds in that workspace.
     rows = (
-        Task.objects.filter(
+        Task.objects.work()
+        .filter(
             id__in=wanted,
             archived_at__isnull=True,
             project__workspace__memberships__user=user,
@@ -912,12 +913,18 @@ def _my_work_base_qs(user, workspace):
     if workspace is None:
         return Task.objects.none()
     done_cutoff = timezone.now() - datetime.timedelta(days=7)
-    return Task.objects.filter(
-        assignee=user,
-        project__workspace=workspace,
-    ).filter(
-        Q(status__in=_MY_WORK_ACTIVE_STATUSES + _MY_WORK_BACKLOG_STATUSES)
-        | Q(status=Task.STATUS_DONE, updated_at__gte=done_cutoff),
+    # ``.work()``: an epic can carry an assignee, but it is not something
+    # the owner does this week — it is the umbrella over what they do.
+    return (
+        Task.objects.work()
+        .filter(
+            assignee=user,
+            project__workspace=workspace,
+        )
+        .filter(
+            Q(status__in=_MY_WORK_ACTIVE_STATUSES + _MY_WORK_BACKLOG_STATUSES)
+            | Q(status=Task.STATUS_DONE, updated_at__gte=done_cutoff),
+        )
     )
 
 
@@ -1031,7 +1038,11 @@ class AllTasksView(LoginRequiredMixin, ListView):
         """
         active = resolve_active_workspace(self.request)
         scope = (
-            _user_task_qs(self.request.user).filter(project__workspace=active, archived_at__isnull=True)
+            # Epics are out of the graph until epic membership is drawn
+            # as its own edge kind: an epic has no blocks / related /
+            # parent edges of its own, so it would render as an isolated
+            # dot and eat payload budget. See ADR 0036.
+            _user_task_qs(self.request.user).work().filter(project__workspace=active, archived_at__isnull=True)
             if active
             else Task.objects.none()
         )
@@ -1055,7 +1066,10 @@ class AllTasksView(LoginRequiredMixin, ListView):
         Show archived. Server returns every workspace task so the client
         can flip the toggle without a round-trip.
         """
-        qs = _user_task_qs(self.request.user)
+        # ``_user_task_qs`` stays epic-inclusive on purpose — the detail
+        # page and every link / mention / menu endpoint resolve through
+        # it — so the boards drop epics here instead. See ADR 0036.
+        qs = _user_task_qs(self.request.user).work()
         active = resolve_active_workspace(self.request)
         qs = qs.filter(project__workspace=active) if active else qs.none()
         params = _params_with_all_tasks_cookies(self.request)
@@ -1077,7 +1091,7 @@ class AllTasksView(LoginRequiredMixin, ListView):
         active = resolve_active_workspace(self.request)
         if active is None:
             return []
-        qs = _user_task_qs(self.request.user).filter(project__workspace=active)
+        qs = _user_task_qs(self.request.user).work().filter(project__workspace=active)
         params = _params_with_archive_cookie(self.request)
         return list(apply_task_filters(qs, params, request_user=self.request.user))
 
@@ -1092,7 +1106,7 @@ class AllTasksView(LoginRequiredMixin, ListView):
         active = resolve_active_workspace(self.request)
         if active is None:
             return []
-        qs = _user_task_qs(self.request.user).filter(project__workspace=active, archived_at__isnull=False)
+        qs = _user_task_qs(self.request.user).work().filter(project__workspace=active, archived_at__isnull=False)
         params = self.request.GET.copy()
         # ``apply_task_filters`` would otherwise hide them again under the
         # default ``show_archived=False``; force the toggle on for this view.
@@ -1351,7 +1365,9 @@ def filter_facets(request):
     if active is None:
         return HttpResponse("")
     params = _params_with_all_tasks_cookies(request)
-    base = Task.objects.filter(project__workspace=active)
+    # Counts have to match the rows: the boards drop epics, so the
+    # facets must too, or every project reads one too many.
+    base = Task.objects.work().filter(project__workspace=active)
 
     p_counts = project_facet_counts(base, params, request_user=request.user)
     selected_projects = {int(p) for p in params.getlist("project") if p.isdigit()}
@@ -1480,7 +1496,8 @@ class MyWorkView(LoginRequiredMixin, TemplateView):
             mode, limits = active.wip_config()
             if mode == Workspace.WIP_PERSONAL and limits:
                 rows = (
-                    Task.objects.filter(
+                    Task.objects.work()
+                    .filter(
                         project__workspace=active,
                         assignee=self.request.user,
                         archived_at__isnull=True,
@@ -2500,7 +2517,8 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         to rows with ``archived_at`` set.
         """
         qs = (
-            Task.objects.filter(project=project, archived_at__isnull=False)
+            Task.objects.work()
+            .filter(project=project, archived_at__isnull=False)
             .select_related("assignee", "reporter", "parent", "project__workspace")
             .prefetch_related("labels")
         )
@@ -2511,7 +2529,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
     def _graph_ctx(self, project):
         """Relationship-graph context for this project."""
         return _graph_context(
-            Task.objects.filter(project=project, archived_at__isnull=True),
+            Task.objects.work().filter(project=project, archived_at__isnull=True),
             user=self.request.user,
             workspace=project.workspace,
             include_all=self.request.GET.get("graph_all") == "1",
@@ -2732,23 +2750,27 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         # ``Count("id", filter=...)`` compiles to a ``FILTER (WHERE …)``
         # clause Postgres evaluates in a single table scan.
         active = Q(archived_at__isnull=True)
-        stats = Task.objects.filter(project=project).aggregate(
-            planned=Count("id", filter=active & Q(status=Task.STATUS_PLANNED)),
-            ready=Count("id", filter=active & Q(status=Task.STATUS_READY)),
-            todo=Count("id", filter=active & Q(status=Task.STATUS_TODO)),
-            in_progress=Count("id", filter=active & Q(status=Task.STATUS_IN_PROGRESS)),
-            in_review=Count("id", filter=active & Q(status=Task.STATUS_IN_REVIEW)),
-            done=Count("id", filter=active & Q(status=Task.STATUS_DONE)),
-            cancelled=Count("id", filter=active & Q(status=Task.STATUS_CANCELLED)),
-            overdue=Count(
-                "id",
-                filter=active & Q(due_date__lt=today) & ~Q(status__in=[Task.STATUS_DONE, Task.STATUS_CANCELLED]),
-            ),
-            velocity_7d=Count(
-                "id",
-                filter=Q(status=Task.STATUS_DONE, updated_at__gte=velocity_cutoff),
-            ),
-            last_activity=Max("updated_at"),
+        stats = (
+            Task.objects.work()
+            .filter(project=project)
+            .aggregate(
+                planned=Count("id", filter=active & Q(status=Task.STATUS_PLANNED)),
+                ready=Count("id", filter=active & Q(status=Task.STATUS_READY)),
+                todo=Count("id", filter=active & Q(status=Task.STATUS_TODO)),
+                in_progress=Count("id", filter=active & Q(status=Task.STATUS_IN_PROGRESS)),
+                in_review=Count("id", filter=active & Q(status=Task.STATUS_IN_REVIEW)),
+                done=Count("id", filter=active & Q(status=Task.STATUS_DONE)),
+                cancelled=Count("id", filter=active & Q(status=Task.STATUS_CANCELLED)),
+                overdue=Count(
+                    "id",
+                    filter=active & Q(due_date__lt=today) & ~Q(status__in=[Task.STATUS_DONE, Task.STATUS_CANCELLED]),
+                ),
+                velocity_7d=Count(
+                    "id",
+                    filter=Q(status=Task.STATUS_DONE, updated_at__gte=velocity_cutoff),
+                ),
+                last_activity=Max("updated_at"),
+            )
         )
         ctx["overview_status_counts"] = {
             Task.STATUS_PLANNED: stats["planned"],
@@ -2796,7 +2818,8 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             .values("created_at")[:1]
         )
         base = (
-            Task.objects.filter(project=project)
+            Task.objects.work()
+            .filter(project=project)
             .select_related("assignee", "reporter", "parent", "project__workspace")
             .prefetch_related("labels", "blocks", "blocked_by")
             .annotate(status_since=Subquery(last_status_change))
@@ -2929,7 +2952,10 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
                 # appeared on the board.
                 available_assignees=list(
                     get_user_model()
-                    .objects.filter(assigned_tasks__project=self.object)
+                    # ``assigned_tasks__kind``: someone who owns only an
+                    # epic here would appear in the strip and then match
+                    # no rows, because the board drops epics.
+                    .objects.filter(assigned_tasks__project=self.object, assigned_tasks__kind=Task.KIND_TASK)
                     .exclude(pk=self.request.user.pk)
                     .order_by("first_name", "last_name", "username")
                     .distinct(),
@@ -4523,8 +4549,12 @@ def task_link_search(request, slug_prefix, number):
     linked_ids |= set(task.related.values_list("id", flat=True))
     linked_ids.add(task.pk)
 
+    # Epics are not offered as link targets: membership has its own
+    # field, and two ways to say one relationship is how a graph becomes
+    # unreadable. See ADR 0036.
     qs = (
         _user_task_qs(request.user)
+        .work()
         .filter(project__workspace_id=task.project.workspace_id)
         .exclude(pk__in=linked_ids)
         .select_related("project", "assignee")
@@ -7467,7 +7497,9 @@ def create_task_search(request):
     from apps.web.templatetags.web_extras import status_dot_classes
 
     kind = request.GET.get("kind") or "links"
-    qs = _user_task_qs(request.user).select_related("project")
+    # Neither axis takes an epic: ``Task.clean`` forbids an epic as a
+    # parent, and epic membership is its own field rather than a link.
+    qs = _user_task_qs(request.user).work().select_related("project")
     if kind == "parent":
         # Depth is capped at one, so a task that is already a subtask
         # cannot become a parent.
@@ -7904,7 +7936,8 @@ def _wip_context(workspace):
     over_by_status: dict[str, dict[int, int]] = {}
     if mode == Workspace.WIP_PERSONAL and limits:
         rows = (
-            Task.objects.filter(
+            Task.objects.work()
+            .filter(
                 project__workspace=workspace,
                 archived_at__isnull=True,
                 assignee__isnull=False,
@@ -8800,7 +8833,12 @@ def export_all_tasks_json(request):
     active = resolve_active_workspace(request)
     if active is None:
         return _json_download(_export_tasks_payload([], scope=None), "acta-tasks.json")
-    qs = _user_task_qs(request.user).select_related("reporter", "parent__project").filter(project__workspace=active)
+    qs = (
+        _user_task_qs(request.user)
+        .work()
+        .select_related("reporter", "parent__project")
+        .filter(project__workspace=active)
+    )
     params = _params_with_archive_cookie(request)
     qs = apply_task_filters(qs, params, request_user=request.user)
     qs = apply_task_ordering(qs, params)
@@ -8847,7 +8885,8 @@ def export_project_tasks_json(request, slug_prefix):
     """
     project = _project_for_export(request, slug_prefix)
     qs = (
-        Task.objects.filter(project=project)
+        Task.objects.work()
+        .filter(project=project)
         .select_related("project__workspace", "assignee", "reporter", "parent__project")
         .prefetch_related("labels")
     )

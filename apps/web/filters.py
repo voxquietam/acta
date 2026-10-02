@@ -193,7 +193,10 @@ def available_assignees_for(request, active):
         .distinct(),
     )
     former_assignee_ids = set(
-        user_model.objects.filter(assigned_tasks__project__workspace=active)
+        # Only assignments to real work count: an epic's owner who has
+        # nothing else assigned would otherwise join the roster and then
+        # filter the board down to nothing.
+        user_model.objects.filter(assigned_tasks__project__workspace=active, assigned_tasks__kind=Task.KIND_TASK)
         .exclude(pk=user.pk)
         .exclude(pk__in=active_member_ids)
         .values_list("pk", flat=True)
@@ -855,7 +858,7 @@ def filter_sidebar_context(
     # partial on filter change (``web:filter_project_facets``).
     if project_facets and active is not None:
         counts = project_facet_counts(
-            facet_base_qs if facet_base_qs is not None else Task.objects.filter(project__workspace=active),
+            facet_base_qs if facet_base_qs is not None else Task.objects.work().filter(project__workspace=active),
             params,
             request_user=user,
         )
@@ -874,7 +877,7 @@ def filter_sidebar_context(
     assignee_facet_unassigned = None
     if assignee_facets and active is not None:
         a_counts = assignee_facet_counts(
-            Task.objects.filter(project__workspace=active),
+            Task.objects.work().filter(project__workspace=active),
             params,
             request_user=user,
         )

@@ -98,7 +98,9 @@ class Command(BaseCommand):
             Number of tasks that were (or would be) archived.
         """
         cutoff = timezone.now() - datetime.timedelta(days=workspace.auto_archive_done_after_days)
-        stale = Task.objects.filter(
+        # An epic's stored status is not its state — it is read off its
+        # tasks — so a stale ``done`` on the row must not archive it.
+        stale = Task.objects.work().filter(
             project__workspace=workspace,
             status=Task.STATUS_DONE,
             archived_at__isnull=True,

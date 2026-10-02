@@ -269,7 +269,7 @@ def _matrix(workspace_id: int):
     """Return ``(task_ids, matrix)`` for a workspace, from cache when fresh."""
     import numpy as np
 
-    from apps.tasks.models import TaskEmbedding
+    from apps.tasks.models import Task, TaskEmbedding
 
     stamp = _stamp(workspace_id)
     cached = _CACHE.get(workspace_id)
@@ -284,6 +284,11 @@ def _matrix(workspace_id: int):
             # A recurring rule stamps out identical copies by design; they
             # are not duplicates of each other and must not be offered.
             task__recurrence__isnull=True,
+            # An epic describes a body of work rather than a piece of it,
+            # so it reads as a near-duplicate of everything inside it.
+            # "Does this already exist" is a question about tasks; "which
+            # epic does this belong to" is a different feature.
+            task__kind=Task.KIND_TASK,
         ).values_list("task_id", "vector", "dimensions")
     )
     if not rows:
@@ -483,7 +488,7 @@ def assignees_of(
     if not close:
         return []
     counts: dict[int, int] = {}
-    rows = Task.objects.filter(pk__in=close, assignee__isnull=False).values_list("assignee_id", flat=True)
+    rows = Task.objects.work().filter(pk__in=close, assignee__isnull=False).values_list("assignee_id", flat=True)
     for assignee_id in rows:
         counts[assignee_id] = counts.get(assignee_id, 0) + 1
     ranked = sorted(

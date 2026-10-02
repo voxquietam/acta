@@ -80,8 +80,11 @@ def compute_flow_metrics(project, *, today: datetime.date | None = None, weeks: 
     today = today or timezone.localdate()
     window_start = today - datetime.timedelta(weeks=weeks)
 
-    task_created = dict(Task.objects.filter(project=project).values_list("id", "created_at"))
-    task_status = dict(Task.objects.filter(project=project).values_list("id", "status"))
+    # ``.work()`` throughout this module: an epic has no cycle time of
+    # its own — its state is read off the tasks it collects — so
+    # counting it would add a row that never flows.
+    task_created = dict(Task.objects.work().filter(project=project).values_list("id", "created_at"))
+    task_status = dict(Task.objects.work().filter(project=project).values_list("id", "status"))
 
     events = (
         ActivityLog.objects.filter(
@@ -194,7 +197,7 @@ def compute_cfd(project, *, today: datetime.date | None = None, weeks: int = 8) 
     days = [start + datetime.timedelta(days=i) for i in range((today - start).days + 1)]
 
     events = _task_status_events(project)
-    tasks = Task.objects.filter(project=project).values_list("id", "status", "created_at")
+    tasks = Task.objects.work().filter(project=project).values_list("id", "status", "created_at")
 
     series = {s: [0] * len(days) for s in statuses}
     for task_id, current_status, created_at in tasks:
@@ -240,7 +243,7 @@ def compute_bottlenecks(project, *, today: datetime.date | None = None, weeks: i
     today = today or timezone.localdate()
     window_start_dt = timezone.now() - datetime.timedelta(weeks=weeks)
     events = _task_status_events(project)
-    tasks = dict(Task.objects.filter(project=project).values_list("id", "status"))
+    tasks = dict(Task.objects.work().filter(project=project).values_list("id", "status"))
 
     totals: dict[str, float] = defaultdict(float)
     counts: dict[str, int] = defaultdict(int)

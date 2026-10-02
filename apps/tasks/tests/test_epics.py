@@ -294,3 +294,109 @@ class TestEpicsNeverJoinACycle:
         task.refresh_from_db()
         assert epic.cycle_id is None
         assert task.cycle_id is not None
+
+
+@pytest.mark.django_db
+class TestEpicsAreAbsentWhereWorkIsCounted:
+    """The sweep, asserted per family rather than per call site.
+
+    An epic is a row in the same table as the work, so every surface
+    that counts, lists or boards tasks had to learn about it. A forgotten
+    one does not crash — it returns a number one too big — which is
+    exactly the failure a test has to catch.
+    """
+
+    @pytest.fixture
+    def seeded(self, db):
+        """A workspace with one plain task and one epic over it."""
+        from apps.accounts.tests.factories import UserFactory
+        from apps.workspaces.models import WorkspaceMember
+
+        workspace = WorkspaceFactory()
+        user = UserFactory()
+        WorkspaceMember.objects.create(user=user, workspace=workspace)
+        project = ProjectFactory(workspace=workspace, slug_prefix="EPC")
+        epic = TaskFactory(
+            project=project,
+            kind=Task.KIND_EPIC,
+            status=Task.STATUS_PLANNED,
+            title="Billing migration",
+            assignee=user,
+        )
+        task = TaskFactory(project=project, title="Dual-write charges", assignee=user, epic=epic)
+        return workspace, project, user, epic, task
+
+    def test_all_tasks_lists_the_work_and_not_the_epic(self, client, seeded):
+        workspace, _, user, epic, task = seeded
+        client.force_login(user)
+        body = client.get(f"/{workspace.slug}/tasks/").content.decode()
+        assert task.title in body
+        assert epic.title not in body
+
+    def test_the_project_board_leaves_the_epic_out(self, client, seeded):
+        workspace, project, user, epic, task = seeded
+        client.force_login(user)
+        body = client.get(f"/{workspace.slug}/projects/{project.slug_prefix}/").content.decode()
+        assert task.title in body
+        assert epic.title not in body
+
+    def test_my_work_leaves_the_epic_out(self, client, seeded):
+        workspace, _, user, epic, task = seeded
+        client.force_login(user)
+        body = client.get(f"/{workspace.slug}/my-work/").content.decode()
+        assert task.title in body
+        assert epic.title not in body
+
+    def test_the_export_leaves_the_epic_out(self, client, seeded):
+        import json
+
+        workspace, _, user, epic, task = seeded
+        client.force_login(user)
+        payload = json.loads(client.get(f"/{workspace.slug}/tasks/export.json").content)
+        titles = [row["title"] for row in payload["tasks"]]
+        assert task.title in titles
+        assert epic.title not in titles
+
+    def test_project_stats_count_the_work_only(self, seeded):
+        import datetime
+
+        from django.utils import timezone
+
+        from apps.projects.stats import compute_update_stats
+
+        _, project, _, _, _ = seeded
+        stats = compute_update_stats(project, timezone.now() - datetime.timedelta(days=7))
+        # The seeded task is to-do and the epic is planned; without the
+        # exclusion the epic would show up in the planned counter.
+        assert stats["planned"] == 0
+
+    def test_the_dashboard_counts_the_work_only(self, seeded):
+        from apps.web.dashboard import build_dashboard_context
+
+        workspace, _, user, _, _ = seeded
+        ctx = build_dashboard_context(workspace=workspace, user=user)
+        assert ctx["dash_open_total"] == 1
+
+    def test_the_link_picker_never_offers_an_epic(self, client, seeded):
+        workspace, project, user, epic, task = seeded
+        client.force_login(user)
+        url = f"/projects/{project.slug_prefix}/{task.number}/links/search/"
+        rows = client.get(url, {"q": "Billing"}).json()["results"]
+        # Membership has its own field; offering the epic as a link
+        # target would be a second way to say one relationship.
+        assert [r["slug"] for r in rows] == []
+
+    def test_the_parent_picker_never_offers_an_epic(self, client, seeded):
+        workspace, project, user, epic, _ = seeded
+        client.force_login(user)
+        rows = client.get("/tasks/new/search/", {"project": project.slug_prefix, "kind": "parent", "q": "Billing"})
+        assert rows.json()["results"] == []
+
+    def test_the_epic_itself_still_opens(self, client, seeded):
+        workspace, project, user, epic, _ = seeded
+        client.force_login(user)
+        resp = client.get(f"/{workspace.slug}/projects/{project.slug_prefix}/{epic.number}/")
+        # Hidden from the boards is not hidden from the app: every link,
+        # mention and menu resolves an epic like any other task.
+        assert resp.status_code == 200
+        assert epic.title in resp.content.decode()

@@ -178,7 +178,10 @@ def build_dashboard_context(workspace, user, range_key=DEFAULT_RANGE):
     since = now - timedelta(days=days)
     prev_since = now - timedelta(days=days * 2)
 
-    tasks = Task.objects.filter(project__workspace=workspace)
+    # One exclusion for the whole page: every KPI, the CFD, velocity,
+    # the people matrix and the hygiene card read from this queryset,
+    # and nothing downstream re-queries Task.
+    tasks = Task.objects.work().filter(project__workspace=workspace)
     active = tasks.filter(archived_at__isnull=True)
 
     # ---- KPI tiles -------------------------------------------------------

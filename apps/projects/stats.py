@@ -37,12 +37,18 @@ def compute_update_stats(project, since):
     """
     until = timezone.now()
     active = Q(archived_at__isnull=True)
-    stats = Task.objects.filter(project=project).aggregate(
-        closed=Count("id", filter=Q(completed_at__gte=since, completed_at__lte=until)),
-        in_progress=Count("id", filter=active & Q(status=Task.STATUS_IN_PROGRESS)),
-        in_review=Count("id", filter=active & Q(status=Task.STATUS_IN_REVIEW)),
-        planned=Count("id", filter=active & Q(status=Task.STATUS_PLANNED)),
-        ready=Count("id", filter=active & Q(status=Task.STATUS_READY)),
+    # Epics are excluded: the block reports how much work moved, and
+    # an epic is the umbrella over it rather than a unit of it.
+    stats = (
+        Task.objects.work()
+        .filter(project=project)
+        .aggregate(
+            closed=Count("id", filter=Q(completed_at__gte=since, completed_at__lte=until)),
+            in_progress=Count("id", filter=active & Q(status=Task.STATUS_IN_PROGRESS)),
+            in_review=Count("id", filter=active & Q(status=Task.STATUS_IN_REVIEW)),
+            planned=Count("id", filter=active & Q(status=Task.STATUS_PLANNED)),
+            ready=Count("id", filter=active & Q(status=Task.STATUS_READY)),
+        )
     )
     return {
         "since": since.isoformat(),

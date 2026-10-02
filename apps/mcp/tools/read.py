@@ -82,10 +82,14 @@ def project_get(user: User, arguments: dict[str, Any]) -> Any:
     except Project.DoesNotExist:
         raise ValueError(f"Project {slug_prefix!r} not found or not accessible to this user.")
 
-    counts = Task.objects.filter(project=project, archived_at__isnull=True).aggregate(
-        total=Count("id"),
-        done=Count("id", filter=Q(status=Task.STATUS_DONE)),
-        cancelled=Count("id", filter=Q(status=Task.STATUS_CANCELLED)),
+    counts = (
+        Task.objects.work()
+        .filter(project=project, archived_at__isnull=True)
+        .aggregate(
+            total=Count("id"),
+            done=Count("id", filter=Q(status=Task.STATUS_DONE)),
+            cancelled=Count("id", filter=Q(status=Task.STATUS_CANCELLED)),
+        )
     )
     open_count = counts["total"] - counts["done"] - counts["cancelled"]
 
