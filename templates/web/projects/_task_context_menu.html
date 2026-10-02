@@ -336,7 +336,14 @@ picker. Expects ``task``, ``status_labels``, ``priority_labels``,
     <button type="button" @click="view = 'root'" class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[11px] text-placeholder-foreground hover:bg-muted/40 hover:text-foreground mb-1">
       {% lucide "chevron-left" "w-3 h-3" %}<span class="text-subtle-foreground">{{ task.slug }} <span class="text-placeholder-foreground">›</span> <b class="text-foreground font-medium">{% trans "Epic" %}</b></span>
     </button>
-    <form hx-post="{% url 'web:set_task_epic' slug_prefix=task.project.slug_prefix number=task.number %}" hx-swap="none">
+    {% comment %}
+    Dispatches ``acta:task-changed`` itself: the root handler only closes
+    the menu, and the surfaces drawn from an epic — the graph's regions,
+    the Epics tab, an epic's own board — have no other way to hear that a
+    task joined or left one.
+    {% endcomment %}
+    <form hx-post="{% url 'web:set_task_epic' slug_prefix=task.project.slug_prefix number=task.number %}" hx-swap="none"
+          @htmx:after-request="if ($event.detail.successful) document.body.dispatchEvent(new CustomEvent('acta:task-changed', { bubbles: true }))">
       {% csrf_token %}<input type="hidden" name="epic" value="">
       <button type="submit" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left text-xs hover:bg-muted/40 {% if not task.epic_id %}text-brand-500{% else %}text-muted-foreground hover:text-foreground{% endif %}">
         <span class="flex-1">{% trans "No epic" %}</span>
@@ -344,7 +351,8 @@ picker. Expects ``task``, ``status_labels``, ``priority_labels``,
     </form>
     <div class="max-h-60 overflow-y-auto">
       {% for epic in workspace_epics %}
-      <form hx-post="{% url 'web:set_task_epic' slug_prefix=task.project.slug_prefix number=task.number %}" hx-swap="none">
+      <form hx-post="{% url 'web:set_task_epic' slug_prefix=task.project.slug_prefix number=task.number %}" hx-swap="none"
+            @htmx:after-request="if ($event.detail.successful) document.body.dispatchEvent(new CustomEvent('acta:task-changed', { bubbles: true }))">
         {% csrf_token %}<input type="hidden" name="epic" value="{{ epic.slug }}">
         <button type="submit" data-mk="{{ forloop.counter }}" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left text-xs hover:bg-muted/40 {% if epic.id == task.epic_id %}text-brand-500{% else %}text-muted-foreground hover:text-foreground{% endif %}">
           <span class="text-placeholder-foreground inline-flex shrink-0">{% lucide "square-kanban" "w-3 h-3" %}</span>

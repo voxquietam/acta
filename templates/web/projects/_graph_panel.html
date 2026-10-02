@@ -161,6 +161,19 @@ needs the full path.
   Nodes and edges as data, never as markup: the renderer reads this
   verbatim, and keeping it out of the DOM means a 500-task project costs
   one <script> rather than 500 elements.
+
+  It refetches itself when a task changes, because the board is drawn
+  from this payload and nothing else: a task moved into an epic from the
+  canvas would otherwise stay outside its region until a reload. Only
+  this one element comes back, and the renderer is told to rebuild once
+  it has.
   {% endcomment %}
-  {{ graph_data|json_script:"task-graph-data" }}
+  <div hx-get="{{ request.get_full_path }}"
+       hx-trigger="acta:task-changed from:body, acta:bulk-changed from:body, acta:task-moved from:body"
+       hx-select="#task-graph-data"
+       hx-target="#task-graph-data"
+       hx-swap="outerHTML"
+       @htmx:after-swap="window.actaRebuildTaskGraph && window.actaRebuildTaskGraph()">
+    {{ graph_data|json_script:"task-graph-data" }}
+  </div>
 </div>

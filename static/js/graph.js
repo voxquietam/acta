@@ -2244,6 +2244,9 @@
   }
 
   window.actaRenderTaskGraph = render;
+  // Draw again from a payload that has just been replaced. ``render``
+  // alone would see the board it already drew and return.
+  window.actaRebuildTaskGraph = rebuild;
 
   function rebuild() {
     if (G && G.observer) G.observer.disconnect();
