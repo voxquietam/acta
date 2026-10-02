@@ -11,6 +11,21 @@ Automating this with `git-cliff` is deferred until `v1.0.0`.
 
 ### Added
 
+- **The create-task dialog is two columns now.** Content on the left,
+  a property rail on the right — the same shape as the task page, so
+  the two read as one interface. Every property is a row and an unset
+  one says "Add" rather than hiding. The project moved into the header
+  as a searchable combobox (name or slug). `Enter` in the title goes to
+  the description, `⌘↵` creates, `⌘⇧↵` creates and opens a fresh dialog
+  on the same project, and each row has a one-letter hotkey. See ADR
+  0035.
+- **A task can be filed with its relations already on it.** The dialog's
+  rail carries **Parent**, **Links** (blocked by / blocks / related, all
+  from one picker with the kind as a switch), **Repeat** and the
+  **Meeting** it came out of — none of which the create form accepted
+  before, so filing work no longer means "create it, open it, finish
+  it". Repeat builds a recurring rule from the new task and adopts it as
+  the first occurrence, exactly like "Make recurring…" does.
 - **Filters are a floating dock now.** The 48px rail and the 512px panel
   are gone; the bar at the bottom shows only the filters that are on, as
   chips, and everything else is behind "Add" (hotkey `F`). Dates became
@@ -49,6 +64,24 @@ Automating this with `git-cliff` is deferred until `v1.0.0`.
   be set while creating the task.
 
 ### Fixed
+
+- **The dev server could serve a stale stylesheet and bundle forever.**
+  The service worker cached everything under `/static/` cache-first, on
+  the assumption that the filenames carry a content hash — true in
+  production, false in development, where `main.bundle.css` and
+  `acta.min.js` keep their names. The worker pinned whatever it saw
+  first, so a soft reload kept showing it and only a hard reload got the
+  new one. It now caches only where the filenames are actually hashed.
+- **The export icon sat on top of the Archive tab** once the window got
+  narrow enough. The topbar's right-hand cluster was allowed to shrink
+  below its own content, and because its icons refuse to shrink they
+  spilled leftwards over the view tabs. It keeps its width now. (The
+  topbar still runs out of room below ~1500px with the sidebar open —
+  the right-hand icons go past the edge rather than over the tabs.)
+- **Two dock icons were rendering as nothing.** The sprite is built by
+  scanning templates, so `list-filter` and `copy-check` — named only in
+  Python — never made it in. The build script now scans `apps/web` for
+  icon names too.
 
 - The **Blocked** badge on a task's topbar was dark-theme only — pale
   pink text on pale pink in the light themes. Same for the error banner
