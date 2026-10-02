@@ -4803,3 +4803,541 @@ window.actaFilterDock = function actaFilterDock() {
     },
   };
 };
+
+/**
+ * Create-task dialog — two columns, content left and a property rail
+ * right (design "Create Task Rethink", artboard 1a), so the dialog and
+ * the task page read as one interface.
+ *
+ * Holds every field's state and projects it into hidden inputs under the
+ * names the POST handler already parses, the same way the filter dock
+ * sits over ``#filter-form``. Nothing server-side knows the selects are
+ * gone. The options come from ``build_create_task_data`` as one JSON
+ * payload — eleven rows of members and labels as markup would be most of
+ * the dialog's weight, nearly all of it never opened.
+ *
+ * Lives on the modal root, which the shell requires to expose
+ * ``close()``, and survives the no-projects guard panel (empty payload,
+ * close still works).
+ */
+window.actaCreateTask = function actaCreateTask() {
+  return {
+    fields: [],
+    projects: [],
+    project: null,
+    sprite: "",
+    url: "",
+    open: null,
+    search: "",
+    coords: { top: 0, left: 0, width: 0 },
+    dropUp: false,
+    files: [],
+    openAfter: false,
+    again: false,
+    text: {},
+    searchUrl: "",
+    linkKind: "blocked_by",
+    results: [],
+    searching: false,
+    searchSeq: 0,
+
+    init() {
+      this.openAfter = localStorage.getItem("acta:open_after_create") === "1";
+      const payload = document.getElementById("create-task-data");
+      const data = payload ? JSON.parse(payload.textContent) : null;
+      if (data) {
+        this.fields = data.fields || [];
+        this.projects = data.projects || [];
+        this.project = data.project || null;
+        this.sprite = data.sprite || "";
+        this.url = data.url || "";
+        this.text = data.text || {};
+        this.searchUrl = data.search_url || "";
+      }
+      // A ``File`` does not fit in a querystring, so the picked files are
+      // parked on ``window`` for the duration of the project-change swap
+      // and picked back up here. Only that swap stashes them: on submit
+      // the dialog closes for good and a leftover stash would resurface
+      // in the next task's form.
+      this.files = window.__actaCreateTaskFiles || [];
+      delete window.__actaCreateTaskFiles;
+      this.$nextTick(() => this.syncFiles());
+      this.onKey = (e) => this.hotkey(e);
+      window.addEventListener("keydown", this.onKey);
+      this.onScroll = (e) => {
+        if (!this.open) return;
+        if (this.$refs.pop && this.$refs.pop.contains(e.target)) return;
+        this.closePop();
+      };
+      document.addEventListener("scroll", this.onScroll, true);
+    },
+
+    destroy() {
+      window.removeEventListener("keydown", this.onKey);
+      document.removeEventListener("scroll", this.onScroll, true);
+    },
+
+    // The shell's × button and its Escape handler both call ``close()``,
+    // so it means "back out of one thing": the open popover if there is
+    // one, otherwise the dialog itself.
+    close() {
+      if (this.open) {
+        this.closePop();
+        return;
+      }
+      this.dismiss();
+    },
+
+    closePop() {
+      this.open = null;
+      this.search = "";
+    },
+
+    dismiss() {
+      const root = document.getElementById("modal-root");
+      if (root) root.innerHTML = "";
+    },
+
+    icon(name) {
+      return `<svg viewBox="0 0 24 24" aria-hidden="true"><use href="${this.sprite}#lu-${name}"></use></svg>`;
+    },
+
+    // ---- rail rows ------------------------------------------------------
+
+    field(key) {
+      return this.fields.find((f) => f.key === key) || null;
+    },
+
+    get openedField() {
+      return this.fields.find((f) => f.key === this.open) || null;
+    },
+
+    // The "empty" option is the one that means nothing is picked ("No
+    // size", "Unassigned"), so a field holding it reads as unset and the
+    // row says "Add" rather than naming the absence.
+    picked(field) {
+      return field.options ? field.options.filter((o) => o.on && !o.empty) : [];
+    },
+
+    isSet(field) {
+      if (field.date) return !!field.value;
+      if (field.task) return !!field.value;
+      if (field.links) return (field.value || []).length > 0;
+      return this.picked(field).length > 0;
+    },
+
+    valueText(field) {
+      if (field.date) return field.value ? this.dateLabel(field.value) : "";
+      if (field.task) return field.value ? `${field.value.slug} ${field.value.n}` : "";
+      // The row names the kinds rather than the tasks: three slugs do not
+      // fit, and "blocked by 2 · related 1" is what a person is checking.
+      if (field.links) {
+        const links = field.value || [];
+        // One link reads better as itself; several only fit as counts.
+        if (links.length === 1) return `${this.kindName(field, links[0].kind).toLowerCase()} ${links[0].slug}`;
+        const by = {};
+        links.forEach((l) => { by[l.kind] = (by[l.kind] || 0) + 1; });
+        return (field.kinds || [])
+          .filter((k) => by[k.v])
+          .map((k) => `${k.n.toLowerCase()} ${by[k.v]}`)
+          .join(" · ");
+      }
+      const on = this.picked(field);
+      return on.map((o) => o.n).join(", ");
+    },
+
+    // Whatever marker the first picked option carries — a status dot, a
+    // label colour, an avatar — so the row looks like the task page's.
+    marker(field) {
+      // A frozen row states a rule rather than a value, so it shows no
+      // dot or avatar for a pick that will not survive the save.
+      if (this.frozen(field)) return null;
+      if (field.task) return field.value || null;
+      if (field.links) return null;
+      return this.picked(field)[0] || null;
+    },
+
+    // A task born in the backlog carries no cycle whatever the form says
+    // (``apply_cycle_policy`` has the last word), so the row states the
+    // rule instead of offering a pick that would be silently dropped.
+    get inBacklog() {
+      const status = this.field("status");
+      const on = status ? status.options.find((o) => o.on) : null;
+      return !!on && (on.v === "planned" || on.v === "ready");
+    },
+
+    frozen(field) {
+      return field.key === "cycle" && this.inBacklog;
+    },
+
+    // ---- popovers -------------------------------------------------------
+
+    // ``position: fixed`` from the trigger rect, so neither the left
+    // column's own scroll container nor the rail can clip the popover.
+    openAt(key, el, width) {
+      if (this.open === key) {
+        this.closePop();
+        return;
+      }
+      this.open = key;
+      this.search = "";
+      if (el) {
+        const w = width || 300;
+        const r = el.getBoundingClientRect();
+        this.dropUp = window.innerHeight - r.bottom < 340;
+        // Phone: the popover spans the viewport minus a gutter, so there
+        // is nothing to anchor and nothing to clamp.
+        const left = window.innerWidth < 640 ? 8 : Math.max(8, Math.min(r.left, window.innerWidth - w - 8));
+        this.coords = {
+          left: Math.round(left),
+          top: Math.round(r.bottom + 4),
+          bottom: Math.round(window.innerHeight - r.top + 4),
+          width: Math.round(r.width),
+        };
+      }
+      // Queried rather than taken from ``$refs``: the popovers are
+      // teleported to <body>, and a ref inside a teleport does not come
+      // back on the component that owns it. The frame is not optional
+      // either — ``x-show`` on the teleported layer has not written
+      // ``display`` yet at ``$nextTick``, and focus on a hidden input is
+      // a silent no-op.
+      const which = key === "project" ? "project" : "field";
+      this.$nextTick(() => requestAnimationFrame(() => {
+        const box = document.querySelector(`[data-ctm-search="${which}"]`);
+        if (box && box.offsetParent) box.focus();
+      }));
+    },
+
+    openField(field, el) {
+      if (this.frozen(field)) return;
+      this.openAt(field.key, el, field.task || field.links ? 360 : 300);
+      if (field.task || field.links) {
+        this.results = [];
+        // The first kind in the payload is the default, so the order the
+        // server lists them in is the only place that decides.
+        if (field.links && field.kinds && field.kinds.length) this.linkKind = field.kinds[0].v;
+        this.searchTasks(field);
+      }
+    },
+
+    get matchingOptions() {
+      const field = this.openedField;
+      if (!field || !field.options) return [];
+      const q = this.search.trim().toLowerCase();
+      return field.options.filter((o) => !q || o.n.toLowerCase().includes(q));
+    },
+
+    get matchingProjects() {
+      const q = this.search.trim().toLowerCase();
+      return this.projects
+        .map((g) => ({
+          n: g.n,
+          items: g.items.filter(
+            (p) => !q || p.n.toLowerCase().includes(q) || p.slug.toLowerCase().includes(q),
+          ),
+        }))
+        .filter((g) => g.items.length);
+    },
+
+    // ---- writing --------------------------------------------------------
+
+    pick(field, option) {
+      if (field.multi) {
+        option.on = !option.on;
+        return;
+      }
+      const was = option.on;
+      const empty = field.options.find((o) => o.empty);
+      field.options.forEach((o) => { o.on = false; });
+      // Clicking the current pick clears a field that has an empty state;
+      // status has none, so it keeps what it had.
+      if (was && empty && !option.empty) empty.on = true;
+      else option.on = true;
+      this.closePop();
+    },
+
+    // The suggestion chips under the title apply a value through the rail
+    // rather than writing a field of their own, so one writer stays one
+    // writer and the chip can read its own state back.
+    pickValue(key, value) {
+      const field = this.field(key);
+      if (!field || !field.options) return;
+      const option = field.options.find((o) => o.v === String(value));
+      if (option) this.pick(field, option);
+    },
+
+    isPicked(key, value) {
+      const field = this.field(key);
+      if (!field || !field.options) return false;
+      const option = field.options.find((o) => o.v === String(value));
+      return !!(option && option.on);
+    },
+
+    clearField(field) {
+      if (field.date) {
+        field.value = "";
+        this.closePop();
+        return;
+      }
+      if (field.task) {
+        field.value = null;
+        this.closePop();
+        return;
+      }
+      if (field.links) {
+        field.value = [];
+        this.closePop();
+        return;
+      }
+      field.options.forEach((o) => { o.on = !!o.empty; });
+      this.closePop();
+    },
+
+    clearable(field) {
+      if (field.clear === false) return false;
+      return this.isSet(field);
+    },
+
+    // A label group is a header on the first of its labels, so the
+    // filtered list carries one header per run rather than one per row.
+    groupHead(i) {
+      const list = this.matchingOptions;
+      const g = list[i] && list[i].g;
+      if (!g) return "";
+      const prev = i > 0 ? list[i - 1].g : "";
+      return g === prev ? "" : g;
+    },
+
+    // ---- task pickers ---------------------------------------------------
+
+    // Parent and Links search the server: a project holds more tasks than
+    // a payload should carry. An empty box asks for the tasks that read
+    // like the title being typed, so the picker opens with candidates.
+    async searchTasks(field) {
+      if (!this.searchUrl) return;
+      const seq = ++this.searchSeq;
+      const title = document.querySelector("#create-task-form [name=title]");
+      const params = new URLSearchParams({
+        project: this.project ? this.project.v : "",
+        kind: field.key,
+        q: this.search.trim(),
+        title: title ? title.value : "",
+      });
+      this.searching = true;
+      try {
+        const resp = await fetch(`${this.searchUrl}?${params}`, {
+          headers: { "X-Requested-With": "XMLHttpRequest" },
+          credentials: "same-origin",
+        });
+        const data = await resp.json();
+        if (seq !== this.searchSeq) return; // a later keystroke won
+        this.results = data.results || [];
+      } catch (err) {
+        if (seq === this.searchSeq) this.results = [];
+      } finally {
+        if (seq === this.searchSeq) this.searching = false;
+      }
+    },
+
+    // Already picked, or the parent — either way it is not a candidate.
+    takenSlugs(field) {
+      if (field.task) return field.value ? [field.value.v] : [];
+      return (field.value || []).map((l) => l.v);
+    },
+
+    get openResults() {
+      const field = this.openedField;
+      if (!field) return [];
+      const taken = this.takenSlugs(field);
+      return this.results.filter((r) => !taken.includes(r.v));
+    },
+
+    pickTask(field, row) {
+      if (field.task) {
+        field.value = row;
+        this.closePop();
+        return;
+      }
+      field.value = [...(field.value || []), { ...row, kind: this.linkKind }];
+      // The box stays open: adding links comes in runs, and the search
+      // term that found one usually finds the next.
+      this.search = "";
+      this.searchTasks(field);
+    },
+
+    dropLink(field, row) {
+      field.value = (field.value || []).filter((l) => l.v !== row.v);
+    },
+
+    kindName(field, kind) {
+      const found = (field.kinds || []).find((k) => k.v === kind);
+      return found ? found.n : kind;
+    },
+
+    // ---- dates ----------------------------------------------------------
+
+    iso(d) {
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${d.getFullYear()}-${m}-${day}`;
+    },
+
+    dateLabel(value) {
+      const [y, m, d] = String(value).split("-").map(Number);
+      if (!y || !m || !d) return value;
+      return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+    },
+
+    setDue(value) {
+      const field = this.field("due");
+      if (field) field.value = value;
+    },
+
+    duePreset(key) {
+      if (key === "clear") {
+        this.setDue("");
+        this.closePop();
+        return;
+      }
+      const d = new Date();
+      if (key === "tomorrow") d.setDate(d.getDate() + 1);
+      else if (key === "friday") d.setDate(d.getDate() + ((5 - d.getDay() + 7) % 7 || 7));
+      else if (key === "week") d.setDate(d.getDate() + 7);
+      this.setDue(this.iso(d));
+      this.closePop();
+    },
+
+    // ---- project --------------------------------------------------------
+
+    // Members, labels and cycles all belong to the picked project's
+    // workspace, so a switch re-renders the whole dialog server-side.
+    // The hidden element with ``hx-include`` carries every other field
+    // through that round trip, exactly as the old ``<select>`` did.
+    chooseProject(item) {
+      this.project = item;
+      this.closePop();
+      window.__actaCreateTaskFiles = this.files;
+      this.$nextTick(() => {
+        document.body.dispatchEvent(new CustomEvent("acta:reproject", { bubbles: true }));
+      });
+    },
+
+    // ---- files ----------------------------------------------------------
+
+    addFiles(list) {
+      for (const f of list) this.files.push(f);
+      this.syncFiles();
+    },
+
+    removeFile(i) {
+      this.files.splice(i, 1);
+      this.syncFiles();
+    },
+
+    // A file input's own FileList is read-only, so the chips are the
+    // source of truth and get written back through a DataTransfer.
+    syncFiles() {
+      if (!this.$refs.fileInput) return;
+      const dt = new DataTransfer();
+      this.files.forEach((f) => dt.items.add(f));
+      this.$refs.fileInput.files = dt.files;
+    },
+
+    // ---- submit ---------------------------------------------------------
+
+    toggleOpenAfter() {
+      this.openAfter = !this.openAfter;
+      localStorage.setItem("acta:open_after_create", this.openAfter ? "1" : "0");
+    },
+
+    create(next) {
+      const form = document.getElementById("create-task-form");
+      if (!form) return;
+      this.again = !!next;
+      // ``open_after_create`` is bound to ``again``, so the input has to
+      // be written before the form is read.
+      this.$nextTick(() => form.requestSubmit());
+    },
+
+    // ``acta:task-created`` fires once the POST reports success. Normally
+    // that closes the dialog; after ⌘⇧↵ it reopens a fresh one on the
+    // same project instead, so a batch of tasks is one keystroke apart.
+    created() {
+      if (!this.again) {
+        this.dismiss();
+        return;
+      }
+      this.again = false;
+      const slug = this.project ? this.project.v : "";
+      if (!window.htmx || !this.url) {
+        this.dismiss();
+        return;
+      }
+      window.htmx.ajax("GET", this.url + (slug ? `?project=${encodeURIComponent(slug)}` : ""), {
+        target: "#modal-root",
+        swap: "innerHTML",
+      });
+    },
+
+    focusDescription() {
+      const mount = document.querySelector("#create-task-form .description-editor-mount [contenteditable]");
+      if (mount) mount.focus();
+    },
+
+    get inputs() {
+      const out = [];
+      this.fields.forEach((f) => {
+        // Links are the one row whose picks name different inputs: each
+        // task is submitted under the kind it was linked as.
+        if (f.links) {
+          (f.value || []).forEach((l) => out.push({ key: `${l.kind}:${l.v}`, name: l.kind, value: l.v }));
+          return;
+        }
+        if (!f.input) return;
+        if (f.task) {
+          out.push({ key: f.input, name: f.input, value: f.value ? f.value.v : "" });
+          return;
+        }
+        if (f.date) {
+          out.push({ key: f.input, name: f.input, value: f.value || "" });
+          return;
+        }
+        if (this.frozen(f)) return;
+        if (f.multi) {
+          this.picked(f).forEach((o) => out.push({ key: `${f.input}:${o.v}`, name: f.input, value: o.v }));
+          return;
+        }
+        const on = f.options.find((o) => o.on);
+        out.push({ key: f.input, name: f.input, value: on ? on.v : "" });
+      });
+      return out;
+    },
+
+    hotkey(e) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault();
+        this.create(e.shiftKey);
+        return;
+      }
+      // Escape is the shell's: ``close()`` backs out of the popover
+      // first and the dialog on a second press.
+      const tag = (e.target.tagName || "").toLowerCase();
+      if (tag === "input" || tag === "textarea" || e.target.isContentEditable) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      // A hotkey carries its own modifier: "⇧P" is shift-p, "P" is plain.
+      const field = this.fields.find((f) => {
+        if (!f.hotkey) return false;
+        const shift = f.hotkey.includes("⇧");
+        return shift === e.shiftKey && f.hotkey.replace("⇧", "").toLowerCase() === e.key.toLowerCase();
+      });
+      if (!field || this.frozen(field)) return;
+      e.preventDefault();
+      const trigger = document.querySelector(`[data-ctm-row="${field.key}"]`);
+      this.openAt(field.key, trigger);
+    },
+  };
+};

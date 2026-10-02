@@ -3269,3 +3269,442 @@ tr[data-vrow-hidden] {
     width: 100%;
   }
 }
+
+/* ---- Create-task dialog ----------------------------------------------
+   Two columns — content left, a property rail right (design "Create Task
+   Rethink", artboard 1a) — so the dialog and the task-detail page read as
+   one interface. Rows and popovers share the rail's own scale rather than
+   the page's: 30px rows, 13px icons, a 64px label column. */
+.acta-ctm-panel {
+  max-height: none;
+}
+@media (min-width: 640px) {
+  .acta-ctm-panel {
+    max-width: 880px;
+    height: 640px;
+    max-height: 85vh;
+  }
+}
+
+/* The form IS the two-column body, so the rail is inside it and its
+   hidden inputs serialize with everything else. */
+.acta-ctm-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+@media (min-width: 640px) {
+  .acta-ctm-body {
+    flex-direction: row;
+  }
+}
+
+.acta-ctm-main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.acta-ctm-title {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  outline: none;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.3;
+  color: rgb(var(--foreground));
+}
+.acta-ctm-title::placeholder {
+  color: rgb(var(--placeholder-foreground));
+  font-weight: 400;
+}
+
+/* The description takes the column's spare height — the whole point of
+   the two-column layout is that the field people need room for gets it. */
+.acta-ctm-desc {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+@media (min-width: 640px) {
+  .acta-ctm-desc {
+    flex: 1 1 auto;
+  }
+}
+/* The editor fills the box: TipTap's contenteditable is only as tall as
+   its text, so clicking the empty space below a one-line draft hit the
+   wrapper and did nothing — you had to aim at the placeholder itself. */
+.acta-ctm-desc-mount > .ProseMirror {
+  min-height: 100%;
+}
+.acta-ctm-desc-mount {
+  flex: 1;
+  min-height: 5rem;
+  overflow-y: auto;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
+  border: 1px solid rgb(var(--border-strong));
+  background: rgb(var(--muted));
+  font-size: 0.875rem;
+  color: rgb(var(--foreground));
+}
+
+.acta-ctm-attach {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: rgb(var(--placeholder-foreground));
+}
+.acta-ctm-attach:hover {
+  color: rgb(var(--foreground));
+}
+
+.acta-ctm-rail {
+  flex-shrink: 0;
+  padding: 10px 8px;
+  border-top: 1px solid rgb(var(--border));
+  background: rgb(var(--subtle));
+  overflow-y: auto;
+}
+@media (min-width: 640px) {
+  .acta-ctm-rail {
+    width: 280px;
+    border-top: 0;
+    border-left: 1px solid rgb(var(--border));
+  }
+}
+
+.acta-ctm-group {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgb(var(--placeholder-foreground));
+  padding: 10px 8px 4px;
+}
+
+/* A row is one property. An unset one says "Add" instead of hiding, so
+   the rail is also the list of what a task can carry. */
+.acta-ctm-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  text-align: left;
+  color: rgb(var(--foreground));
+}
+.acta-ctm-row:hover {
+  background: rgb(var(--muted));
+}
+.acta-ctm-row.is-open {
+  background: rgb(var(--muted));
+  box-shadow: 0 0 0 2px rgb(79 70 229 / 0.45);
+}
+.acta-ctm-row.is-frozen {
+  pointer-events: none;
+}
+.acta-ctm-row-n {
+  width: 64px;
+  flex-shrink: 0;
+  color: rgb(var(--subtle-foreground));
+}
+.acta-ctm-row-ic {
+  display: inline-flex;
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  color: rgb(var(--subtle-foreground));
+}
+.acta-ctm-row-ic svg,
+.acta-ctm-box svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.acta-ctm-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.acta-ctm-av {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  object-fit: cover;
+  font-size: 9px;
+  font-weight: 500;
+  color: #fff;
+}
+.acta-ctm-val {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.acta-ctm-val.is-empty {
+  color: rgb(var(--placeholder-foreground));
+}
+.acta-ctm-key {
+  font-size: 10px;
+  flex-shrink: 0;
+  color: rgb(var(--border-strong));
+}
+.acta-ctm-slug {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  flex-shrink: 0;
+  color: rgb(var(--placeholder-foreground));
+}
+
+/* The project sits in the header: it is the one answer the rest of the
+   dialog depends on, since members, labels and cycles come from its
+   workspace. */
+.acta-ctm-proj {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: rgb(var(--muted));
+  font-size: 12px;
+  color: rgb(var(--muted-foreground));
+}
+.acta-ctm-proj.is-open {
+  box-shadow: 0 0 0 2px rgb(79 70 229 / 0.45);
+}
+
+.acta-ctm-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  padding: 10px 14px;
+  border-top: 1px solid rgb(var(--border));
+  background: rgb(var(--subtle));
+}
+
+/* Popovers are teleported to <body> and placed from the trigger rect, so
+   neither the left column's scroll nor the rail can clip them. */
+.acta-ctm-pop-layer {
+  position: fixed;
+  z-index: 60;
+}
+.acta-ctm-pop {
+  display: flex;
+  flex-direction: column;
+  width: min(300px, calc(100vw - 16px));
+  border-radius: 8px;
+  border: 1px solid rgb(var(--border-strong));
+  background: rgb(var(--card));
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.5);
+  font-size: 12px;
+  color: rgb(var(--foreground));
+  overflow: hidden;
+}
+.acta-ctm-pop.is-wide {
+  width: min(360px, calc(100vw - 16px));
+}
+.acta-ctm-pop-back {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgb(var(--border));
+}
+.acta-ctm-pop-clear {
+  font-size: 11px;
+  color: rgb(var(--placeholder-foreground));
+}
+.acta-ctm-pop-clear:hover {
+  color: #fb7185;
+}
+.acta-ctm-pop-h {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px;
+  padding: 0 8px;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid rgb(var(--border-strong));
+  background: rgb(var(--muted));
+  color: rgb(var(--placeholder-foreground));
+}
+.acta-ctm-pop-h input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  outline: none;
+  font-size: 12px;
+  color: rgb(var(--foreground));
+  color-scheme: dark;
+}
+.acta-ctm-pop-list {
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 0 4px 4px;
+}
+.acta-ctm-pop-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 6px;
+  text-align: left;
+  color: rgb(var(--muted-foreground));
+}
+.acta-ctm-pop-row:hover {
+  background: rgb(var(--muted));
+  color: rgb(var(--foreground));
+}
+.acta-ctm-pop-row.is-on {
+  color: rgb(var(--foreground));
+  background: rgb(79 70 229 / 0.12);
+}
+.acta-ctm-pop-empty {
+  padding: 10px;
+  font-size: 11px;
+  color: rgb(var(--placeholder-foreground));
+}
+.acta-ctm-box {
+  display: inline-grid;
+  place-items: center;
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  border-radius: 3px;
+  border: 1px solid rgb(var(--border-strong));
+}
+.acta-ctm-box.is-on {
+  border-color: #4f46e5;
+  background: #4f46e5;
+  color: #fff;
+}
+
+/* Suggestion chip under the title — dashed while it is only an offer,
+   tinted once applied, so it is visible where a value came from. */
+.acta-ctm-sugg {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 6px;
+  border: 1px dashed rgb(var(--border-strong));
+  font-size: 11px;
+  color: rgb(var(--subtle-foreground));
+}
+.acta-ctm-sugg:hover {
+  color: rgb(var(--foreground));
+}
+.acta-ctm-sugg.is-on {
+  border-style: solid;
+  border-color: rgb(79 70 229 / 0.55);
+  background: rgb(79 70 229 / 0.18);
+  color: rgb(var(--foreground));
+}
+
+/* Phone: the rail is a list under the content, so the dialog scrolls as
+   one surface rather than splitting its height into two scrollers. */
+@media (max-width: 639px) {
+  .acta-ctm-body {
+    overflow-y: auto;
+  }
+  .acta-ctm-main,
+  .acta-ctm-rail {
+    flex: 0 0 auto;
+    overflow: visible;
+  }
+}
+
+/* Relation picker — the kind switch, the links already picked, and the
+   slug-first result rows. Shared by Parent (takes one) and Links (takes
+   several, each under the chosen kind). */
+.acta-ctm-kinds {
+  display: flex;
+  gap: 2px;
+  margin: 8px 8px 0;
+  padding: 3px;
+  border-radius: 6px;
+  background: rgb(var(--muted));
+  font-size: 11px;
+}
+.acta-ctm-kinds button {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 5px 0;
+  border-radius: 4px;
+  color: rgb(var(--subtle-foreground));
+}
+.acta-ctm-kinds button.is-on {
+  background: rgb(var(--card));
+  color: rgb(var(--foreground));
+}
+.acta-ctm-picked {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px 8px 0;
+}
+.acta-ctm-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 5px 0 7px;
+  border-radius: 6px;
+  border: 1px solid rgb(var(--border-strong));
+  background: rgb(var(--muted));
+  font-size: 11px;
+  white-space: nowrap;
+}
+.acta-ctm-link-k {
+  color: rgb(var(--placeholder-foreground));
+}
+.acta-ctm-link-x {
+  display: inline-flex;
+  width: 11px;
+  height: 11px;
+  color: rgb(var(--placeholder-foreground));
+}
+.acta-ctm-link-x:hover {
+  color: #fb7185;
+}
+.acta-ctm-link-x svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+

@@ -32,6 +32,32 @@ def setup(db):
     return ws, project, ws.owner
 
 
+def rail_of(body):
+    """Return the rail payload embedded in a rendered dialog.
+
+    The rail is drawn from one ``json_script`` rather than from markup
+    (eleven rows of members and labels would be most of the dialog's
+    weight), so a pre-fill test asserts on the payload — that is what the
+    user ends up seeing.
+    """
+    import re
+
+    match = re.search(r'<script id="create-task-data" type="application/json">(.*?)</script>', body, re.S)
+    assert match, "the dialog carries no rail payload"
+    return json.loads(match.group(1))
+
+
+def field_of(body, key):
+    """Return one rail field from a rendered dialog's payload."""
+    data = rail_of(body)
+    return next((f for f in data["fields"] if f["key"] == key), None)
+
+
+def picked(field):
+    """Return the values currently on in a rail field."""
+    return [o["v"] for o in field["options"] if o["on"]]
+
+
 @pytest.mark.django_db
 class TestCreateTaskGet:
     """GET ``/tasks/new/`` renders the modal with pre-fills."""
@@ -50,18 +76,17 @@ class TestCreateTaskGet:
         ws, project, user = setup
         client.force_login(user)
         resp = client.get(reverse("web:create_task"), {"project": project.slug_prefix})
-        body = resp.content.decode()
-        # The selected option marker should land on the prefilled project.
-        assert f'value="{project.slug_prefix}"\n                    selected' in body or "selected" in body
+        data = rail_of(resp.content.decode())
+        # The header combobox starts on the pre-filled project.
+        assert data["project"]["v"] == project.slug_prefix
 
     def test_invalid_status_prefill_falls_back_to_planned(self, client, setup):
         ws, project, user = setup
         client.force_login(user)
         resp = client.get(reverse("web:create_task"), {"status": "garbage"})
-        body = resp.content.decode()
         # ``planned`` is the default backlog status (Vox: status default
         # = Planned everywhere except the kanban + which passes ?status=).
-        assert 'value="planned"' in body
+        assert picked(field_of(resp.content.decode(), "status")) == ["planned"]
 
     def test_assignee_prefills_to_current_user(self, client, setup):
         """When the logged-in user is a member of the selected project's
@@ -69,10 +94,7 @@ class TestCreateTaskGet:
         ws, project, user = setup
         client.force_login(user)
         resp = client.get(reverse("web:create_task"))
-        body = resp.content.decode()
-        # The user's own option should be rendered with ``selected``.
-        assert f'value="{user.id}"' in body
-        assert "selected" in body
+        assert picked(field_of(resp.content.decode(), "assignee")) == [str(user.id)]
 
     def test_unauthenticated_redirects(self, client):
         resp = client.get(reverse("web:create_task"))
@@ -122,9 +144,7 @@ class TestCreateTaskGet:
         _, _, user = setup
         client.force_login(user)
         resp = client.get(reverse("web:create_task"), {"priority": "2"})
-        body = resp.content.decode()
-        # Priority 2 option carries ``selected``.
-        assert 'value="2" selected' in body or 'value="2"\n        selected' in body
+        assert picked(field_of(resp.content.decode(), "priority")) == ["2"]
 
     def test_invalid_priority_falls_back_to_no_priority(self, client, setup):
         _, _, user = setup
@@ -137,7 +157,7 @@ class TestCreateTaskGet:
         _, _, user = setup
         client.force_login(user)
         resp = client.get(reverse("web:create_task"), {"due_date": "2026-12-31"})
-        assert b'value="2026-12-31"' in resp.content
+        assert field_of(resp.content.decode(), "due")["value"] == "2026-12-31"
 
     def test_assignee_preserved_when_member_of_new_project(self, client, setup):
         """When the assignee is in the newly-picked project's workspace,
@@ -148,10 +168,7 @@ class TestCreateTaskGet:
             reverse("web:create_task"),
             {"project": project.slug_prefix, "assignee": str(user.id)},
         )
-        body = resp.content.decode()
-        # Option with that id renders with ``selected``.
-        assert f'value="{user.id}"' in body
-        assert "selected" in body
+        assert picked(field_of(resp.content.decode(), "assignee")) == [str(user.id)]
 
     def test_assignee_dropped_when_not_in_new_workspace(self, client, setup):
         """If the assignee isn't a member of the new project's workspace,
@@ -187,10 +204,9 @@ class TestCreateTaskGet:
             reverse("web:create_task"),
             {"project": project.slug_prefix, "labels": str(label.id)},
         )
-        body = resp.content.decode()
-        # The dropdown picker seeds its Alpine ``selected`` array with the
-        # pre-checked label id (chips + ✓ derive from it).
-        assert f"selected: ['{label.id}']" in body
+        # The rail row starts with that label on, so it is a chip in the
+        # row and a tick in the popover.
+        assert picked(field_of(resp.content.decode(), "labels")) == [str(label.id)]
 
 
 @pytest.mark.django_db
@@ -722,14 +738,17 @@ class TestCreateTaskSize:
         ws, project, user = setup
         client.force_login(user)
         body = client.get(reverse("web:create_task"), {"size": "8"}).content.decode()
-        assert 'value="8" selected' in body
+        assert picked(field_of(body, "size")) == ["8"]
 
     def test_off_scale_size_prefill_falls_back_to_unestimated(self, client, setup):
         # 4 is not in the Fibonacci set the field accepts.
         ws, project, user = setup
         client.force_login(user)
         body = client.get(reverse("web:create_task"), {"size": "4"}).content.decode()
-        assert "selected" not in body.split('name="size"')[1].split("</select>")[0]
+        # "No size" is the empty option, so the row reads "Add".
+        size = field_of(body, "size")
+        assert picked(size) == [""]
+        assert next(o for o in size["options"] if o["v"] == "")["empty"] is True
 
     def test_size_saved_on_create(self, client, setup):
         ws, project, user = setup
@@ -857,18 +876,21 @@ class TestCreateTaskCycle:
         ws, project, user = setup
         client.force_login(user)
         body = client.get(reverse("web:create_task")).content.decode()
-        assert 'name="cycle"' not in body
+        # No cadence, no axis: the rail carries no cycle row at all rather
+        # than one that could never be filled.
+        assert field_of(body, "cycle") is None
 
     def test_picker_offered_when_cadence_is_on(self, client, cadence_setup):
         ws, project, user = cadence_setup
         client.force_login(user)
         body = client.get(reverse("web:create_task"), {"project": project.slug_prefix}).content.decode()
-        assert 'name="cycle"' in body
-        assert "Backlog (no cycle)" in body
-        # The active cycle is the default the picker opens on.
+        cycle = field_of(body, "cycle")
+        assert cycle is not None
+        assert "Backlog (no cycle)" in [o["n"] for o in cycle["options"]]
+        # The active cycle is the default the row opens on.
         active = current_cycle(ws)
         assert active is not None
-        assert f"cycleWanted: '{active.id}'" in body
+        assert picked(cycle) == [str(active.id)]
 
     def test_options_name_the_cycle_and_its_span(self, client, cadence_setup):
         # A native <option> is plain text, so the dates are the only thing
@@ -877,10 +899,10 @@ class TestCreateTaskCycle:
         client.force_login(user)
         body = client.get(reverse("web:create_task"), {"project": project.slug_prefix}).content.decode()
         active = current_cycle(ws)
-        span = f'{active.start_date.strftime("%b").lstrip("0")} {active.start_date.day}'
-        assert active.display_name in body
-        assert span in body
-        assert f'{active.end_date.strftime("%b")} {active.end_date.day}' in body
+        row = next(o for o in field_of(body, "cycle")["options"] if o["v"] == str(active.id))
+        assert row["n"] == active.display_name
+        assert f'{active.start_date.strftime("%b")} {active.start_date.day}' in row["sub"]
+        assert f'{active.end_date.strftime("%b")} {active.end_date.day}' in row["sub"]
 
     def test_committed_task_joins_the_active_cycle_without_being_asked(self, client, cadence_setup):
         # BOARD-9: creating straight into to-do used to leave the task
@@ -965,3 +987,324 @@ class TestCreateTaskCycle:
         )
         assert resp.status_code == 400
         assert not Task.objects.filter(title="Bad cycle").exists()
+
+
+@pytest.mark.django_db
+class TestCreateTaskRail:
+    """The property rail the two-column dialog renders from.
+
+    The rail is a projection over the same form the stacked version had,
+    so what matters is that every axis still travels, that an unset field
+    is visibly unset, and that the hidden inputs the POST parses are the
+    ones the payload names.
+    """
+
+    def test_every_axis_the_stacked_form_had_still_travels(self, client, setup):
+        _, _, user = setup
+        client.force_login(user)
+        data = rail_of(client.get(reverse("web:create_task")).content.decode())
+        keys = [f["key"] for f in data["fields"]]
+        assert keys == [
+            "status",
+            "priority",
+            "size",
+            "assignee",
+            "labels",
+            "due",
+            "repeat",
+            "parent",
+            "links",
+            "meeting",
+        ]
+
+    def test_each_row_names_the_input_the_post_handler_parses(self, client, setup):
+        _, _, user = setup
+        client.force_login(user)
+        data = rail_of(client.get(reverse("web:create_task")).content.decode())
+        assert {f["key"]: f.get("input") for f in data["fields"]} == {
+            "status": "status",
+            "priority": "priority",
+            "size": "size",
+            "assignee": "assignee",
+            "labels": "labels",
+            "due": "due_date",
+            "repeat": "repeat",
+            "parent": "parent",
+            "meeting": "meeting",
+            # Links name no single input: each picked task writes one under
+            # the name of its own kind.
+            "links": None,
+        }
+
+    def test_an_unset_field_is_marked_so_the_row_can_say_add(self, client, setup):
+        _, _, user = setup
+        client.force_login(user)
+        data = rail_of(client.get(reverse("web:create_task")).content.decode())
+        # "No priority" and "No size" are values the form submits but not
+        # values a person picked, so the row has to read them as empty.
+        for key, value in (("priority", "0"), ("size", "")):
+            field = next(f for f in data["fields"] if f["key"] == key)
+            assert next(o for o in field["options"] if o["v"] == value)["empty"] is True
+        # Status has no empty state — a task is always in one.
+        status = next(f for f in data["fields"] if f["key"] == "status")
+        assert not any(o.get("empty") for o in status["options"])
+        assert status["clear"] is False
+
+    def test_a_task_is_never_born_cancelled(self, client, setup):
+        _, _, user = setup
+        client.force_login(user)
+        data = rail_of(client.get(reverse("web:create_task")).content.decode())
+        status = next(f for f in data["fields"] if f["key"] == "status")
+        assert "cancelled" not in [o["v"] for o in status["options"]]
+
+    def test_the_combobox_groups_projects_by_workspace(self, client, setup):
+        ws, project, user = setup
+        client.force_login(user)
+        data = rail_of(client.get(reverse("web:create_task")).content.decode())
+        assert [g["n"] for g in data["projects"]] == [ws.name]
+        row = data["projects"][0]["items"][0]
+        assert row["slug"] == project.slug_prefix
+        assert row["n"] == project.name
+
+    def test_members_carry_what_the_avatar_needs(self, client, setup):
+        _, _, user = setup
+        client.force_login(user)
+        data = rail_of(client.get(reverse("web:create_task")).content.decode())
+        assignee = next(f for f in data["fields"] if f["key"] == "assignee")
+        row = next(o for o in assignee["options"] if o["v"] == str(user.id))
+        # Drawn by Alpine from JSON, so the photo-or-initial choice is
+        # made here rather than by the avatar partial.
+        assert row["ini"] == (user.display_name or user.username)[:1].upper()
+        assert row["bg"] == user.avatar_color
+
+    def test_labels_carry_their_group_so_the_list_can_head_it(self, client, setup):
+        ws, project, user = setup
+        from apps.labels.models import LabelGroup
+
+        group = LabelGroup.objects.create(workspace=ws, name="Surface")
+        label = LabelFactory(workspace=ws, name="backend", group=group)
+        client.force_login(user)
+        data = rail_of(client.get(reverse("web:create_task")).content.decode())
+        labels = next(f for f in data["fields"] if f["key"] == "labels")
+        row = next(o for o in labels["options"] if o["v"] == str(label.id))
+        assert row["g"] == "Surface"
+        assert labels["multi"] is True
+
+    def test_the_guard_panel_ships_no_rail(self, client):
+        ws = WorkspaceFactory()
+        client.force_login(ws.owner)
+        body = client.get(reverse("web:create_task")).content.decode()
+        assert 'id="create-task-data"' not in body
+
+
+@pytest.mark.django_db
+class TestCreateTaskRelations:
+    """Parent and links picked in the dialog, and what they may be.
+
+    Every rule here is one the task page already enforces — the dialog is
+    just the first place a task can carry them, so the POST has to check
+    the same things rather than trust the picker.
+    """
+
+    def post(self, client, project, **extra):
+        """POST the minimal create form plus ``extra``."""
+        payload = {"project": project.slug_prefix, "title": "Child", "status": "to-do", "priority": "0"}
+        payload.update(extra)
+        return client.post(reverse("web:create_task"), payload)
+
+    def test_parent_is_attached(self, client, setup):
+        _, project, user = setup
+        parent = TaskFactory(project=project)
+        client.force_login(user)
+        assert self.post(client, project, parent=parent.slug).status_code == 204
+        assert Task.objects.get(title="Child").parent_id == parent.pk
+
+    def test_parent_from_another_project_is_rejected(self, client, setup):
+        ws, project, user = setup
+        other = ProjectFactory(workspace=ws, slug_prefix="OTH")
+        parent = TaskFactory(project=other)
+        client.force_login(user)
+        # ``Task.clean`` requires a subtask and its parent to share a
+        # project, so the picker never offers this and the POST refuses it.
+        assert self.post(client, project, parent=parent.slug).status_code == 400
+        assert not Task.objects.filter(title="Child").exists()
+
+    def test_a_subtask_cannot_become_a_parent(self, client, setup):
+        _, project, user = setup
+        grandparent = TaskFactory(project=project)
+        parent = TaskFactory(project=project, parent=grandparent)
+        client.force_login(user)
+        # Depth is capped at one level.
+        assert self.post(client, project, parent=parent.slug).status_code == 400
+
+    @pytest.mark.parametrize("kind", ["blocked_by", "blocks", "related"])
+    def test_each_link_kind_is_written(self, client, setup, kind):
+        _, project, user = setup
+        target = TaskFactory(project=project)
+        client.force_login(user)
+        assert self.post(client, project, **{kind: target.slug}).status_code == 204
+        task = Task.objects.get(title="Child")
+        assert [t.slug for t in getattr(task, kind).all()] == [target.slug]
+
+    def test_several_kinds_at_once(self, client, setup):
+        _, project, user = setup
+        blocker, sibling = TaskFactory(project=project), TaskFactory(project=project)
+        client.force_login(user)
+        resp = self.post(client, project, blocked_by=blocker.slug, related=sibling.slug)
+        assert resp.status_code == 204
+        task = Task.objects.get(title="Child")
+        assert [t.slug for t in task.blocked_by.all()] == [blocker.slug]
+        assert [t.slug for t in task.related.all()] == [sibling.slug]
+
+    def test_the_same_task_cannot_be_linked_twice(self, client, setup):
+        _, project, user = setup
+        target = TaskFactory(project=project)
+        client.force_login(user)
+        # Two kinds on one task is a contradiction to read off the graph.
+        resp = self.post(client, project, blocked_by=target.slug, blocks=target.slug)
+        assert resp.status_code == 400
+        assert not Task.objects.filter(title="Child").exists()
+
+    def test_a_link_outside_the_workspace_is_rejected(self, client, setup):
+        _, project, user = setup
+        foreign_ws = WorkspaceFactory()
+        foreign = TaskFactory(project=ProjectFactory(workspace=foreign_ws, slug_prefix="FGN"))
+        client.force_login(user)
+        assert self.post(client, project, related=foreign.slug).status_code == 400
+
+    def test_links_across_projects_in_one_workspace_are_fine(self, client, setup):
+        ws, project, user = setup
+        other = TaskFactory(project=ProjectFactory(workspace=ws, slug_prefix="SIB"))
+        client.force_login(user)
+        # Unlike a parent, a link is a workspace-level relationship.
+        assert self.post(client, project, related=other.slug).status_code == 204
+
+
+@pytest.mark.django_db
+class TestCreateTaskContext:
+    """The meeting a task came out of, and whether it repeats."""
+
+    def meeting_in(self, workspace, user, title="Weekly sync"):
+        """A logged meeting in ``workspace``."""
+        from apps.meetings.models import Meeting
+
+        return Meeting.objects.create(
+            workspace=workspace,
+            title=title,
+            happened_at=timezone.now(),
+            duration_minutes=30,
+            created_by=user,
+        )
+
+    def test_the_task_joins_the_meeting(self, client, setup):
+        ws, project, user = setup
+        meeting = self.meeting_in(ws, user)
+        client.force_login(user)
+        resp = client.post(
+            reverse("web:create_task"),
+            {"project": project.slug_prefix, "title": "From the call", "meeting": str(meeting.id)},
+        )
+        assert resp.status_code == 204
+        assert list(meeting.tasks.values_list("title", flat=True)) == ["From the call"]
+
+    def test_a_meeting_from_another_workspace_is_rejected(self, client, setup):
+        _, project, user = setup
+        foreign = self.meeting_in(WorkspaceFactory(), user)
+        client.force_login(user)
+        resp = client.post(
+            reverse("web:create_task"),
+            {"project": project.slug_prefix, "title": "From the call", "meeting": str(foreign.id)},
+        )
+        assert resp.status_code == 400
+
+    def test_repeat_creates_a_rule_and_adopts_the_task(self, client, setup):
+        from apps.recurring.models import RecurringTask
+
+        _, project, user = setup
+        client.force_login(user)
+        resp = client.post(
+            reverse("web:create_task"),
+            {
+                "project": project.slug_prefix,
+                "title": "Weekly report",
+                "due_date": "2026-10-09",
+                "repeat": "weekly",
+            },
+        )
+        assert resp.status_code == 204
+        task = Task.objects.get(title="Weekly report")
+        rule = RecurringTask.objects.get(title="Weekly report")
+        # The task IS occurrence one — the series does not spawn a copy of
+        # the thing that started it.
+        assert task.recurrence_id == rule.pk
+        assert task.occurrence_date == datetime.date(2026, 10, 9)
+        assert rule.occurrences_created == 1
+        assert rule.next_occurrence_date == datetime.date(2026, 10, 16)
+        # Anchored on the deadline: a Friday task repeats on Fridays.
+        assert rule.weekdays == [4]
+
+    def test_no_repeat_creates_no_rule(self, client, setup):
+        from apps.recurring.models import RecurringTask
+
+        _, project, user = setup
+        client.force_login(user)
+        client.post(reverse("web:create_task"), {"project": project.slug_prefix, "title": "One-off"})
+        assert not RecurringTask.objects.exists()
+        assert Task.objects.get(title="One-off").recurrence_id is None
+
+    def test_a_made_up_cadence_is_rejected(self, client, setup):
+        _, project, user = setup
+        client.force_login(user)
+        resp = client.post(
+            reverse("web:create_task"),
+            {"project": project.slug_prefix, "title": "Nope", "repeat": "hourly"},
+        )
+        assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+class TestCreateTaskSearch:
+    """The typeahead behind the parent and link pickers.
+
+    ``task_link_search`` cannot serve the dialog — it is keyed on a task
+    that does not exist yet — so scope comes from the picked project.
+    """
+
+    def search(self, client, project, **params):
+        """Call the endpoint and return its parsed results."""
+        params.setdefault("project", project.slug_prefix)
+        return client.get(reverse("web:create_task_search"), params).json()["results"]
+
+    def test_a_link_may_come_from_any_project_in_the_workspace(self, client, setup):
+        ws, project, user = setup
+        TaskFactory(project=ProjectFactory(workspace=ws, slug_prefix="SIB"), title="Sibling work")
+        client.force_login(user)
+        rows = self.search(client, project, kind="links", q="Sibling")
+        assert [r["n"] for r in rows] == ["Sibling work"]
+
+    def test_a_parent_may_only_come_from_the_same_project(self, client, setup):
+        ws, project, user = setup
+        TaskFactory(project=ProjectFactory(workspace=ws, slug_prefix="SIB"), title="Sibling work")
+        client.force_login(user)
+        assert self.search(client, project, kind="parent", q="Sibling") == []
+
+    def test_a_subtask_is_not_offered_as_a_parent(self, client, setup):
+        _, project, user = setup
+        top = TaskFactory(project=project, title="Umbrella")
+        TaskFactory(project=project, parent=top, title="Umbrella detail")
+        client.force_login(user)
+        rows = self.search(client, project, kind="parent", q="Umbrella")
+        # Depth is capped at one, so only the top-level task qualifies.
+        assert [r["n"] for r in rows] == ["Umbrella"]
+
+    def test_a_foreign_workspace_task_is_never_offered(self, client, setup):
+        _, project, user = setup
+        TaskFactory(project=ProjectFactory(workspace=WorkspaceFactory(), slug_prefix="FGN"), title="Sibling work")
+        client.force_login(user)
+        assert self.search(client, project, kind="links", q="Sibling") == []
+
+    def test_an_unknown_project_answers_empty(self, client, setup):
+        _, _, user = setup
+        client.force_login(user)
+        resp = client.get(reverse("web:create_task_search"), {"project": "NOPE", "q": "x"})
+        assert resp.json() == {"results": [], "suggested": False}

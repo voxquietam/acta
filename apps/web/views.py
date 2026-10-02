@@ -64,6 +64,7 @@ from apps.tasks.events import broadcast_link_change, broadcast_task_events, emit
 from apps.tasks.metrics import compute_bottlenecks, compute_cfd, compute_flow_metrics
 from apps.tasks.models import Task
 from apps.tasks.search import search_tasks
+from apps.web.create_dialog import build_create_task_data
 from apps.web.dashboard import DEFAULT_RANGE, build_dashboard_context
 from apps.web.exports import serialize_project_overview, serialize_tasks
 from apps.web.filters import (
@@ -6963,6 +6964,39 @@ def _project_labels_qs(project):
     return Label.objects.filter(workspace=project.workspace).order_by("position", "name")
 
 
+def _rail_task_row(task, *, project=None, workspace=None):
+    """Shape a task as a rail row, or ``None`` when it does not belong.
+
+    Used for the parent and link values that ride the project-switch round
+    trip: a parent must still be in the picked project and a link target
+    still in its workspace, otherwise the value is dropped rather than
+    carried into a submit that would fail.
+
+    Args:
+        task: The resolved task, or ``None``.
+        project: When given, the project the task must be in.
+        workspace: When given, the workspace the task must be in.
+
+    Returns:
+        A ``{"v", "n", "cls", "sub"}`` dict, or ``None``.
+    """
+    from apps.web.templatetags.web_extras import status_dot_classes
+
+    if task is None:
+        return None
+    if project is not None and task.project_id != project.pk:
+        return None
+    if workspace is not None and task.project.workspace_id != workspace.pk:
+        return None
+    return {
+        "v": task.slug,
+        "n": task.title,
+        "slug": task.slug,
+        "cls": status_dot_classes(task.status),
+        "sub": task.project.slug_prefix,
+    }
+
+
 @login_required
 def create_task(request):
     """Render the create-task modal (GET) or persist the new task (POST).
@@ -7071,9 +7105,47 @@ def _create_task_get(request):
     # can show which task it'll link to (and skip silently if it doesn't
     # resolve to a task the user can see).
     link_related_task = _resolve_link_target(request.user, request.GET.get("link_related") or "")
+    # Relations and context survive a project switch like every other
+    # field, but they are resolved rather than echoed: a parent or a link
+    # that belongs to the project we just left would 400 on submit, and a
+    # meeting from the old workspace is not offered any more.
+    pre_parent = _rail_task_row(
+        _resolve_link_target(request.user, request.GET.get("parent") or ""), project=selected_project
+    )
+    pre_links = []
+    for kind in LINK_KINDS:
+        for raw in request.GET.getlist(kind):
+            row = _rail_task_row(
+                _resolve_link_target(request.user, raw), workspace=getattr(selected_project, "workspace", None)
+            )
+            if row is not None:
+                pre_links.append({**row, "kind": kind})
+    meetings = []
+    if selected_project is not None:
+        from apps.meetings.models import Meeting
+
+        meetings = list(
+            Meeting.objects.filter(workspace=selected_project.workspace).order_by("-happened_at")[:20],
+        )
+    requested_meeting = request.GET.get("meeting") or ""
+    pre_meeting_id = requested_meeting if any(str(m.id) == requested_meeting for m in meetings) else ""
+    from apps.recurring import services as recurring_services
+
+    pre_repeat = request.GET.get("repeat") or ""
+    if pre_repeat not in recurring_services.CREATE_PRESETS:
+        pre_repeat = ""
     # Empty when the project's workspace has cadence disabled, which is the
     # whole gate for the cycle picker — no config flag to check twice.
     workspace_cycles = _workspace_cycles(selected_project.workspace) if selected_project else []
+    # The cycle survives a project switch the same way every other field
+    # does; on a first open it starts on the active one, which is what
+    # ``apply_cycle_policy`` would pick anyway for committed work.
+    active_cycle_id = next((c.id for c in workspace_cycles if c.is_active), "")
+    requested_cycle = request.GET.get("cycle")
+    if requested_cycle is None:
+        pre_cycle_id = active_cycle_id
+    else:
+        pre_cycle_id = requested_cycle if any(str(c.id) == requested_cycle for c in workspace_cycles) else ""
     return HttpResponse(
         render_to_string(
             "web/_create_task_modal.html",
@@ -7096,7 +7168,26 @@ def _create_task_get(request):
                 "priority_labels": dict(Task.PRIORITY_CHOICES),
                 "size_values": Task.SIZE_VALUES,
                 "workspace_cycles": workspace_cycles,
-                "active_cycle_id": next((c.id for c in workspace_cycles if c.is_active), ""),
+                "active_cycle_id": active_cycle_id,
+                "create_task_data": build_create_task_data(
+                    projects=projects,
+                    selected_project=selected_project,
+                    members=members,
+                    label_groups=label_groups,
+                    workspace_cycles=workspace_cycles,
+                    pre_status=pre_status,
+                    pre_priority=pre_priority,
+                    pre_size=pre_size,
+                    pre_assignee_id=pre_assignee_id,
+                    pre_label_ids=pre_label_ids,
+                    pre_due_date=pre_due_date,
+                    pre_cycle_id=pre_cycle_id,
+                    meetings=meetings,
+                    pre_parent=pre_parent,
+                    pre_links=pre_links,
+                    pre_meeting_id=pre_meeting_id,
+                    pre_repeat=pre_repeat,
+                ),
             },
             request=request,
         ),
@@ -7220,6 +7311,196 @@ def _parse_create_task_labels(request, project):
     return label_ids, None
 
 
+LINK_KINDS = (
+    "blocked_by",
+    "blocks",
+    "related",
+)
+
+
+def _parse_create_task_relations(request, project):
+    """Validate the parent and the links picked in the create dialog.
+
+    Everything is checked against what the picker was allowed to offer: a
+    parent must live in the same project and must not be a subtask itself
+    (``Task.clean`` caps the depth at one), and a link target must be a
+    task the user can see in the same workspace.
+
+    Args:
+        request: ``HttpRequest`` whose POST body carries the form.
+        project: The resolved :class:`~apps.projects.models.Project`.
+
+    Returns:
+        A ``(relations, error)`` pair. On success ``relations`` maps
+        ``parent`` to a :class:`~apps.tasks.models.Task` or ``None`` and
+        each kind in :data:`LINK_KINDS` to a list of tasks; on failure
+        ``relations`` is ``None`` and ``error`` is the ``400`` to return.
+    """
+    relations = {"parent": None}
+    raw_parent = (request.POST.get("parent") or "").strip()
+    if raw_parent:
+        parent = _resolve_link_target(request.user, raw_parent)
+        if parent is None:
+            return None, HttpResponseBadRequest("parent not found")
+        if parent.project_id != project.pk:
+            return None, HttpResponseBadRequest("parent not in project")
+        if parent.parent_id is not None:
+            return None, HttpResponseBadRequest("parent is already a subtask")
+        relations["parent"] = parent
+    seen = set()
+    for kind in LINK_KINDS:
+        targets = []
+        for raw in request.POST.getlist(kind):
+            target = _resolve_link_target(request.user, raw)
+            if target is None:
+                return None, HttpResponseBadRequest("link target not found")
+            if target.project.workspace_id != project.workspace_id:
+                return None, HttpResponseBadRequest("link target not in workspace")
+            # One task, one relationship: the picker already drops a task
+            # it has, and two kinds at once is a contradiction waiting to
+            # be read off the graph.
+            if target.pk in seen:
+                return None, HttpResponseBadRequest("task linked twice")
+            seen.add(target.pk)
+            targets.append(target)
+        relations[kind] = targets
+    return relations, None
+
+
+def _parse_create_task_context(request, project):
+    """Validate the meeting and the repeat preset picked in the dialog.
+
+    Args:
+        request: ``HttpRequest`` whose POST body carries the form.
+        project: The resolved :class:`~apps.projects.models.Project`; the
+            meeting is checked against its workspace.
+
+    Returns:
+        A ``(context, error)`` pair. On success ``context`` holds
+        ``meeting`` (a :class:`~apps.meetings.models.Meeting` or ``None``)
+        and ``repeat`` (a preset key or ``""``).
+    """
+    from apps.meetings.models import Meeting
+    from apps.recurring import services as recurring_services
+
+    meeting = None
+    raw_meeting = (request.POST.get("meeting") or "").strip()
+    if raw_meeting:
+        try:
+            meeting_id = int(raw_meeting)
+        except ValueError:
+            return None, HttpResponseBadRequest("invalid meeting")
+        meeting = Meeting.objects.filter(pk=meeting_id, workspace=project.workspace).first()
+        if meeting is None:
+            return None, HttpResponseBadRequest("meeting not in workspace")
+    repeat = (request.POST.get("repeat") or "").strip()
+    if repeat and repeat not in recurring_services.CREATE_PRESETS:
+        return None, HttpResponseBadRequest("invalid repeat")
+    return {"meeting": meeting, "repeat": repeat}, None
+
+
+def _apply_create_task_links(task, relations, actor):
+    """Attach the picked links and tell each counterpart it gained one.
+
+    The link rows themselves are plain M2M writes; the broadcast is what
+    makes the other task's links panel and timeline notice, and it is the
+    same call the links panel makes when a link is added from a task page.
+
+    Args:
+        task: The freshly created task.
+        relations: The ``_parse_create_task_relations`` payload.
+        actor: The user filing the task.
+
+    Returns:
+        ``True`` when at least one link was written.
+    """
+    wrote = False
+    for kind in LINK_KINDS:
+        targets = relations.get(kind) or []
+        if not targets:
+            continue
+        getattr(task, kind).add(*targets)
+        wrote = True
+        for target in targets:
+            # Stated from the counterpart's side: "blocked by X" on the new
+            # task is "blocks this" on X.
+            mirrored = {"blocked_by": "blocks", "blocks": "blocked_by", "related": "related"}[kind]
+            broadcast_link_change(
+                task=target,
+                target=task,
+                event_type="task.link_added",
+                payload={"kind": mirrored, "target_slug": task.slug, "target_title": task.title},
+                actor=actor,
+            )
+    return wrote
+
+
+@login_required
+def create_task_search(request):
+    """Typeahead for the create dialog's parent and link pickers.
+
+    ``task_link_search`` cannot serve this: it is keyed on an existing
+    task, and the one being filed here does not exist yet. Scope comes
+    from the picked project instead — the whole workspace for a link, the
+    project alone for a parent, since ``Task.clean`` requires a subtask and
+    its parent to share one.
+
+    An empty query answers with the tasks that read like the title being
+    typed, the same semantic search the similar-task hint uses, so the
+    picker opens with candidates rather than with nothing. A deployment
+    with no embedding host sees the old emptiness.
+
+    Returns:
+        ``{"results": [...], "suggested": bool}`` in the option shape the
+        rail's popover already renders.
+    """
+    project = next(
+        (
+            p
+            for p in _user_accessible_projects(request.user, resolve_active_workspace(request))
+            if p.slug_prefix == (request.GET.get("project") or "")
+        ),
+        None,
+    )
+    if project is None:
+        return JsonResponse({"results": [], "suggested": False})
+    from apps.web.templatetags.web_extras import status_dot_classes
+
+    kind = request.GET.get("kind") or "links"
+    qs = _user_task_qs(request.user).select_related("project")
+    if kind == "parent":
+        # Depth is capped at one, so a task that is already a subtask
+        # cannot become a parent.
+        qs = qs.filter(project=project, parent__isnull=True)
+    else:
+        qs = qs.filter(project__workspace_id=project.workspace_id)
+    q = (request.GET.get("q") or "").strip()
+    suggested = False
+    if q:
+        found = search_tasks(qs, q)
+    else:
+        title = (request.GET.get("title") or "").strip()
+        neighbours = similarity.neighbours_of_text(title, workspace_id=project.workspace_id, limit=8) if title else []
+        by_id = {row.pk: row for row in qs.filter(pk__in=[task_id for task_id, _ in neighbours])}
+        found = [by_id[task_id] for task_id, _ in neighbours if task_id in by_id]
+        suggested = bool(found)
+    return JsonResponse(
+        {
+            "results": [
+                {
+                    "v": task.slug,
+                    "n": task.title,
+                    "slug": task.slug,
+                    "cls": status_dot_classes(task.status),
+                    "sub": task.project.slug_prefix,
+                }
+                for task in found[:8]
+            ],
+            "suggested": suggested,
+        },
+    )
+
+
 def _create_task_post(request):
     """Persist a new task and tell HTMX to navigate to its detail page.
 
@@ -7263,12 +7544,21 @@ def _create_task_post(request):
     label_ids, error = _parse_create_task_labels(request, project)
     if error is not None:
         return error
+    relations, error = _parse_create_task_relations(request, project)
+    if error is not None:
+        return error
+    context, error = _parse_create_task_context(request, project)
+    if error is not None:
+        return error
     status = fields["status"]
     with transaction.atomic():
         task = Task(
             project=project,
             title=title,
             reporter=request.user,
+            # The parent is a column on the task, so it is set before the
+            # insert rather than attached after it like the links are.
+            parent=relations["parent"],
             **fields,
         )
         # Mirror ``set_task_status``: a task that's born in-progress gets its
@@ -7290,6 +7580,15 @@ def _create_task_post(request):
             # tick more than one; only the first survives, see
             # ``trim_exclusive_conflicts``).
             task.labels.set(trim_exclusive_conflicts(label_ids))
+        linked_from_rail = _apply_create_task_links(task, relations, request.user)
+        if context["meeting"] is not None:
+            context["meeting"].tasks.add(task)
+        if context["repeat"]:
+            # Labels are copied onto the rule, so this runs after they are
+            # set; the task becomes occurrence one of the new series.
+            from apps.recurring import services as recurring_services
+
+            recurring_services.rule_from_task(task, context["repeat"], actor=request.user)
         # Files picked in the modal ride the create POST as multipart, so
         # the task they belong to already exists here — no draft ownership
         # needed (which is what still keeps inline images out of this
@@ -7371,7 +7670,7 @@ def _create_task_post(request):
     # by emptying ``#modal-root`` (detaching the form HTMX dispatches these
     # events on), so anything after that no longer bubbles to ``body``.
     # JSON also avoids the ambiguous comma-separated parse.
-    if linked:
+    if linked or linked_from_rail:
         created_trigger = json.dumps({"acta:link-changed": True, "acta:task-created": True})
     else:
         created_trigger = "acta:task-created"

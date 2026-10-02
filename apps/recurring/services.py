@@ -287,3 +287,79 @@ def _spawn(rule, occ: date):
     # is ``None`` (system), so the self-suppression rule never fires.
     notify_task_created(task=task, actor=None)
     return task
+
+
+# The create dialog offers a cadence, not the rule editor's full schedule:
+# four presets that cover what people actually pick when filing a task.
+# Anything finer is a trip to the Recurring page.
+# Literal frequencies for the same reason as ``_DAILY`` above: this
+# module does not import the model just to name a constant.
+CREATE_PRESETS = {
+    "daily": (_DAILY, 1),
+    "weekly": (_WEEKLY, 1),
+    "biweekly": (_WEEKLY, 2),
+    "monthly": (_MONTHLY, 1),
+}
+
+
+def rule_from_task(task, preset: str, *, actor):
+    """Make ``task`` the first occurrence of a new rule on ``preset``.
+
+    "Repeat" in the create dialog is not a field on the task — a
+    :class:`RecurringTask` is a rule that spawns tasks — so picking a
+    cadence means creating that rule from the task that was just filed and
+    adopting the task as occurrence one. The cursor then advances past it,
+    so the materializer starts from the next occurrence and nothing is
+    duplicated. Same adoption the rule editor performs for "Make
+    recurring…".
+
+    The series is anchored on the task's deadline when it has one, else on
+    today: a task due Friday that repeats weekly should land on Fridays.
+
+    Args:
+        task: The freshly created :class:`~apps.tasks.models.Task`.
+        preset: One of :data:`CREATE_PRESETS`.
+        actor: The user filing the task; becomes the rule's owner.
+
+    Returns:
+        The new :class:`RecurringTask`, or ``None`` when ``preset`` names
+        no cadence (which is how "does not repeat" arrives).
+    """
+    from apps.recurring.models import RecurringTask
+
+    if preset not in CREATE_PRESETS:
+        return None
+    freq, interval = CREATE_PRESETS[preset]
+    start = task.due_date or timezone.localdate()
+    rule = RecurringTask(
+        workspace=task.project.workspace,
+        project=task.project,
+        title=task.title,
+        description=task.description,
+        assignee=task.assignee,
+        priority=task.priority,
+        size=task.size,
+        freq=freq,
+        interval=interval,
+        # A weekly series repeats on the weekday it started; a monthly one
+        # on that day of the month. Leaving these empty would make the
+        # schedule depend on whatever the generator defaults to.
+        weekdays=[start.weekday()] if freq == _WEEKLY else [],
+        day_of_month=start.day if freq == _MONTHLY else None,
+        start_date=start,
+        end_mode=RecurringTask.EndMode.NEVER,
+        is_active=True,
+        created_by=actor,
+    )
+    rule.next_occurrence_date = occurrence_on_or_after(rule, max(start, timezone.localdate()))
+    rule.save()
+    rule.labels.set(task.labels.all())
+    occ = rule.next_occurrence_date
+    if occ is not None:
+        task.recurrence = rule
+        task.occurrence_date = occ
+        task.save(update_fields=["recurrence", "occurrence_date", "updated_at"])
+        rule.occurrences_created = 1
+        rule.next_occurrence_date = occurrence_after(rule, occ)
+        rule.save(update_fields=["occurrences_created", "next_occurrence_date", "updated_at"])
+    return rule

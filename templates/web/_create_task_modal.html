@@ -3,42 +3,70 @@
 {% load lucide %}
 {% load web_extras %}
 {% comment %}
-Create-task modal. Loaded via HTMX (``hx-get`` from the global ``+``
-button or the ``c`` hotkey) into ``#modal-root`` in ``base_app.html``.
+Create-task dialog — two columns (design "Create Task Rethink", artboard
+1a): content on the left, a 280px property rail on the right, so the
+dialog and the task-detail page read as one interface. Loaded via HTMX
+(``hx-get`` from the global ``+`` button or the ``c`` hotkey) into
+``#modal-root`` in ``base_app.html``.
 
-* Backdrop click + ``Esc`` close the modal (shell wires both).
-* ``acta:task-created`` (window) → ``close()`` so the modal dismisses
-  after the server-side POST reports success.
-* Project dropdown change triggers an ``hx-get`` back to this template
-  so the assignee + label pickers refresh against the new workspace.
-* Labels render as toggleable pills — see ``.acta-label-pill``.
-* ``Open after create`` toggle (persisted in ``localStorage``): ON →
-  server returns ``HX-Redirect`` to the new task; OFF → ``204 +
-  HX-Trigger: acta:task-created`` and the page refreshes its panels.
-* Description: TipTap editor (same module the task-detail page uses,
-  via ``[data-description-editor]``).
+Architecture
+============
+
+The rail is a presentation layer over the same ``<form>`` the stacked
+version had. ``actaCreateTask()`` holds the state and *projects* it into
+hidden inputs with the old names (``status`` / ``priority`` / ``size`` /
+``due_date`` / ``assignee`` / ``cycle`` / ``labels``), so
+``_create_task_post`` parses exactly what it parsed before and never
+learned the selects are gone. Same split as the filter dock.
+
+The options come from ``build_create_task_data`` as one ``json_script``
+rather than as markup: eleven rows of members and labels would otherwise
+be most of the dialog's weight, nearly all of it never opened.
+
+Behaviour kept from the stacked version:
+
+* ``Esc`` backs out of the open popover first and the dialog on a second
+  press; the backdrop does not close it (shell wires both).
+* ``acta:task-created`` (window) → ``created()``: dismiss, or — after
+  ⌘⇧↵ — reopen a fresh dialog on the same project.
+* Picking a project re-renders the whole dialog from the server so the
+  member / label / cycle options follow the new workspace; every other
+  field rides along through ``hx-include`` and comes back as ``pre_*``.
+* ``Open after create`` (persisted in ``localStorage``): ON → server
+  returns ``HX-Redirect`` to the new task; OFF → ``204 + HX-Trigger:
+  acta:task-created``.
+* Description: TipTap editor (same module the task-detail page uses, via
+  ``[data-description-editor]``).
 {% endcomment %}
 
 {% block root_attrs %}
-x-data="{
-  openAfter: localStorage.getItem('acta:open_after_create') === '1',
-  close() {
-    const root = document.getElementById('modal-root');
-    if (root) root.innerHTML = '';
-  },
-  toggleOpenAfter() {
-    this.openAfter = !this.openAfter;
-    localStorage.setItem('acta:open_after_create', this.openAfter ? '1' : '0');
-  }
-}"
-@acta:task-created.window="close()"
+x-data="actaCreateTask()"
+@acta:task-created.window="created()"
 {% endblock %}
 
-{% block panel_class %}sm:max-w-2xl sm:max-h-[85vh]{% endblock %}
+{% block panel_class %}acta-ctm-panel{% endblock %}
 
 {% block panel_attrs %}x-init="$nextTick(() => $refs.title?.focus())"{% endblock %}
 
-{% block title %}<h2 class="text-sm font-medium text-foreground">{% if projects %}{% trans "New task" %}{% else %}{% trans "Create a project first" %}{% endif %}</h2>{% endblock %}
+{% block title %}
+<h2 class="text-sm font-medium text-foreground shrink-0">{% if projects %}{% trans "New task" %}{% else %}{% trans "Create a project first" %}{% endif %}</h2>
+{% if projects %}
+{% comment %}
+The project lives in the header, not in the field stack: it is the one
+answer the rest of the dialog depends on (members, labels, cycles all
+come from its workspace), and a combobox searches name and slug where a
+``<select>`` of every project in every workspace could only be scrolled.
+{% endcomment %}
+<button type="button" class="acta-ctm-proj" :class="{ 'is-open': open === 'project' }"
+        @click.stop="openAt('project', $event.currentTarget, 360)">
+  <span class="acta-ctm-row-ic" x-show="project" :style="{ color: project && project.c }"
+        x-html="project ? icon(project.icon) : ''"></span>
+  <span x-text="project ? project.n : text.pick_project"></span>
+  <span class="acta-ctm-slug" x-text="project ? project.slug : ''"></span>
+  {% lucide "chevron-down" "w-3 h-3 shrink-0 text-placeholder-foreground" %}
+</button>
+{% endif %}
+{% endblock %}
 
 {% block body %}
 {% if not projects %}
@@ -62,7 +90,7 @@ x-data="{
   </div>
 </div>
 <footer class="flex items-center justify-end gap-2 px-4 py-3 border-t border-border bg-subtle/60">
-  <button type="button" @click="close()" class="acta-btn-ghost">
+  <button type="button" @click="dismiss()" class="acta-btn-ghost">
     {% trans "Cancel" %}
   </button>
   <button type="button"
@@ -74,389 +102,351 @@ x-data="{
   </button>
 </footer>
 {% else %}
-{% comment %}
-``files`` mirrors the comment composer (``projects/_comment_form.html``):
-Alpine owns the picked File objects so a chip can be removed before
-submit, and ``sync()`` writes them back into the real input through a
-``DataTransfer`` — a file input's own FileList is read-only. The files
-ride the create POST as multipart, so the task already exists by the
-time the server stores them and no draft ownership is needed (which is
-exactly what still blocks inline images here — see ADR 0025).
 
-Changing the project re-renders this whole modal from the server, and
-every other field survives that through a ``pre_*`` round-trip. Files
-can't — a ``File`` doesn't fit in a querystring — so they are parked on
-``window.__actaCreateTaskFiles`` for the duration of that one swap and
-picked back up by ``init()``. Only the project select's request stashes
-them: on submit the modal closes for good, and a leftover stash would
-resurface in the next task's form.
+{{ create_task_data|json_script:"create-task-data" }}
+
+{% comment %}
+Switching the project re-renders this whole dialog from the server.
+``hx-include`` carries every projected input through that round trip, so
+the title, description and each picked value come back as ``pre_*`` —
+the same contract the old project ``<select>`` had, now fired by an
+Alpine event instead of a ``change``.
 {% endcomment %}
-<form x-data="{
-        status: '{{ pre_status }}',
-        cycleWanted: '{{ active_cycle_id }}',
-        get inBacklog() { return this.status === 'planned' || this.status === 'ready'; },
-        files: [],
-        init() {
-          this.files = window.__actaCreateTaskFiles || [];
-          delete window.__actaCreateTaskFiles;
-          this.$nextTick(() => this.sync());
-        },
-        pick(list) { for (const f of list) this.files.push(f); this.sync(); },
-        remove(i) { this.files.splice(i, 1); this.sync(); },
-        sync() {
-          const dt = new DataTransfer();
-          this.files.forEach((f) => dt.items.add(f));
-          this.$refs.fileInput.files = dt.files;
-        }
-      }"
-      @htmx:before-request="if ($event.detail.elt?.name === 'project') window.__actaCreateTaskFiles = files"
+<span class="hidden"
+      hx-get="{% url 'web:create_task' %}"
+      hx-trigger="acta:reproject from:body"
+      hx-target="#modal-root"
+      hx-swap="innerHTML"
+      hx-include="#create-task-form"></span>
+
+<form id="create-task-form"
       hx-post="{% url 'web:create_task' %}"
       hx-swap="none"
       hx-encoding="multipart/form-data"
-      class="flex flex-col flex-1 min-h-0">
+      class="acta-ctm-body">
   {% csrf_token %}
-  <input type="hidden" name="open_after_create" :value="openAfter ? '1' : '0'">
+  <input type="hidden" name="project" :value="project ? project.v : ''">
+  {# ⌘⇧↵ needs the 204 + trigger path so ``created()`` can reopen a fresh #}
+  {# dialog; a redirect would navigate away instead.                       #}
+  <input type="hidden" name="open_after_create" :value="!again && openAfter ? '1' : '0'">
 
-  {# Scrollable body — keeps the footer pinned when long descriptions or  #}
-  {# tall label lists push the field stack past the panel's ``max-h``.   #}
-  <div class="p-4 space-y-3 flex-1 overflow-y-auto min-h-0">
-    {# Project picker — change triggers a refresh of the modal. #}
-    <div>
-      <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Project" %}</label>
-      <select name="project"
-              hx-get="{% url 'web:create_task' %}"
-              hx-trigger="change"
-              hx-target="#modal-root"
-              hx-swap="innerHTML"
-              hx-include="closest form"
-              class="mt-1 acta-input">
-        {% for project in projects %}
-        <option value="{{ project.slug_prefix }}"
-                {% if selected_project and selected_project.slug_prefix == project.slug_prefix %}selected{% endif %}>
-          {{ project.workspace.name }} · {{ project.slug_prefix }} · {{ project.name }}
-        </option>
-        {% endfor %}
-      </select>
-    </div>
+  {% comment %}
+  The rest of the form: one hidden input per picked value, rendered from
+  state and never read back — the rail is the single writer.
+  {% endcomment %}
+  <div class="sr-only" aria-hidden="true">
+    <template x-for="inp in inputs" :key="inp.key">
+      <input type="hidden" :name="inp.name" :value="inp.value">
+    </template>
+  </div>
 
-    <div>
-      <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Title" %}</label>
-      {% comment %}
-      The title also asks "does this already exist?" on every pause in
-      typing. A GET, so no CSRF dance and no write semantics; the answer
-      lands in the box below and is purely advisory — nothing here can
-      stop the task being created. Empty response when the deployment has
-      no embedding host, which is also the empty state.
-      {% endcomment %}
-      <input type="text" name="title" maxlength="200" required x-ref="title"
-             value="{{ pre_title|default:'' }}"
-             class="mt-1 acta-input"
-             placeholder="{% trans 'What needs to be done?' %}"
-             hx-get="{% url 'web:similar_tasks_hint' %}"
-             hx-trigger="keyup changed delay:500ms, change"
-             hx-include="[name='project']"
-             hx-target="#create-task-similar"
-             hx-swap="innerHTML">
-      <div id="create-task-similar"></div>
-      {% if link_related_task %}
-      {# Carried from "Create task from comment / selection": the new task #}
-      {# is linked as a related task to this origin on save. #}
-      <input type="hidden" name="link_related" value="{{ link_related_task.slug }}">
-      <p class="mt-1 text-[11px] text-placeholder-foreground flex items-center gap-1">
-        {% lucide "link" "w-3 h-3" %}
-        {% blocktrans with slug=link_related_task.slug title=link_related_task.title %}Links to {{ slug }} · {{ title }}{% endblocktrans %}
-      </p>
-      {% endif %}
-    </div>
+  {# ---- left column: what the task is ---- #}
+  <div class="acta-ctm-main">
+    <input type="text" name="title" maxlength="200" required x-ref="title"
+           value="{{ pre_title|default:'' }}"
+           class="acta-ctm-title"
+           placeholder="{% trans 'What needs to be done?' %}"
+           {% comment %}
+           Enter moves on to the description instead of submitting: a
+           half-written task is the common case for a stray Enter, and
+           ⌘↵ is the deliberate create.
 
-    <div>
-      <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Description" %}</label>
-      {% comment %}
-      TipTap rich editor — same module used by the task-detail page
-      (``[data-description-editor]``). ``data-no-autosave`` skips the
-      blur-save / pagehide beacon since a half-typed brand-new task
-      shouldn't fly off on tab close; the explicit "Create task"
-      submit is the only persistence path.
-      {% endcomment %}
-      <div data-description-editor
-           data-no-autosave
-           {% if selected_project %}data-image-upload-url="{% url 'web:upload_project_inline_image' slug_prefix=selected_project.slug_prefix %}"{% endif %}
-           data-placeholder="{% trans 'Optional details…' %}"
-           class="mt-1">
-        <input type="hidden" name="description" value="{{ pre_description|default:'' }}" data-editor-output>
-        <textarea class="description-editor-source hidden" readonly>{{ pre_description|default:'' }}</textarea>
-        {% include "web/projects/_editor_toolbar.html" %}
-        <div class="description-editor-mount min-h-[5rem] bg-muted border border-border-strong rounded-md px-3 py-2 text-sm text-foreground"></div>
-      </div>
-    </div>
+           The title also asks "does this already exist?" on every pause
+           in typing. A GET, so no CSRF dance and no write semantics; the
+           answer lands in the box below and is purely advisory — nothing
+           here can stop the task being created. Empty response when the
+           deployment has no embedding host, which is also the empty
+           state.
+           {% endcomment %}
+           @keydown.enter.prevent="if (!$event.metaKey && !$event.ctrlKey) focusDescription()"
+           hx-get="{% url 'web:similar_tasks_hint' %}"
+           hx-trigger="keyup changed delay:500ms, change"
+           hx-include="[name='project']"
+           hx-target="#create-task-similar"
+           hx-swap="innerHTML">
 
-    {# Size joins status + priority on one row: it's a single digit, and #}
-    {# the three read as one "classification" group the way the table    #}
-    {# columns do.                                                       #}
-    <div class="grid grid-cols-[1fr_1fr_auto] gap-3">
-      <div>
-        <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Status" %}</label>
-        {# ``x-model`` mirrors the pick into Alpine so the cycle picker below #}
-        {# can follow it; the initial value matches the server's ``selected``. #}
-        <select name="status"
-                x-model="status"
-                class="mt-1 acta-input">
-          {% for value, label in status_labels.items %}
-          {% if value != 'cancelled' %}
-          <option value="{{ value }}" {% if value == pre_status %}selected{% endif %}>{{ label }}</option>
-          {% endif %}
-          {% endfor %}
-        </select>
-      </div>
-      <div>
-        <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Priority" %}</label>
-        <select name="priority"
-                class="mt-1 acta-input">
-          {% for value, label in priority_labels.items %}
-          <option value="{{ value }}" {% if value == pre_priority %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div>
-        <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Size" %}</label>
-        <select name="size"
-                class="mt-1 acta-input">
-          <option value="">{% trans "No size" %}</option>
-          {% for value in size_values %}
-          <option value="{{ value }}" {% if value == pre_size %}selected{% endif %}>{{ value }}</option>
-          {% endfor %}
-        </select>
-      </div>
-    </div>
+    <div id="create-task-similar"></div>
 
-    <div class="grid grid-cols-2 gap-3">
-      <div>
-        <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Due date" %}</label>
-        <input type="date" name="due_date"
-               value="{{ pre_due_date|default:'' }}"
-               class="mt-1 acta-input">
-      </div>
-      <div>
-        <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Assignee" %}</label>
-        <select name="assignee"
-                class="mt-1 acta-input">
-          <option value="">{% trans "— Unassigned —" %}</option>
-          {% for user in members %}
-          <option value="{{ user.id }}"
-                  {% if pre_assignee_id and user.id == pre_assignee_id %}selected{% endif %}>
-            {{ user.display_name|default:user.username }}
-          </option>
-          {% endfor %}
-        </select>
-      </div>
-    </div>
+    {% if link_related_task %}
+    {# Carried from "Create task from comment / selection": the new task #}
+    {# is linked as a related task to this origin on save. #}
+    <input type="hidden" name="link_related" value="{{ link_related_task.slug }}">
+    <p class="text-[11px] text-placeholder-foreground flex items-center gap-1">
+      {% lucide "link" "w-3 h-3" %}
+      {% blocktrans with slug=link_related_task.slug title=link_related_task.title %}Links to {{ slug }} · {{ title }}{% endblocktrans %}
+    </p>
+    {% endif %}
 
     {% comment %}
-    Cycle — rendered only when the project's workspace runs a cadence:
-    ``workspace_cycles`` is empty otherwise, so there is no second config
-    flag to keep in step. A backlog status carries no cycle by definition
-    (``apply_cycle_policy``), so there the picker gives way to the same
-    read-only note the task-detail cell shows and nothing is submitted —
-    the server would clear it regardless, and a select that silently
-    ignores your pick is worse than no select. ``cycleWanted`` survives a
-    trip through the backlog, so flipping the status back restores it.
+    TipTap rich editor — same module used by the task-detail page
+    (``[data-description-editor]``). ``data-no-autosave`` skips the
+    blur-save / pagehide beacon since a half-typed brand-new task
+    shouldn't fly off on tab close; the explicit "Create task" submit is
+    the only persistence path. It takes the column's spare height, which
+    is the point of the two-column layout: the description is the field
+    people actually need room for.
     {% endcomment %}
-    {% if workspace_cycles %}
-    <div>
-      <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Cycle" %}</label>
-      <template x-if="inBacklog">
-        <p class="mt-1 text-xs italic text-placeholder-foreground">
-          {% trans "Backlog — a cycle is set when the task moves to To-do" %}
-        </p>
-      </template>
-      <template x-if="!inBacklog">
-        <select name="cycle"
-                x-model="cycleWanted"
-                class="mt-1 acta-input">
-          <option value="">{% trans "Backlog (no cycle)" %}</option>
-          {# A native ``<option>`` is plain text — no room for the green #}
-          {# active dot the task-detail picker draws, so the dates carry  #}
-          {# the "which one is this" load. Same span format as the cycle  #}
-          {# banner. The list is active-first (see ``_workspace_cycles``). #}
-          {% for cycle in workspace_cycles %}
-          <option value="{{ cycle.id }}">{{ cycle.display_name }} · {{ cycle.start_date|date:"M j" }} – {{ cycle.end_date|date:"M j" }}</option>
-          {% endfor %}
-        </select>
-      </template>
+    <div data-description-editor
+         data-no-autosave
+         {% if selected_project %}data-image-upload-url="{% url 'web:upload_project_inline_image' slug_prefix=selected_project.slug_prefix %}"{% endif %}
+         data-placeholder="{% trans 'Optional details…' %}"
+         class="acta-ctm-desc">
+      <input type="hidden" name="description" value="{{ pre_description|default:'' }}" data-editor-output>
+      <textarea class="description-editor-source hidden" readonly>{{ pre_description|default:'' }}</textarea>
+      {% include "web/projects/_editor_toolbar.html" %}
+      <div class="description-editor-mount acta-ctm-desc-mount"></div>
     </div>
-    {% endif %}
-
-    {% if labels %}
-    <div>
-      <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Labels" %}</label>
-      {% comment %}
-      Dropdown label picker, mirroring the task-detail labels cell
-      (``_labels_cell.html``): a field-like trigger showing the selected
-      labels as chips, opening a teleported popover with a search box and
-      labels split into their :class:`LabelGroup` buckets. Unlike the
-      task-detail picker (HTMX-toggles against an existing task), the task
-      here does not exist yet — selection is pure client-side Alpine state
-      (``selected`` array of label-id strings) bound through ``x-model`` to
-      a hidden checkbox per label, so the create POST carries ``labels``
-      exactly like the old inline pills did. Teleported to ``<body>`` and
-      positioned ``fixed`` from the trigger rect so the modal body's
-      ``overflow-y-auto`` cannot clip it; ``z-[60]`` clears the modal
-      backdrop (``z-50``).
-      {% endcomment %}
-      <div class="mt-1"
-           x-data="{
-             open: false,
-             dropUp: false,
-             q: '',
-             selected: [{% for id in pre_label_ids %}'{{ id }}'{% if not forloop.last %}, {% endif %}{% endfor %}],
-             rect: { top: 0, left: 0, bottom: 0, width: 0 },
-             matches(name) { return name.toLowerCase().includes(this.q.toLowerCase()); },
-             isOn(id) { return this.selected.includes(String(id)); },
-             toggleLabel(id) {
-               id = String(id);
-               const i = this.selected.indexOf(id);
-               if (i === -1) { this.selected.push(id); } else { this.selected.splice(i, 1); }
-             },
-             measure() {
-               const r = this.$refs.trigger.getBoundingClientRect();
-               this.rect = { top: r.top, left: r.left, bottom: r.bottom, width: r.width };
-               this.dropUp = (window.innerHeight - r.bottom) < 360;
-             },
-             toggle() { if (!this.open) { this.measure(); } this.open = !this.open; },
-           }"
-           x-init="
-             const onScroll = (e) => {
-               if (!$el.isConnected) { document.removeEventListener('scroll', onScroll, true); return; }
-               if (open && !($refs.panel && $refs.panel.contains(e.target))) open = false;
-             };
-             document.addEventListener('scroll', onScroll, true);
-           "
-           @resize.window="if (open) open = false"
-           {# A suggestion chip under the title field lives in another   #}
-           {# Alpine scope; it asks for a toggle through a window event. #}
-           @acta:suggest-label.window="toggleLabel($event.detail.id)">
-
-        {# Hidden checkboxes are the real form payload (name=labels), kept #}
-        {# in sync with the visible selection via the shared x-model array. #}
-        {# Iterated over the SAME ``label_groups`` source as the dropdown   #}
-        {# rows + trigger chips so every toggleable label has a checkbox.   #}
-        <div class="hidden">
-          {% for entry in label_groups %}{% for label in entry.labels %}
-          <input type="checkbox" name="labels" value="{{ label.id }}" x-model="selected">
-          {% endfor %}{% endfor %}
-        </div>
-
-        <button type="button"
-                x-ref="trigger"
-                @click="toggle()"
-                class="w-full flex items-center gap-1.5 flex-wrap min-h-[2.25rem] bg-muted border border-border-strong rounded-md px-2.5 py-1.5 text-left cursor-pointer focus:outline-none focus:border-brand-500">
-          <span x-show="selected.length === 0" class="text-xs text-placeholder-foreground">{% trans "Add labels…" %}</span>
-          {% for entry in label_groups %}{% for label in entry.labels %}
-          <span x-show="isOn('{{ label.id }}')"
-                class="acta-label-pill" data-state="on"
-                style="--label-color: {{ label.color }};">
-            <span class="acta-label-pill-dot" style="background-color: {{ label.color }};"></span>
-            <span>{{ label.name }}</span>
-          </span>
-          {% endfor %}{% endfor %}
-          <svg class="ml-auto shrink-0 w-4 h-4 text-placeholder-foreground" viewBox="0 0 24 24" fill="none"
-               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <polyline points="6 9 12 15 18 9"></polyline>
-          </svg>
-        </button>
-
-        <template x-teleport="body">
-          <div x-ref="panel"
-               x-show="open"
-               @click.outside="open = false"
-               x-effect="if (open) $nextTick(() => $refs.search.focus())"
-               x-cloak
-               :style="dropUp
-                 ? `position:fixed; left:${rect.left}px; bottom:${window.innerHeight - rect.top + 4}px; width:${rect.width}px;`
-                 : `position:fixed; left:${rect.left}px; top:${rect.bottom + 4}px; width:${rect.width}px;`"
-               class="bg-card border border-border rounded-lg shadow-lg overflow-hidden z-[60]">
-
-            <div class="p-2 border-b border-border">
-              <input x-ref="search"
-                     x-model="q"
-                     @keydown.escape.prevent="open = false"
-                     type="text"
-                     placeholder="{% trans 'Search labels…' %}"
-                     class="w-full bg-muted border border-border-strong rounded px-2 py-1 text-xs text-foreground placeholder-placeholder-foreground focus:outline-none focus:border-brand-500">
-            </div>
-
-            <div class="max-h-64 overflow-y-auto [overflow-x:clip]">
-              {% with bucket_count=label_groups|length %}
-              {% for entry in label_groups %}
-              {% if entry.labels %}
-              {# Named group → always header; lone "Ungrouped" bucket stays #}
-              {# headerless (noise on a workspace with no real groups).     #}
-              {% if entry.group or bucket_count > 1 %}
-              {% include "web/_label_group_header.html" with group=entry.group %}
-              {% endif %}
-              {% for label in entry.labels %}
-              <button type="button"
-                      @click="toggleLabel('{{ label.id }}')"
-                      x-show="matches('{{ label.name|escapejs }}')"
-                      :class="isOn('{{ label.id }}') ? 'text-foreground bg-brand-500/10 hover:bg-brand-500/15' : 'text-muted-foreground hover:bg-muted'"
-                      class="w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 transition">
-                <span class="acta-label-pill-dot" style="background-color: {{ label.color }};"></span>
-                <span class="flex-1 min-w-0 truncate">{{ label.name }}</span>
-                <span x-show="isOn('{{ label.id }}')" class="text-brand-400 shrink-0 font-medium">✓</span>
-              </button>
-              {% endfor %}
-              {% endif %}
-              {% endfor %}
-              {% endwith %}
-            </div>
-          </div>
-        </template>
-      </div>
-    </div>
-    {% endif %}
 
     {# Attachments — chips for files picked but not yet submitted, same #}
     {# markup as the comment composer so both surfaces read alike. The  #}
-    {# input itself is the form field; ``sync()`` keeps its FileList in  #}
-    {# step with the chips.                                             #}
+    {# input itself is the form field; ``syncFiles()`` keeps its        #}
+    {# FileList in step with the chips.                                 #}
     <div>
-      <label class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Attachments" %}</label>
       <input type="file" name="file" multiple class="hidden" x-ref="fileInput"
-             @change="pick($event.target.files)">
-      <div x-show="files.length" x-cloak class="mt-1 flex flex-wrap gap-1.5">
+             @change="addFiles($event.target.files)">
+      <div x-show="files.length" x-cloak class="flex flex-wrap gap-1.5 mb-1.5">
         <template x-for="(f, i) in files" :key="i">
           <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted border border-border text-xs text-subtle-foreground">
             <span class="truncate max-w-[12rem]" x-text="f.name"></span>
-            <button type="button" @click="remove(i)" class="text-placeholder-foreground hover:text-rose-400">
+            <button type="button" @click="removeFile(i)" class="text-placeholder-foreground hover:text-rose-400">
               {% lucide "x" "w-3 h-3" %}
             </button>
           </span>
         </template>
       </div>
-      <button type="button" @click="$refs.fileInput.click()"
-              class="mt-1 w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-dashed border-border text-xs text-placeholder-foreground hover:text-foreground hover:border-border-strong transition">
+      <button type="button" @click="$refs.fileInput.click()" class="acta-ctm-attach">
         {% lucide "paperclip" "w-3.5 h-3.5" %}{% trans "Attach files" %}
       </button>
     </div>
   </div>
 
-  <footer class="flex items-center justify-between gap-2 px-4 py-3 border-t border-border bg-subtle/60 shrink-0">
-    <label class="inline-flex items-center gap-2 text-xs text-subtle-foreground cursor-pointer select-none">
-      <input type="checkbox" :checked="openAfter" @change="toggleOpenAfter()"
-             class="acta-checkbox">
-      {% trans "Open after create" %}
-    </label>
-    <div class="flex items-center gap-2">
-      <button type="button" @click="close()"
-              class="acta-btn-ghost">
-        {% trans "Cancel" %}
-      </button>
-      <button type="submit"
-              class="acta-btn-primary">
-        {% trans "Create task" %}
-      </button>
-    </div>
-  </footer>
+  {# ---- right rail: every property, empty ones included ---- #}
+  <div class="acta-ctm-rail">
+    <template x-for="f in fields" :key="f.key">
+      <div>
+        <p class="acta-ctm-group" x-show="f.group" x-text="f.group"></p>
+        <button type="button" class="acta-ctm-row"
+                :data-ctm-row="f.key"
+                :class="{ 'is-open': open === f.key, 'is-frozen': frozen(f) }"
+                @click.stop="openField(f, $event.currentTarget)">
+          <span class="acta-ctm-row-ic" x-html="icon(f.icon)"></span>
+          <span class="acta-ctm-row-n" x-text="f.name"></span>
+
+          {% comment %}
+          Whatever marker the picked option carries, so a rail row looks
+          like the same value on the task page: a status dot, a label or
+          cycle colour, an avatar, a priority chevron.
+          {% endcomment %}
+          <template x-if="marker(f) && marker(f).cls">
+            <span class="acta-ctm-dot" :class="marker(f).cls"></span>
+          </template>
+          <template x-if="marker(f) && marker(f).c">
+            <span class="acta-ctm-dot" :style="{ backgroundColor: marker(f).c }"></span>
+          </template>
+          <template x-if="marker(f) && marker(f).img">
+            <img :src="marker(f).img" alt="" class="acta-ctm-av">
+          </template>
+          <template x-if="marker(f) && !marker(f).img && marker(f).ini">
+            <span class="acta-ctm-av" :style="{ backgroundColor: marker(f).bg }" x-text="marker(f).ini"></span>
+          </template>
+          <template x-if="marker(f) && marker(f).icon">
+            <span class="acta-ctm-row-ic" :class="marker(f).fg" x-html="icon(marker(f).icon)"></span>
+          </template>
+
+          <span class="acta-ctm-val" :class="{ 'is-empty': !isSet(f) || frozen(f) }"
+                x-text="frozen(f) ? text.frozen : (isSet(f) ? valueText(f) : text.add)"></span>
+          <span class="acta-ctm-key" x-show="!frozen(f)" x-text="f.hotkey"></span>
+        </button>
+      </div>
+    </template>
+  </div>
 </form>
+
+<footer class="acta-ctm-foot">
+  <label class="inline-flex items-center gap-2 text-xs text-subtle-foreground cursor-pointer select-none">
+    <input type="checkbox" :checked="openAfter" @change="toggleOpenAfter()" class="acta-checkbox">
+    {% trans "Open after create" %}
+  </label>
+  <span class="flex-1"></span>
+  <span class="hidden sm:inline text-[11px] text-placeholder-foreground">{% trans "⌘↵ create · ⌘⇧↵ create & next" %}</span>
+  <button type="button" @click="dismiss()" class="acta-btn-ghost hidden sm:inline-flex">{% trans "Cancel" %}</button>
+  <button type="button" @click="create(false)" class="acta-btn-primary">{% trans "Create task" %}</button>
+</footer>
+
+{% comment %}
+---- popovers ----
+Teleported to ``<body>`` and positioned ``fixed`` from the trigger rect,
+so neither the left column's own scroll nor the rail can clip them;
+``z-[60]`` clears the modal backdrop (``z-50``).
+
+``:style`` is the OBJECT form on purpose. The string form rewrites the
+whole style attribute, which wipes the ``display:none`` ``x-show`` had
+just written — the same trap the links panel documents.
+{% endcomment %}
+<template x-teleport="body">
+  <div x-ref="pop" x-show="open" x-cloak @click.outside="closePop()"
+       :style="dropUp ? { left: coords.left + 'px', bottom: coords.bottom + 'px' } : { left: coords.left + 'px', top: coords.top + 'px' }"
+       class="acta-ctm-pop-layer">
+
+    {# which project #}
+    <div class="acta-ctm-pop is-wide" x-show="open === 'project'">
+      <label class="acta-ctm-pop-h">
+        {% lucide "search" "w-3 h-3" %}
+        <input type="text" x-model="search" data-ctm-search="project"
+               placeholder="{% trans 'Name or slug…' %}">
+      </label>
+      <div class="acta-ctm-pop-list">
+        <template x-for="g in matchingProjects" :key="g.n">
+          <div>
+            <p class="acta-ctm-group" x-text="g.n"></p>
+            <template x-for="p in g.items" :key="p.v">
+              <button type="button" class="acta-ctm-pop-row" :class="{ 'is-on': p.on }"
+                      @click="chooseProject(p)">
+                <span class="acta-ctm-row-ic" :style="{ color: p.c }" x-html="icon(p.icon)"></span>
+                <span class="flex-1 min-w-0 truncate" x-text="p.n"></span>
+                <span class="acta-ctm-slug" x-text="p.slug"></span>
+              </button>
+            </template>
+          </div>
+        </template>
+        <p class="acta-ctm-pop-empty" x-show="!matchingProjects.length">{% trans "Nothing matches." %}</p>
+      </div>
+    </div>
+
+    {# which value #}
+    <template x-if="openedField && !openedField.date && !openedField.task && !openedField.links">
+      <div class="acta-ctm-pop">
+        <div class="acta-ctm-pop-back">
+          <span class="acta-ctm-row-ic" x-html="icon(openedField.icon)"></span>
+          <span x-text="openedField.name"></span>
+          <span class="flex-1"></span>
+          <button type="button" class="acta-ctm-pop-clear" x-show="clearable(openedField)"
+                  @click="clearField(openedField)">{% trans "Clear" %}</button>
+        </div>
+        <label class="acta-ctm-pop-h" x-show="openedField.search">
+          {% lucide "search" "w-3 h-3" %}
+          <input type="text" x-model="search" data-ctm-search="field" placeholder="{% trans 'Search…' %}">
+        </label>
+        <div class="acta-ctm-pop-list">
+          <template x-for="(o, i) in matchingOptions" :key="o.v">
+            <div>
+              {# Label groups are headers inside the list, same as the picker on the task page. #}
+              <p class="acta-ctm-group" x-show="groupHead(i)" x-text="groupHead(i)"></p>
+              <button type="button" class="acta-ctm-pop-row" :class="{ 'is-on': o.on }"
+                      @click="pick(openedField, o)">
+                <span class="acta-ctm-box" :class="{ 'is-on': o.on }"
+                      x-show="openedField.multi" x-html="o.on ? icon('check') : ''"></span>
+                <template x-if="o.cls">
+                  <span class="acta-ctm-dot" :class="o.cls"></span>
+                </template>
+                <template x-if="o.c">
+                  <span class="acta-ctm-dot" :style="{ backgroundColor: o.c }"></span>
+                </template>
+                <template x-if="o.img">
+                  <img :src="o.img" alt="" class="acta-ctm-av">
+                </template>
+                <template x-if="!o.img && o.ini">
+                  <span class="acta-ctm-av" :style="{ backgroundColor: o.bg }" x-text="o.ini"></span>
+                </template>
+                <template x-if="o.icon">
+                  <span class="acta-ctm-row-ic" :class="o.fg" x-html="icon(o.icon)"></span>
+                </template>
+                <span class="flex-1 min-w-0 truncate" x-text="o.n"></span>
+                <span class="acta-ctm-slug" x-show="o.sub" x-text="o.sub"></span>
+              </button>
+            </div>
+          </template>
+          <p class="acta-ctm-pop-empty" x-show="!matchingOptions.length">{% trans "Nothing matches." %}</p>
+        </div>
+      </div>
+    </template>
+
+    {# which task — parent and links ----------------------------------- #}
+    {% comment %}
+    One picker for both rows. A parent takes one task and closes; links
+    take several, each under the kind chosen by the switch above the
+    search, so "blocked by" and "related" are two answers to one question
+    rather than two rows in the rail.
+    {% endcomment %}
+    <template x-if="openedField && (openedField.task || openedField.links)">
+      <div class="acta-ctm-pop is-wide">
+        <div class="acta-ctm-pop-back">
+          <span class="acta-ctm-row-ic" x-html="icon(openedField.icon)"></span>
+          <span x-text="openedField.name"></span>
+          <span class="flex-1"></span>
+          <button type="button" class="acta-ctm-pop-clear" x-show="clearable(openedField)"
+                  @click="clearField(openedField)">{% trans "Clear" %}</button>
+        </div>
+
+        <div class="acta-ctm-kinds" x-show="openedField.links">
+          <template x-for="k in openedField.kinds" :key="k.v">
+            <button type="button" :class="{ 'is-on': linkKind === k.v }" @click="linkKind = k.v">
+              <span class="acta-ctm-row-ic" x-html="icon(k.icon)"></span>
+              <span x-text="k.n"></span>
+            </button>
+          </template>
+        </div>
+
+        <div class="acta-ctm-picked" x-show="openedField.links && openedField.value.length">
+          <template x-for="l in openedField.value" :key="l.v">
+            <span class="acta-ctm-link">
+              <span class="acta-ctm-link-k" x-text="kindName(openedField, l.kind)"></span>
+              <span class="acta-ctm-dot" :class="l.cls"></span>
+              <span class="acta-ctm-slug" x-text="l.slug"></span>
+              <button type="button" class="acta-ctm-link-x" @click="dropLink(openedField, l)"
+                      :aria-label="'{% trans "Remove" %} ' + l.slug" x-html="icon('x')"></button>
+            </span>
+          </template>
+        </div>
+
+        <label class="acta-ctm-pop-h">
+          {% lucide "search" "w-3 h-3" %}
+          <input type="text" x-model="search" data-ctm-search="field"
+                 @input.debounce.250ms="searchTasks(openedField)"
+                 placeholder="{% trans 'Slug or title…' %}">
+        </label>
+
+        <div class="acta-ctm-pop-list">
+          <template x-for="r in openResults" :key="r.v">
+            <button type="button" class="acta-ctm-pop-row" @click="pickTask(openedField, r)">
+              <span class="acta-ctm-dot" :class="r.cls"></span>
+              <span class="acta-ctm-slug" x-text="r.slug"></span>
+              <span class="flex-1 min-w-0 truncate" x-text="r.n"></span>
+            </button>
+          </template>
+          <p class="acta-ctm-pop-empty" x-show="!openResults.length && !searching" x-text="text.none"></p>
+        </div>
+      </div>
+    </template>
+
+    {# when it is due #}
+    <template x-if="openedField && openedField.date">
+      <div class="acta-ctm-pop">
+        <div class="acta-ctm-pop-back">
+          <span class="acta-ctm-row-ic" x-html="icon(openedField.icon)"></span>
+          <span x-text="openedField.name"></span>
+          <span class="flex-1"></span>
+          <button type="button" class="acta-ctm-pop-clear" x-show="clearable(openedField)"
+                  @click="clearField(openedField)">{% trans "Clear" %}</button>
+        </div>
+        <div class="acta-ctm-pop-list">
+          {% comment %}
+          The presets carry a context: "Tomorrow" and "Next week" already
+          exist in the catalogue as a cycle caption and a pager label, and
+          a deadline picker that says "Далі" is worse than no preset.
+          {% endcomment %}
+          <button type="button" class="acta-ctm-pop-row" @click="duePreset('today')">{% trans "Today" context "deadline preset" %}</button>
+          <button type="button" class="acta-ctm-pop-row" @click="duePreset('tomorrow')">{% trans "Tomorrow" context "deadline preset" %}</button>
+          <button type="button" class="acta-ctm-pop-row" @click="duePreset('friday')">{% trans "Friday" context "deadline preset" %}</button>
+          <button type="button" class="acta-ctm-pop-row" @click="duePreset('week')">{% trans "Next week" context "deadline preset" %}</button>
+        </div>
+        <label class="acta-ctm-pop-h">
+          <input type="date" :value="openedField.value"
+                 @change="setDue($event.target.value); closePop()">
+        </label>
+      </div>
+    </template>
+  </div>
+</template>
 {% endif %}
 {% endblock %}

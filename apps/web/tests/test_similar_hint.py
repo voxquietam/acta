@@ -244,7 +244,10 @@ class TestCreateDialogAssigneeSuggestion:
 
         client.force_login(user)
         body = client.get(URL, {"title": "настроить бекапы", "project": "HNT"}).content.decode()
-        assert "Usually does this" in body
+        # Assignee and labels share one "Suggested" strip: both answers
+        # come from the same neighbours, and two captions read as two
+        # separate claims.
+        assert "Suggested" in body
         assert regular.display_name in body
 
     @ENABLED
@@ -312,7 +315,7 @@ class TestLabelSuggestions:
         label, _ = self._two_labelled_neighbours(workspace, project, monkeypatch)
         client.force_login(user)
         body = client.get(URL, {"title": "настроить бекапы", "project": "HNT"}).content.decode()
-        assert "Similar tasks use" in body
+        assert "Suggested" in body
         assert label.name in body
 
     @ENABLED

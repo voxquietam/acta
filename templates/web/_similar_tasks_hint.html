@@ -3,14 +3,21 @@
 {% load web_extras %}
 {% comment %}
 "Looks like you already have this" — semantic neighbours of the title
-being typed in the create dialog. Advisory only: nothing here blocks the
-create, because the model ranks and the person decides.
+being typed in the create dialog, and what those neighbours carry.
+Advisory only: nothing here blocks the create, because the model ranks
+and the person decides.
+
+Swapped into ``#create-task-similar`` inside the dialog's Alpine scope,
+so a chip applies a value by calling the rail's own ``pickValue()``
+rather than reaching into a field: the rail is the single writer, and an
+applied chip stays lit because it reads the rail back through
+``isPicked()``. Clicking a lit chip takes it off again.
 
 Rendered empty when there is nothing close enough, so the dialog shows no
 box at all rather than an empty one.
 {% endcomment %}
 {% if matches or suggested_assignees or suggested_labels %}
-<div class="mt-2 rounded-lg border border-border bg-muted/40 p-2 space-y-1">
+<div class="rounded-lg border border-border bg-subtle p-2 space-y-1">
   {% if matches %}
   <p class="text-[10px] uppercase tracking-wider text-placeholder-foreground flex items-center gap-1.5">
     {% lucide "copy-check" "w-3 h-3" %}{% trans "Already in this workspace" %}
@@ -22,45 +29,32 @@ box at all rather than an empty one.
     <span class="w-[7px] h-[7px] rounded-full shrink-0 {{ match.task.status|status_dot_classes }}"></span>
     <span class="font-mono text-[11px] text-subtle-foreground shrink-0">{{ match.task.slug }}</span>
     <span class="flex-1 min-w-0 truncate text-muted-foreground group-hover:text-foreground">{{ match.task.title }}</span>
-    <span class="text-[11px] text-placeholder-foreground shrink-0">{{ match.task.project.slug_prefix }}</span>
+    <span class="text-[11px] text-placeholder-foreground shrink-0">{{ match.task.status|status_label }}</span>
   </a>
   {% endfor %}
+
   {% comment %}
-  Who took the work those tasks describe. Clicking it fills the picker
-  below rather than assigning anything — the create button is still the
-  only thing that writes.
+  Who took the work those tasks describe, and what they were labelled
+  with. One row: both answers come from the same neighbours, and two
+  separate strips read as two separate claims.
   {% endcomment %}
-  {% comment %}
-  Labels those tasks carry. The picker below owns the selection, and it
-  is a separate Alpine scope, so the chip asks it through a window event
-  rather than reaching into its state.
-  {% endcomment %}
-  {% if suggested_labels %}
-  <div class="flex items-center gap-1.5 flex-wrap pt-1 border-t border-border">
-    <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground">
-      {% trans "Similar tasks use" %}
-    </span>
-    {% for label in suggested_labels %}
-    <button type="button"
-            @click="$dispatch('acta:suggest-label', { id: '{{ label.id }}' })"
-            class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">
-      <span class="acta-label-pill-dot" style="background-color: {{ label.color }};"></span>
-      {{ label.name }}
-    </button>
-    {% endfor %}
-  </div>
-  {% endif %}
-  {% if suggested_assignees %}
-  <div class="flex items-center gap-1.5 flex-wrap pt-1 border-t border-border">
-    <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground">
-      {% trans "Usually does this" %}
-    </span>
+  {% if suggested_assignees or suggested_labels %}
+  <div class="flex items-center gap-1.5 flex-wrap pt-1 {% if matches %}border-t border-border{% endif %}">
+    <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Suggested" %}</span>
     {% for person in suggested_assignees %}
     <button type="button"
-            @click="$el.closest('form').querySelector('select[name=assignee]').value = '{{ person.id }}'"
-            class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">
+            @click="pickValue('assignee', '{{ person.id }}')"
+            :class="isPicked('assignee', '{{ person.id }}') ? 'acta-ctm-sugg is-on' : 'acta-ctm-sugg'">
       {% include "web/_user_avatar.html" with user=person class="w-4 h-4" text_class="text-[9px]" %}
       {{ person.display_name }}
+    </button>
+    {% endfor %}
+    {% for label in suggested_labels %}
+    <button type="button"
+            @click="pickValue('labels', '{{ label.id }}')"
+            :class="isPicked('labels', '{{ label.id }}') ? 'acta-ctm-sugg is-on' : 'acta-ctm-sugg'">
+      <span class="acta-label-pill-dot" style="background-color: {{ label.color }};"></span>
+      {{ label.name }}
     </button>
     {% endfor %}
   </div>
