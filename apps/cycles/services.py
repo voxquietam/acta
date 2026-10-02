@@ -214,6 +214,14 @@ def apply_cycle_policy(task) -> bool:
     """
     from apps.tasks.models import Task
 
+    # An epic never joins a cycle: it is an umbrella over work, and the
+    # work inside it carries the commitment. Neither caller of this
+    # function validates before writing — ``set_task_status`` saves
+    # directly and the bulk path uses ``QuerySet.update()`` — so without
+    # this guard an epic would silently get a cycle in violation of
+    # ``Task.clean()`` and then count toward burndown and velocity.
+    if task.kind == Task.KIND_EPIC:
+        return False
     workspace = task.project.workspace
     if not workspace.cycle_config()["enabled"]:
         return False

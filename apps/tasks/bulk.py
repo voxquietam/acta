@@ -446,7 +446,11 @@ def _bulk_apply_cycle_policy(ids: list[int], new_status: str) -> None:
     from apps.workspaces.models import Workspace
 
     by_workspace: dict[int, list[int]] = {}
-    rows = Task.objects.filter(id__in=ids, cycle__isnull=True).values_list("id", "project__workspace_id")
+    # ``.work()`` for the same reason the in-memory policy skips epics:
+    # this path writes through ``QuerySet.update()``, which validates
+    # nothing, so an epic caught in a bulk status change would quietly
+    # acquire a cycle and start counting toward burndown and velocity.
+    rows = Task.objects.work().filter(id__in=ids, cycle__isnull=True).values_list("id", "project__workspace_id")
     for task_id, workspace_id in rows:
         by_workspace.setdefault(workspace_id, []).append(task_id)
     for workspace_id, task_ids in by_workspace.items():

@@ -5,6 +5,63 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 
+class TaskQuerySet(models.QuerySet):
+    """Queryset helpers that know about epics.
+
+    Deliberately not installed as a default filter: Django reaches for
+    the *base* manager on related descriptors (``project.tasks.all()``),
+    so a default would be bypassed exactly where it matters, and a
+    blanket exclusion would also 404 every epic detail page. The
+    exclusion is explicit at the call sites that count work.
+    See docs/decisions/0036-epics.md.
+    """
+
+    def work(self):
+        """Return only the rows that are work, dropping epics.
+
+        For every surface that counts, lists or boards tasks: an epic is
+        an umbrella over work, not work itself, and counting it makes
+        every total one too many.
+
+        Returns:
+            A :class:`TaskQuerySet` without epics.
+        """
+        return self.exclude(kind=Task.KIND_EPIC)
+
+    def epics(self):
+        """Return only the epics.
+
+        Returns:
+            A :class:`TaskQuerySet` of epics.
+        """
+        return self.filter(kind=Task.KIND_EPIC)
+
+    def with_epic_rollup(self):
+        """Annotate epics with the counts their progress is read from.
+
+        One aggregate for the whole page: the Epics tab and the epic
+        picker both show a percentage per epic, and walking
+        ``epic_counts`` per row would be an N+1 over the entire
+        workspace. Cancelled and archived members are left out, matching
+        :meth:`Task.epic_members`.
+
+        Returns:
+            The queryset with ``member_total`` and ``member_done``
+            annotations.
+        """
+        live = models.Q(epic_tasks__archived_at__isnull=True) & ~models.Q(
+            epic_tasks__status=Task.STATUS_CANCELLED,
+        )
+        return self.annotate(
+            member_total=models.Count("epic_tasks", filter=live, distinct=True),
+            member_done=models.Count(
+                "epic_tasks",
+                filter=live & models.Q(epic_tasks__status=Task.STATUS_DONE),
+                distinct=True,
+            ),
+        )
+
+
 class Task(models.Model):
     """A unit of work inside a project.
 
@@ -105,6 +162,8 @@ class Task(models.Model):
         13,
     )
     SIZE_CHOICES = [(s, str(s)) for s in SIZE_VALUES]
+
+    objects = TaskQuerySet.as_manager()
 
     project = models.ForeignKey(
         "projects.Project",

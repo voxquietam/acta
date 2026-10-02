@@ -252,3 +252,45 @@ class TestTheApiEnforcesTheSameRules:
         resp = self.post(api, project, kind=Task.KIND_EPIC)
         assert resp.status_code == 400
         assert "kind" in resp.data
+
+
+@pytest.mark.django_db
+class TestEpicsNeverJoinACycle:
+    """The cadence policy writes without validating, so it has to know.
+
+    ``set_task_status`` saves directly and the bulk path uses
+    ``QuerySet.update()``; neither calls ``full_clean()``. Without a
+    guard an epic would silently acquire a cycle and then count toward
+    the burndown, the velocity and the cycle summary.
+    """
+
+    @pytest.fixture
+    def cadence(self, workspace):
+        """Turn the workspace's cadence on with an anchored start."""
+        workspace.cycle_settings = {"enabled": True, "length_weeks": 2, "start_date": "2026-09-01"}
+        workspace.save(update_fields=["cycle_settings"])
+        return workspace
+
+    def test_the_in_memory_policy_skips_an_epic(self, cadence, project, epic):
+        from apps.cycles.services import apply_cycle_policy
+
+        epic.status = Task.STATUS_IN_PROGRESS
+        assert apply_cycle_policy(epic) is False
+        assert epic.cycle_id is None
+
+    def test_the_policy_still_applies_to_real_work(self, cadence, project):
+        from apps.cycles.services import apply_cycle_policy
+
+        task = TaskFactory(project=project, status=Task.STATUS_IN_PROGRESS)
+        assert apply_cycle_policy(task) is True
+        assert task.cycle_id is not None
+
+    def test_the_bulk_path_skips_an_epic(self, cadence, project, epic):
+        from apps.tasks.bulk import _bulk_apply_cycle_policy
+
+        task = TaskFactory(project=project)
+        _bulk_apply_cycle_policy([epic.pk, task.pk], Task.STATUS_TODO)
+        epic.refresh_from_db()
+        task.refresh_from_db()
+        assert epic.cycle_id is None
+        assert task.cycle_id is not None
