@@ -212,12 +212,25 @@ def tasks_list(user: User, arguments: dict[str, Any]) -> Any:
     args = arguments or {}
     qs = (
         Task.objects.filter(project__workspace_id__in=user_workspace_ids(user))
-        .select_related("project__workspace", "assignee")
+        .select_related("project__workspace", "assignee", "epic__project")
         .prefetch_related("labels")
     )
+    # Epics are hidden unless asked for, the same convention this tool
+    # already uses for cancelled: an agent told to count the work must
+    # not count the umbrellas over it. ``kind="epic"`` lists only epics,
+    # ``kind="all"`` lists both. See docs/decisions/0036-epics.md.
+    kind = (args.get("kind") or "").strip().lower()
+    if kind == Task.KIND_EPIC:
+        qs = qs.epics()
+    elif kind != "all":
+        qs = qs.work()
     project = args.get("project")
     if project:
         qs = qs.filter(project__slug_prefix=project)
+    epic = args.get("epic")
+    if epic:
+        prefix, _, number = str(epic).rpartition("-")
+        qs = qs.filter(epic__project__slug_prefix=prefix, epic__number=number or 0)
     status = args.get("status")
     if isinstance(status, str):
         qs = qs.filter(status=status)
@@ -255,7 +268,12 @@ def tasks_list(user: User, arguments: dict[str, Any]) -> Any:
         {
             "slug": t.slug,
             "title": t.title,
-            "status": t.status,
+            "kind": t.kind,
+            # An epic's own state is read off the tasks it collects, so
+            # the row carries the rollup rather than the stored status.
+            "progress": (lambda c: {"done": c[0], "total": c[1]})(t.epic_counts) if t.kind == Task.KIND_EPIC else None,
+            "epic_slug": t.epic.slug if t.epic_id else None,
+            "status": t.epic_status if t.kind == Task.KIND_EPIC else t.status,
             "priority": t.priority,
             "size": t.size,
             "start_date": t.start_date.isoformat() if t.start_date else None,
@@ -519,6 +537,25 @@ def task_get(user: User, arguments: dict[str, Any]) -> Any:
         "workspace_name": task.project.workspace.name,
         "labels": [{"name": label.name, "color": label.color} for label in task.labels.all()],
         "parent_slug": task.parent.slug if task.parent_id else None,
+        "kind": task.kind,
+        "epic_slug": task.epic.slug if task.epic_id else None,
+        # Present only on an epic, and computed: progress, the date span
+        # and the status are read off the tasks it collects.
+        "epic": (
+            {
+                "done": task.epic_counts[0],
+                "total": task.epic_counts[1],
+                "status": task.epic_status,
+                "start_date": task.epic_span[0].isoformat() if task.epic_span[0] else None,
+                "end_date": task.epic_span[1].isoformat() if task.epic_span[1] else None,
+                "tasks": [
+                    {"slug": m.slug, "title": m.title, "status": m.status, "project": m.project.slug_prefix}
+                    for m in task.epic_members().select_related("project").order_by("project__slug_prefix", "number")
+                ],
+            }
+            if task.kind == Task.KIND_EPIC
+            else None
+        ),
         "subtasks": [
             {
                 "slug": s.slug,
@@ -900,9 +937,14 @@ TOOLS: list[Tool] = [
             "``priority`` (1=Urgent..4=Low, or list), ``assignee`` (username, ``me``, or ``unassigned``), "
             "``q`` (case-insensitive title/description search), "
             "``include_archived`` (default false), ``limit`` (default 50, max 200). "
-            "Returns ``[{slug, title, status, priority, size, due_date, assignee_username, "
-            "project_slug_prefix, project_name, workspace_slug, labels: [{name, color}], "
-            "updated_at}, …]`` sorted by most-recently-updated first."
+            "``kind``: epics are an umbrella over work, not work, so they are LEFT OUT by "
+            "default — pass ``kind='epic'`` to list only epics or ``kind='all'`` for both. "
+            "``epic`` (an epic's slug) narrows to the tasks that epic collects. "
+            "Returns ``[{slug, title, kind, status, progress, epic_slug, priority, size, due_date, "
+            "assignee_username, project_slug_prefix, project_name, workspace_slug, "
+            "labels: [{name, color}], updated_at}, …]`` sorted by most-recently-updated first. "
+            "On an epic row ``status`` and ``progress`` ({done, total}) are computed from the "
+            "tasks it collects, never stored; ``progress`` is null on a plain task."
         ),
         inputSchema={
             "type": "object",
@@ -932,6 +974,12 @@ TOOLS: list[Tool] = [
                 "assignee": {"type": "string", "description": "Username, ``me``, or ``unassigned``."},
                 "q": {"type": "string", "description": "Case-insensitive search across title and description."},
                 "include_archived": {"type": "boolean"},
+                "kind": {
+                    "type": "string",
+                    "enum": ["task", "epic", "all"],
+                    "description": "Default 'task' — epics are left out unless asked for.",
+                },
+                "epic": {"type": "string", "description": "Epic slug; lists the tasks it collects."},
                 "limit": {"type": "integer", "minimum": 1, "maximum": 200},
             },
             "additionalProperties": False,

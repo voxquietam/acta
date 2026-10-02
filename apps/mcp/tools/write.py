@@ -180,6 +180,14 @@ def task_create(user: User, arguments: dict[str, Any]) -> Any:
     parent_slug = args.get("parent_slug")
     if parent_slug:
         data["parent"] = resolve_task(user, parent_slug).id
+    if args.get("kind"):
+        data["kind"] = args["kind"]
+    epic_slug = args.get("epic_slug")
+    if epic_slug:
+        # Unlike a parent, an epic may live in another project — it
+        # collects across the whole workspace. The serializer checks the
+        # rest (it must be an epic, and in this workspace).
+        data["epic"] = resolve_task(user, epic_slug).id
 
     label_names = args.get("label_names") or []
     if label_names:
@@ -274,6 +282,19 @@ def task_update(user: User, arguments: dict[str, Any]) -> Any:
                     "Re-parent its subtasks first.",
                 )
             data["parent"] = parent.id
+
+    # Moving a task between epics, or out of one. Separate from
+    # ``parent_slug`` on purpose: a subtask keeps its parent and may
+    # still belong to an epic. See docs/decisions/0036-epics.md.
+    if "epic_slug" in args:
+        epic_value = args["epic_slug"]
+        if epic_value is None:
+            data["epic"] = None
+        else:
+            epic = resolve_task(user, epic_value)
+            if epic.pk == task.pk:
+                raise ValueError("A task cannot be its own epic.")
+            data["epic"] = epic.id
 
     # Resolve a project move up front so an invalid target fails before we
     # touch anything. Workspace-only for now (cross-workspace moves would
@@ -886,6 +907,11 @@ TOOLS: list[Tool] = [
             "pass ``me`` to assign the authenticated user — never guess a username "
             "off the member roster), "
             "``parent_slug`` (make this a subtask of an existing task — depth-1 limit), "
+            "``epic_slug`` (collect this task under an existing epic — unlike a parent, "
+            "an epic may be in ANOTHER project of the same workspace, and a subtask may "
+            "have both), ``kind`` (``task`` by default; ``epic`` creates an epic, which "
+            "takes no due_date, size or cycle — it derives them from the tasks it "
+            "collects), "
             "``label_names`` (list of label names; any name that doesn't already "
             "exist in the workspace is auto-created with a deterministic palette "
             "colour — use ``acta_label_create`` first if you need a specific hex). "
@@ -913,6 +939,15 @@ TOOLS: list[Tool] = [
                     "description": "Username, or ``me`` for the authenticated user.",
                 },
                 "parent_slug": {"type": "string", "description": "Parent task slug (e.g. ACTA-128)."},
+                "epic_slug": {
+                    "type": "string",
+                    "description": "Epic slug; may be in another project of the same workspace.",
+                },
+                "kind": {
+                    "type": "string",
+                    "enum": ["task", "epic"],
+                    "description": "Default 'task'. An epic collects tasks and derives its own state from them.",
+                },
                 "label_names": {"type": "array", "items": {"type": "string"}},
             },
             "required": ["project", "title"],
@@ -937,7 +972,10 @@ TOOLS: list[Tool] = [
             "(re-parent an EXISTING task — pass a task slug in the same project "
             "to make this a subtask of it, or null to promote it back to a "
             "top-level task; depth is limited to one level, so the new parent "
-            "must not itself be a subtask and this task must have no subtasks). "
+            "must not itself be a subtask and this task must have no subtasks); "
+            "``epic_slug`` (collect this task under an epic, or null to take it out; "
+            "unlike a parent, the epic may be in another project of the same workspace, "
+            "and a subtask may have both a parent and an epic). "
             "Same validation as create. Returns the updated task summary."
         ),
         inputSchema={

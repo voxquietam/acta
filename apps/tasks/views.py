@@ -62,10 +62,16 @@ class TaskViewSet(viewsets.ModelViewSet):
         rendering and ``perform_*`` hooks stay O(1) in query count
         regardless of row count.
 
+        **Epics are not listed unless asked for.** ``?kind=epic`` returns
+        only epics and ``?kind=all`` returns both; the default is the
+        work, matching every other surface in the app (ADR 0036). Detail
+        routes are unaffected — an epic is fetched by its id like any
+        other task, so a client holding one keeps working.
+
         Returns:
             A queryset of :class:`Task` instances visible to the user.
         """
-        return (
+        qs = (
             Task.objects.filter(
                 project__workspace__memberships__user=self.request.user,
             )
@@ -80,6 +86,14 @@ class TaskViewSet(viewsets.ModelViewSet):
             )
             .distinct()
         )
+        if self.action != "list":
+            return qs
+        kind = (self.request.query_params.get("kind") or "").strip().lower()
+        if kind == Task.KIND_EPIC:
+            return qs.epics()
+        if kind == "all":
+            return qs
+        return qs.work()
 
     def perform_create(self, serializer):
         """Save the new task and emit a ``task.created`` activity event.

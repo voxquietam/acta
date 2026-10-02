@@ -400,3 +400,106 @@ class TestEpicsAreAbsentWhereWorkIsCounted:
         # mention and menu resolves an epic like any other task.
         assert resp.status_code == 200
         assert epic.title in resp.content.decode()
+
+
+@pytest.mark.django_db
+class TestTheApiAndMcpHideEpicsUnlessAsked:
+    """Agents and API clients get the work by default, epics on request.
+
+    Silently listing epics alongside tasks would make every "count the
+    tasks" answer one too big; silently hiding them with no way in would
+    make an epic unreachable. Both surfaces take an explicit ``kind``.
+    """
+
+    @pytest.fixture
+    def seeded(self, workspace, project, epic):
+        """A plain task beside the epic, with the epic over it."""
+        return epic, TaskFactory(project=project, title="Dual-write charges", epic=epic)
+
+    def test_the_rest_list_leaves_epics_out(self, workspace, seeded):
+        from rest_framework.test import APIClient
+
+        epic, task = seeded
+        api = APIClient()
+        api.force_authenticate(user=workspace.owner)
+        slugs = [row["slug"] for row in api.get("/api/v1/tasks/").data["results"]]
+        assert task.slug in slugs
+        assert epic.slug not in slugs
+
+    def test_rest_kind_epic_returns_only_epics(self, workspace, seeded):
+        from rest_framework.test import APIClient
+
+        epic, task = seeded
+        api = APIClient()
+        api.force_authenticate(user=workspace.owner)
+        slugs = [row["slug"] for row in api.get("/api/v1/tasks/", {"kind": "epic"}).data["results"]]
+        assert slugs == [epic.slug]
+
+    def test_rest_kind_all_returns_both(self, workspace, seeded):
+        from rest_framework.test import APIClient
+
+        epic, task = seeded
+        api = APIClient()
+        api.force_authenticate(user=workspace.owner)
+        slugs = {row["slug"] for row in api.get("/api/v1/tasks/", {"kind": "all"}).data["results"]}
+        assert slugs == {epic.slug, task.slug}
+
+    def test_an_epic_still_fetches_by_id(self, workspace, seeded):
+        from rest_framework.test import APIClient
+
+        epic, _ = seeded
+        api = APIClient()
+        api.force_authenticate(user=workspace.owner)
+        # Hiding it from the list must not make it unreachable — a client
+        # holding the id keeps working.
+        assert api.get(f"/api/v1/tasks/{epic.pk}/").status_code == 200
+
+    def test_the_mcp_list_leaves_epics_out(self, workspace, seeded):
+        from apps.mcp.tools.read import tasks_list
+
+        epic, task = seeded
+        slugs = [row["slug"] for row in tasks_list(workspace.owner, {})]
+        assert task.slug in slugs
+        assert epic.slug not in slugs
+
+    def test_the_mcp_list_reports_the_rollup_on_an_epic(self, workspace, project, seeded):
+        from apps.mcp.tools.read import tasks_list
+
+        epic, _ = seeded
+        member(epic, project, Task.STATUS_DONE)
+        row = next(r for r in tasks_list(workspace.owner, {"kind": "epic"}) if r["slug"] == epic.slug)
+        assert row["kind"] == Task.KIND_EPIC
+        assert row["progress"] == {"done": 1, "total": 2}
+        # Computed, not the stored column the row was created with.
+        assert row["status"] == Task.STATUS_IN_PROGRESS
+
+    def test_the_mcp_list_can_narrow_to_one_epic(self, workspace, project, seeded):
+        from apps.mcp.tools.read import tasks_list
+
+        epic, task = seeded
+        TaskFactory(project=project, title="Unrelated")
+        slugs = [row["slug"] for row in tasks_list(workspace.owner, {"epic": epic.slug})]
+        assert slugs == [task.slug]
+
+    def test_mcp_task_get_returns_the_epic_with_its_tasks(self, workspace, seeded):
+        from apps.mcp.tools.read import task_get
+
+        epic, task = seeded
+        payload = task_get(workspace.owner, {"slug": epic.slug})
+        assert payload["kind"] == Task.KIND_EPIC
+        assert [t["slug"] for t in payload["epic"]["tasks"]] == [task.slug]
+        assert payload["epic"]["total"] == 1
+
+    def test_mcp_create_can_collect_into_an_epic(self, workspace, project, epic):
+        from apps.mcp.tools.write import task_create
+
+        task_create(workspace.owner, {"project": project.slug_prefix, "title": "New", "epic_slug": epic.slug})
+        assert Task.objects.get(title="New").epic_id == epic.pk
+
+    def test_mcp_update_moves_a_task_out_of_its_epic(self, workspace, project, seeded):
+        from apps.mcp.tools.write import task_update
+
+        epic, task = seeded
+        task_update(workspace.owner, {"slug": task.slug, "epic_slug": None})
+        task.refresh_from_db()
+        assert task.epic_id is None
