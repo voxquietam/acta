@@ -162,3 +162,86 @@ class TestTheChange:
         client.post(url(task))
         assert task.pk not in set(Task.objects.work().values_list("pk", flat=True))
         assert task.pk in set(Task.objects.epics().values_list("pk", flat=True))
+
+
+def back_url(task):
+    """Return the turn-back-into-a-task endpoint for ``task``."""
+    return f"/projects/{task.project.slug_prefix}/{task.number}/turn-into-task/"
+
+
+@pytest.mark.django_db
+class TestTheWayBack:
+    """An epic can go back to being a task while there is a way back.
+
+    The rule is the design's — "reversible while the epic has no tasks
+    from other projects" — stated as what the code can check: its tasks
+    become subtasks again, so each has to be able to be one.
+    """
+
+    def test_it_becomes_a_task_again_and_takes_its_tasks_as_subtasks(self, client, setup):
+        _, _, user, task, children = setup
+        client.force_login(user)
+        client.post(url(task))
+        resp = client.post(back_url(task))
+        assert resp.status_code == 204
+        task.refresh_from_db()
+        assert task.kind == Task.KIND_TASK
+        for child in children:
+            child.refresh_from_db()
+            assert (child.parent_id, child.epic_id) == (task.pk, None)
+
+    def test_it_lands_on_the_status_its_work_added_up_to(self, client, setup):
+        _, _, user, task, children = setup
+        client.force_login(user)
+        client.post(url(task))
+        Task.objects.filter(pk=children[0].pk).update(status=Task.STATUS_IN_PROGRESS)
+        task.refresh_from_db()
+        expected = task.epic_status
+        client.post(back_url(task))
+        task.refresh_from_db()
+        assert task.status == expected == Task.STATUS_IN_PROGRESS
+
+    def test_work_from_another_project_blocks_the_way_back(self, client, setup):
+        """A subtask lives in its parent's project — that work would be orphaned."""
+        _, project, user, task, _ = setup
+        client.force_login(user)
+        client.post(url(task))
+        elsewhere = ProjectFactory(workspace=project.workspace, slug_prefix="FAR")
+        TaskFactory(project=elsewhere, epic=task, reporter=user)
+        resp = client.get(back_url(task))
+        assert resp.context["blockers"]
+        assert client.post(back_url(task)).status_code == 400
+        task.refresh_from_db()
+        assert task.kind == Task.KIND_EPIC
+
+    def test_a_member_with_its_own_subtasks_blocks_the_way_back(self, client, setup):
+        """The depth-1 rule: a subtask cannot have a subtask."""
+        _, project, user, task, children = setup
+        client.force_login(user)
+        client.post(url(task))
+        TaskFactory(project=project, parent=children[0], reporter=user)
+        resp = client.get(back_url(task))
+        assert resp.context["blockers"]
+        assert client.post(back_url(task)).status_code == 400
+
+    def test_a_plain_task_is_refused(self, client, setup):
+        _, _, user, task, _ = setup
+        client.force_login(user)
+        assert client.get(back_url(task)).context["blockers"]
+        assert client.post(back_url(task)).status_code == 400
+
+    def test_the_dialog_says_what_does_not_come_back(self, client, setup):
+        """It is a conversion back, not an undo — the dropped fields are gone."""
+        _, _, user, task, _ = setup
+        client.force_login(user)
+        client.post(url(task))
+        body = client.get(back_url(task)).content.decode()
+        assert "Not restored:" in body
+        assert "csrfmiddlewaretoken" in body
+
+    def test_the_round_trip_is_logged(self, client, setup):
+        _, _, user, task, _ = setup
+        client.force_login(user)
+        client.post(url(task))
+        client.post(back_url(task))
+        assert ActivityLog.objects.filter(event_type="task.turned_into_task").count() == 1

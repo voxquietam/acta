@@ -4451,6 +4451,103 @@ def _turn_into_epic_blockers(task):
     return reasons
 
 
+def _turn_into_task_blockers(task):
+    """Return why this epic cannot go back to being a task.
+
+    The design calls the conversion "reversible while the epic has no
+    tasks from other projects", and that rule has two halves once it is
+    written as something the code can check. Its tasks become subtasks
+    again, so each of them has to be able to *be* a subtask of it: in the
+    same project (ADR 0007) and without subtasks of its own, which the
+    depth-1 rule forbids from gaining a grandparent.
+
+    Args:
+        task: The candidate :class:`~apps.tasks.models.Task`.
+
+    Returns:
+        A list of human-readable reasons; empty when the change is legal.
+    """
+    reasons = []
+    if task.kind != Task.KIND_EPIC:
+        reasons.append(_("This is not an epic."))
+        return reasons
+    members = list(task.epic_members().select_related("project").prefetch_related("subtasks"))
+    foreign = sorted({m.project.name for m in members if m.project_id != task.project_id})
+    if foreign:
+        reasons.append(
+            _(
+                "It collects work from %(projects)s — a subtask lives in its parent's project, so that work "
+                "would be orphaned."
+            )
+            % {"projects": ", ".join(foreign)},
+        )
+    deep = sorted(m.slug for m in members if m.subtasks.exists())
+    if deep:
+        reasons.append(
+            _("%(tasks)s have subtasks of their own, and a subtask cannot have one.") % {"tasks": ", ".join(deep)},
+        )
+    return reasons
+
+
+@login_required
+def turn_into_task(request, slug_prefix, number):
+    """Turn an epic back into a plain task — confirmation (GET) or the change.
+
+    The way back, while there is one: the tasks it collected become its
+    subtasks again. What the conversion dropped — deadline, size, cycle —
+    does not come back, because nothing kept it; the dialog says so
+    rather than pretending otherwise. The status it lands on is the one
+    the epic was showing, since that is what its work actually adds up to.
+
+    Returns:
+        The confirmation modal (GET), or ``204`` with ``HX-Redirect``
+        (POST).
+    """
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    blockers = _turn_into_task_blockers(task)
+    members = list(task.epic_members().order_by("number")) if task.kind == Task.KIND_EPIC else []
+    if request.method != "POST":
+        return HttpResponse(
+            render_to_string(
+                "web/projects/_turn_into_task_modal.html",
+                {
+                    "task": task,
+                    "blockers": blockers,
+                    "members": members,
+                    "epic_status": task.epic_status if task.kind == Task.KIND_EPIC else None,
+                },
+                request=request,
+            ),
+        )
+    if blockers:
+        return HttpResponseBadRequest("; ".join(str(reason) for reason in blockers))
+    with transaction.atomic():
+        before = snapshot_task(task)
+        status = task.epic_status
+        task.kind = Task.KIND_TASK
+        task.status = status
+        task.save(update_fields=["kind", "status", "updated_at"])
+        if members:
+            Task.objects.filter(pk__in=[m.pk for m in members]).update(
+                parent=task,
+                epic=None,
+                updated_at=timezone.now(),
+            )
+        emit_task_diff_events(task=task, old_state=before, actor=request.user)
+        log_event(
+            workspace=task.project.workspace,
+            project=task.project,
+            actor=request.user,
+            event_type="task.turned_into_task",
+            target_type=ActivityLog.TARGET_TASK,
+            target_id=task.id,
+            payload={"title": task.title, "tasks": len(members)},
+        )
+    response = HttpResponse(status=204)
+    response["HX-Redirect"] = task_path(task)
+    return response
+
+
 @login_required
 def turn_into_epic(request, slug_prefix, number):
     """Turn a task into an epic — confirmation (GET) or the change (POST).

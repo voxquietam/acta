@@ -1,0 +1,93 @@
+{% extends "web/_modal_shell.html" %}
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+"Turn back into a task" — the way out of an epic, while there is one.
+
+It is offered because the conversion the other way is otherwise a
+one-way door, and a wrong click should not be permanent. What it cannot
+do is undo: the deadline, size and cycle the epic dropped were not kept
+anywhere, so they do not come back. Saying that here is the point of the
+dialog — the rest of it is one sentence.
+
+Expects ``task``, ``blockers``, ``members`` and ``epic_status``.
+{% endcomment %}
+
+{% block root_attrs %}
+x-data="{ close() { const root = document.getElementById('modal-root'); if (root) root.innerHTML = ''; } }"
+{% endblock %}
+
+{% block panel_class %}sm:max-w-lg{% endblock %}
+
+{% block title %}
+<h2 class="text-sm font-medium text-foreground">
+  {% blocktrans with slug=task.slug %}Turn {{ slug }} back into a task?{% endblocktrans %}
+</h2>
+{% endblock %}
+
+{% block body %}
+<div class="p-4 space-y-3 text-xs">
+
+  {% if blockers %}
+  <div class="rounded-lg border border-rose-500/40 bg-rose-500/5 p-3 space-y-1.5">
+    {% for reason in blockers %}
+    <p class="flex items-start gap-2 text-rose-300">
+      {% lucide "octagon-alert" "w-3.5 h-3.5 shrink-0 mt-0.5" %}<span>{{ reason }}</span>
+    </p>
+    {% endfor %}
+  </div>
+
+  {% else %}
+  {% if members %}
+  <p class="flex items-start gap-2.5 leading-relaxed">
+    {% lucide "git-fork" "w-3.5 h-3.5 shrink-0 mt-0.5 text-brand-400" %}
+    <span class="text-muted-foreground">
+      <span class="text-foreground">{% blocktrans count counter=members|length %}{{ counter }} task{% plural %}{{ counter }} tasks{% endblocktrans %}</span>
+      {% trans "go back to being its subtasks." %}
+    </span>
+  </p>
+  {% endif %}
+
+  <p class="flex items-start gap-2.5 leading-relaxed">
+    {% lucide "check" "w-3.5 h-3.5 shrink-0 mt-0.5 text-emerald-400" %}
+    <span class="text-muted-foreground">
+      <span class="text-foreground">{% trans "Status" %}</span>
+      {% blocktrans with status=epic_status %}becomes {{ status }} — what its work adds up to right now.{% endblocktrans %}
+    </span>
+  </p>
+
+  {% comment %}
+  The honest half. These were dropped when the task became an epic and
+  nothing kept them, so this is a conversion back, not an undo.
+  {% endcomment %}
+  <p class="flex items-start gap-2.5 leading-relaxed">
+    {% lucide "minus" "w-3.5 h-3.5 shrink-0 mt-0.5 text-rose-400" %}
+    <span class="text-muted-foreground">
+      <span class="text-foreground">{% trans "Not restored:" %}</span>
+      {% trans "the deadline, size and cycle it had before it became an epic — those were dropped then and not kept." %}
+    </span>
+  </p>
+
+  <p class="flex items-start gap-2.5 leading-relaxed">
+    {% lucide "eye" "w-3.5 h-3.5 shrink-0 mt-0.5 text-placeholder-foreground" %}
+    <span class="text-muted-foreground">
+      {% trans "It returns to the board, the table and the list, and leaves the Epics tab." %}
+    </span>
+  </p>
+  {% endif %}
+</div>
+
+<footer class="flex items-center justify-end gap-2 px-4 py-3 border-t border-border bg-subtle/60">
+  <button type="button" @click="close()" class="acta-btn-ghost">{% trans "Cancel" %}</button>
+  {% if not blockers %}
+  <form hx-post="{% url 'web:turn_into_task' slug_prefix=task.project.slug_prefix number=task.number %}"
+        hx-trigger="submit"
+        hx-swap="none">
+    {% csrf_token %}
+    <button type="submit" class="acta-btn-primary inline-flex items-center gap-1.5">
+      {% lucide "list-tree" "w-3.5 h-3.5" %}{% trans "Turn back into a task" %}
+    </button>
+  </form>
+  {% endif %}
+</footer>
+{% endblock %}

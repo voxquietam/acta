@@ -121,6 +121,20 @@ picker. Expects ``task``, ``status_labels``, ``priority_labels``,
     </button>
     {% endif %}
 
+    {% comment %}
+    The way back out of an epic. Offered on an epic only, and the dialog
+    says plainly what does not come back — the conversion dropped the
+    deadline, size and cycle and nothing kept them.
+    {% endcomment %}
+    {% if task.kind == 'epic' %}
+    <button type="button"
+            @click="window.htmx && window.htmx.ajax('GET', '{% url 'web:turn_into_task' slug_prefix=task.project.slug_prefix number=task.number %}', { target: '#modal-root', swap: 'innerHTML' }); close()"
+            class="group w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left hover:bg-muted/40 hover:text-foreground transition">
+      <span class="text-placeholder-foreground group-hover:text-foreground inline-flex shrink-0">{% lucide "list-tree" "w-3.5 h-3.5" %}</span>
+      <span class="flex-1">{% trans "Turn back into a task…" %}</span>
+    </button>
+    {% endif %}
+
     {% if epics_enabled and task.kind != 'epic' and not task.parent_id %}
     <button type="button"
             @click="window.htmx && window.htmx.ajax('GET', '{% url 'web:turn_into_epic' slug_prefix=task.project.slug_prefix number=task.number %}', { target: '#modal-root', swap: 'innerHTML' }); close()"
