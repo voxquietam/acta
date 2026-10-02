@@ -76,5 +76,6 @@ def workspace_nav(request):
         "nav_favourite_tasks_by_project": tasks_by_project,
         "nav_favourite_tasks_orphan": tasks_orphan,
         "nav_cycles_enabled": bool(active and active.cycle_config()["enabled"]),
+        "nav_epics_enabled": bool(active and active.epics_enabled),
         "inbox_unread": unread,
     }

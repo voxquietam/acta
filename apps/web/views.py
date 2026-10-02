@@ -6017,6 +6017,95 @@ def project_insights(request, slug_prefix):
     return render(request, "web/projects/insights.html", ctx)
 
 
+# Six columns, not seven: ``cancelled`` is out for the same reason it is
+# out of ``Task.epic_members`` — it is not work any more, and a column of
+# it would hold an epic's progress down forever.
+EPIC_MATRIX_STATUSES = Task.KANBAN_STATUS_VALUES
+# Cell shading saturates here: past half a dozen tasks in one column the
+# question is no longer "is work piling up" but "how badly".
+EPIC_MATRIX_FULL = 6
+
+
+def _epic_matrix(workspace):
+    """Return the epic × status grid behind the Epics tab.
+
+    Two queries for the whole page: one for the epics, one for the
+    per-epic per-status counts. The grid is what makes the tab worth
+    having over a list — a dark cell is a column where work is piling up,
+    and that is readable across six epics at a glance.
+
+    Args:
+        workspace: The :class:`Workspace` whose epics to grid.
+
+    Returns:
+        A list of epics, each with ``cells`` (one per status, carrying
+        the count and a shade) and ``done_pct``.
+    """
+    epics = list(
+        Task.objects.epics()
+        .filter(project__workspace=workspace, archived_at__isnull=True)
+        .select_related("project")
+        .order_by("-updated_at"),
+    )
+    if not epics:
+        return []
+    counts: dict[tuple[int, str], int] = {}
+    rows = (
+        Task.objects.work()
+        .filter(epic__in=epics, archived_at__isnull=True)
+        .values("epic_id", "status")
+        .annotate(n=Count("id"))
+    )
+    for row in rows:
+        counts[(row["epic_id"], row["status"])] = row["n"]
+    for epic in epics:
+        cells = []
+        total = 0
+        for status in EPIC_MATRIX_STATUSES:
+            n = counts.get((epic.pk, status), 0)
+            total += n
+            cells.append(
+                {
+                    "status": status,
+                    "n": n,
+                    # Opacity rather than a palette step: the eye reads
+                    # "more" without the cell changing meaning.
+                    "shade": round(min(n / EPIC_MATRIX_FULL, 1) * 0.55, 2) if n else 0,
+                },
+            )
+        done = counts.get((epic.pk, Task.STATUS_DONE), 0)
+        epic.cells = cells
+        epic.member_total = total
+        epic.member_done = done
+        epic.done_pct = round(done / total * 100) if total else None
+    return epics
+
+
+@login_required
+def epics_overview(request):
+    """The Epics tab — every epic in the workspace against the statuses.
+
+    Deliberately a grid and not a list: an epic's own state is read off
+    its tasks, so the useful question on this page is where the work has
+    collected, and a row of counts answers it without opening anything.
+
+    Renders an empty state when the workspace turned epics off, so a
+    stale link does not 404 on someone who just flipped the switch.
+    """
+    workspace = resolve_active_workspace(request)
+    enabled = workspace is not None and workspace.epics_enabled
+    return render(
+        request,
+        "web/epics.html",
+        {
+            "workspace": workspace,
+            "epics_enabled": enabled,
+            "epics": _epic_matrix(workspace) if enabled else [],
+            "matrix_statuses": [{"value": value, "label": Task.STATUS_LABELS[value]} for value in EPIC_MATRIX_STATUSES],
+        },
+    )
+
+
 @login_required
 def cycles_overview(request):
     """Workspace cycles dashboard — active-cycle burndown + velocity + list.
@@ -7250,6 +7339,12 @@ def _create_task_get(request):
     pre_meeting_id = requested_meeting if any(str(m.id) == requested_meeting for m in meetings) else ""
     from apps.recurring import services as recurring_services
 
+    # "New epic" opens the same dialog with the kind pre-picked. An epic
+    # takes none of the fields it derives from its tasks, so the rail
+    # drops those rows rather than offering picks the POST would refuse.
+    pre_kind = Task.KIND_EPIC if request.GET.get("kind") == Task.KIND_EPIC else Task.KIND_TASK
+    if pre_kind == Task.KIND_EPIC and not (selected_project and selected_project.workspace.epics_enabled):
+        pre_kind = Task.KIND_TASK
     pre_repeat = request.GET.get("repeat") or ""
     if pre_repeat not in recurring_services.CREATE_PRESETS:
         pre_repeat = ""
@@ -7283,6 +7378,7 @@ def _create_task_get(request):
                 "pre_due_date": pre_due_date,
                 "pre_label_ids": pre_label_ids,
                 "link_related_task": link_related_task,
+                "pre_kind": pre_kind,
                 "status_labels": Task.STATUS_LABELS,
                 "priority_labels": dict(Task.PRIORITY_CHOICES),
                 "size_values": Task.SIZE_VALUES,
@@ -7307,6 +7403,7 @@ def _create_task_get(request):
                     pre_links=pre_links,
                     pre_meeting_id=pre_meeting_id,
                     pre_repeat=pre_repeat,
+                    kind=pre_kind,
                 ),
             },
             request=request,
@@ -7682,9 +7779,19 @@ def _create_task_post(request):
         _user_accessible_projects(request.user, resolve_active_workspace(request)),
         slug_prefix=project_slug,
     )
+    kind = Task.KIND_EPIC if request.POST.get("kind") == Task.KIND_EPIC else Task.KIND_TASK
+    if kind == Task.KIND_EPIC and not project.workspace.epics_enabled:
+        return HttpResponseBadRequest("epics are off for this workspace")
     fields, error = _parse_create_task_fields(request, project)
     if error is not None:
         return error
+    if kind == Task.KIND_EPIC:
+        # Everything an epic derives is dropped rather than rejected: the
+        # dialog does not offer these rows, so a value here came from a
+        # stale form, not from a person.
+        fields["due_date"] = None
+        fields["size"] = None
+        fields["cycle"] = None
     label_ids, error = _parse_create_task_labels(request, project)
     if error is not None:
         return error
@@ -7703,8 +7810,9 @@ def _create_task_post(request):
             # Parent and epic are columns on the task, so they are set
             # before the insert rather than attached after it like the
             # links are.
-            parent=relations["parent"],
-            epic=relations["epic"],
+            kind=kind,
+            parent=None if kind == Task.KIND_EPIC else relations["parent"],
+            epic=None if kind == Task.KIND_EPIC else relations["epic"],
             **fields,
         )
         # Mirror ``set_task_status``: a task that's born in-progress gets its

@@ -340,6 +340,7 @@ def build_create_task_data(
     pre_links,
     pre_meeting_id,
     pre_repeat,
+    kind,
 ):
     """Assemble the rail payload for one render of the create dialog.
 
@@ -368,6 +369,7 @@ def build_create_task_data(
         pre_links: Rows for the links row, each ``{"v", "n", "kind"}``.
         pre_meeting_id: Meeting id to start on, or ``""``.
         pre_repeat: Repeat preset to start on, or ``""``.
+        kind: ``task`` or ``epic`` — an epic drops the rows it derives.
 
     Returns:
         A JSON-serialisable dict with ``fields``, ``projects``,
@@ -512,11 +514,27 @@ def build_create_task_data(
     # than one that refuses every pick.
     if selected_project is None or not selected_project.workspace.epics_enabled:
         fields = [f for f in fields if f["key"] != "epic"]
+    if kind == Task.KIND_EPIC:
+        # An epic takes its dates and size from its tasks, never joins a
+        # cycle, is never a subtask and never belongs to another epic. A
+        # row for any of those would be a pick the save throws away.
+        dropped = {"due", "size", "cycle", "parent", "epic", "repeat"}
+        fields = [f for f in fields if f["key"] not in dropped]
+        # The group heading rides on the first row of its group, so it
+        # has to move when that row is the one dropped.
+        seen = set()
+        for field in fields:
+            group = field.get("group")
+            if group:
+                seen.add(group)
+        if fields and not fields[0].get("group"):
+            fields[0]["group"] = str(GROUP_PROPERTIES)
     groups = _project_groups(projects, selected_project)
     return {
         "fields": fields,
         "projects": groups,
         "project": next((item for group in groups for item in group["items"] if item["on"]), None),
+        "kind": kind,
         "sprite": static("sprites/lucide.svg"),
         "url": reverse("web:create_task"),
         "search_url": reverse("web:create_task_search"),

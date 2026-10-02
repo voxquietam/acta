@@ -3708,3 +3708,51 @@ tr[data-vrow-hidden] {
   stroke-linejoin: round;
 }
 
+
+/* ---- Epics tab --------------------------------------------------------
+   The grid of every epic against the statuses (design "Epics Rethink",
+   artboard 1d). A cell's shade carries its count, so the status palette
+   has to be reachable as a triple that an inline ``rgb(… / α)`` can take
+   an alpha on — a Tailwind class cannot, because the alpha is computed
+   per cell. These mirror the dot classes in ``web_extras``; change both
+   together. */
+:root {
+  --acta-st-planned: 113 113 122;
+  --acta-st-ready: 6 182 212;
+  --acta-st-to-do: 59 130 246;
+  --acta-st-in-progress: 139 92 246;
+  --acta-st-in-review: 245 158 11;
+  --acta-st-done: 16 185 129;
+}
+
+.acta-epic-row {
+  display: grid;
+  /* 72px, not the design's 62: "In progress" is the longest label and a
+     header that wraps makes the whole row taller than the cells need. */
+  grid-template-columns: minmax(0, 1fr) repeat(6, 72px) 76px;
+  align-items: stretch;
+  border-bottom: 1px solid rgb(var(--border));
+}
+.acta-epic-row:last-child {
+  border-bottom: 0;
+}
+.acta-epic-head {
+  height: 34px;
+  background: rgb(var(--card));
+  align-items: center;
+}
+.acta-epic-name {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  padding: 10px 14px;
+}
+.acta-epic-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  white-space: nowrap;
+  border-left: 1px solid rgb(var(--border));
+}

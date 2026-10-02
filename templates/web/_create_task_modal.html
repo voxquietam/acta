@@ -49,7 +49,7 @@ x-data="actaCreateTask()"
 {% block panel_attrs %}x-init="$nextTick(() => $refs.title?.focus())"{% endblock %}
 
 {% block title %}
-<h2 class="text-sm font-medium text-foreground shrink-0">{% if projects %}{% trans "New task" %}{% else %}{% trans "Create a project first" %}{% endif %}</h2>
+<h2 class="text-sm font-medium text-foreground shrink-0">{% if not projects %}{% trans "Create a project first" %}{% elif pre_kind == 'epic' %}{% trans "New epic" %}{% else %}{% trans "New task" %}{% endif %}</h2>
 {% if projects %}
 {% comment %}
 The project lives in the header, not in the field stack: it is the one
@@ -126,6 +126,7 @@ Alpine event instead of a ``change``.
       class="acta-ctm-body">
   {% csrf_token %}
   <input type="hidden" name="project" :value="project ? project.v : ''">
+  <input type="hidden" name="kind" value="{{ pre_kind }}">
   {# ⌘⇧↵ needs the 204 + trigger path so ``created()`` can reopen a fresh #}
   {# dialog; a redirect would navigate away instead.                       #}
   <input type="hidden" name="open_after_create" :value="!again && openAfter ? '1' : '0'">
@@ -145,7 +146,7 @@ Alpine event instead of a ``change``.
     <input type="text" name="title" maxlength="200" required x-ref="title"
            value="{{ pre_title|default:'' }}"
            class="acta-ctm-title"
-           placeholder="{% trans 'What needs to be done?' %}"
+           placeholder="{% if pre_kind == 'epic' %}{% trans 'What does this epic cover?' %}{% else %}{% trans 'What needs to be done?' %}{% endif %}"
            {% comment %}
            Enter moves on to the description instead of submitting: a
            half-written task is the common case for a stray Enter, and
@@ -270,7 +271,7 @@ Alpine event instead of a ``change``.
   <span class="flex-1"></span>
   <span class="hidden sm:inline text-[11px] text-placeholder-foreground">{% trans "⌘↵ create · ⌘⇧↵ create & next" %}</span>
   <button type="button" @click="dismiss()" class="acta-btn-ghost hidden sm:inline-flex">{% trans "Cancel" %}</button>
-  <button type="button" @click="create(false)" class="acta-btn-primary">{% trans "Create task" %}</button>
+  <button type="button" @click="create(false)" class="acta-btn-primary">{% if pre_kind == 'epic' %}{% trans "Create epic" %}{% else %}{% trans "Create task" %}{% endif %}</button>
 </footer>
 
 {% comment %}

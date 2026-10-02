@@ -11,6 +11,17 @@ Automating this with `git-cliff` is deferred until `v1.0.0`.
 
 ### Added
 
+- **Epics — a task that collects other tasks.** An epic gathers work from
+  across the whole workspace, which a parent cannot do (a subtask must
+  share its parent's project), so it uses its own field and leaves the
+  subtask rules alone: a subtask keeps its parent *and* can belong to an
+  epic. Its progress, dates and status are read off the tasks inside it
+  and never typed by hand. The **Epics** tab grids every epic against
+  the statuses — a dark cell is where work is piling up — and the Epic
+  row sits beside Parent on a task and in the create dialog. Off in a
+  workspace that turns `epics_enabled` off; on by default. The REST and
+  MCP list endpoints leave epics out unless `kind` asks for them. See
+  ADR 0036.
 - **The create-task dialog is two columns now.** Content on the left,
   a property rail on the right — the same shape as the task page, so
   the two read as one interface. Every property is a row and an unset

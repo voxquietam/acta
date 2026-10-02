@@ -1,0 +1,117 @@
+{% extends "base_app.html" %}
+{% load i18n %}
+{% load web_extras %}
+{% load lucide %}
+{% comment %}
+The Epics tab — every epic in the workspace against the statuses
+(design "Epics Rethink", artboard 1d).
+
+A grid and not a list on purpose: an epic's own state is read off the
+tasks it collects, so the question worth answering on a page that shows
+all of them is *where the work has collected*. A dark cell is a column
+work is piling up in, and that reads across six epics without opening
+anything.
+
+Six columns, not seven: ``cancelled`` is out for the same reason it is
+out of ``Task.epic_members`` — it is not work any more. Expects
+``epics_enabled`` and, when on, ``epics`` (each decorated with
+``cells`` / ``member_done`` / ``member_total`` / ``done_pct``) and
+``matrix_statuses``. See docs/decisions/0036-epics.md.
+{% endcomment %}
+
+{% block title %}{% trans "Epics" %} · Acta{% endblock %}
+
+{% block topbar_left %}
+<h1 class="text-base font-medium inline-flex items-center gap-1.5">
+  {% lucide "square-kanban" "w-4 h-4 text-placeholder-foreground" %}{% trans "Epics" %}
+</h1>
+{% endblock %}
+
+{% block topbar_right_prepend %}
+{% if epics_enabled %}
+<button type="button"
+        hx-get="{% url 'web:create_task' %}?kind=epic"
+        hx-target="#modal-root"
+        hx-swap="innerHTML"
+        class="acta-btn-primary inline-flex items-center gap-1.5 shrink-0">
+  {% lucide "plus" "w-3.5 h-3.5" %}{% trans "New epic" %}
+</button>
+{% endif %}
+{% endblock %}
+
+{% block app_main %}
+<div class="h-full overflow-y-auto">
+  <div class="max-w-5xl mx-auto p-4 space-y-4">
+
+    {% if not epics_enabled %}
+    <div class="grid place-items-center text-center py-20">
+      <div>
+        <div class="w-12 h-12 rounded-full border border-dashed border-border-strong grid place-items-center text-placeholder-foreground mx-auto mb-3">
+          {% lucide "square-kanban" "w-5 h-5" %}
+        </div>
+        <p class="text-sm text-foreground">{% trans "Epics are off for this workspace." %}</p>
+        <p class="text-xs text-placeholder-foreground mt-1 max-w-sm">
+          {% trans "Turn them on in workspace settings to group tasks from several projects under one effort." %}
+        </p>
+      </div>
+    </div>
+
+    {% elif not epics %}
+    <div class="grid place-items-center text-center py-20">
+      <div>
+        <div class="w-12 h-12 rounded-full border border-dashed border-border-strong grid place-items-center text-placeholder-foreground mx-auto mb-3">
+          {% lucide "square-kanban" "w-5 h-5" %}
+        </div>
+        <p class="text-sm text-foreground">{% trans "No epics yet." %}</p>
+        <p class="text-xs text-placeholder-foreground mt-1 max-w-sm">
+          {% trans "An epic collects tasks from across the workspace — a migration, a release, an audit. Its progress and dates come from the tasks inside it." %}
+        </p>
+      </div>
+    </div>
+
+    {% else %}
+    <div class="flex items-center gap-2 text-xs text-subtle-foreground">
+      <span>{% blocktrans count counter=epics|length %}{{ counter }} epic · tasks per column{% plural %}{{ counter }} epics · tasks per column{% endblocktrans %}</span>
+      <span class="flex-1"></span>
+      <span class="text-placeholder-foreground">{% trans "darker cell = work piles up" %}</span>
+    </div>
+
+    <div class="acta-epic-grid border border-border rounded-lg overflow-hidden">
+      <div class="acta-epic-row acta-epic-head">
+        <span class="acta-epic-name text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Epic" %}</span>
+        {% for column in matrix_statuses %}
+        <span class="acta-epic-cell text-[10px] text-placeholder-foreground">
+          <span class="w-1.5 h-1.5 rounded-full {{ column.value|status_dot_classes }}"></span>{{ column.label }}
+        </span>
+        {% endfor %}
+        <span class="acta-epic-cell text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Done" %}</span>
+      </div>
+
+      {% for epic in epics %}
+      <a href="{% task_url epic %}" class="acta-epic-row hover:bg-muted/40 transition">
+        <span class="acta-epic-name min-w-0">
+          <span class="flex items-center gap-2 min-w-0">
+            {% lucide "square-kanban" "w-3.5 h-3.5 shrink-0 text-subtle-foreground" %}
+            <span class="truncate text-sm">{{ epic.title }}</span>
+          </span>
+          <span class="font-mono text-[10px] text-placeholder-foreground pl-[22px]">{{ epic.slug }}</span>
+        </span>
+        {% for cell in epic.cells %}
+        {# Opacity, not a palette step: the eye reads "more" without the #}
+        {# cell changing what it means.                                  #}
+        <span class="acta-epic-cell font-mono text-xs {% if cell.n %}text-foreground{% else %}text-placeholder-foreground{% endif %}"
+              style="background-color: {% if cell.n %}rgb(var(--acta-st-{{ cell.status }}) / {{ cell.shade }}){% else %}transparent{% endif %};">
+          {% if cell.n %}{{ cell.n }}{% else %}·{% endif %}
+        </span>
+        {% endfor %}
+        <span class="acta-epic-cell font-mono text-[11px] text-subtle-foreground">
+          {% if epic.done_pct is not None %}{{ epic.done_pct }}%{% else %}—{% endif %}
+        </span>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}
