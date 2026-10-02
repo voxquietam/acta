@@ -74,6 +74,10 @@ someone twice.
       {% endif %}
       <input type="hidden" name="show_archived" value="0">
       <input type="checkbox" name="show_archived" value="1" :checked="toggles.show_archived">
+      {% if epics_enabled %}
+      <input type="hidden" name="show_epic" value="0">
+      <input type="checkbox" name="show_epic" value="1" :checked="toggles.show_epic">
+      {% endif %}
       {% if show_my_projects_toggle %}
       <input type="hidden" name="show_my_projects" value="0">
       <input type="checkbox" name="show_my_projects" value="1" :checked="toggles.show_my_projects">
@@ -209,6 +213,18 @@ just written — the same trap the links panel documents.
     <button type="button" class="acta-dock-pop-row" @click="toggleScope('show_my_projects')">
       <span class="acta-dock-tick" :class="{ 'is-on': toggles.show_my_projects }"></span>
       {% trans "Only my projects" %}
+    </button>
+    {% endif %}
+    {% comment %}
+    The Epic column is the one entry here that changes what a row shows
+    rather than which rows exist — it sits in this menu because that is
+    where a person looks for "what is in this view", not because it
+    filters.
+    {% endcomment %}
+    {% if epics_enabled %}
+    <button type="button" class="acta-dock-pop-row" @click="toggleScope('show_epic')">
+      <span class="acta-dock-tick" :class="{ 'is-on': toggles.show_epic }"></span>
+      {% trans "Epic column" %}
     </button>
     {% endif %}
   </div>

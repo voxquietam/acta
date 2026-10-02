@@ -30,6 +30,7 @@ clip overflowing text with an ellipsis instead of widening.
       {% if show_labels %}<col style="width: 6%">{% endif %}    {# Labels — colored dots, hover surfaces full pills #}
       <col style="width: 12%">                                  {# Assignee #}
       {% if show_project %}<col style="width: 9%">{% endif %}   {# Project #}
+      {% if show_epic %}<col style="width: 11%">{% endif %}     {# Epic — opt-in from Display #}
       <col style="width: 5%">                                   {# Due #}
       <col style="width: 6%">                                   {# Updated — header word needs the room #}
     </colgroup>
@@ -80,6 +81,19 @@ clip overflowing text with an ellipsis instead of widening.
           </a>
         </th>
         {% endif %}
+        {% comment %}
+        Epic — off unless asked for in Display. It is the only answer to
+        "which effort is this part of" that does not change the view the
+        way grouping does, but on a board where epics are not used it
+        would be a column of dashes.
+        {% endcomment %}
+        {% if show_epic %}
+        <th class="sticky top-0 z-10 bg-subtle/95 backdrop-blur-sm text-left px-3 py-2 font-medium">
+          <a href="{% sort_url request 'epic' %}" data-sort data-sort-key="epic" class="hover:text-foreground inline-flex items-center gap-1">
+            {% trans "Epic" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'epic' %}</span>
+          </a>
+        </th>
+        {% endif %}
         <th class="sticky top-0 z-10 bg-subtle/95 backdrop-blur-sm text-left px-3 py-2 font-medium">
           <a href="{% sort_url request 'due' %}" data-sort data-sort-key="due" class="hover:text-foreground inline-flex items-center gap-1">
             {% trans "Due" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'due' %}</span>
@@ -108,7 +122,13 @@ clip overflowing text with an ellipsis instead of widening.
     <tbody id="task-table-body" class="divide-y divide-border">
       {% for task in tasks %}{% include "web/projects/_table_row.html" %}{% empty %}
       <tr>
-        <td colspan="{% if show_labels and show_project %}10{% elif show_labels or show_project %}9{% else %}8{% endif %}"
+        {% comment %}
+        Eight fixed columns plus whichever optional ones are on. Three
+        optional columns is where an inline conditional chain stops being
+        readable — and stops being right — so the view counts them into
+        ``table_colspan``.
+        {% endcomment %}
+        <td colspan="{{ table_colspan }}"
             class="px-3 py-8 text-center text-sm text-placeholder-foreground italic">
           {% trans "No tasks." %}
         </td>

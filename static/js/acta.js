@@ -672,6 +672,7 @@
     const viewMode = window.Alpine?.store?.("viewMode")?.current;
     const showArchived = viewMode === "archive" || fd.getAll("show_archived").includes("1");
     const showBacklog = fd.getAll("show_backlog").includes("1");
+    const showEpic = fd.getAll("show_epic").includes("1");
     // "Show my projects" — client-side hide of rows whose project the
     // user isn't a member of (or doesn't lead). ``my-project-ids`` is
     // stamped on the form as a CSV by the server. Default ON: when the
@@ -699,6 +700,7 @@
       dateBefore: (fd.get("date_before") || "").toString().trim(),
       showArchived,
       showBacklog,
+      showEpic,
       showMyProjects,
       myProjectIds,
     };
@@ -988,6 +990,13 @@
     // page — pages without it (project detail) must not write the
     // cookie because their FormData has no show_my_projects key and
     // would mistakenly stamp "0".
+    // The Epic column is a column, not a scope: it needs the cookie so a
+    // reload keeps it, but nothing here hides a row because of it — the
+    // server renders the cell or does not.
+    const hasEpicToggle = document.querySelector('#filter-form input[name="show_epic"][type="checkbox"]') !== null;
+    if (hasEpicToggle) {
+      document.cookie = `acta_show_epic=${state.showEpic ? "1" : "0"}; path=/; max-age=${oneYear}; samesite=Lax`;
+    }
     const hasMyToggle = document.querySelector('#filter-form input[name="show_my_projects"][type="checkbox"]') !== null;
     if (hasMyToggle) {
       document.cookie = `acta_show_my_projects=${state.showMyProjects ? "1" : "0"}; path=/; max-age=${oneYear}; samesite=Lax`;
@@ -3144,7 +3153,7 @@
         );
         // If the destination already carries every optional column the
         // payload could have, there's nothing to strip — skip the parse.
-        if (present.has("project") && present.has("labels")) return html;
+        if (present.has("project") && present.has("labels") && present.has("epic")) return html;
         // Parse the row inside a real <table> so the <tr>/<td> survive
         // (a detached <tbody>/<template> context is unreliable for bare
         // table rows across engines).

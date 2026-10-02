@@ -79,6 +79,7 @@ from apps.web.filters import (
     project_facet_counts,
     resolve_show_archived,
     resolve_show_backlog,
+    resolve_show_epic,
     resolve_show_my_projects,
     user_project_ids,
     visible_assignee_facets,
@@ -210,6 +211,7 @@ _LIST_AXIS_LABELS = {
     "assignee": "Assignee",
     "project": "Project",
     "cycle": "Cycle",
+    "epic": "Epic",
 }
 
 
@@ -564,23 +566,65 @@ def _backlog_context(tasks, *, today):
     }
 
 
-def _with_cycle_axis(base_keys, workspace):
-    """Append the ``cycle`` group-by axis when the workspace runs cadence.
+def _optional_axes(base_keys, workspace):
+    """Append the axes a workspace has switched on.
 
-    Keeps the cycle axis out of the List-view picker entirely for
-    workspaces with cycles disabled, so it only appears where it has
-    meaning. ``base_keys`` is returned unchanged otherwise.
+    ``cycle`` only means something where cadence runs, and ``epic`` only
+    where epics do; offering either otherwise is a tab that groups
+    everything into one bucket. ``base_keys`` is returned unchanged for a
+    workspace that runs neither.
 
     Args:
         base_keys: The page's default axis-key tuple.
         workspace: The active / project :class:`Workspace`, or ``None``.
 
     Returns:
-        A tuple of axis keys, with ``"cycle"`` appended iff cadence is on.
+        A tuple of axis keys with the enabled optional ones appended.
     """
-    if workspace is not None and workspace.cycle_config()["enabled"]:
-        return (*base_keys, "cycle")
-    return base_keys
+    keys = tuple(base_keys)
+    if workspace is None:
+        return keys
+    if workspace.cycle_config()["enabled"]:
+        keys = (*keys, "cycle")
+    if workspace.epics_enabled:
+        keys = (*keys, "epic")
+    return keys
+
+
+def _show_epic_column(request, workspace):
+    """Whether the table should render its optional Epic column.
+
+    Off wherever epics are off: a column of dashes is worse than no
+    column, and the Display menu does not offer the toggle there either.
+
+    Args:
+        request: The active ``HttpRequest``.
+        workspace: The workspace in scope, or ``None``.
+
+    Returns:
+        ``True`` when the column should render.
+    """
+    if workspace is None or not workspace.epics_enabled:
+        return False
+    return resolve_show_epic(request) == "1"
+
+
+def _table_colspan(ctx):
+    """Count the table's columns for the empty-state row.
+
+    Eight fixed plus whichever optional ones this render carries. Counted
+    here rather than in the template because three optional columns is
+    where an inline ``{% if %}`` chain stops being readable — and stops
+    being right.
+
+    Args:
+        ctx: The context the table renders from.
+
+    Returns:
+        The number of columns the ``colspan`` should span.
+    """
+    optional = ("show_labels", "show_project", "show_epic")
+    return 8 + sum(1 for key in optional if ctx.get(key))
 
 
 def _list_axis_options(option_keys, active_key):
@@ -724,6 +768,10 @@ def _user_task_qs(user):
             "project__workspace",
             "assignee",
             "cycle",
+            # Grouping by epic and the Epic column both read the epic's
+            # title off every row; without the join that is one query per
+            # task on a thousand-row list.
+            "epic",
         )
         # ``Prefetch("labels", queryset=...select_related("group"))`` rather
         # than the bare ``"labels"`` string: the task-detail rail's chip
@@ -1201,7 +1249,7 @@ class AllTasksView(LoginRequiredMixin, ListView):
             ``list_axis_options`` + ``list_sections_by_axis``; the per-axis
             fetch path returns just ``sections`` for the section partial.
         """
-        list_axis_keys = _with_cycle_axis(
+        list_axis_keys = _optional_axes(
             ("deadline", "status", "priority", "assignee", "project"),
             resolve_active_workspace(self.request),
         )
@@ -1245,6 +1293,8 @@ class AllTasksView(LoginRequiredMixin, ListView):
         ctx["view_panel_target"] = "#task-list-wrapper"
         ctx["show_project"] = True
         ctx["show_labels"] = True
+        ctx["show_epic"] = _show_epic_column(self.request, resolve_active_workspace(self.request))
+        ctx["table_colspan"] = _table_colspan(ctx)
         # All Tasks renders only the *active* view body inline and lazy-loads
         # the rest via ``?panel=`` (see _view_panel.html). Keeps the
         # workspace-wide page — and every structural-filter round-trip — light
@@ -1476,7 +1526,7 @@ class MyWorkView(LoginRequiredMixin, TemplateView):
         # the user — the toggle hides foreign-project rows in the DOM.
         tasks = _my_work_tasks(self.request.user, params, active)
         ctx["has_any_tasks"] = bool(tasks)
-        list_axis_keys = _with_cycle_axis(("deadline", "status", "priority", "project"), active)
+        list_axis_keys = _optional_axes(("deadline", "status", "priority", "project"), active)
         list_axis = _resolve_list_axis(self.request, default="deadline", options=list_axis_keys)
         ctx["list_axis"] = list_axis
         ctx["list_axis_options"] = _list_axis_options(list_axis_keys, list_axis)
@@ -2499,7 +2549,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
 
     def _list_axes_ctx(self, *, table_tasks, project):
         """List-view grouping ctx — used by ``?panel=list`` and cold-load list view."""
-        list_axis_keys = _with_cycle_axis(("deadline", "status", "priority", "assignee"), project.workspace)
+        list_axis_keys = _optional_axes(("deadline", "status", "priority", "assignee"), project.workspace)
         list_axis = _resolve_list_axis(self.request, default="status", options=list_axis_keys)
         return {
             "list_axis": list_axis,
@@ -2882,6 +2932,8 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         if panel == "table":
             ctx["tasks"] = table_tasks
             ctx["show_labels"] = True
+            ctx["show_epic"] = _show_epic_column(self.request, project.workspace)
+            ctx["table_colspan"] = _table_colspan(ctx)
             return ctx
         if panel == "list":
             ctx.update(self._list_axes_ctx(table_tasks=table_tasks, project=project))
@@ -2964,6 +3016,8 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             )
         )
         ctx["show_labels"] = True
+        ctx["show_epic"] = _show_epic_column(self.request, project.workspace)
+        ctx["table_colspan"] = _table_colspan(ctx)
 
         # Timeline context — shared derivation with AllTasksView.
         ctx.update(_timeline_context(table_tasks, today))
@@ -3094,45 +3148,37 @@ class TaskDetailView(LoginRequiredMixin, DetailView):
         ctx["is_favourite_task"] = self.request.user.favourite_tasks.filter(pk=task.pk).exists()
         ctx.update(task_picker_context(task))
         if task.kind == Task.KIND_EPIC:
-            ctx.update(_epic_board_context(task))
+            ctx.update(_epic_board_context(task, self.request))
         return ctx
 
 
-def _epic_board_context(epic):
+def _epic_board_context(epic, request):
     """Build the board an epic's page is made of.
 
-    Columns are the six working statuses — ``cancelled`` is out for the
-    same reason it is out of :meth:`Task.epic_members` — and each column
-    is split in two: the tasks that are waiting on something, in their
-    own lane above the rest, and everything else. A blocked task keeps
-    its status column rather than moving to a "Blocked" one, so the board
-    still answers "how far along is this" while saying what is stuck.
+    Reuses the kanban the rest of the app already has: ``_build_kanban_
+    columns`` is a pure in-memory bucketer over the same six statuses,
+    with no project assumptions, and ``_kanban.html`` brings drag-to-
+    change-status, collapsible columns, WIP limits and the live insert
+    with it. The only thing this adds is the order inside a column —
+    blocked first, so what is stuck rises to the top of the column it is
+    actually in. Moving it to a "Blocked" column would trade "how far
+    along is this" for "what is stuck"; the board has to answer both.
 
     Args:
         epic: The epic whose tasks to lay out.
+        request: The active ``HttpRequest``, for the filter dock.
 
     Returns:
-        A context dict with ``epic_columns``, ``epic_projects``, the
-        rollup and the date span.
+        A context dict with the kanban ``columns`` plus the rollup, the
+        date span, which projects carry the work, and the filter dock.
     """
     members = list(
         epic.epic_members()
         .select_related("project", "assignee")
-        .prefetch_related("blocked_by", "subtasks")
+        .prefetch_related("labels", "blocks", "blocked_by", "subtasks")
         .order_by("project__slug_prefix", "number"),
     )
-    columns = []
-    for status in EPIC_MATRIX_STATUSES:
-        in_status = [task for task in members if task.status == status]
-        columns.append(
-            {
-                "status": status,
-                "label": Task.STATUS_LABELS[status],
-                "blocked": [task for task in in_status if task.is_blocked],
-                "rest": [task for task in in_status if not task.is_blocked],
-                "n": len(in_status),
-            },
-        )
+    members.sort(key=lambda task: not task.is_blocked)
     # Which teams are carrying this, and how much each. The point of an
     # epic is that the answer spans projects, so the page says it.
     by_project: dict[str, dict] = {}
@@ -3146,10 +3192,30 @@ def _epic_board_context(epic):
             row["done"] += 1
     done, total = epic.epic_counts
     start, end = epic.epic_span
+    # The dock belongs here as much as on any board, and the project axis
+    # matters more: an epic is the one board whose cards come from
+    # several. Status is hidden the way it is on any kanban — the columns
+    # already are the status.
+    dock = filter_sidebar_context(
+        request,
+        hide_status=True,
+        hide_project=False,
+        hide_my_projects_toggle=True,
+        htmx_target="#epic-board",
+        available_assignees=sorted(
+            {task.assignee for task in members if task.assignee_id},
+            key=lambda user: (user.display_name or user.username or "").lower(),
+        ),
+    )
     return {
-        "epic_columns": columns,
+        **dock,
+        "columns": _build_kanban_columns(members),
+        # The cards are the workspace's, not one project's, so they say
+        # which project each came from.
+        "show_project": True,
+        "wip_mode": None,
         "epic_projects": sorted(by_project.values(), key=lambda row: -row["total"]),
-        "epic_blocked_total": sum(len(column["blocked"]) for column in columns),
+        "epic_blocked_total": sum(1 for task in members if task.is_blocked),
         "epic_done": done,
         "epic_total": total,
         "epic_pct": round(done / total * 100) if total else None,
@@ -3326,6 +3392,7 @@ def task_row_fragment(request, task_id):
                 "today": timezone.localdate(),
                 "show_project": True,
                 "show_labels": True,
+                "show_epic": True,
             },
             request=request,
         ),
@@ -6093,77 +6160,85 @@ def project_insights(request, slug_prefix):
     return render(request, "web/projects/insights.html", ctx)
 
 
+# An epic is "paused" when nothing inside it has closed in this long.
+# Two weeks is the point where a reader stops assuming the work is simply
+# between pushes.
+EPIC_PAUSED_AFTER_DAYS = 14
+
 # Six columns, not seven: ``cancelled`` is out for the same reason it is
-# out of ``Task.epic_members`` — it is not work any more, and a column of
-# it would hold an epic's progress down forever.
-EPIC_MATRIX_STATUSES = Task.KANBAN_STATUS_VALUES
-# Cell shading saturates here: past half a dozen tasks in one column the
-# question is no longer "is work piling up" but "how badly".
-EPIC_MATRIX_FULL = 6
+# out of ``Task.epic_members`` — it is not work any more.
+EPIC_BOARD_STATUSES = Task.KANBAN_STATUS_VALUES
 
 
-def _epic_matrix(workspace):
-    """Return the epic × status grid behind the Epics tab.
+def _epic_rows(workspace):
+    """Return the workspace's epics with everything the tab shows.
 
-    Two queries for the whole page: one for the epics, one for the
-    per-epic per-status counts. The grid is what makes the tab worth
-    having over a list — a dark cell is a column where work is piling up,
-    and that is readable across six epics at a glance.
+    Two queries for the whole page: the epics, and their tasks. The
+    column that earns the page is the last one — when anything inside an
+    epic last closed. "5 of 22 done" does not say whether an epic is
+    moving; "26d ago" says it immediately.
 
     Args:
-        workspace: The :class:`Workspace` whose epics to grid.
+        workspace: The :class:`Workspace` whose epics to list.
 
     Returns:
-        A list of epics, each with ``cells`` (one per status, carrying
-        the count and a shade) and ``done_pct``.
+        Epics ordered by how long they have been quiet, longest first,
+        each carrying ``member_done`` / ``member_total`` / ``done_pct`` /
+        ``projects`` / ``blocked`` / ``last_done`` / ``paused`` / span.
     """
     epics = list(
         Task.objects.epics()
         .filter(project__workspace=workspace, archived_at__isnull=True)
-        .select_related("project")
+        .select_related("project", "assignee")
         .order_by("-updated_at"),
     )
     if not epics:
         return []
-    counts: dict[tuple[int, str], int] = {}
-    rows = (
+    members = list(
         Task.objects.work()
         .filter(epic__in=epics, archived_at__isnull=True)
-        .values("epic_id", "status")
-        .annotate(n=Count("id"))
+        .exclude(status=Task.STATUS_CANCELLED)
+        .select_related("project")
+        .prefetch_related("blocked_by"),
     )
-    for row in rows:
-        counts[(row["epic_id"], row["status"])] = row["n"]
+    by_epic: dict[int, list] = {}
+    for task in members:
+        by_epic.setdefault(task.epic_id, []).append(task)
+
+    today = timezone.localdate()
     for epic in epics:
-        cells = []
-        total = 0
-        for status in EPIC_MATRIX_STATUSES:
-            n = counts.get((epic.pk, status), 0)
-            total += n
-            cells.append(
-                {
-                    "status": status,
-                    "n": n,
-                    # Opacity rather than a palette step: the eye reads
-                    # "more" without the cell changing meaning.
-                    "shade": round(min(n / EPIC_MATRIX_FULL, 1) * 0.55, 2) if n else 0,
-                },
-            )
-        done = counts.get((epic.pk, Task.STATUS_DONE), 0)
-        epic.cells = cells
-        epic.member_total = total
-        epic.member_done = done
-        epic.done_pct = round(done / total * 100) if total else None
-    return epics
+        tasks = by_epic.get(epic.pk, [])
+        epic.member_total = len(tasks)
+        epic.member_done = sum(1 for t in tasks if t.status == Task.STATUS_DONE)
+        epic.done_pct = round(epic.member_done / epic.member_total * 100) if tasks else None
+        # Which teams are carrying it — the answer every other view
+        # splits apart, because an epic is the one thing that spans them.
+        seen: dict[str, object] = {}
+        for task in tasks:
+            seen.setdefault(task.project.slug_prefix, task.project)
+        epic.projects = [seen[key] for key in sorted(seen)]
+        epic.blocked = sum(1 for t in tasks if t.is_blocked)
+        starts = [t.start_date for t in tasks if t.start_date]
+        ends = [d for t in tasks for d in (t.due_date, t.end_date) if d]
+        epic.span_start = min(starts) if starts else None
+        epic.span_end = max(ends) if ends else None
+        closed = [t.completed_at for t in tasks if t.completed_at]
+        epic.last_done = max(closed) if closed else None
+        epic.quiet_days = (today - timezone.localtime(epic.last_done).date()).days if epic.last_done else None
+        epic.paused = epic.quiet_days is not None and epic.quiet_days > EPIC_PAUSED_AFTER_DAYS
+    # Quietest first: the epic nobody has touched is the one worth
+    # opening, and one that has never closed anything sorts with them.
+    return sorted(epics, key=lambda e: (0 if e.quiet_days is None else 1, -(e.quiet_days or 0)))
 
 
 @login_required
 def epics_overview(request):
     """The Epics tab — every epic in the workspace against the statuses.
 
-    Deliberately a grid and not a list: an epic's own state is read off
-    its tasks, so the useful question on this page is where the work has
-    collected, and a row of counts answers it without opening anything.
+    One row per epic: who is carrying it, how far along, over what span,
+    and — the column that earns the page — when anything inside it last
+    closed. "5 of 22 done" does not say whether an epic is moving; "26d
+    ago" does, so the quiet ones sort to the top.
 
     Renders an empty state when the workspace turned epics off, so a
     stale link does not 404 on someone who just flipped the switch.
@@ -6176,8 +6251,8 @@ def epics_overview(request):
         {
             "workspace": workspace,
             "epics_enabled": enabled,
-            "epics": _epic_matrix(workspace) if enabled else [],
-            "matrix_statuses": [{"value": value, "label": Task.STATUS_LABELS[value]} for value in EPIC_MATRIX_STATUSES],
+            "epics": _epic_rows(workspace) if enabled else [],
+            "paused_after_days": EPIC_PAUSED_AFTER_DAYS,
         },
     )
 

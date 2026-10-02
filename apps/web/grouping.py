@@ -22,7 +22,7 @@ from django.utils.translation import gettext_lazy as _
 
 from apps.tasks.models import Task
 
-LIST_AXES = ("deadline", "status", "priority", "assignee", "project", "cycle")
+LIST_AXES = ("deadline", "status", "priority", "assignee", "project", "cycle", "epic")
 
 # Order cycles within the group-by view: active cycle first, then
 # upcoming (planning), then completed.
@@ -103,7 +103,8 @@ def group_tasks(tasks, axis, *, request_user=None, keep_empty=()):
         Ordered list of section dicts. Section ordering is axis-
         specific: deadline runs Overdue → Recently-done, status runs
         Planned → Done, priority runs Urgent → No-priority, assignee
-        / project run alphabetical by display name.
+        / project / epic run alphabetical by display name, with the
+        "no epic" bucket last.
     """
     keep_empty = set(keep_empty)
     if axis == "deadline":
@@ -118,6 +119,8 @@ def group_tasks(tasks, axis, *, request_user=None, keep_empty=()):
         sections = _group_by_project(tasks)
     elif axis == "cycle":
         sections = _group_by_cycle(tasks)
+    elif axis == "epic":
+        sections = _group_by_epic(tasks)
     else:
         sections = []
     return [s for s in sections if s["tasks"] or s["key"] in keep_empty]
@@ -264,6 +267,50 @@ def _group_by_cycle(tasks):
     ]
     sections.append(
         {"key": "backlog", "label": _("Backlog"), "tone": "zinc", "tasks": backlog},
+    )
+    return sections
+
+
+def _group_by_epic(tasks):
+    """Bucket by the epic a task belongs to, alphabetical, no-epic last.
+
+    This is the axis that answers "what is this effort made of" without
+    leaving the list: an epic reaches across projects, so grouping by it
+    puts work together that every other axis separates. Tasks outside any
+    epic fall into one bucket at the end rather than disappearing — on a
+    board where most work has no epic, that bucket is the majority.
+
+    Args:
+        tasks: Iterable of :class:`Task`.
+
+    Returns:
+        Ordered section dicts.
+    """
+    by_epic = {}
+    loose = []
+    for task in tasks:
+        if task.epic_id is None:
+            loose.append(task)
+            continue
+        by_epic.setdefault(task.epic_id, {"epic": task.epic, "tasks": []})
+        by_epic[task.epic_id]["tasks"].append(task)
+    ordered = sorted(by_epic.values(), key=lambda e: e["epic"].title.lower())
+    sections = [
+        {
+            "key": str(entry["epic"].id),
+            "label": entry["epic"].title,
+            "tone": "zinc",
+            "tasks": entry["tasks"],
+        }
+        for entry in ordered
+    ]
+    sections.append(
+        {
+            "key": "none",
+            "label": str(_("No epic")),
+            "tone": "zinc",
+            "tasks": loose,
+        },
     )
     return sections
 

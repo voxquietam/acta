@@ -28,75 +28,107 @@ def setup(db):
     return workspace, project, user, epic
 
 
-def grid(client, workspace):
-    """Return the epics the tab rendered, with their cells."""
+def table(client, workspace):
+    """Return the epics the tab rendered, with their rollups."""
     resp = client.get(f"/{workspace.slug}/epics/")
     assert resp.status_code == 200
     return resp.context["epics"], resp.content.decode()
 
 
 @pytest.mark.django_db
-class TestTheGrid:
+class TestTheTable:
+    """One row per epic: who carries it, how far along, and how quiet."""
 
     def test_the_tab_lists_the_workspace_epics(self, client, setup):
         workspace, _, user, epic = setup
         client.force_login(user)
-        epics, body = grid(client, workspace)
+        epics, body = table(client, workspace)
         assert [e.pk for e in epics] == [epic.pk]
         assert epic.title in body
 
-    def test_a_row_is_counts_per_status(self, client, setup):
+    def test_a_row_carries_the_rollup(self, client, setup):
         workspace, _, user, _ = setup
         client.force_login(user)
-        epics, _ = grid(client, workspace)
-        by_status = {cell["status"]: cell["n"] for cell in epics[0].cells}
-        assert by_status[Task.STATUS_DONE] == 1
-        assert by_status[Task.STATUS_IN_PROGRESS] == 1
-        assert by_status[Task.STATUS_TODO] == 0
+        epics, _ = table(client, workspace)
+        assert (epics[0].member_done, epics[0].member_total, epics[0].done_pct) == (1, 2, 50)
 
-    def test_cancelled_has_no_column(self, client, setup):
-        workspace, _, user, _ = setup
-        client.force_login(user)
-        epics, _ = grid(client, workspace)
-        # Out for the same reason it is out of ``epic_members``: it is not
-        # work any more, and a column of it would hold progress down.
-        assert Task.STATUS_CANCELLED not in [cell["status"] for cell in epics[0].cells]
+    def test_cancelled_and_archived_tasks_leave_the_count(self, client, setup):
+        from django.utils import timezone
 
-    def test_a_cell_shades_with_its_count(self, client, setup):
-        workspace, project, user, epic = setup
-        for _ in range(6):
-            TaskFactory(project=project, epic=epic, status=Task.STATUS_TODO)
-        client.force_login(user)
-        epics, _ = grid(client, workspace)
-        by_status = {cell["status"]: cell for cell in epics[0].cells}
-        assert by_status[Task.STATUS_TODO]["shade"] > by_status[Task.STATUS_DONE]["shade"]
-        assert by_status[Task.STATUS_READY]["shade"] == 0
-
-    def test_the_done_share_is_over_the_live_tasks(self, client, setup):
         workspace, project, user, epic = setup
         TaskFactory(project=project, epic=epic, status=Task.STATUS_CANCELLED)
+        TaskFactory(project=project, epic=epic, archived_at=timezone.now())
         client.force_login(user)
-        epics, _ = grid(client, workspace)
-        # One done of two live tasks; the cancelled one is not counted.
-        assert epics[0].done_pct == 50
+        epics, _ = table(client, workspace)
+        assert epics[0].member_total == 2
+
+    def test_a_row_names_every_project_carrying_it(self, client, setup):
+        workspace, _, user, epic = setup
+        other = ProjectFactory(workspace=workspace, slug_prefix="OTH")
+        TaskFactory(project=other, epic=epic, status=Task.STATUS_TODO)
+        client.force_login(user)
+        epics, body = table(client, workspace)
+        # The answer every other view splits apart.
+        assert [p.slug_prefix for p in epics[0].projects] == ["EPT", "OTH"]
+        assert "OTH" in body
+
+    def test_a_row_counts_what_is_blocked(self, client, setup):
+        workspace, project, user, epic = setup
+        blocker = TaskFactory(project=project, status=Task.STATUS_TODO)
+        stuck = TaskFactory(project=project, epic=epic, status=Task.STATUS_TODO)
+        stuck.blocked_by.add(blocker)
+        client.force_login(user)
+        epics, _ = table(client, workspace)
+        assert epics[0].blocked == 1
+
+    def test_an_epic_that_closed_nothing_recently_reads_as_paused(self, client, setup):
+        import datetime
+
+        from django.utils import timezone
+
+        workspace, project, user, epic = setup
+        old = TaskFactory(project=project, epic=epic, status=Task.STATUS_DONE)
+        Task.objects.filter(pk=old.pk).update(completed_at=timezone.now() - datetime.timedelta(days=40))
+        Task.objects.filter(epic=epic, completed_at__isnull=False).exclude(pk=old.pk).update(completed_at=None)
+        client.force_login(user)
+        epics, _ = table(client, workspace)
+        # "5 of 22 done" says nothing about whether an epic is moving.
+        assert epics[0].paused is True
+        assert epics[0].quiet_days >= 40
+
+    def test_a_busy_epic_is_not_paused(self, client, setup):
+        workspace, _, user, _ = setup
+        client.force_login(user)
+        epics, _ = table(client, workspace)
+        assert epics[0].paused is False
+
+    def test_the_quietest_epic_sorts_first(self, client, setup):
+        workspace, project, user, epic = setup
+        silent = TaskFactory(project=project, kind=Task.KIND_EPIC, status=Task.STATUS_PLANNED, title="Never moved")
+        TaskFactory(project=project, epic=silent, status=Task.STATUS_TODO)
+        client.force_login(user)
+        epics, _ = table(client, workspace)
+        # An epic that has never closed anything is the one worth opening.
+        assert epics[0].pk == silent.pk
 
     def test_an_epic_with_no_tasks_has_no_share(self, client, setup):
         workspace, project, user, _ = setup
         TaskFactory(project=project, kind=Task.KIND_EPIC, status=Task.STATUS_PLANNED, title="Empty one")
         client.force_login(user)
-        epics, _ = grid(client, workspace)
+        epics, _ = table(client, workspace)
         empty = next(e for e in epics if e.title == "Empty one")
         assert empty.done_pct is None
+        assert empty.member_total == 0
 
     def test_tasks_never_appear_as_rows(self, client, setup):
         workspace, project, user, _ = setup
         TaskFactory(project=project, title="Just a task")
         client.force_login(user)
-        epics, body = grid(client, workspace)
+        epics, body = table(client, workspace)
         assert all(e.kind == Task.KIND_EPIC for e in epics)
         assert "Just a task" not in body
 
-    def test_the_switch_replaces_the_grid_with_an_explanation(self, client, setup):
+    def test_the_switch_replaces_the_table_with_an_explanation(self, client, setup):
         workspace, _, user, _ = setup
         workspace.epics_enabled = False
         workspace.save(update_fields=["epics_enabled"])
@@ -206,33 +238,49 @@ class TestTheEpicPage:
         resp = client.get(f"/projects/{project.slug_prefix}/{task.number}/")
         assert "web/projects/task_detail.html" in [t.name for t in resp.templates]
 
+    def test_it_uses_the_app_kanban(self, client, setup):
+        _, _, user, epic = setup
+        client.force_login(user)
+        resp = client.get(f"/projects/{epic.project.slug_prefix}/{epic.number}/")
+        # Not a second board: the same template, so drag-to-change-status,
+        # collapsible columns and the live insert come with it.
+        assert "web/projects/_kanban.html" in [t.name for t in resp.templates]
+
     def test_the_columns_are_the_working_statuses(self, client, setup):
         _, _, user, epic = setup
         client.force_login(user)
         ctx, _ = self.board(client, epic)
-        assert [c["status"] for c in ctx["epic_columns"]] == list(Task.KANBAN_STATUS_VALUES)
+        assert [c["key"] for c in ctx["columns"]] == list(Task.KANBAN_STATUS_VALUES)
 
     def test_a_task_lands_in_its_own_column(self, client, setup):
         _, _, user, epic = setup
         client.force_login(user)
         ctx, _ = self.board(client, epic)
-        by_status = {c["status"]: c for c in ctx["epic_columns"]}
-        assert by_status[Task.STATUS_DONE]["n"] == 1
-        assert by_status[Task.STATUS_IN_PROGRESS]["n"] == 1
+        by_status = {c["key"]: c for c in ctx["columns"]}
+        assert len(by_status[Task.STATUS_DONE]["tasks"]) == 1
+        assert len(by_status[Task.STATUS_IN_PROGRESS]["tasks"]) == 1
 
     def test_a_blocked_task_keeps_its_column_and_rises(self, client, setup):
         _, project, user, epic = setup
         blocker = TaskFactory(project=project, status=Task.STATUS_TODO)
-        stuck = TaskFactory(project=project, epic=epic, status=Task.STATUS_TODO)
+        loose = TaskFactory(project=project, epic=epic, status=Task.STATUS_TODO, title="Fine")
+        stuck = TaskFactory(project=project, epic=epic, status=Task.STATUS_TODO, title="Stuck")
         stuck.blocked_by.add(blocker)
         client.force_login(user)
         ctx, _ = self.board(client, epic)
-        todo = next(c for c in ctx["epic_columns"] if c["status"] == Task.STATUS_TODO)
-        # Its own lane, inside the status column — the board must keep
-        # answering "how far along", not trade that for "what is stuck".
-        assert [t.pk for t in todo["blocked"]] == [stuck.pk]
-        assert todo["rest"] == []
+        todo = next(c for c in ctx["columns"] if c["key"] == Task.STATUS_TODO)
+        # Top of its own status column — moving it to a Blocked column
+        # would trade "how far along is this" for "what is stuck".
+        assert [t.pk for t in todo["tasks"]] == [stuck.pk, loose.pk]
         assert ctx["epic_blocked_total"] == 1
+
+    def test_the_cards_say_which_project_they_came_from(self, client, setup):
+        _, _, user, epic = setup
+        client.force_login(user)
+        ctx, _ = self.board(client, epic)
+        # An epic's board is the one kanban whose cards are not all from
+        # the same project.
+        assert ctx["show_project"] is True
 
     def test_the_page_says_which_projects_carry_it(self, client, setup):
         workspace, _, user, epic = setup
@@ -259,6 +307,35 @@ class TestTheEpicPage:
         assert "Set deadline" not in body
         assert "Progress" in body
         assert "Make recurring" not in body
+
+    def test_the_board_carries_the_filter_dock(self, client, setup):
+        _, _, user, epic = setup
+        client.force_login(user)
+        ctx, body = self.board(client, epic)
+        # Same dock as every other board; its filters are client-side, so
+        # the cards carry the attributes it matches on.
+        assert "acta-dock-wrap" in body
+        assert "filter-dock-data" in body
+        assert ctx["filter_htmx_target"] == "#epic-board"
+
+    def test_the_dock_offers_the_project_axis_here(self, client, setup):
+        import json
+        import re
+
+        workspace, _, user, epic = setup
+        other = ProjectFactory(workspace=workspace, slug_prefix="OTH")
+        TaskFactory(project=other, epic=epic, status=Task.STATUS_TODO)
+        client.force_login(user)
+        _, body = self.board(client, epic)
+        payload = json.loads(
+            re.search(r'<script id="filter-dock-data" type="application/json">(.*?)</script>', body, re.S).group(1),
+        )
+        keys = [f["key"] for f in payload["fields"]]
+        # An epic is the one board whose cards come from several
+        # projects, so that axis matters more here than anywhere.
+        assert "project" in keys
+        # Status is the columns, as on any kanban.
+        assert "status" not in keys
 
     def test_an_empty_epic_explains_itself(self, client, setup):
         workspace, project, user, _ = setup

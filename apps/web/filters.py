@@ -252,6 +252,26 @@ def resolve_show_archived(request):
     return "1" if request.COOKIES.get("acta_show_archived") == "1" else "0"
 
 
+def resolve_show_epic(request):
+    """Resolve whether the table renders its optional Epic column.
+
+    A column, not a scope: it changes what a row shows, never which rows
+    exist, so it is read here and handed to the template rather than
+    joining the filter pipeline. Same querystring → cookie → off ladder
+    as the scope toggles, because it lives in the same Display menu.
+
+    Args:
+        request: The active ``HttpRequest``.
+
+    Returns:
+        ``"1"`` or ``"0"``.
+    """
+    raw_list = request.GET.getlist("show_epic")
+    if raw_list:
+        return "1" if "1" in raw_list else "0"
+    return "1" if request.COOKIES.get("acta_show_epic") == "1" else "0"
+
+
 def resolve_show_backlog(request):
     """Resolve the effective ``show_backlog`` for this request.
 
@@ -920,6 +940,10 @@ def filter_sidebar_context(
         "show_archived": show_archived,
         "show_backlog": show_backlog,
         "show_backlog_toggle": show_backlog_toggle,
+        # The Epic column entry in the Display menu, and whether to offer
+        # it at all — a workspace with epics off gets neither.
+        "epics_enabled": bool(active and active.epics_enabled),
+        "show_epic": bool(active and active.epics_enabled) and resolve_show_epic(request) == "1",
         # Only pages that actually expose a Backlog view-mode tab (All Tasks,
         # project detail) should let the ``acta_view_mode`` cookie hide the
         # "Show backlog" toggle when that tab is active — the toggle is
@@ -1167,6 +1191,8 @@ def build_filter_dock_data(ctx, *, request=None):
             "show_backlog": bool(ctx.get("show_backlog")),
             "show_archived": bool(ctx.get("show_archived")),
             "show_my_projects": bool(ctx.get("show_my_projects")),
+            "show_epic": bool(ctx.get("show_epic")),
+            "epic_toggle": bool(ctx.get("epics_enabled")),
             "backlog_toggle": bool(ctx.get("show_backlog_toggle")),
             "my_projects_toggle": bool(ctx.get("show_my_projects_toggle")),
         },

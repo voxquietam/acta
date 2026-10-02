@@ -7,6 +7,7 @@ the SSE handler in ``acta.js`` can swap one row at a time via the
 ``/tasks/<id>/row/?as=table`` fragment endpoint — no flash, no scroll
 jump, neighbouring rows stay put. Expects ``task`` + ``status_labels``
 + ``priority_labels`` + ``today`` + ``show_labels`` + ``show_project``
++ ``show_epic``
 in context.
 
 Perf: the priority icon, link badges, and assignee avatar are inlined here
@@ -28,6 +29,7 @@ for every other surface; keep the inlined markup here in sync with them.
     data-sort-size="{% if task.size %}{{ task.size }}{% else %}{% endif %}"
     data-sort-assignee="{% if task.assignee %}{{ task.assignee.display_name|lower }}{% else %}{% endif %}"
     data-sort-project="{{ task.project.name|lower }}"
+    data-sort-epic="{% if task.epic_id %}{{ task.epic.title|lower }}{% endif %}"
     data-sort-due="{% if task.due_date %}{{ task.due_date|date:"Y-m-d" }}{% else %}{% endif %}"
     data-sort-updated="{{ task.updated_at|date:"c" }}"
     :data-selected="$store.selection.has({{ task.id }}) ? 'true' : 'false'"
@@ -167,6 +169,18 @@ for every other surface; keep the inlined markup here in sync with them.
       </span>
       <span class="truncate group-hover/proj:underline">{{ task.project.name }}</span>
     </div>
+  </td>
+  {% endif %}
+  {% if show_epic %}
+  <td data-col="epic" class="px-3 py-2 text-xs text-subtle-foreground overflow-hidden">
+    {% if task.epic_id %}
+    <a href="{% task_url task.epic %}" class="flex items-center gap-1.5 min-w-0 hover:text-foreground transition">
+      {% lucide "square-kanban" "w-3 h-3 shrink-0 text-placeholder-foreground" %}
+      <span class="truncate">{{ task.epic.title }}</span>
+    </a>
+    {% else %}
+    <span class="text-placeholder-foreground">—</span>
+    {% endif %}
   </td>
   {% endif %}
   <td class="px-3 py-2 text-xs tabular-nums whitespace-nowrap

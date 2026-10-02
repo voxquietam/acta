@@ -9,7 +9,10 @@
   <path d="M4 8v11a2 2 0 0 0 2 2h2" />
   <path d="M20 8v11a2 2 0 0 1-2 2h-2" />
   <path d="m9 15 3-3 3 3" />
-  <path d="M12 12v9" /></symbol><symbol id="lu-arrow-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14" />
+  <path d="M12 12v9" /></symbol><symbol id="lu-arrow-down-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 16 4 4 4-4" />
+  <path d="M7 20V4" />
+  <path d="m21 8-4-4-4 4" />
+  <path d="M17 4v16" /></symbol><symbol id="lu-arrow-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14" />
   <path d="m12 5 7 7-7 7" /></symbol><symbol id="lu-arrow-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7" />
   <path d="M12 19V5" /></symbol><symbol id="lu-at-sign" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" />
   <path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8" /></symbol><symbol id="lu-atom" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1" />

@@ -3727,34 +3727,19 @@ tr[data-vrow-hidden] {
 
 .acta-epic-row {
   display: grid;
-  /* 72px, not the design's 62: "In progress" is the longest label and a
-     header that wraps makes the whole row taller than the cells need. */
-  grid-template-columns: minmax(0, 1fr) repeat(6, 72px) 76px;
-  align-items: stretch;
+  grid-template-columns: minmax(220px, 1fr) 104px 140px 124px 104px 28px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
   border-bottom: 1px solid rgb(var(--border));
 }
 .acta-epic-row:last-child {
   border-bottom: 0;
 }
 .acta-epic-head {
-  height: 34px;
+  padding-top: 8px;
+  padding-bottom: 8px;
   background: rgb(var(--card));
-  align-items: center;
-}
-.acta-epic-name {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 3px;
-  padding: 10px 14px;
-}
-.acta-epic-cell {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  white-space: nowrap;
-  border-left: 1px solid rgb(var(--border));
 }
 
 /* ---- Epic page --------------------------------------------------------
