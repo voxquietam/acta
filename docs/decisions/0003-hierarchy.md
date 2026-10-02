@@ -28,6 +28,13 @@ Workspace ──▶ Project ──▶ Task ──▶ Subtask
 - **Subtask:** modeled as `Task.parent = ForeignKey('self', null=True)`. Shares the project's slug prefix; numbering is continuous (parent `HRW-49`, subtasks `HRW-50`, `HRW-51`, …).
 - **Initiative:** *not* in MVP. Deferred — see Consequences.
 
+> **Note (2026-10-02):** the deferred Initiative layer is now **closed
+> rather than built** — see [0036](0036-epics.md). Grouping across
+> projects is an epic, which is a `Task` with `kind = epic` collecting
+> other tasks through its own `epic` FK. The reasoning below (subtasks
+> solve splitting, a new entity is not worth it) held; what it did not
+> cover is collecting work that already exists in other projects.
+
 ## Why
 
 - **Subtasks via self-FK** is the cheapest way to satisfy the "break work into pieces" need: one nullable field on `Task`, no new entity, one kanban per project, easy filters ("top-level only" or "expand subtasks under parent").

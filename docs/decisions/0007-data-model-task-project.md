@@ -50,6 +50,12 @@ Before scaffolding Django apps, the core data shape of `Task` and `Project` has 
 
 ### Subtask behavior
 
+> **Note (2026-10-02):** the rules below are unchanged, and
+> [0036](0036-epics.md) deliberately does not touch them: an epic
+> collects tasks through a separate `epic` FK, so the depth-1 limit and
+> the "subtask shares its parent's project" rule continue to describe
+> `parent` alone.
+
 - A subtask inherits **only** `project` from its parent.
 - All other fields (`assignee`, `labels`, `status`, `priority`, `size`, `due_date`) are independent and must be set explicitly.
 - Depth is limited to one level: a subtask cannot have its own subtasks. Enforced in the API/serializer, not at the DB level.
