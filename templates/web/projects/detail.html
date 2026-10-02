@@ -68,7 +68,7 @@ overview tab is active.
       {% include "web/projects/_view_panel.html" with allow_overview=True allow_backlog=True allow_archive=True %}
     </div>
     <div x-show="$store.viewMode.current !== 'overview'" x-cloak>
-      {% include "web/_filters_sidebar.html" %}
+      {% include "web/_filter_dock.html" %}
     </div>
   </div>
 </div>

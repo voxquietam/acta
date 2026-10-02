@@ -1,0 +1,236 @@
+{% load i18n %}
+{% load lucide %}
+{% load static %}
+{% comment %}
+Filter dock — the floating bar that replaced the 48px rail and the
+512px panel (design "Filters Rethink", artboard 5a).
+
+It shows only the filters that are ON. Everything else lives behind
+"Add": pick a field, pick values, done. A chip is one field plus one
+operator, so "Status is to-do, in-progress" and "Status is not done"
+are two chips, the second drawn in rose.
+
+Architecture
+============
+
+The dock is a presentation layer over the same ``<form id="filter-form">``
+the sidebar owned. The Alpine component holds the state and *projects*
+it into hidden inputs with the old names (``status`` / ``xstatus`` / …),
+so the query string, ``readFilterState`` in acta.js, the graph's own
+reader and the facet endpoint all keep reading exactly what they read
+before. Nothing downstream knows the rail is gone.
+
+The payload comes from ``build_filter_dock_data`` as one ``json_script``
+rather than as markup: a workspace with two hundred labels would
+otherwise render two hundred rows into every page, nearly all of them
+never opened.
+
+Assignee is deliberately absent — the avatar strip above the list owns
+it, and two controls for one axis is how people end up filtering by
+someone twice.
+{% endcomment %}
+
+{{ filter_dock|json_script:"filter-dock-data" }}
+
+<div class="acta-dock-wrap" x-data="actaFilterDock()" data-sprite="{% static 'sprites/lucide.svg' %}" x-cloak>
+
+  <form id="filter-form"
+        method="get"
+        hx-get="{{ filter_form_url }}"
+        hx-target="{{ filter_htmx_target }}"
+        hx-swap="innerHTML"
+        hx-push-url="true"
+        data-my-project-ids="{{ my_project_ids_csv }}"
+        {% if facets_enabled %}data-facet-url="{{ filter_facet_url }}"{% endif %}>
+
+    {% for name, value in filter_preserved_pairs %}
+    <input type="hidden" name="{{ name }}" value="{{ value }}">
+    {% endfor %}
+
+    {% comment %}
+    The form's real contents: one checked box per active value. Rendered
+    from state, never read back — the dock is the single writer.
+    {% endcomment %}
+    <div class="sr-only" aria-hidden="true">
+      <template x-for="inp in inputs" :key="inp.key">
+        <input type="checkbox" checked :name="inp.name" :value="inp.value"
+               :data-filter-name="inp.field" :data-filter-value="inp.value">
+      </template>
+      <input type="search" name="q" :value="q">
+      <input type="hidden" name="date_field" :value="date.field">
+      <input type="hidden" name="date_after" :value="date.after">
+      <input type="hidden" name="date_before" :value="date.before">
+      {% comment %}
+      Each scope toggle keeps its hidden ``0`` companion: "trailing 1
+      wins" is how both the server and ``readFilterState`` parse them.
+      {% endcomment %}
+      {% if show_backlog_toggle %}
+      <input type="hidden" name="show_backlog" value="0">
+      <input type="checkbox" name="show_backlog" value="1" :checked="toggles.show_backlog">
+      {% endif %}
+      <input type="hidden" name="show_archived" value="0">
+      <input type="checkbox" name="show_archived" value="1" :checked="toggles.show_archived">
+      {% if show_my_projects_toggle %}
+      <input type="hidden" name="show_my_projects" value="0">
+      <input type="checkbox" name="show_my_projects" value="1" :checked="toggles.show_my_projects">
+      {% endif %}
+    </div>
+  </form>
+
+  {% comment %}
+  The bar itself. Outside the form on purpose: a stray Enter inside a
+  form submits it, and this one is submitted deliberately.
+  {% endcomment %}
+  <div class="acta-dock" :class="{ 'is-open': open }">
+
+    <label class="acta-dock-search" :class="{ 'is-filled': q }">
+      {% lucide "search" "w-3.5 h-3.5" %}
+      <input type="search" x-model="q" x-ref="search"
+             @input.debounce.250ms="submit()"
+             @keydown.escape.stop="q = ''; submit()"
+             placeholder="{% trans 'Search…' %}"
+             aria-label="{% trans 'Search tasks by title or description' %}">
+    </label>
+
+    <span class="acta-dock-sep"></span>
+
+    {% lucide "list-filter" "w-3.5 h-3.5 acta-dock-lead" %}
+    <span class="acta-dock-count" x-text="countText"></span>
+
+    <template x-for="(chip, i) in shownChips" :key="chip.key">
+      <button type="button" class="acta-dock-chip"
+              :class="{ 'is-ex': chip.ex, 'is-open': open === chip.field }"
+              @click="openField(chip.field)">
+        <span class="acta-dock-chip-ic" x-html="icon(chip.icon)"></span>
+        <span class="acta-dock-chip-f" x-text="chip.label"></span>
+        <span x-text="chip.text"></span>
+        <span class="acta-dock-chip-x" role="button" tabindex="0"
+              :aria-label="'{% trans 'Remove filter' %} ' + chip.label"
+              @click.stop="dropChip(chip)" @keydown.enter.stop="dropChip(chip)"
+              x-html="icon('x')"></span>
+      </button>
+    </template>
+
+    <button type="button" class="acta-dock-more" x-show="hiddenCount > 0"
+            @click="expanded = true" x-text="'+' + hiddenCount"></button>
+
+    {% comment %} Nothing is on: offer the three filters people reach for. {% endcomment %}
+    <template x-for="s in suggestions" :key="s.key">
+      <button type="button" class="acta-dock-sugg" @click="applySuggestion(s)">
+        <span class="acta-dock-chip-ic" x-html="icon(s.icon)"></span>
+        <span x-text="s.name"></span>
+      </button>
+    </template>
+
+    <span class="acta-dock-sep"></span>
+
+    <button type="button" class="acta-dock-add" :class="{ 'is-open': open === 'fields' }"
+            @click="open === 'fields' ? close() : openFields()">
+      {% lucide "plus" "w-3.5 h-3.5" %}
+      <span x-text="chips.length ? '{% trans "Add" %}' : '{% trans "Filter" %}'"></span>
+      <span class="acta-dock-key">F</span>
+    </button>
+
+    <button type="button" class="acta-dock-clear" x-show="chips.length"
+            @click="clearAll()">{% trans "Clear" %}</button>
+
+    {% comment %}
+    Graph only: the tasks with no links at all live in their own side
+    list, and the button that opens it belonged to the rail.
+    {% endcomment %}
+    <button type="button" class="acta-dock-unlinked" data-graph-unlinked-toggle
+            x-show="$store.viewMode && $store.viewMode.current === 'graph'">
+      {% lucide "unlink" "w-3.5 h-3.5" %}
+      {% trans "Unlinked" %}
+      <span class="acta-dock-key" data-graph-unlinked-count hidden></span>
+    </button>
+  </div>
+
+  {% comment %} ---- popover: which field ---- {% endcomment %}
+  <div class="acta-dock-pop is-fields" x-show="open === 'fields'" @click.outside="close()">
+    <label class="acta-dock-pop-h">
+      {% lucide "search" "w-3 h-3" %}
+      <input type="text" x-model="search" x-ref="fieldSearch"
+             @keydown.escape.stop="close()"
+             @keydown.enter.prevent="pickFirstField()"
+             placeholder="{% trans 'Filter by…' %}">
+    </label>
+    <template x-for="f in matchingFields" :key="f.key">
+      <button type="button" class="acta-dock-pop-row" @click="openField(f.key)">
+        <span class="acta-dock-chip-ic" x-html="icon(f.icon)"></span>
+        <span x-text="f.name"></span>
+        <span class="acta-dock-gap"></span>
+        <span class="acta-dock-key" x-text="f.hotkey"></span>
+      </button>
+    </template>
+    <p class="acta-dock-pop-empty" x-show="!matchingFields.length">{% trans "Nothing matches." %}</p>
+
+    {% comment %} Scope switches: not filters, but they have to live somewhere. {% endcomment %}
+    <div class="acta-dock-pop-sep"></div>
+    {% if show_backlog_toggle %}
+    <button type="button" class="acta-dock-pop-row" @click="toggleScope('show_backlog')">
+      <span class="acta-dock-tick" :class="{ 'is-on': toggles.show_backlog }"></span>
+      {% trans "Show backlog" %}
+    </button>
+    {% endif %}
+    <button type="button" class="acta-dock-pop-row" @click="toggleScope('show_archived')">
+      <span class="acta-dock-tick" :class="{ 'is-on': toggles.show_archived }"></span>
+      {% trans "Show archived" %}
+    </button>
+    {% if show_my_projects_toggle %}
+    <button type="button" class="acta-dock-pop-row" @click="toggleScope('show_my_projects')">
+      <span class="acta-dock-tick" :class="{ 'is-on': toggles.show_my_projects }"></span>
+      {% trans "Only my projects" %}
+    </button>
+    {% endif %}
+  </div>
+
+  {% comment %} ---- popover: which values ---- {% endcomment %}
+  <div class="acta-dock-pop is-values" x-show="openedField" @click.outside="close()">
+    <template x-if="openedField">
+      <div>
+        <div class="acta-dock-pop-back">
+          <button type="button" @click="openFields()" aria-label="{% trans 'Back' %}">
+            {% lucide "chevron-left" "w-3 h-3" %}
+          </button>
+          <span class="acta-dock-chip-ic" x-html="icon(openedField.icon)"></span>
+          <span x-text="openedField.name"></span>
+          <span class="acta-dock-gap"></span>
+          <button type="button" class="acta-dock-pop-clear" x-show="fieldActive(openedField)"
+                  @click="clearField(openedField)">{% trans "Clear" %}</button>
+        </div>
+
+        <div class="acta-dock-ops" x-show="openedField.exclude">
+          <button type="button" :class="{ 'is-on': op === 'in' }" @click="op = 'in'">{% trans "is" %}</button>
+          <button type="button" :class="{ 'is-on': op === 'ex' }" @click="op = 'ex'">{% trans "is not" %}</button>
+        </div>
+
+        <label class="acta-dock-pop-h" x-show="openedField.options.length > 7">
+          {% lucide "search" "w-3 h-3" %}
+          <input type="text" x-model="search" placeholder="{% trans 'Search…' %}">
+        </label>
+
+        <div class="acta-dock-pop-list">
+          <template x-for="o in matchingOptions" :key="o.v">
+            <button type="button" class="acta-dock-pop-row"
+                    @click="pick(openedField, o, $event.shiftKey ? 'ex' : op)">
+              <span class="acta-dock-box" :class="{ 'is-on': o.in, 'is-ex': o.ex }"
+                    x-html="(o.in || o.ex) ? icon('check') : ''"></span>
+              <span class="acta-dock-dot" x-show="o.c" :style="`background:${o.c}; border-radius:${o.square ? '2px' : '999px'}`"></span>
+              <span x-text="o.n"></span>
+              <span class="acta-dock-gap"></span>
+              <span class="acta-dock-key" x-show="o.k != null" x-text="o.k"></span>
+            </button>
+          </template>
+          <p class="acta-dock-pop-empty" x-show="!matchingOptions.length">{% trans "Nothing matches." %}</p>
+        </div>
+
+        <div class="acta-dock-pop-foot" x-show="openedField.exclude">
+          <span>{% trans "shift-click to exclude" %}</span>
+          <span class="acta-dock-gap"></span>
+          <span>{% trans "esc to close" %}</span>
+        </div>
+      </div>
+    </template>
+  </div>
+</div>

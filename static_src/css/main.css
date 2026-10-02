@@ -2871,3 +2871,368 @@ tr[data-vrow-hidden] {
 .acta-gdock-show[hidden] {
   display: none;
 }
+
+/* ---- Filter dock ------------------------------------------------------
+   The floating bar that replaced the 48px rail and the 512px panel
+   (design "Filters Rethink", artboard 5a). Same surface as the bulk bar —
+   card + strong border + lifted shadow — so the two read as one family;
+   they also swap places, since a selection takes the dock's spot. */
+.acta-dock-wrap {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: min(1100px, calc(100vw - 32px));
+  pointer-events: none;
+}
+.acta-dock-wrap > * {
+  pointer-events: auto;
+}
+.acta-dock {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 46px;
+  padding: 0 8px 0 10px;
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid rgb(var(--border-strong));
+  background: rgb(var(--card));
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.3);
+  font-size: 12px;
+  color: rgb(var(--foreground));
+}
+.acta-dock-sep {
+  width: 1px;
+  height: 22px;
+  flex-shrink: 0;
+  background: rgb(var(--border-strong));
+  margin: 0 2px;
+}
+.acta-dock-lead {
+  color: #8f9dfc;
+  flex-shrink: 0;
+}
+.acta-dock-count {
+  color: rgb(var(--subtle-foreground));
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.acta-dock-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: rgb(var(--muted));
+  color: rgb(var(--placeholder-foreground));
+  flex-shrink: 1;
+  min-width: 0;
+}
+.acta-dock-search input {
+  width: 110px;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  outline: none;
+  font-size: 12px;
+  color: rgb(var(--foreground));
+}
+.acta-dock-search.is-filled {
+  color: rgb(var(--foreground));
+}
+.acta-dock-search input::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+/* A chip is one field plus one operator: "Status is to-do, in-progress"
+   and "Status is not done" are two chips, and the second is rose. */
+.acta-dock-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  max-width: 260px;
+  padding: 0 6px 0 8px;
+  box-sizing: border-box;
+  border-radius: 6px;
+  border: 1px solid rgb(79 70 229 / 0.55);
+  background: rgb(79 70 229 / 0.18);
+  color: #c7cefd;
+  white-space: nowrap;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.acta-dock-chip.is-ex {
+  border-color: rgb(244 63 94 / 0.4);
+  background: rgb(244 63 94 / 0.1);
+  color: #fda4af;
+}
+.acta-dock-chip.is-open {
+  box-shadow: 0 0 0 2px rgb(79 70 229 / 0.45);
+}
+.acta-dock-chip-f {
+  opacity: 0.7;
+}
+.acta-dock-chip-ic,
+.acta-dock-chip-x {
+  display: inline-flex;
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+.acta-dock-chip-ic svg,
+.acta-dock-chip-x svg,
+.acta-dock-box svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.acta-dock-chip-x {
+  opacity: 0.6;
+  margin-left: 2px;
+}
+.acta-dock-chip-x:hover {
+  opacity: 1;
+}
+.acta-dock-more,
+.acta-dock-clear,
+.acta-dock-unlinked,
+.acta-dock-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  color: rgb(var(--muted-foreground));
+}
+.acta-dock-add {
+  background: rgb(var(--muted));
+  color: rgb(var(--foreground));
+}
+.acta-dock-add.is-open {
+  background: rgb(var(--border-strong));
+  box-shadow: 0 0 0 2px rgb(79 70 229 / 0.45);
+}
+.acta-dock-more {
+  border: 1px solid rgb(var(--border-strong));
+  padding: 0 9px;
+}
+.acta-dock-clear,
+.acta-dock-unlinked {
+  color: rgb(var(--placeholder-foreground));
+}
+.acta-dock-clear:hover,
+.acta-dock-unlinked:hover,
+.acta-dock-more:hover {
+  color: rgb(var(--foreground));
+}
+.acta-dock-unlinked.is-active {
+  color: #8f9dfc;
+}
+.acta-dock-key {
+  font-size: 10px;
+  color: rgb(var(--placeholder-foreground));
+}
+/* Dashed, because a suggestion is an offer rather than a state. */
+.acta-dock-sugg {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 9px;
+  border-radius: 6px;
+  border: 1px dashed rgb(var(--border-strong));
+  color: rgb(var(--subtle-foreground));
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.acta-dock-sugg:hover {
+  color: rgb(var(--foreground));
+  border-color: rgb(var(--foreground));
+}
+
+/* Menus open upwards: the dock sits at the bottom of the viewport. */
+.acta-dock-pop {
+  order: -1;
+  width: 260px;
+  max-height: min(420px, 60vh);
+  overflow-y: auto;
+  padding: 4px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  border: 1px solid rgb(var(--border-strong));
+  background: rgb(var(--card));
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.5);
+  font-size: 12px;
+}
+.acta-dock-pop.is-fields {
+  width: 240px;
+}
+.acta-dock-pop-h {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 8px;
+  margin-bottom: 3px;
+  border-bottom: 1px solid rgb(var(--border));
+  color: rgb(var(--placeholder-foreground));
+}
+.acta-dock-pop-h input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  outline: none;
+  font-size: 12px;
+  color: rgb(var(--foreground));
+}
+.acta-dock-pop-back {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 8px;
+  color: rgb(var(--subtle-foreground));
+}
+.acta-dock-pop-clear {
+  color: rgb(var(--placeholder-foreground));
+  font-size: 11px;
+}
+.acta-dock-pop-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 6px;
+  text-align: left;
+  color: rgb(var(--muted-foreground));
+}
+.acta-dock-pop-row:hover {
+  background: rgb(var(--muted));
+  color: rgb(var(--foreground));
+}
+.acta-dock-pop-sep {
+  height: 1px;
+  margin: 4px 0;
+  background: rgb(var(--border));
+}
+.acta-dock-pop-empty {
+  padding: 8px;
+  color: rgb(var(--placeholder-foreground));
+  font-style: italic;
+}
+.acta-dock-pop-foot {
+  display: flex;
+  gap: 10px;
+  padding: 6px 8px 3px;
+  margin-top: 3px;
+  border-top: 1px solid rgb(var(--border));
+  font-size: 10px;
+  color: rgb(var(--placeholder-foreground));
+}
+.acta-dock-gap {
+  flex: 1;
+}
+.acta-dock-ops {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  margin: 0 4px 4px;
+  border-radius: 6px;
+  background: rgb(var(--muted));
+  font-size: 11px;
+}
+.acta-dock-ops button {
+  flex: 1;
+  padding: 4px 0;
+  border-radius: 4px;
+  color: rgb(var(--subtle-foreground));
+}
+.acta-dock-ops button.is-on {
+  background: rgb(var(--card));
+  color: rgb(var(--foreground));
+}
+.acta-dock-box {
+  display: grid;
+  place-items: center;
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  border-radius: 3px;
+  border: 1px solid rgb(var(--border-strong));
+  color: #fff;
+}
+.acta-dock-box.is-on {
+  background: #4f46e5;
+  border-color: #4f46e5;
+}
+.acta-dock-box.is-ex {
+  background: #e11d48;
+  border-color: #fb7185;
+}
+.acta-dock-dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+}
+.acta-dock-tick {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  border-radius: 3px;
+  border: 1px solid rgb(var(--border-strong));
+}
+.acta-dock-tick.is-on {
+  background: #4f46e5;
+  border-color: #4f46e5;
+}
+
+/* The last rows would otherwise sit under the dock. Applied to the three
+   scroll containers the view panels use rather than to each list: the
+   dock is fixed to the viewport, so the room has to come from whatever
+   actually scrolls. */
+[data-scroll-target],
+.kanban-column {
+  scroll-padding-bottom: 96px;
+}
+[data-scroll-target] > :last-child,
+.kanban-column > :last-child {
+  margin-bottom: 76px;
+}
+
+@media (max-width: 767px) {
+  .acta-dock-wrap {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    transform: none;
+    max-width: none;
+  }
+  .acta-dock {
+    width: 100%;
+  }
+  .acta-dock-pop {
+    width: 100%;
+  }
+}

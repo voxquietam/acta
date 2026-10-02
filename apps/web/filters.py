@@ -887,7 +887,7 @@ def filter_sidebar_context(
             excluded_ids=excluded_assignees,
         )
 
-    return {
+    context = {
         "filter_form_url": form_url or request.path,
         "filter_htmx_target": htmx_target or "#task-list-wrapper",
         "filter_preserved_pairs": preserved_pairs,
@@ -950,4 +950,221 @@ def filter_sidebar_context(
         "priority_labels": dict(Task.PRIORITY_CHOICES),
         "size_values": Task.SIZE_VALUES,
         "today": timezone.localdate(),
+    }
+    # The floating dock renders from this; it writes back into the same
+    # hidden inputs, so everything that reads the form is untouched.
+    context["filter_dock"] = build_filter_dock_data(context)
+    return context
+
+
+#: Colour per status key for the filter dock's dots. The CSS classes in
+#: ``status_dot_classes`` cannot travel through JSON, and the dock paints
+#: its dots from data rather than from markup.
+_DOCK_STATUS_COLORS = {
+    "planned": "#71717a",
+    "ready": "#06b6d4",
+    "to-do": "#3b82f6",
+    "in-progress": "#8b5cf6",
+    "in-review": "#f59e0b",
+    "done": "#10b981",
+    "cancelled": "#52525b",
+}
+
+#: Colour per priority value, matching the row partials' text palette.
+_DOCK_PRIORITY_COLORS = {
+    1: "#f43f5e",
+    2: "#f97316",
+    3: "#f59e0b",
+    4: "#0ea5e9",
+    0: "#71717a",
+}
+
+#: Date presets, in the shape the dock's chips speak. Each one resolves to
+#: the ``date_field`` / ``date_after`` / ``date_before`` triple the server
+#: already understands, so the query string and every reader of it stay
+#: exactly as they were. ``days`` is counted back from today except where
+#: ``ahead`` says forward.
+DOCK_DATE_PRESETS = [
+    {"v": "overdue", "n": "Overdue", "field": "due", "days": None},
+    {"v": "due-week", "n": "Due this week", "field": "due", "days": 7, "ahead": True},
+    {"v": "due-14", "n": "Due in 14 days", "field": "due", "days": 14, "ahead": True},
+    {"v": "updated-7", "n": "Updated last 7 days", "field": "updated", "days": 7},
+    {"v": "created-7", "n": "Created last 7 days", "field": "created", "days": 7},
+    {"v": "completed-30", "n": "Completed last 30 days", "field": "completed", "days": 30},
+]
+
+
+def build_filter_dock_data(ctx, *, request=None):
+    """Shape the filter context into what the floating dock renders from.
+
+    The dock is a presentation layer: it draws chips and popovers from
+    this payload and writes the user's choices back into the same hidden
+    ``#filter-form`` inputs the old sidebar used, so the query string,
+    the client-side row matcher, the graph and the facet endpoint all
+    keep reading exactly what they read before.
+
+    Args:
+        ctx: The dict :func:`build_filter_context` returned.
+        request: Unused today; kept so callers can pass it without
+            churn when a future field needs the request.
+
+    Returns:
+        A JSON-ready dict of ``fields`` (each with its options and the
+        values currently included / excluded) plus the free-text query
+        and the three scope toggles.
+    """
+    fields = []
+
+    def field(key, name, icon, hotkey, options, *, exclude=True, single=False):
+        """Append one filter axis, skipping it when it has no options."""
+        if not options:
+            return
+        fields.append(
+            {
+                "key": key,
+                "name": str(name),
+                "icon": icon,
+                "hotkey": hotkey,
+                "exclude": exclude,
+                "single": single,
+                "options": options,
+            },
+        )
+
+    if not ctx.get("filter_hide_status"):
+        field(
+            "status",
+            "Status",
+            "circle-dot",
+            "s",
+            [
+                {
+                    "v": key,
+                    "n": str(label),
+                    "c": _DOCK_STATUS_COLORS.get(key, "#71717a"),
+                    "in": key in ctx["selected_statuses"],
+                    "ex": key in ctx["excluded_statuses"],
+                    "backlog": key in ("planned", "ready"),
+                }
+                for key, label in ctx["status_labels"].items()
+            ],
+        )
+
+    field(
+        "priority",
+        "Priority",
+        "flag",
+        "p",
+        [
+            {
+                "v": str(value),
+                "n": str(label),
+                "c": _DOCK_PRIORITY_COLORS.get(value, "#71717a"),
+                "square": True,
+                "in": value in ctx["selected_priorities"],
+                "ex": value in ctx["excluded_priorities"],
+            }
+            for value, label in ctx["priority_labels"].items()
+        ],
+    )
+
+    field(
+        "label",
+        "Label",
+        "tags",
+        "l",
+        [
+            {
+                "v": str(label.id),
+                "n": label.name,
+                "c": label.color,
+                "group": entry["group"].name if entry["group"] else "",
+                "in": label.id in ctx["selected_labels"],
+                "ex": label.id in ctx["excluded_labels"],
+            }
+            for entry in ctx.get("available_label_groups") or []
+            for label in entry["labels"]
+        ],
+    )
+
+    if not ctx.get("filter_hide_project"):
+        field(
+            "project",
+            "Project",
+            "folders",
+            "j",
+            [
+                {
+                    "v": str(project.id),
+                    "n": project.name,
+                    # Stamped by ``visible_project_facets`` when the page
+                    # runs facets; absent otherwise, and the row just has
+                    # no count beside it.
+                    "k": getattr(project, "facet_count", None),
+                    "in": project.id in ctx["selected_projects"],
+                    "ex": project.id in ctx["excluded_projects"],
+                }
+                for project in ctx.get("available_projects") or []
+            ],
+        )
+
+    cycles = ctx.get("available_cycles") or []
+    if cycles:
+        options = [{"v": "active", "n": "Active cycle", "in": "active" in ctx["selected_cycles"], "ex": False}]
+        options += [
+            {
+                "v": str(cycle.id),
+                "n": str(cycle),
+                "in": str(cycle.id) in ctx["selected_cycles"],
+                "ex": False,
+            }
+            for cycle in cycles
+        ]
+        options.append({"v": "backlog", "n": "Backlog", "in": "backlog" in ctx["selected_cycles"], "ex": False})
+        field("cycle", "Cycle", "iteration-cw", "c", options, exclude=False)
+
+    field(
+        "size",
+        "Size",
+        "gauge",
+        "z",
+        [
+            {
+                "v": str(value),
+                "n": str(value),
+                "in": value in ctx["selected_sizes"],
+                "ex": value in ctx["excluded_sizes"],
+            }
+            for value in ctx.get("size_values") or []
+        ],
+    )
+
+    # The date axis is the one the design simplified: six fields with a
+    # from / to pair each became a handful of presets. They still write
+    # the old triple, so nothing downstream had to learn a new shape.
+    field(
+        "date",
+        "Date",
+        "calendar",
+        "d",
+        [{**preset, "in": False, "ex": False} for preset in DOCK_DATE_PRESETS],
+        exclude=False,
+        single=True,
+    )
+
+    return {
+        "fields": fields,
+        "q": ctx.get("q") or "",
+        "date": {
+            "field": ctx.get("date_field") or "",
+            "after": ctx.get("date_after") or "",
+            "before": ctx.get("date_before") or "",
+        },
+        "toggles": {
+            "show_backlog": bool(ctx.get("show_backlog")),
+            "show_archived": bool(ctx.get("show_archived")),
+            "show_my_projects": bool(ctx.get("show_my_projects")),
+            "backlog_toggle": bool(ctx.get("show_backlog_toggle")),
+            "my_projects_toggle": bool(ctx.get("show_my_projects_toggle")),
+        },
     }

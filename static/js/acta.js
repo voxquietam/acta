@@ -4552,3 +4552,288 @@
     }));
   });
 })();
+
+/**
+ * Filter dock — the floating bar that replaced the rail and the panel.
+ *
+ * Holds the whole filter state and projects it into hidden inputs under
+ * the old names, so everything that reads ``#filter-form`` — the query
+ * string, ``readFilterState`` below, the relationship graph, the facet
+ * endpoint — keeps reading what it always read. See
+ * ``templates/web/_filter_dock.html``.
+ */
+window.actaFilterDock = function actaFilterDock() {
+  return {
+    fields: [],
+    q: "",
+    date: { field: "", after: "", before: "" },
+    toggles: {},
+    open: null,
+    search: "",
+    op: "in",
+    expanded: false,
+    sprite: "",
+    CHIP_LIMIT: 4,
+
+    init() {
+      // Captured here because ``$el`` inside an ``x-for`` is the row, not
+      // the component root that carries the attribute.
+      this.sprite = this.$el.dataset.sprite || "";
+      const payload = document.getElementById("filter-dock-data");
+      const data = payload ? JSON.parse(payload.textContent) : null;
+      if (!data) return;
+      this.fields = data.fields || [];
+      this.q = data.q || "";
+      this.date = data.date || this.date;
+      this.toggles = data.toggles || {};
+      // A date preset is stored as the field/after/before triple, so the
+      // chip has to be recognised on the way back in.
+      // ``date_field`` alone means nothing — it is a select that always
+      // has a value. Only an actual range is an active filter.
+      const preset = this.fields.find((f) => f.key === "date");
+      if (preset && this.date.field && (this.date.after || this.date.before)) {
+        const match = preset.options.find((o) => o.field === this.date.field);
+        if (match) match.in = true;
+      }
+      // Reset wipes the chips without a reload, same event the old
+      // sidebar listened for.
+      window.addEventListener("acta:filter-reset", () => this.clearAll({ submit: false }));
+      window.addEventListener("keydown", (e) => this.hotkey(e));
+    },
+
+    icon(name) {
+      return `<svg viewBox="0 0 24 24" aria-hidden="true"><use href="${this.sprite}#lu-${name}"></use></svg>`;
+    },
+
+    // ---- chips ----------------------------------------------------------
+
+    get chips() {
+      const out = [];
+      this.fields.forEach((f) => {
+        ["in", "ex"].forEach((side) => {
+          const picked = f.options.filter((o) => o[side]);
+          if (!picked.length) return;
+          out.push({
+            key: `${f.key}:${side}`,
+            field: f.key,
+            icon: f.icon,
+            ex: side === "ex",
+            label: f.name + (side === "ex" ? " ✕" : ""),
+            text: picked.map((o) => o.n).join(", "),
+            side: side,
+          });
+        });
+      });
+      Object.entries({
+        show_backlog: "Backlog",
+        show_archived: "Archived",
+        show_my_projects: "My projects",
+      }).forEach(([key, name]) => {
+        if (!this.toggles[key]) return;
+        out.push({ key: key, field: null, scope: key, icon: "eye", ex: false, label: name, text: "shown" });
+      });
+      return out;
+    },
+
+    get shownChips() {
+      return this.expanded ? this.chips : this.chips.slice(0, this.CHIP_LIMIT);
+    },
+
+    get hiddenCount() {
+      return this.expanded ? 0 : Math.max(0, this.chips.length - this.CHIP_LIMIT);
+    },
+
+    get countText() {
+      // Same markers the row matcher walks: a task element carries both
+      // ``data-task-id`` and the filter attrs.
+      const rows = document.querySelectorAll("[data-task-id][data-status]");
+      let shown = 0;
+      rows.forEach((row) => {
+        const target = row.closest("li") || row.closest("tr") || row;
+        if (!target.hasAttribute("hidden")) shown += 1;
+      });
+      const total = rows.length;
+      if (!total) return "";
+      return this.chips.length ? `${shown} of ${total}` : `${total} tasks`;
+    },
+
+    get suggestions() {
+      if (this.chips.length) return [];
+      return [
+        { key: "not-done", icon: "circle-dashed", name: "Not done", field: "status", exclude: ["done", "cancelled"] },
+        { key: "due-week", icon: "calendar-clock", name: "Due this week", field: "date", value: "due-week" },
+        { key: "urgent", icon: "chevrons-up", name: "Urgent", field: "priority", value: "1" },
+      ];
+    },
+
+    // ---- popovers -------------------------------------------------------
+
+    get openedField() {
+      return this.fields.find((f) => f.key === this.open) || null;
+    },
+
+    get matchingFields() {
+      const q = this.search.trim().toLowerCase();
+      return this.fields.filter((f) => !q || f.name.toLowerCase().includes(q));
+    },
+
+    get matchingOptions() {
+      const field = this.openedField;
+      if (!field) return [];
+      const q = this.search.trim().toLowerCase();
+      let options = field.options;
+      // Backlog statuses are not on the board unless the scope toggle is
+      // on, so filtering by them would quietly match nothing.
+      if (field.key === "status" && !this.toggles.show_backlog) {
+        options = options.filter((o) => !o.backlog);
+      }
+      return options.filter((o) => !q || o.n.toLowerCase().includes(q));
+    },
+
+    openFields() {
+      this.open = "fields";
+      this.search = "";
+      this.$nextTick(() => this.$refs.fieldSearch && this.$refs.fieldSearch.focus());
+    },
+
+    openField(key) {
+      if (!key) return;
+      this.open = key;
+      this.search = "";
+      this.op = "in";
+    },
+
+    close() {
+      this.open = null;
+      this.search = "";
+    },
+
+    pickFirstField() {
+      const first = this.matchingFields[0];
+      if (first) this.openField(first.key);
+    },
+
+    // ---- writing --------------------------------------------------------
+
+    pick(field, option, side) {
+      if (field.key === "date") {
+        this.applyDate(field, option);
+        return;
+      }
+      const other = side === "in" ? "ex" : "in";
+      const was = option[side];
+      if (field.single) field.options.forEach((o) => { o.in = false; o.ex = false; });
+      option[side] = !was;
+      if (option[side]) option[other] = false;
+      this.submit();
+    },
+
+    applyDate(field, option) {
+      const was = option.in;
+      field.options.forEach((o) => { o.in = false; });
+      if (was) {
+        this.date = { field: "", after: "", before: "" };
+      } else {
+        option.in = true;
+        const today = new Date();
+        const iso = (d) => d.toISOString().slice(0, 10);
+        const shift = (days) => { const d = new Date(today); d.setDate(d.getDate() + days); return iso(d); };
+        this.date = { field: option.field, after: "", before: "" };
+        if (option.days == null) this.date.before = iso(today);
+        else if (option.ahead) { this.date.after = iso(today); this.date.before = shift(option.days); }
+        else this.date.after = shift(-option.days);
+      }
+      this.submit();
+    },
+
+    applySuggestion(s) {
+      const field = this.fields.find((f) => f.key === s.field);
+      if (!field) return;
+      if (s.exclude) s.exclude.forEach((v) => { const o = field.options.find((x) => x.v === v); if (o) o.ex = true; });
+      else {
+        const o = field.options.find((x) => x.v === s.value);
+        if (!o) return;
+        if (field.key === "date") { this.applyDate(field, o); return; }
+        o.in = true;
+      }
+      this.submit();
+    },
+
+    dropChip(chip) {
+      if (chip.scope) {
+        this.toggles[chip.scope] = false;
+        this.submit();
+        return;
+      }
+      const field = this.fields.find((f) => f.key === chip.field);
+      if (!field) return;
+      field.options.forEach((o) => { o[chip.side] = false; });
+      if (field.key === "date") this.date = { field: "", after: "", before: "" };
+      this.submit();
+    },
+
+    clearField(field) {
+      field.options.forEach((o) => { o.in = false; o.ex = false; });
+      if (field.key === "date") this.date = { field: "", after: "", before: "" };
+      this.submit();
+    },
+
+    fieldActive(field) {
+      return field.options.some((o) => o.in || o.ex);
+    },
+
+    toggleScope(key) {
+      this.toggles[key] = !this.toggles[key];
+      this.submit();
+    },
+
+    clearAll(options) {
+      this.fields.forEach((f) => f.options.forEach((o) => { o.in = false; o.ex = false; }));
+      this.date = { field: "", after: "", before: "" };
+      this.q = "";
+      Object.keys(this.toggles).forEach((k) => {
+        if (k.startsWith("show_")) this.toggles[k] = false;
+      });
+      this.expanded = false;
+      if (!options || options.submit !== false) this.submit();
+    },
+
+    // The inputs are a projection of the state above, so they have to be
+    // in the DOM before the form is read — hence the tick.
+    submit() {
+      this.$nextTick(() => {
+        const form = document.getElementById("filter-form");
+        if (form) form.requestSubmit();
+      });
+    },
+
+    get inputs() {
+      const out = [];
+      this.fields.forEach((f) => {
+        if (f.key === "date") return;
+        f.options.forEach((o) => {
+          if (o.in) out.push({ key: `${f.key}:${o.v}`, name: f.key, value: o.v, field: f.key });
+          else if (o.ex) out.push({ key: `x${f.key}:${o.v}`, name: `x${f.key}`, value: o.v, field: f.key });
+        });
+      });
+      return out;
+    },
+
+    hotkey(e) {
+      const tag = (e.target.tagName || "").toLowerCase();
+      const typing = tag === "input" || tag === "textarea" || e.target.isContentEditable;
+      if (e.key === "Escape" && this.open) {
+        this.close();
+        return;
+      }
+      if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === "F") {
+        e.preventDefault();
+        this.clearAll();
+      } else if (e.key === "f") {
+        e.preventDefault();
+        this.openFields();
+      }
+    },
+  };
+};
