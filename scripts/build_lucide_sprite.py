@@ -90,6 +90,16 @@ def _collect_dynamic() -> set[str]:
             for match in re.finditer(r'["\']icon["\']\s*:\s*["\']([a-z][a-z0-9-]*)["\']', text):
                 names.add(match.group(1))
 
+    # Payload builders — the filter dock and the create-task rail ship
+    # their icon names as JSON and render them from JS, so no template
+    # ever names them. Same ``"icon": "…"`` literal scan.
+    web = APPS_DIR / "web"
+    if web.is_dir():
+        for path in web.rglob("*.py"):
+            text = path.read_text(encoding="utf-8")
+            for match in re.finditer(r'["\']icon["\']\s*:\s*["\']([a-z][a-z0-9-]*)["\']', text):
+                names.add(match.group(1))
+
     # Settings tabs — icon string is hardcoded per tab. The settings
     # tab partial uses ``{% lucide icon %}`` with the name passed via
     # ``with``; the template caller side is already covered by the
