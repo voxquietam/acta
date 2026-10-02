@@ -43,6 +43,18 @@ Re-included by ``task_detail.html`` and rendered standalone by
     <div class="min-w-0">{% include "web/projects/_assignee_cell.html" %}</div>
   </div>
 
+  {% comment %}
+  Epic — only on a plain task, and only where the workspace runs them.
+  An epic's own page shows its tasks instead, and a workspace that turned
+  the feature off gets no row rather than one that refuses every pick.
+  {% endcomment %}
+  {% if epics_enabled and task.kind != 'epic' %}
+  <div class="flex items-center justify-between gap-3">
+    <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Epic" %}</div>
+    <div class="min-w-0">{% include "web/projects/_epic_cell.html" %}</div>
+  </div>
+  {% endif %}
+
   <div class="flex items-center justify-between gap-3">
     <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Start date" %}</div>
     <div class="min-w-0">{% include "web/projects/_start_date_cell.html" %}</div>

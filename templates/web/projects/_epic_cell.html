@@ -1,0 +1,101 @@
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+Epic cell — puts the task under an epic, or takes it out. Same
+click-to-edit + teleported dropdown pattern as the cycle / size cells.
+
+Deliberately a separate row from Parent: a subtask keeps its parent and
+may still belong to an epic, and unlike a parent the epic may live in
+**another project** of the same workspace — which is the whole reason
+epics exist. See docs/decisions/0036-epics.md.
+
+The list is the workspace's epics with their progress, so a person
+picking one can see which is nearly finished without opening it. Posts
+to ``set_task_epic`` and swaps this cell. Expects ``task`` and
+``workspace_epics`` (rows carrying ``member_done`` / ``member_total``).
+{% endcomment %}
+<div id="epic-cell"
+     x-data="{
+       open: false,
+       rect: { top: 0, left: 0, bottom: 0, right: 0 },
+       measure() {
+         const r = this.$refs.trigger.getBoundingClientRect();
+         this.rect = { top: r.top, left: r.left, bottom: r.bottom, right: r.right };
+       },
+       toggle() { if (!this.open) this.measure(); this.open = !this.open; }
+     }"
+     x-init="
+       const onScroll = (e) => {
+         if (!$el.isConnected) { document.removeEventListener('scroll', onScroll, true); return; }
+         if (open && !($refs.panel && $refs.panel.contains(e.target))) open = false;
+       };
+       document.addEventListener('scroll', onScroll, true);
+     "
+     @resize.window="if (open) open = false"
+     class="inline-block">
+  <button type="button"
+          x-ref="trigger"
+          @click="toggle()"
+          class="text-xs cursor-pointer inline-flex items-center gap-1.5 hover:text-foreground
+            {% if task.epic_id %}text-subtle-foreground{% else %}text-placeholder-foreground{% endif %}"
+          data-tooltip="{% trans 'Collect this task under an epic' %}">
+    {% if task.epic_id %}
+    {% lucide "square-kanban" "w-3 h-3 shrink-0" %}
+    <span class="truncate max-w-[10rem]">{{ task.epic.title }}</span>
+    {% else %}
+    <span class="italic">{% trans "Add to epic" %}</span>
+    {% endif %}
+  </button>
+  <template x-teleport="body">
+  {# Self-event opt-in — see _status_cell + project_todo_inline_cells_propagation. #}
+  <div x-ref="panel"
+       x-show="open"
+       @click.outside="open = false"
+       @htmx:before-request="window.actaForceApplySelfEvent && window.actaForceApplySelfEvent({{ task.id }})"
+       x-init="$nextTick(() => window.htmx && window.htmx.process($el))"
+       x-cloak
+       :style="`position:fixed; top:${rect.bottom + 4}px; left:${Math.min(rect.left, window.innerWidth - 296)}px; width:18rem;`"
+       class="bg-card border border-border rounded-lg shadow-lg overflow-hidden z-50 max-h-80 overflow-y-auto">
+    <form method="post"
+          hx-post="{% url 'web:set_task_epic' slug_prefix=task.project.slug_prefix number=task.number %}"
+          hx-target="#epic-cell"
+          hx-swap="outerHTML"
+          @htmx:after-request="open = false">
+      {% csrf_token %}
+      <input type="hidden" name="epic" value="">
+      <button type="submit"
+              class="w-full text-left px-3 py-1.5 text-xs hover:bg-muted flex items-center gap-1.5
+                {% if not task.epic_id %}text-brand-500{% else %}text-muted-foreground{% endif %}">
+        <span class="flex-1">{% trans "No epic" %}</span>
+      </button>
+    </form>
+    {% for epic in workspace_epics %}
+    <form method="post"
+          hx-post="{% url 'web:set_task_epic' slug_prefix=task.project.slug_prefix number=task.number %}"
+          hx-target="#epic-cell"
+          hx-swap="outerHTML"
+          @htmx:after-request="open = false">
+      {% csrf_token %}
+      <input type="hidden" name="epic" value="{{ epic.slug }}">
+      <button type="submit"
+              class="w-full text-left px-3 py-1.5 text-xs hover:bg-muted flex items-center gap-2
+                {% if epic.id == task.epic_id %}text-brand-500{% else %}text-muted-foreground{% endif %}">
+        {% lucide "square-kanban" "w-3 h-3 shrink-0 text-placeholder-foreground" %}
+        <span class="flex-1 truncate">{{ epic.title }}</span>
+        {# Progress rather than the project: picking an epic is a question #}
+        {# of which effort this belongs to, and how far along it is says   #}
+        {# more than where its umbrella happens to be filed.               #}
+        <span class="text-[10px] text-placeholder-foreground whitespace-nowrap font-mono">
+          {{ epic.member_done }}/{{ epic.member_total }}
+        </span>
+      </button>
+    </form>
+    {% endfor %}
+    {% if not workspace_epics %}
+    <p class="px-3 py-2 text-[11px] text-placeholder-foreground">
+      {% trans "No epics in this workspace yet." %}
+    </p>
+    {% endif %}
+  </div>
+  </template>
+</div>

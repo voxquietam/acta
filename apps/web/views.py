@@ -26,6 +26,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.utils.formats import date_format
+from django.utils.functional import SimpleLazyObject
 from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_POST
 from django.views.generic import DetailView, ListView, TemplateView
@@ -3562,7 +3563,7 @@ def task_picker_context(task):
         task: The :class:`Task` whose workspace context to assemble.
 
     Returns:
-        A dict with six keys ready to splat into a template context.
+        A dict ready to splat into a template context.
     """
     cached = getattr(task, "_picker_ctx", None)
     if cached is not None:
@@ -3576,6 +3577,18 @@ def task_picker_context(task):
         "workspace_label_groups": _workspace_label_groups(task),
         "workspace_projects": _workspace_projects(task),
         "workspace_cycles": _workspace_cycles(workspace),
+        "epics_enabled": workspace.epics_enabled,
+        # Lazy on purpose: this bundle also feeds the context menu and the
+        # archive / cancel swaps, which never render the epic picker, and
+        # a query for a list nobody draws is a query nobody should pay
+        # for. Only the rail touches it, and only then does it run.
+        "workspace_epics": SimpleLazyObject(
+            lambda: (
+                _workspace_epics(workspace, exclude_pk=task.pk)
+                if workspace.epics_enabled and task.kind != Task.KIND_EPIC
+                else []
+            ),
+        ),
         "attached_label_ids": attached_label_ids,
         **_task_suggestions(task, members, attached_label_ids),
     }
@@ -4129,6 +4142,75 @@ def set_task_cycle(request, slug_prefix, number):
         {
             "task": task,
             "workspace_cycles": _workspace_cycles(task.project.workspace),
+        },
+    )
+
+
+def _workspace_epics(workspace, *, exclude_pk=None):
+    """Return the workspace's epics with their progress annotated.
+
+    One aggregate for the whole picker: the rows show "done / total" so a
+    person can tell a nearly-finished epic from a fresh one, and walking
+    ``epic_counts`` per row would be an N+1 over the workspace.
+
+    Args:
+        workspace: The :class:`Workspace` to list epics from.
+        exclude_pk: A task id to leave out — an epic cannot collect
+            itself.
+
+    Returns:
+        A list of :class:`Task` epics, newest first, each carrying
+        ``member_done`` and ``member_total``.
+    """
+    qs = (
+        Task.objects.epics()
+        .filter(project__workspace=workspace, archived_at__isnull=True)
+        .with_epic_rollup()
+        .order_by("-updated_at")
+    )
+    if exclude_pk is not None:
+        qs = qs.exclude(pk=exclude_pk)
+    return list(qs[:50])
+
+
+@require_POST
+@login_required
+def set_task_epic(request, slug_prefix, number):
+    """Collect the task under an epic, or take it out of the one it is in.
+
+    Reads ``epic`` (a ``PREFIX-NUMBER`` slug); empty clears it. The target
+    must be an epic in the task's own workspace — across projects is the
+    point, across workspaces is not, since labels, members and cycles stop
+    being valid there. Routed through the diff path so the change logs a
+    ``task.epic_changed`` event and refreshes peer cards over SSE.
+
+    Returns:
+        Rendered ``_epic_cell.html`` for the rail cell (plus the OOB
+        activity refresh), or ``400`` on an invalid target.
+    """
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    workspace = task.project.workspace
+    if not workspace.epics_enabled:
+        return HttpResponseBadRequest("epics are off for this workspace")
+    if task.kind == Task.KIND_EPIC:
+        return HttpResponseBadRequest("an epic cannot belong to another epic")
+    raw = (request.POST.get("epic") or "").strip()
+    if raw == "":
+        epic = None
+    else:
+        epic = _resolve_link_target(request.user, raw)
+        if epic is None or epic.kind != Task.KIND_EPIC:
+            return HttpResponseBadRequest("epic not found")
+        if epic.project.workspace_id != workspace.pk:
+            return HttpResponseBadRequest("epic not in workspace")
+    _apply_task_field_change(task, "epic", epic, request.user)
+    return _inline_edit_response(
+        request,
+        task,
+        "web/projects/_epic_cell.html",
+        {
+            "task": task,
+            "workspace_epics": _workspace_epics(workspace, exclude_pk=task.pk),
         },
     )
 
@@ -6994,7 +7076,7 @@ def _project_labels_qs(project):
     return Label.objects.filter(workspace=project.workspace).order_by("position", "name")
 
 
-def _rail_task_row(task, *, project=None, workspace=None):
+def _rail_task_row(task, *, project=None, workspace=None, epic=False):
     """Shape a task as a rail row, or ``None`` when it does not belong.
 
     Used for the parent and link values that ride the project-switch round
@@ -7006,6 +7088,7 @@ def _rail_task_row(task, *, project=None, workspace=None):
         task: The resolved task, or ``None``.
         project: When given, the project the task must be in.
         workspace: When given, the workspace the task must be in.
+        epic: When true, the row is dropped unless the task is an epic.
 
     Returns:
         A ``{"v", "n", "cls", "sub"}`` dict, or ``None``.
@@ -7013,6 +7096,8 @@ def _rail_task_row(task, *, project=None, workspace=None):
     from apps.web.templatetags.web_extras import status_dot_classes
 
     if task is None:
+        return None
+    if epic and task.kind != Task.KIND_EPIC:
         return None
     if project is not None and task.project_id != project.pk:
         return None
@@ -7142,6 +7227,10 @@ def _create_task_get(request):
     pre_parent = _rail_task_row(
         _resolve_link_target(request.user, request.GET.get("parent") or ""), project=selected_project
     )
+    workspace = getattr(selected_project, "workspace", None)
+    pre_epic = _rail_task_row(
+        _resolve_link_target(request.user, request.GET.get("epic") or ""), workspace=workspace, epic=True
+    )
     pre_links = []
     for kind in LINK_KINDS:
         for raw in request.GET.getlist(kind):
@@ -7214,6 +7303,7 @@ def _create_task_get(request):
                     pre_cycle_id=pre_cycle_id,
                     meetings=meetings,
                     pre_parent=pre_parent,
+                    pre_epic=pre_epic,
                     pre_links=pre_links,
                     pre_meeting_id=pre_meeting_id,
                     pre_repeat=pre_repeat,
@@ -7362,8 +7452,8 @@ def _parse_create_task_relations(request, project):
 
     Returns:
         A ``(relations, error)`` pair. On success ``relations`` maps
-        ``parent`` to a :class:`~apps.tasks.models.Task` or ``None`` and
-        each kind in :data:`LINK_KINDS` to a list of tasks; on failure
+        ``parent`` and ``epic`` to a :class:`~apps.tasks.models.Task` or
+        ``None`` and each kind in :data:`LINK_KINDS` to a list of tasks; on failure
         ``relations`` is ``None`` and ``error`` is the ``400`` to return.
     """
     relations = {"parent": None}
@@ -7377,6 +7467,18 @@ def _parse_create_task_relations(request, project):
         if parent.parent_id is not None:
             return None, HttpResponseBadRequest("parent is already a subtask")
         relations["parent"] = parent
+    raw_epic = (request.POST.get("epic") or "").strip()
+    if raw_epic:
+        epic = _resolve_link_target(request.user, raw_epic)
+        if epic is None or epic.kind != Task.KIND_EPIC:
+            return None, HttpResponseBadRequest("epic not found")
+        if epic.project.workspace_id != project.workspace_id:
+            return None, HttpResponseBadRequest("epic not in workspace")
+        if not project.workspace.epics_enabled:
+            return None, HttpResponseBadRequest("epics are off for this workspace")
+        relations["epic"] = epic
+    else:
+        relations["epic"] = None
     seen = set()
     for kind in LINK_KINDS:
         targets = []
@@ -7497,15 +7599,25 @@ def create_task_search(request):
     from apps.web.templatetags.web_extras import status_dot_classes
 
     kind = request.GET.get("kind") or "links"
-    # Neither axis takes an epic: ``Task.clean`` forbids an epic as a
-    # parent, and epic membership is its own field rather than a link.
-    qs = _user_task_qs(request.user).work().select_related("project")
-    if kind == "parent":
-        # Depth is capped at one, so a task that is already a subtask
-        # cannot become a parent.
-        qs = qs.filter(project=project, parent__isnull=True)
+    if kind == "epic":
+        # The one axis that wants epics and nothing else. Workspace-wide
+        # on purpose: an epic collects across projects.
+        qs = (
+            _user_task_qs(request.user)
+            .epics()
+            .filter(project__workspace_id=project.workspace_id)
+            .select_related("project")
+        )
     else:
-        qs = qs.filter(project__workspace_id=project.workspace_id)
+        # Neither other axis takes an epic: ``Task.clean`` forbids an epic
+        # as a parent, and epic membership is its own field, not a link.
+        qs = _user_task_qs(request.user).work().select_related("project")
+        if kind == "parent":
+            # Depth is capped at one, so a task that is already a subtask
+            # cannot become a parent.
+            qs = qs.filter(project=project, parent__isnull=True)
+        else:
+            qs = qs.filter(project__workspace_id=project.workspace_id)
     q = (request.GET.get("q") or "").strip()
     suggested = False
     if q:
@@ -7588,9 +7700,11 @@ def _create_task_post(request):
             project=project,
             title=title,
             reporter=request.user,
-            # The parent is a column on the task, so it is set before the
-            # insert rather than attached after it like the links are.
+            # Parent and epic are columns on the task, so they are set
+            # before the insert rather than attached after it like the
+            # links are.
             parent=relations["parent"],
+            epic=relations["epic"],
             **fields,
         )
         # Mirror ``set_task_status``: a task that's born in-progress gets its

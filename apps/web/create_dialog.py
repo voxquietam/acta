@@ -336,6 +336,7 @@ def build_create_task_data(
     pre_cycle_id,
     meetings,
     pre_parent,
+    pre_epic,
     pre_links,
     pre_meeting_id,
     pre_repeat,
@@ -363,6 +364,7 @@ def build_create_task_data(
         pre_cycle_id: Cycle id to start on, or ``""``.
         meetings: Recent meetings in that workspace.
         pre_parent: ``{"v", "n", "cls"}`` for the parent, or ``None``.
+        pre_epic: The same for the epic, or ``None``.
         pre_links: Rows for the links row, each ``{"v", "n", "kind"}``.
         pre_meeting_id: Meeting id to start on, or ``""``.
         pre_repeat: Repeat preset to start on, or ``""``.
@@ -462,6 +464,18 @@ def build_create_task_data(
                 "value": pre_parent,
             },
             {
+                # Separate from Parent, and deliberately so: a subtask
+                # keeps its parent and may still belong to an epic, and
+                # the epic may live in another project. See ADR 0036.
+                "key": "epic",
+                "name": str(_("Epic")),
+                "icon": "square-kanban",
+                "hotkey": "E",
+                "input": "epic",
+                "task": True,
+                "value": pre_epic,
+            },
+            {
                 # One picker for every kind of link: the type is a switch
                 # above the search, so "blocked by" and "related" are two
                 # answers to one question rather than two rows.
@@ -494,6 +508,10 @@ def build_create_task_data(
             },
         ],
     )
+    # A workspace that turned epics off gets no Epic row at all, rather
+    # than one that refuses every pick.
+    if selected_project is None or not selected_project.workspace.epics_enabled:
+        fields = [f for f in fields if f["key"] != "epic"]
     groups = _project_groups(projects, selected_project)
     return {
         "fields": fields,

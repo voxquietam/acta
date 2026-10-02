@@ -32,6 +32,7 @@ WATCHED_EVENT_FIELDS = (
     "end_date",
     "priority",
     "parent",
+    "epic",
     "labels",
     "project",
     "cycle",
@@ -66,6 +67,7 @@ def snapshot_task(task: Task) -> dict[str, Any]:
         "end_date": task.end_date,
         "assignee_id": task.assignee_id,
         "parent_id": task.parent_id,
+        "epic_id": task.epic_id,
         "project_id": task.project_id,
         "cycle_id": task.cycle_id,
         # Cycle label parts captured for the human-readable cycle_changed
@@ -211,6 +213,18 @@ def build_diff_events(
                 payload={
                     "from_task_id": old_state["parent_id"],
                     "to_task_id": task.parent_id,
+                },
+                **common,
+            ),
+        )
+
+    if old_state.get("epic_id") != task.epic_id:
+        events.append(
+            ActivityLog(
+                event_type="task.epic_changed",
+                payload={
+                    "from_task_id": old_state.get("epic_id"),
+                    "to_task_id": task.epic_id,
                 },
                 **common,
             ),

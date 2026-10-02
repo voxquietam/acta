@@ -1013,6 +1013,7 @@ class TestCreateTaskRail:
             "due",
             "repeat",
             "parent",
+            "epic",
             "links",
             "meeting",
         ]
@@ -1030,6 +1031,7 @@ class TestCreateTaskRail:
             "due": "due_date",
             "repeat": "repeat",
             "parent": "parent",
+            "epic": "epic",
             "meeting": "meeting",
             # Links name no single input: each picked task writes one under
             # the name of its own kind.
