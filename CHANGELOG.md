@@ -19,6 +19,12 @@ Automating this with `git-cliff` is deferred until `v1.0.0`.
   `manage.py backfill_embeddings`.
 - **MCP: `acta_tasks_find_similar`.** The same search as a tool, and
   `acta_task_create` now asks clients to run it before filing a task.
+- **The link picker suggests what looks related.** Opening it with an
+  empty search box now offers the tasks that read like this one instead
+  of nothing at all.
+- **"Usually does this" in the assignee picker.** On an unassigned task,
+  the people who took the work its neighbours describe — shown only when
+  the same person turns up on at least two close matches.
 - **Relationship graph: project stacks.** Tasks from a neighbouring
   project fold into one card carrying its badge, how many of its tasks
   this board touches and how many of them block work here. Opens in
