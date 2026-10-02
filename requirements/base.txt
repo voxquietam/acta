@@ -11,5 +11,11 @@ Pillow>=10.4
 django-eventstream>=5
 uvicorn[standard]>=0.32
 whitenoise>=6.7
-mcp>=1.0
+# Pinned to the 1.x API: 2.x drops the ``Server.list_tools`` /
+# ``Server.call_tool`` decorators apps/mcp/server.py is built on, so an
+# unpinned rebuild silently breaks every MCP client.
+mcp>=1.0,<2
 django-q2>=1.7
+# Similarity search: one dot product per workspace matrix. Pure Python
+# costs ~0.2 s per query on a thousand tasks, numpy ~0.2 ms.
+numpy>=2.0
