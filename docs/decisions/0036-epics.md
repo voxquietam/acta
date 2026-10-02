@@ -98,9 +98,16 @@ a kanban is a row that can never move on its own.
   task and numbering is per project (ADR 0007). It lives in one project
   while collecting from the whole workspace — the project says who owns
   the effort, not where its work is.
-- **The graph gets a second edge kind.** It already draws `parent`;
-  epic membership is a different relationship and must not be drawn as
-  if it were hierarchy.
+- **The graph gets a region, not an edge.** Epics are out of the graph
+  until this is built — an epic has no `blocks` / `related` / `parent`
+  edges of its own, so drawing it as a node today would put an isolated
+  dot on the canvas and spend payload budget on it. The design settled
+  on a **container**: a tinted region around the epic's tasks, assembled
+  from their rectangles plus corridors along the edges between them, and
+  **broken into parts** with a shared colour when the tasks sit on
+  different islands rather than stretched across half the screen. A
+  region and not an edge because membership has no direction — an epic
+  blocks nothing — and an arrow would read as "this, then that".
 - **Every surface has to respect the switch**, not just render it: the
   rail row, the pickers, the tab, the REST and MCP fields all check it,
   and the model refuses an epic in a workspace that turned it off.
@@ -142,3 +149,8 @@ a kanban is a row that can never move on its own.
   can check.
 - Progress percentages are shown for every epic in the picker and on the
   tab, so they come from one aggregate query, never from a loop.
+- The graph's regions want one thing the canvas does not do yet: a label
+  that keeps its size as the view zooms out. Edges already hold their
+  width that way (`vector-effect="non-scaling-stroke"`); the region's
+  name has to resist the zoom the same way, or the blobs that make a
+  zoomed-out graph readable lose the only thing that identifies them.
