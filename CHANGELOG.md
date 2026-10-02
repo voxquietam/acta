@@ -9,6 +9,30 @@ Automating this with `git-cliff` is deferred until `v1.0.0`.
 
 ## [Unreleased]
 
+### Added
+
+- **Relationship graph: project stacks.** Tasks from a neighbouring
+  project fold into one card carrying its badge, how many of its tasks
+  this board touches and how many of them block work here. Opens in
+  place; folds again from the project chip.
+- **Link tasks from the graph.** Drag a row out of the Unlinked list
+  onto a card and pick the kind — blocks, blocked by, related.
+- **MCP can re-parent existing tasks.** `parent_slug` is now accepted by
+  `acta_task_update` (and so by `acta_tasks_bulk_update`); `null`
+  promotes a subtask back to top level. Previously a parent could only
+  be set while creating the task.
+
+### Changed
+
+- **The graph's filters now remove rather than dim.** "Only matching" is
+  on by default; switching it off brings the filtered-out cards back
+  dimmed, for when the chain matters more than the filter.
+- **Graph layout is packed per chain.** Unrelated chains are laid out
+  separately and packed towards the shape of a screen, instead of dagre
+  lining them all up in one row — a busy project fitted at 12% before.
+- Stepping the zoom from the toolbar keeps the middle of the board in
+  place instead of growing out of its top-left corner.
+
 ## [0.6.0] — 2026-10-02
 
 Four months of work on `dev`: Claude Desktop connects to Acta over OAuth
