@@ -450,7 +450,9 @@
   }
 
   function layoutComponent(model, ids, level) {
-    const g = new window.dagre.graphlib.Graph({ multigraph: true });
+    // ``compound`` only to carry the epic clusters below; without them it
+    // behaves exactly as the plain graph did.
+    const g = new window.dagre.graphlib.Graph({ multigraph: true, compound: true });
     g.setGraph({
       rankdir: "TB",
       nodesep: level === "full" ? 36 : 20,
@@ -463,6 +465,24 @@
       const box = cardSize(model.byId.get(id), level);
       g.setNode(String(id), { width: box.w, height: box.h });
     });
+    // Gathering is dagre's own clustering, not a hint: merging the
+    // components alone hands it two unrelated chains in one run, and it
+    // interleaves them across the ranks — which is how an epic ended up
+    // as a band with other people's work sitting inside it. A cluster
+    // keeps its members together and everything else outside.
+    const clusters = new Set();
+    if (GATHER) {
+      ids.forEach((id) => {
+        const node = model.byId.get(id);
+        if (!node || !node.epicId) return;
+        const key = `epic-${node.epicId}`;
+        if (!clusters.has(key)) {
+          clusters.add(key);
+          g.setNode(key, {});
+        }
+        g.setParent(String(id), key);
+      });
+    }
     model.edges.forEach((e, i) => {
       // Related edges are symmetrical — letting them influence the ranking
       // drags unrelated work into tiers it does not belong to.
@@ -476,7 +496,7 @@
     let h = 0;
     g.nodes().forEach((id) => {
       const n = g.node(id);
-      if (!n) return;
+      if (!n || clusters.has(id)) return;
       // Per-node, not per-level: a stack is a different shape to the task
       // cards it stands in for.
       const box = { x: n.x - n.width / 2, y: n.y - n.height / 2, w: n.width, h: n.height };
@@ -685,32 +705,7 @@
       const group = groups.get(find(e.source));
       if (group) group.edges.push(e);
     });
-    const parts = [...groups.values()];
-    // Gathering promised one block per epic, and the layout delivered the
-    // tasks side by side — but side by side is not joined, so without
-    // this the region would still come out in pieces with a gap between
-    // them. The closest pair of each two pieces gets a corridor of its
-    // own, which is enough to make the union one shape.
-    if (GATHER && parts.length > 1) {
-      const centre = (m) => [m.box.x + m.box.w / 2, m.box.y + m.box.h / 2];
-      while (parts.length > 1) {
-        let best = null;
-        for (let i = 1; i < parts.length; i += 1) {
-          parts[0].members.forEach((a) => {
-            parts[i].members.forEach((b) => {
-              const [ax, ay] = centre(a);
-              const [bx, by] = centre(b);
-              const d = Math.hypot(ax - bx, ay - by);
-              if (!best || d < best.d) best = { d, i, points: [centre(a), centre(b)] };
-            });
-          });
-        }
-        const other = parts.splice(best.i, 1)[0];
-        parts[0].members.push(...other.members);
-        parts[0].edges.push(...other.edges, { points: best.points });
-      }
-    }
-    return parts;
+    return [...groups.values()];
   }
 
   // One figure: a rounded box per member, plus a thick rounded stroke
@@ -725,9 +720,7 @@
         }" rx="${10 + pad / 2}" ${paint}/>`,
     );
     part.edges.forEach((edge) => {
-      // A gathered part carries connectors of its own, already in board
-      // coordinates: they join members the board has no edge between.
-      const points = edge.points || edgePoints(edge, pos);
+      const points = edgePoints(edge, pos);
       if (!points) return;
       shapes.push(
         `<path d="${roundedPath(points, 8)}" fill="none" stroke-width="${
