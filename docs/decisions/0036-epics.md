@@ -67,6 +67,14 @@ simply wrong, and the board would believe it. Freezing an epic is
 tasks, its size is the sum of theirs, and a cycle is a commitment that
 belongs to the work, not to the umbrella over it.
 
+**The whole feature is a workspace switch, on by default.**
+`Workspace.epics_enabled` decides whether the Epics tab, the Epic row on
+a task and the pickers exist at all. Not every team groups work this
+way, and a tracker that shows an empty Epics tab forever is a tracker
+with a dead tab in it. Turning it off hides the feature and refuses new
+epics; it does not unpick what exists, so the work comes back intact on
+re-enable. Default on, because the teams on this instance asked for it.
+
 **Epics do not appear on the board, the table or the list.** They have
 their own tab, where the useful view is epic × status — the cell that is
 dark is where work is piling up. An epic sitting in the To-do column of
@@ -93,6 +101,9 @@ a kanban is a row that can never move on its own.
 - **The graph gets a second edge kind.** It already draws `parent`;
   epic membership is a different relationship and must not be drawn as
   if it were hierarchy.
+- **Every surface has to respect the switch**, not just render it: the
+  rail row, the pickers, the tab, the REST and MCP fields all check it,
+  and the model refuses an epic in a workspace that turned it off.
 - **The REST API and MCP gain the field**, with the same validation as
   the web layer. MCP's `parent_slug` keeps its same-project rule
   untouched; `epic_slug` is a separate argument with its own.

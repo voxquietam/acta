@@ -80,6 +80,22 @@ class Task(models.Model):
         STATUS_CANCELLED: _("Cancelled"),
     }
 
+    # A task either *is* work or *collects* it. An epic is a task with
+    # ``kind = epic``: nine of the eleven things it needs — description,
+    # comments, attachments, activity, labels, assignee, links, search,
+    # the graph — already live here, so it is a flag and not a model.
+    # See docs/decisions/0036-epics.md.
+    KIND_TASK = "task"
+    KIND_EPIC = "epic"
+    KIND_VALUES = (
+        KIND_TASK,
+        KIND_EPIC,
+    )
+    KIND_LABELS = {
+        KIND_TASK: _("Task"),
+        KIND_EPIC: _("Epic"),
+    }
+
     SIZE_VALUES = (
         1,
         2,
@@ -109,6 +125,23 @@ class Task(models.Model):
         on_delete=models.CASCADE,
         related_name="subtasks",
         help_text="Parent task if this is a subtask. Depth limited to one level",
+    )
+    kind = models.CharField(
+        max_length=8,
+        default=KIND_TASK,
+        help_text="Whether this row is work (task) or collects work (epic)",
+    )
+    epic = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="epic_tasks",
+        help_text=(
+            "Epic this task belongs to. Deliberately separate from parent: a subtask "
+            "keeps its parent and may still belong to an epic, and an epic collects "
+            "across the whole workspace while a parent must share its child's project"
+        ),
     )
 
     title = models.CharField(
@@ -406,6 +439,88 @@ class Task(models.Model):
         """
         return any(t.status != self.STATUS_DONE and t.archived_at is None for t in self.blocks.all())
 
+    # ---- epic rollup -----------------------------------------------------
+    #
+    # Everything an epic says about its own state is read off the tasks it
+    # collects, never stored: a status someone can type is a second source
+    # of truth about the same thing, and an epic marked done at four of
+    # fourteen is simply wrong. Computed on read rather than denormalised
+    # because ``QuerySet.update()`` — which the bulk endpoint uses — fires
+    # no signal, so a cached rollup would go stale exactly when a lot of
+    # tasks move at once. See docs/decisions/0036-epics.md.
+
+    def epic_members(self):
+        """Return the tasks this epic collects, as a queryset.
+
+        Cancelled and archived tasks are left out: neither is work any
+        more, and counting them would hold an epic's progress down
+        forever.
+
+        Returns:
+            A queryset of :class:`Task`, empty for a non-epic.
+        """
+        if self.kind != self.KIND_EPIC:
+            return Task.objects.none()
+        return self.epic_tasks.exclude(status=self.STATUS_CANCELLED).filter(archived_at__isnull=True)
+
+    @property
+    def epic_counts(self) -> tuple[int, int]:
+        """Return ``(done, total)`` over the tasks this epic collects.
+
+        Callers rendering many epics should annotate instead — see
+        :meth:`TaskQuerySet.with_epic_rollup` — since this walks the
+        members of one epic.
+
+        Returns:
+            A ``(done, total)`` pair; ``(0, 0)`` for a non-epic.
+        """
+        members = list(self.epic_members())
+        return sum(1 for t in members if t.status == self.STATUS_DONE), len(members)
+
+    @property
+    def epic_status(self) -> str:
+        """Return the status an epic is in, derived from its tasks.
+
+        The ladder, highest rung first: everything finished means done;
+        anything started (in progress, in review, or already done while
+        others are not) means in progress; anything pulled means to-do;
+        otherwise the epic is still planned. An epic with no tasks is
+        planned — it has been described but not filled.
+
+        Returns:
+            One of :data:`STATUS_VALUES`.
+        """
+        statuses = [t.status for t in self.epic_members()]
+        if not statuses:
+            return self.STATUS_PLANNED
+        if all(s == self.STATUS_DONE for s in statuses):
+            return self.STATUS_DONE
+        if any(s in (self.STATUS_IN_PROGRESS, self.STATUS_IN_REVIEW, self.STATUS_DONE) for s in statuses):
+            return self.STATUS_IN_PROGRESS
+        if any(s == self.STATUS_TODO for s in statuses):
+            return self.STATUS_TODO
+        return self.STATUS_PLANNED
+
+    @property
+    def epic_span(self) -> tuple:
+        """Return ``(earliest start, latest end)`` across the epic's tasks.
+
+        An epic has no dates of its own; it spans whatever its work
+        spans. A task contributes its ``start_date`` and whichever of
+        ``due_date`` / ``end_date`` reaches furthest.
+
+        Returns:
+            A pair of dates, either of which may be ``None``.
+        """
+        starts, ends = [], []
+        for task in self.epic_members():
+            if task.start_date:
+                starts.append(task.start_date)
+            for value in (task.due_date, task.end_date):
+                if value:
+                    ends.append(value)
+        return (min(starts) if starts else None, max(ends) if ends else None)
+
     def clean(self) -> None:
         """Validate cross-field invariants beyond what field validators cover.
 
@@ -413,6 +528,10 @@ class Task(models.Model):
             * Subtask depth limit of one (a subtask cannot have its own
               subtasks).
             * Subtask and parent must live in the same project.
+            * ``kind`` must be a known value.
+            * An epic collects tasks (never other epics) from its own
+              workspace, is never a subtask, and carries none of the
+              fields it derives from its tasks.
             * ``size`` must be in the Fibonacci set if set at all.
             * ``status`` must be a known value from ``STATUS_VALUES``.
 
@@ -426,6 +545,34 @@ class Task(models.Model):
                 raise ValidationError({"parent": "Subtasks cannot have their own subtasks (depth limit 1)."})
             if self.parent.project_id != self.project_id:
                 raise ValidationError({"parent": "Subtask must be in the same project as its parent."})
+        if self.kind not in self.KIND_VALUES:
+            raise ValidationError({"kind": f"Unknown kind: {self.kind!r}."})
+        if self.epic_id is not None:
+            if self.kind == self.KIND_EPIC:
+                raise ValidationError({"epic": "An epic cannot belong to another epic."})
+            if self.epic.kind != self.KIND_EPIC:
+                raise ValidationError({"epic": "Tasks can only be collected by an epic."})
+            # An epic reaches across projects on purpose — that is what
+            # ``parent`` cannot do — but never across workspaces, where
+            # labels, members and cycles stop being valid.
+            if self.epic.project.workspace_id != self.project.workspace_id:
+                raise ValidationError({"epic": "Epic must be in the same workspace."})
+        if (self.kind == self.KIND_EPIC or self.epic_id is not None) and not self.project.workspace.epics_enabled:
+            # Turning the feature off hides it and refuses new ones; what
+            # already exists keeps its tasks and returns on re-enable.
+            raise ValidationError({"kind": "Epics are turned off for this workspace."})
+        if self.kind == self.KIND_EPIC:
+            if self.parent_id is not None:
+                raise ValidationError({"parent": "An epic cannot be a subtask."})
+            # Progress, dates and status are read off the tasks an epic
+            # collects, so the fields a person would type are meaningless
+            # on one.
+            if self.due_date is not None:
+                raise ValidationError({"due_date": "An epic takes its dates from its tasks."})
+            if self.size is not None:
+                raise ValidationError({"size": "An epic takes its size from its tasks."})
+            if self.cycle_id is not None:
+                raise ValidationError({"cycle": "An epic does not join a cycle."})
         if self.size is not None and self.size not in self.SIZE_VALUES:
             raise ValidationError({"size": "Size must be one of 1, 2, 3, 5, 8, 13."})
         if self.status not in self.STATUS_VALUES:

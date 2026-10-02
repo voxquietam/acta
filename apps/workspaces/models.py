@@ -144,6 +144,15 @@ class Workspace(models.Model):
         ),
     )
 
+    epics_enabled = models.BooleanField(
+        default=True,
+        help_text=(
+            "When true (default), the workspace can group tasks under epics: the Epics tab, "
+            "the Epic row on a task and the pickers appear. Turning it off hides the feature "
+            "and refuses new epics; existing epics keep their tasks and come back on re-enable"
+        ),
+    )
+
     allow_member_announcements = models.BooleanField(
         default=False,
         help_text=(
