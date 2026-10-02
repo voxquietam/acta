@@ -112,10 +112,17 @@ all until a reload.
           {% endif %}
         </span>
 
+        {# Three prefixes fit; past that a "+N" says there are more #}
+        {# without shrinking every one of them to a single letter.   #}
         <span class="flex items-center gap-1.5 min-w-0 font-mono text-[10px]">
-          {% for project in epic.projects %}
-          <span class="{{ project.icon_color_class }} truncate">{{ project.slug_prefix }}</span>
+          {% for project in epic.projects|slice:":3" %}
+          <span class="{{ project.icon_color_class }}">{{ project.slug_prefix }}</span>
           {% endfor %}
+          {% if epic.projects|length > 3 %}
+          <span class="text-placeholder-foreground" title="{% for p in epic.projects %}{{ p.name }}{% if not forloop.last %}, {% endif %}{% endfor %}">
+            +{{ epic.projects|length|add:"-3" }}
+          </span>
+          {% endif %}
         </span>
 
         <span class="flex items-center gap-2 min-w-0">

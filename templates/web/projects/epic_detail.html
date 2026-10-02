@@ -45,7 +45,9 @@ by default. Expects ``epic_columns`` / ``epic_projects`` / ``epic_done``
 {% endblock %}
 
 {% block app_main %}
-<span class="hidden" data-acta-track-recent
+{# ``data-acta-epic``: read by the global create opener so ``c`` and the #}
+{# topbar "+" file a new task into the epic you are looking at.          #}
+<span class="hidden" data-acta-epic="{{ task.slug }}" data-acta-track-recent
       data-task-slug="{{ task.slug }}"
       data-task-title="{{ task.title }}"
       data-task-project="{{ task.project.name }}"

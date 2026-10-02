@@ -2493,8 +2493,17 @@
     const shell = document.querySelector("[data-create-task-url]");
     if (!shell || !window.htmx) return;
     let url = shell.dataset.createTaskUrl;
-    const m = window.location.pathname.match(/^\/projects\/([^/]+)\//);
-    if (m) url += (url.includes("?") ? "&" : "?") + "project=" + encodeURIComponent(m[1]);
+    const add = (key, value) => {
+      url += (url.includes("?") ? "&" : "?") + key + "=" + encodeURIComponent(value);
+    };
+    // ``/projects/<slug>/…`` with or without the workspace segment in
+    // front of it — both shapes reach the same pages.
+    const m = window.location.pathname.match(/^(?:\/[^/]+)?\/projects\/([^/]+)\//);
+    if (m) add("project", m[1]);
+    // Inside an epic, a new task belongs to that epic: the page carries
+    // its slug on the marker the recents tracker already ships.
+    const epic = document.querySelector("[data-acta-epic]");
+    if (epic && epic.dataset.actaEpic) add("epic", epic.dataset.actaEpic);
     // Object form is the documented htmx 2.x signature for target+swap;
     // bare-string target works in practice but the explicit form is
     // less surprising when you read the code later.

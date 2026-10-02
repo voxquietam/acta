@@ -427,3 +427,35 @@ class TestTheWorkspaceSwitch:
         client.force_login(user)
         resp = client.get(f"/{workspace.slug}/epics/")
         assert [e.pk for e in resp.context["epics"]] == [epic.pk]
+
+
+@pytest.mark.django_db
+class TestCreatingFromInsideAnEpic:
+    """``c`` and the topbar "+" file into the epic you are looking at."""
+
+    def test_the_epic_page_carries_the_marker(self, client, setup):
+        _, _, user, epic = setup
+        client.force_login(user)
+        body = client.get(f"/projects/{epic.project.slug_prefix}/{epic.number}/").content.decode()
+        # The opener reads this rather than parsing the URL — an epic is
+        # a task page like any other, so the path cannot say which.
+        assert f'data-acta-epic="{epic.slug}"' in body
+
+    def test_a_plain_task_page_carries_no_marker(self, client, setup):
+        _, project, user, _ = setup
+        task = TaskFactory(project=project)
+        client.force_login(user)
+        body = client.get(f"/projects/{project.slug_prefix}/{task.number}/").content.decode()
+        assert "data-acta-epic" not in body
+
+    def test_the_dialog_honours_the_prefill(self, client, setup):
+        _, project, user, epic = setup
+        client.force_login(user)
+        body = client.get("/tasks/new/", {"project": project.slug_prefix, "epic": epic.slug}).content.decode()
+        payload = __import__("json").loads(
+            __import__("re")
+            .search(r'<script id="create-task-data" type="application/json">(.*?)</script>', body, __import__("re").S)
+            .group(1),
+        )
+        row = next(f for f in payload["fields"] if f["key"] == "epic")
+        assert row["value"]["v"] == epic.slug
