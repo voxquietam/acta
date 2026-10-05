@@ -1600,11 +1600,18 @@ class MyWorkView(LoginRequiredMixin, TemplateView):
         # Keep the recently_done bucket visible on the deadline axis
         # even when empty — preserves the inbox layout My Work shipped
         # with from day one.
+        # Built from the axes the picker actually offers, not from a
+        # hand-written four: ``_optional_axes`` appends ``cycle`` and
+        # ``epic`` where the workspace runs them, and a key missing here
+        # is a tab that renders nothing at all when picked.
         ctx["list_sections_by_axis"] = {
-            "deadline": group_tasks(tasks, "deadline", request_user=self.request.user, keep_empty={"recently_done"}),
-            "status": group_tasks(tasks, "status", request_user=self.request.user),
-            "priority": group_tasks(tasks, "priority", request_user=self.request.user),
-            "project": group_tasks(tasks, "project", request_user=self.request.user),
+            key: group_tasks(
+                tasks,
+                key,
+                request_user=self.request.user,
+                keep_empty={"recently_done"} if key == "deadline" else (),
+            )
+            for key in list_axis_keys
         }
         # Personal WIP: flag the statuses where the current user holds more
         # than their per-person workspace limit, so the status-axis section

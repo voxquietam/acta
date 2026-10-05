@@ -341,3 +341,32 @@ class TestMyWorkQueryCount:
         # 30 is a generous safe margin and catches accidental
         # serializer / template N+1 regressions.
         assert len(ctx.captured_queries) < 30, f"Got {len(ctx.captured_queries)} queries for 15 tasks — N+1 regression."
+
+
+@pytest.mark.django_db
+class TestEveryOfferedAxisGroups:
+    """A picker that offers an axis has to have sections for it.
+
+    My Work built its sections from a hand-written four while the picker
+    was built from ``_optional_axes`` — so "Group by: Epic" (and Cycle,
+    where cadence runs) rendered an empty page: the tab was offered and
+    answered with nothing.
+    """
+
+    def test_the_epic_axis_is_offered_and_filled(self, client, setup):
+        user, project = setup
+        epic = TaskFactory(project=project, kind=Task.KIND_EPIC, status=Task.STATUS_PLANNED, title="Billing")
+        TaskFactory(project=project, assignee=user, epic=epic, status=Task.STATUS_TODO)
+        client.force_login(user)
+        resp = client.get("/my-work/", {"axis": "epic"})
+        assert resp.context["list_axis"] == "epic"
+        sections = resp.context["list_sections_by_axis"]["epic"]
+        assert [s["label"] for s in sections if s["tasks"]] == ["Billing"]
+
+    def test_every_key_the_picker_offers_has_sections(self, client, setup):
+        user, project = setup
+        TaskFactory(project=project, assignee=user)
+        client.force_login(user)
+        resp = client.get("/my-work/")
+        offered = {option["key"] for option in resp.context["list_axis_options"]}
+        assert offered <= set(resp.context["list_sections_by_axis"])
