@@ -41,11 +41,17 @@ out of ``Task.epic_members`` — it is not work any more. Expects
 
 {% block app_main %}
 {% comment %}
+Owner lives in the avatar strip, not in the dock — same split as every
+other list, so the control is the one already learned. Its chips write
+into the same filter form the dock does.
+{% endcomment %}
+{% comment %}
 Refetches itself when a task is created, changed or bulk-edited: every
 number on this page is read off the tasks, so an epic's row goes stale
 the moment one of them moves — and a brand-new epic would not appear at
 all until a reload.
 {% endcomment %}
+{% if epics_enabled %}{% include "web/_assignee_strip.html" %}{% endif %}
 <div class="h-full overflow-y-auto"
      hx-get="{{ request.path }}"
      hx-trigger="acta:task-created from:body, acta:task-changed from:body, acta:bulk-changed from:body"
@@ -89,7 +95,7 @@ all until a reload.
       </span>
     </div>
 
-    <div class="acta-epic-table border border-border rounded-lg overflow-hidden">
+    <div data-filter-ignore-backlog class="acta-epic-table border border-border rounded-lg overflow-hidden">
       <div class="acta-epic-row acta-epic-head text-[10px] uppercase tracking-wider text-placeholder-foreground">
         <span>{% trans "Epic" %}</span>
         <span>{% trans "Projects" %}</span>
@@ -99,8 +105,15 @@ all until a reload.
         <span></span>
       </div>
 
+      {% comment %}
+      ``task_filter_attrs`` is what the dock filters on — an epic is a
+      task, so the same attributes make the same client-side pass work
+      here without a line of new JS. The axes an epic has no field for
+      are not offered (see ``epics_overview``).
+      {% endcomment %}
       {% for epic in epics %}
-      <a href="{% task_url epic %}" class="acta-epic-row hover:bg-muted/40 transition">
+      <a href="{% task_url epic %}" data-task-id="{{ epic.id }}" {% task_filter_attrs epic %}
+         class="acta-epic-row hover:bg-muted/40 transition">
         <span class="flex items-center gap-2 min-w-0">
           {% lucide "square-kanban" "w-3.5 h-3.5 shrink-0 text-placeholder-foreground" %}
           <span class="font-mono text-[11px] text-placeholder-foreground shrink-0">{{ epic.slug }}</span>
@@ -160,4 +173,10 @@ all until a reload.
 
   </div>
 </div>
+{% comment %}
+Same dock as the other views, so the controls and the hotkeys are the
+ones already learned. The rows carry ``task_filter_attrs``, which is all
+the client-side pass needs.
+{% endcomment %}
+{% if epics_enabled %}{% include "web/_filter_dock.html" %}{% endif %}
 {% endblock %}

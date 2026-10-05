@@ -711,6 +711,10 @@ def filter_sidebar_context(
     hide_assignee=False,
     hide_project=False,
     hide_status=False,
+    hide_priority=False,
+    hide_size=False,
+    hide_cycle=False,
+    hide_date=False,
     hide_my_projects_toggle=False,
     show_backlog_toggle=False,
     backlog_tab_aware=True,
@@ -734,10 +738,14 @@ def filter_sidebar_context(
         request: The active ``HttpRequest``.
         available_projects / labels: Optional querysets / lists. If
             ``None``, computed (scoped to the active workspace).
-        hide_assignee / hide_project / hide_status:
-            Sections the sidebar should not render (e.g. assignee on
-            My Work, status on kanban view where columns already group
-            by status).
+        hide_assignee / hide_project / hide_status / hide_priority /
+        hide_size / hide_cycle / hide_date:
+            Sections the dock should not render — either because the page
+            already groups by that axis (status on kanban), or because the
+            rows it filters have no such field. The Epics tab is the
+            second case: an epic derives its status from its tasks and has
+            no size, cycle or deadline of its own, so offering those would
+            be a filter that lies.
         backlog_tab_aware: Whether the page has a Backlog view-mode tab.
             When ``True`` (All Tasks, project detail) the "Show backlog"
             toggle hides itself while that tab is active, since it would
@@ -917,6 +925,10 @@ def filter_sidebar_context(
         "filter_hide_assignee": hide_assignee,
         "filter_hide_project": hide_project,
         "filter_hide_status": hide_status,
+        "filter_hide_priority": hide_priority,
+        "filter_hide_size": hide_size,
+        "filter_hide_cycle": hide_cycle,
+        "filter_hide_date": hide_date,
         "project_facets": project_facets,
         "assignee_facets": assignee_facets,
         "assignee_facet_me": assignee_facet_me,
@@ -1077,23 +1089,24 @@ def build_filter_dock_data(ctx, *, request=None):
             ],
         )
 
-    field(
-        "priority",
-        "Priority",
-        "flag",
-        "p",
-        [
-            {
-                "v": str(value),
-                "n": str(label),
-                "c": _DOCK_PRIORITY_COLORS.get(value, "#71717a"),
-                "square": True,
-                "in": value in ctx["selected_priorities"],
-                "ex": value in ctx["excluded_priorities"],
-            }
-            for value, label in ctx["priority_labels"].items()
-        ],
-    )
+    if not ctx.get("filter_hide_priority"):
+        field(
+            "priority",
+            "Priority",
+            "flag",
+            "p",
+            [
+                {
+                    "v": str(value),
+                    "n": str(label),
+                    "c": _DOCK_PRIORITY_COLORS.get(value, "#71717a"),
+                    "square": True,
+                    "in": value in ctx["selected_priorities"],
+                    "ex": value in ctx["excluded_priorities"],
+                }
+                for value, label in ctx["priority_labels"].items()
+            ],
+        )
 
     field(
         "label",
@@ -1135,7 +1148,7 @@ def build_filter_dock_data(ctx, *, request=None):
             ],
         )
 
-    cycles = ctx.get("available_cycles") or []
+    cycles = [] if ctx.get("filter_hide_cycle") else (ctx.get("available_cycles") or [])
     if cycles:
         options = [{"v": "active", "n": "Active cycle", "in": "active" in ctx["selected_cycles"], "ex": False}]
         options += [
@@ -1150,34 +1163,36 @@ def build_filter_dock_data(ctx, *, request=None):
         options.append({"v": "backlog", "n": "Backlog", "in": "backlog" in ctx["selected_cycles"], "ex": False})
         field("cycle", "Cycle", "iteration-cw", "c", options, exclude=False)
 
-    field(
-        "size",
-        "Size",
-        "gauge",
-        "z",
-        [
-            {
-                "v": str(value),
-                "n": str(value),
-                "in": value in ctx["selected_sizes"],
-                "ex": value in ctx["excluded_sizes"],
-            }
-            for value in ctx.get("size_values") or []
-        ],
-    )
+    if not ctx.get("filter_hide_size"):
+        field(
+            "size",
+            "Size",
+            "gauge",
+            "z",
+            [
+                {
+                    "v": str(value),
+                    "n": str(value),
+                    "in": value in ctx["selected_sizes"],
+                    "ex": value in ctx["excluded_sizes"],
+                }
+                for value in ctx.get("size_values") or []
+            ],
+        )
 
     # The date axis is the one the design simplified: six fields with a
     # from / to pair each became a handful of presets. They still write
     # the old triple, so nothing downstream had to learn a new shape.
-    field(
-        "date",
-        "Date",
-        "calendar",
-        "d",
-        [{**preset, "in": False, "ex": False} for preset in DOCK_DATE_PRESETS],
-        exclude=False,
-        single=True,
-    )
+    if not ctx.get("filter_hide_date"):
+        field(
+            "date",
+            "Date",
+            "calendar",
+            "d",
+            [{**preset, "in": False, "ex": False} for preset in DOCK_DATE_PRESETS],
+            exclude=False,
+            single=True,
+        )
 
     return {
         "fields": fields,

@@ -731,11 +731,15 @@
     // the status filter explicitly selects them (mirrors server _filter_backlog)
     // OR the row is on the Backlog tab, which always shows planned / ready
     // regardless of the toggle (that's the tab's whole purpose).
+    // ``[data-filter-ignore-backlog]`` is the same opt-out for a list whose
+    // rows are not work in a status: an epic stores ``planned`` and shows a
+    // status derived from its tasks, so the backlog toggle would empty the
+    // Epics tab for a reason no one could see.
     if (
       !state.showBacklog &&
       (s === "planned" || s === "ready") &&
       !state.status.has(s) &&
-      !row.closest('[data-panel-slot="backlog"]')
+      !row.closest('[data-panel-slot="backlog"], [data-filter-ignore-backlog]')
     ) {
       return false;
     }
@@ -4611,7 +4615,10 @@ window.actaFilterDock = function actaFilterDock() {
       });
       const total = rows.length;
       if (!total) return "";
-      return this.chips.length ? `${shown} of ${total}` : `${total} tasks`;
+      // The Epics tab filters epics, not tasks; the noun rides on the
+      // dock element so the count does not misname what it counted.
+      const noun = this.$root.dataset.dockNoun || "tasks";
+      return this.chips.length ? `${shown} of ${total}` : `${total} ${noun}`;
     },
 
     get suggestions() {
@@ -4620,7 +4627,10 @@ window.actaFilterDock = function actaFilterDock() {
         { key: "not-done", icon: "circle-dashed", name: "Not done", field: "status", exclude: ["done", "cancelled"] },
         { key: "due-week", icon: "calendar-clock", name: "Due this week", field: "date", value: "due-week" },
         { key: "urgent", icon: "chevrons-up", name: "Urgent", field: "priority", value: "1" },
-      ];
+        // Only for axes this page actually offers: the Epics tab drops
+        // status, priority and date, and a shortcut to a filter that does
+        // not exist there would do nothing twice over.
+      ].filter((s) => this.fields.some((f) => f.key === s.field));
     },
 
     // ---- popovers -------------------------------------------------------

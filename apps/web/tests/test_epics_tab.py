@@ -459,3 +459,51 @@ class TestCreatingFromInsideAnEpic:
         )
         row = next(f for f in payload["fields"] if f["key"] == "epic")
         assert row["value"]["v"] == epic.slug
+
+
+@pytest.mark.django_db
+class TestTheFilterDock:
+    """The tab filters on the axes an epic actually has, and no others.
+
+    An epic stores ``planned`` while showing a status derived from its
+    tasks, and it has no size, cycle or deadline at all — so offering
+    those would be a filter that answers with an empty page for a reason
+    nobody could see.
+    """
+
+    def _fields(self, client, workspace):
+        resp = client.get(f"/{workspace.slug}/epics/")
+        return {f["key"] for f in resp.context["filter_dock"]["fields"]}
+
+    def test_the_dock_drops_the_axes_an_epic_has_no_field_for(self, client, setup):
+        workspace, _, user, _ = setup
+        client.force_login(user)
+        offered = self._fields(client, workspace)
+        assert not offered & {"status", "priority", "size", "cycle", "date"}
+
+    def test_it_keeps_the_axes_an_epic_does_have(self, client, setup):
+        workspace, _, user, _ = setup
+        client.force_login(user)
+        assert "project" in self._fields(client, workspace)
+
+    def test_filtering_by_project_narrows_the_list(self, client, setup):
+        workspace, project, user, epic = setup
+        other = ProjectFactory(workspace=workspace, slug_prefix="OTH")
+        elsewhere = TaskFactory(project=other, kind=Task.KIND_EPIC, status=Task.STATUS_PLANNED)
+        client.force_login(user)
+        resp = client.get(f"/{workspace.slug}/epics/", {"project": other.id})
+        assert [e.pk for e in resp.context["epics"]] == [elsewhere.pk]
+
+    def test_the_backlog_toggle_cannot_empty_the_tab(self, client, setup):
+        """Every epic stores ``planned``; honouring the toggle would hide them all."""
+        workspace, _, user, epic = setup
+        client.force_login(user)
+        resp = client.get(f"/{workspace.slug}/epics/", {"show_backlog": "0"})
+        assert [e.pk for e in resp.context["epics"]] == [epic.pk]
+
+    def test_the_rows_carry_what_the_client_pass_reads(self, client, setup):
+        workspace, _, user, epic = setup
+        client.force_login(user)
+        body = client.get(f"/{workspace.slug}/epics/").content.decode()
+        assert f'data-task-id="{epic.pk}"' in body
+        assert "data-filter-ignore-backlog" in body

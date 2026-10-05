@@ -6438,7 +6438,7 @@ EPIC_PAUSED_AFTER_DAYS = 14
 EPIC_BOARD_STATUSES = Task.KANBAN_STATUS_VALUES
 
 
-def _epic_rows(workspace):
+def _epic_rows(workspace, params=None, *, user=None):
     """Return the workspace's epics with everything the tab shows.
 
     Two queries for the whole page: the epics, and their tasks. The
@@ -6448,18 +6448,29 @@ def _epic_rows(workspace):
 
     Args:
         workspace: The :class:`Workspace` whose epics to list.
+        params: The request's querystring, when the tab's filter dock is
+            in play. Only the axes an epic has are offered there, and
+            ``show_backlog`` is dropped: an epic stores ``planned`` while
+            showing a status derived from its tasks, so that toggle would
+            empty the page for a reason nobody could see.
+        user: Acting user, for the ``assignee=me`` shortcut.
 
     Returns:
         Epics ordered by how long they have been quiet, longest first,
         each carrying ``member_done`` / ``member_total`` / ``done_pct`` /
         ``projects`` / ``blocked`` / ``last_done`` / ``paused`` / span.
     """
-    epics = list(
+    qs = (
         Task.objects.epics()
         .filter(project__workspace=workspace, archived_at__isnull=True)
         .select_related("project", "assignee")
-        .order_by("-updated_at"),
+        .order_by("-updated_at")
     )
+    if params is not None:
+        cleaned = params.copy()
+        cleaned.pop("show_backlog", None)
+        qs = apply_task_filters(qs, cleaned, request_user=user)
+    epics = list(qs)
     if not epics:
         return []
     members = list(
@@ -6519,8 +6530,23 @@ def epics_overview(request):
         {
             "workspace": workspace,
             "epics_enabled": enabled,
-            "epics": _epic_rows(workspace) if enabled else [],
+            "epics": _epic_rows(workspace, request.GET, user=request.user) if enabled else [],
             "paused_after_days": EPIC_PAUSED_AFTER_DAYS,
+            # The dock, minus the axes an epic does not have one of: its
+            # status is derived from its tasks, and size, cycle and
+            # deadline it never carries at all. Offering them would be a
+            # filter that answers with an empty page and no reason.
+            **filter_sidebar_context(
+                request,
+                hide_status=True,
+                hide_priority=True,
+                hide_size=True,
+                hide_cycle=True,
+                hide_date=True,
+                form_url=reverse("web:epics_overview"),
+                htmx_target="#epics-body",
+            ),
+            "filter_dock_noun": "epics",
         },
     )
 

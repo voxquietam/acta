@@ -32,7 +32,8 @@ someone twice.
 
 {{ filter_dock|json_script:"filter-dock-data" }}
 
-<div class="acta-dock-wrap" x-data="actaFilterDock()" data-sprite="{% static 'sprites/lucide.svg' %}" x-cloak>
+<div class="acta-dock-wrap" x-data="actaFilterDock()" data-sprite="{% static 'sprites/lucide.svg' %}"
+     data-dock-noun="{{ filter_dock_noun|default:'tasks' }}" x-cloak>
 
   <form id="filter-form"
         method="get"
