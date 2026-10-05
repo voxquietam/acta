@@ -548,9 +548,20 @@ def task_get(user: User, arguments: dict[str, Any]) -> Any:
                 "status": task.epic_status,
                 "start_date": task.epic_span[0].isoformat() if task.epic_span[0] else None,
                 "end_date": task.epic_span[1].isoformat() if task.epic_span[1] else None,
+                # The members, with who is carrying each — the same
+                # fields ``subtasks`` below carries, so a caller does not
+                # have to fetch every task to learn who is on them.
                 "tasks": [
-                    {"slug": m.slug, "title": m.title, "status": m.status, "project": m.project.slug_prefix}
-                    for m in task.epic_members().select_related("project").order_by("project__slug_prefix", "number")
+                    {
+                        "slug": m.slug,
+                        "title": m.title,
+                        "status": m.status,
+                        "project": m.project.slug_prefix,
+                        "assignee_username": m.assignee.username if m.assignee_id else None,
+                    }
+                    for m in task.epic_members()
+                    .select_related("project", "assignee")
+                    .order_by("project__slug_prefix", "number")
                 ],
             }
             if task.kind == Task.KIND_EPIC

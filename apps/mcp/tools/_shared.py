@@ -204,7 +204,12 @@ def serialize_task_summary(task: Task) -> dict[str, Any]:
         "slug": task.slug,
         "url": task_url(task),
         "title": task.title,
-        "status": task.status,
+        # Always present, including on a plain task: without it the
+        # caller cannot tell a conversion that happened from one that was
+        # ignored, which is how a silent no-op gets reported as success.
+        "kind": task.kind,
+        "epic_slug": task.epic.slug if task.epic_id else None,
+        "status": task.epic_status if task.kind == Task.KIND_EPIC else task.status,
         "priority": task.priority,
         "size": task.size,
         "start_date": task.start_date.isoformat() if task.start_date else None,
