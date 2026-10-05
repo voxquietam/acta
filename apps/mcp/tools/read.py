@@ -895,7 +895,13 @@ TOOLS: list[Tool] = [
             "comments: [{id, author_username, author_display_name, body, created_at, "
             "updated_at, edited}], "
             "activity: [{id, event_type, target_type, target_id, actor_username, "
-            "actor_display_name, payload, created_at}]}``."
+            "actor_display_name, payload, created_at}]}``. "
+            "``epic_slug`` names the epic holding this task, if any. On an EPIC the "
+            "``epic`` block carries its whole state: ``{done, total, status, start_date, "
+            "end_date, tasks}`` — all computed from the work it collects, and ``tasks`` "
+            "IS the member list, one entry per task it holds "
+            "``{slug, title, status, project, assignee_username}``. A plain task has "
+            "``epic: null``."
         ),
         inputSchema={
             "type": "object",

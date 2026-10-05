@@ -18,6 +18,7 @@ from mcp.types import Tool
 from apps.accounts.models import User
 from apps.mcp.tools._shared import (
     FakeRequest,
+    as_cleared,
     is_workspace_admin,
     resolve_project,
     resolve_task,
@@ -269,7 +270,7 @@ def task_update(user: User, arguments: dict[str, Any]) -> Any:
     # a task that already HAS subtasks from being handed a parent — which
     # is only reachable on update, since a task is created childless.
     if "parent_slug" in args:
-        parent_value = args["parent_slug"]
+        parent_value = None if as_cleared(args["parent_slug"]) else args["parent_slug"]
         if parent_value is None:
             data["parent"] = None
         else:
@@ -287,7 +288,7 @@ def task_update(user: User, arguments: dict[str, Any]) -> Any:
     # ``parent_slug`` on purpose: a subtask keeps its parent and may
     # still belong to an epic. See docs/decisions/0036-epics.md.
     if "epic_slug" in args:
-        epic_value = args["epic_slug"]
+        epic_value = None if as_cleared(args["epic_slug"]) else args["epic_slug"]
         if epic_value is None:
             data["epic"] = None
         else:

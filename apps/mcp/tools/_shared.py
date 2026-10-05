@@ -134,6 +134,27 @@ def is_workspace_admin(user: User, workspace) -> bool:
     ).exists()
 
 
+def as_cleared(value):
+    """Return ``True`` when a nullable slug argument means "clear it".
+
+    JSON ``null`` is the documented way, and the one the schema declares.
+    Several MCP clients serialise it as the string ``"null"`` instead,
+    which used to come back as ``Invalid task slug: 'null'`` — a refusal
+    that reads like the caller's slug was wrong rather than their null.
+    Accepting the string costs nothing: a slug is ``PREFIX-NUMBER``, so
+    ``"null"`` can never name a real task.
+
+    Args:
+        value: The argument as the client sent it.
+
+    Returns:
+        ``True`` for ``None``, an empty string, ``"null"`` or ``"none"``.
+    """
+    if value is None:
+        return True
+    return isinstance(value, str) and value.strip().lower() in {"", "null", "none"}
+
+
 def resolve_task(user: User, slug: str):
     """Look up a Task by ``PREFIX-NUMBER`` slug, scoped to the user's workspaces."""
     try:

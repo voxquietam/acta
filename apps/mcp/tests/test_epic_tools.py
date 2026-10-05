@@ -172,3 +172,44 @@ class TestTheConversions:
         TaskFactory(project=ProjectFactory(workspace=ws, slug_prefix="FAR"), epic=epic)
         with pytest.raises(ValueError):
             CALLABLES["acta_task_turn_into_task"](user, {"slug": epic.slug, "confirm": True})
+
+
+@pytest.mark.django_db
+class TestClearingASlugArgument:
+    """``null`` is the documented way out, but clients stringify it.
+
+    ``epic_slug: "null"`` used to come back as ``Invalid task slug:
+    'null'`` — a refusal that blames the caller's slug rather than their
+    serialiser. A slug is ``PREFIX-NUMBER``, so the string can never name
+    a task and costs nothing to accept.
+    """
+
+    @pytest.mark.parametrize("cleared", [None, "null", "none", "", "  "])
+    def test_every_spelling_of_nothing_takes_the_task_out(self, setup, cleared):
+        user, _, _, epic, member = setup
+        CALLABLES["acta_task_update"](user, {"slug": member.slug, "epic_slug": cleared})
+        member.refresh_from_db()
+        assert member.epic_id is None
+
+    def test_a_real_slug_still_files_it(self, setup):
+        user, _, project, epic, _ = setup
+        loose = TaskFactory(project=project)
+        CALLABLES["acta_task_update"](user, {"slug": loose.slug, "epic_slug": epic.slug})
+        loose.refresh_from_db()
+        assert loose.epic_id == epic.id
+
+    def test_a_wrong_slug_is_still_refused(self, setup):
+        """Leniency for nothing, none for a typo."""
+        user, _, project, _, _ = setup
+        loose = TaskFactory(project=project)
+        with pytest.raises(ValueError, match="Invalid task slug"):
+            CALLABLES["acta_task_update"](user, {"slug": loose.slug, "epic_slug": "nope"})
+
+    @pytest.mark.parametrize("cleared", [None, "null"])
+    def test_the_same_holds_for_parent_slug(self, setup, cleared):
+        user, _, project, _, _ = setup
+        parent = TaskFactory(project=project)
+        child = TaskFactory(project=project, parent=parent)
+        CALLABLES["acta_task_update"](user, {"slug": child.slug, "parent_slug": cleared})
+        child.refresh_from_db()
+        assert child.parent_id is None
