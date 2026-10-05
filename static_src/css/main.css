@@ -2108,6 +2108,13 @@ tr[data-vrow-hidden] {
   left: 0;
   top: 0;
   pointer-events: none;
+  /* Above the cards. They are appended to the stage after this layer and
+     carry no ``z-index`` of their own, so DOM order would decide — which
+     is fine while the label sits in the gap above the work, and wrong as
+     soon as the board zooms out: the label keeps its size, grows over the
+     cards, and disappears under them. It names the region; it goes on
+     top. */
+  z-index: 2;
 }
 .acta-gregion-label {
   position: absolute;
