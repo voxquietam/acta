@@ -65,6 +65,7 @@ from apps.tasks.events import broadcast_link_change, broadcast_task_events, emit
 from apps.tasks.metrics import compute_bottlenecks, compute_cfd, compute_flow_metrics
 from apps.tasks.models import Task
 from apps.tasks.search import search_tasks
+from apps.tasks.services import turn_epic_into_task, turn_task_into_epic
 from apps.web.create_dialog import build_create_task_data
 from apps.web.dashboard import DEFAULT_RANGE, build_dashboard_context
 from apps.web.exports import serialize_project_overview, serialize_tasks
@@ -4521,28 +4522,7 @@ def turn_into_task(request, slug_prefix, number):
         )
     if blockers:
         return HttpResponseBadRequest("; ".join(str(reason) for reason in blockers))
-    with transaction.atomic():
-        before = snapshot_task(task)
-        status = task.epic_status
-        task.kind = Task.KIND_TASK
-        task.status = status
-        task.save(update_fields=["kind", "status", "updated_at"])
-        if members:
-            Task.objects.filter(pk__in=[m.pk for m in members]).update(
-                parent=task,
-                epic=None,
-                updated_at=timezone.now(),
-            )
-        emit_task_diff_events(task=task, old_state=before, actor=request.user)
-        log_event(
-            workspace=task.project.workspace,
-            project=task.project,
-            actor=request.user,
-            event_type="task.turned_into_task",
-            target_type=ActivityLog.TARGET_TASK,
-            target_id=task.id,
-            payload={"title": task.title, "tasks": len(members)},
-        )
+    turn_epic_into_task(task, actor=request.user)
     response = HttpResponse(status=204)
     response["HX-Redirect"] = task_path(task)
     return response
@@ -4582,37 +4562,7 @@ def turn_into_epic(request, slug_prefix, number):
         )
     if blockers:
         return HttpResponseBadRequest("; ".join(str(reason) for reason in blockers))
-    with transaction.atomic():
-        before = snapshot_task(task)
-        task.kind = Task.KIND_EPIC
-        # Everything an epic derives from its tasks goes; the status
-        # starts at planned because an epic's is computed from here on.
-        task.due_date = None
-        task.size = None
-        task.cycle = None
-        task.epic = None
-        task.status = Task.STATUS_PLANNED
-        task.save(
-            update_fields=["kind", "due_date", "size", "cycle", "epic", "status", "updated_at"],
-        )
-        # Its subtasks become its first tasks: the hierarchy it had is
-        # exactly the work it collects.
-        if subtasks:
-            Task.objects.filter(pk__in=[s.pk for s in subtasks]).update(
-                parent=None,
-                epic=task,
-                updated_at=timezone.now(),
-            )
-        emit_task_diff_events(task=task, old_state=before, actor=request.user)
-        log_event(
-            workspace=task.project.workspace,
-            project=task.project,
-            actor=request.user,
-            event_type="task.turned_into_epic",
-            target_type=ActivityLog.TARGET_TASK,
-            target_id=task.id,
-            payload={"title": task.title, "tasks": len(subtasks)},
-        )
+    turn_task_into_epic(task, actor=request.user)
     response = HttpResponse(status=204)
     response["HX-Redirect"] = task_path(task)
     return response

@@ -396,6 +396,96 @@ def task_archive(user: User, arguments: dict[str, Any]) -> Any:
     return serialize_task_summary(task)
 
 
+def task_turn_into_epic(user: User, arguments: dict[str, Any]) -> Any:
+    """Turn an existing task into an epic.
+
+    Not a flag flip, which is why it asks: the task's subtasks become
+    the epic's first tasks, the fields an epic derives from its tasks
+    (deadline, size, cycle) are dropped and not kept anywhere, and the
+    task leaves the board for the Epics tab. Without ``confirm`` the
+    call changes nothing and answers with exactly what it would do —
+    the dialog the web has, in the only form a tool call can take.
+
+    The rules are :mod:`apps.web.views`', not a second copy: a check
+    that drifts from the one the UI enforces is worse than no check.
+
+    Returns:
+        ``{"would": {...}}`` without ``confirm``, or the task summary
+        after the change.
+
+    Raises:
+        ValueError: When the task cannot become an epic.
+    """
+    from apps.tasks.models import Task
+    from apps.tasks.services import turn_task_into_epic
+    from apps.web.views import _turn_into_epic_blockers
+
+    args = arguments or {}
+    slug = args.get("slug")
+    if not slug:
+        raise ValueError("Argument 'slug' is required.")
+    task = resolve_task(user, slug)
+    blockers = [str(reason) for reason in _turn_into_epic_blockers(task)]
+    if blockers:
+        raise ValueError(" ".join(blockers))
+    subtasks = list(task.subtasks.order_by("number"))
+    if not args.get("confirm"):
+        return {
+            "would": {
+                "slug": task.slug,
+                "become": "epic",
+                "tasks_from_subtasks": [t.slug for t in subtasks],
+                "dropped": [f for f in ("due_date", "size", "cycle") if getattr(task, f, None)],
+                "status_becomes": Task.STATUS_PLANNED,
+                "note": "Nothing changed. Call again with confirm=true to apply.",
+            },
+        }
+    turn_task_into_epic(task, actor=user)
+    return serialize_task_summary(task)
+
+
+def task_turn_into_task(user: User, arguments: dict[str, Any]) -> Any:
+    """Turn an epic back into a plain task, while there is a way back.
+
+    Its tasks become its subtasks again, so each has to be able to be
+    one: in the epic's own project and without subtasks of its own. It
+    is a conversion back, not an undo — what the first conversion
+    dropped was not kept and does not return.
+
+    Returns:
+        ``{"would": {...}}`` without ``confirm``, or the task summary
+        after the change.
+
+    Raises:
+        ValueError: When the epic cannot go back.
+    """
+    from apps.tasks.services import turn_epic_into_task
+    from apps.web.views import _turn_into_task_blockers
+
+    args = arguments or {}
+    slug = args.get("slug")
+    if not slug:
+        raise ValueError("Argument 'slug' is required.")
+    task = resolve_task(user, slug)
+    blockers = [str(reason) for reason in _turn_into_task_blockers(task)]
+    if blockers:
+        raise ValueError(" ".join(blockers))
+    members = list(task.epic_members().order_by("number"))
+    if not args.get("confirm"):
+        return {
+            "would": {
+                "slug": task.slug,
+                "become": "task",
+                "subtasks_from_tasks": [t.slug for t in members],
+                "status_becomes": task.epic_status,
+                "not_restored": ["due_date", "size", "cycle"],
+                "note": "Nothing changed. Call again with confirm=true to apply.",
+            },
+        }
+    turn_epic_into_task(task, actor=user)
+    return serialize_task_summary(task)
+
+
 _LINK_KINDS = ("blocks", "blocked_by", "related")
 
 
@@ -1009,6 +1099,64 @@ TOOLS: list[Tool] = [
                         "Parent task slug in the same project (e.g. ACTA-128), or null to promote "
                         "this task back to top level. Depth limit 1."
                     ),
+                },
+                "epic_slug": {
+                    "type": ["string", "null"],
+                    "description": (
+                        "Epic slug anywhere in the workspace, or null to take the task out of its "
+                        "epic. Unlike a parent, an epic may live in another project. To make this "
+                        "task BE an epic, use ``acta_task_turn_into_epic`` — there is no ``kind`` "
+                        "here, because that conversion moves subtasks and drops fields."
+                    ),
+                },
+            },
+            "required": ["slug"],
+            "additionalProperties": False,
+        },
+    ),
+    Tool(
+        name="acta_task_turn_into_epic",
+        description=(
+            "Turn an existing task into an epic. This is not a flag on the task — "
+            "``acta_task_update`` has no ``kind`` for exactly that reason. Three things "
+            "change together: the task's subtasks become the epic's first tasks, its "
+            "deadline, size and cycle are dropped (an epic takes those from its tasks and "
+            "nothing keeps the old values), and it leaves the board for the Epics tab. "
+            "Called without ``confirm`` it changes NOTHING and returns ``{would: {...}}`` "
+            "describing the result — show that to the user, then call again with "
+            "``confirm=true``. Refused for a task that is already an epic, is a subtask, "
+            "or sits in a workspace with epics turned off."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "slug": {"type": "string", "description": "Task slug, e.g. ACTA-128."},
+                "confirm": {
+                    "type": "boolean",
+                    "description": "Apply the change. Without it the call is a dry run.",
+                },
+            },
+            "required": ["slug"],
+            "additionalProperties": False,
+        },
+    ),
+    Tool(
+        name="acta_task_turn_into_task",
+        description=(
+            "Turn an epic back into a plain task. Allowed while its tasks can go back to "
+            "being its subtasks: every one of them in the epic's own project and none with "
+            "subtasks of its own. This is a conversion back, NOT an undo — the deadline, "
+            "size and cycle dropped when it became an epic are gone and do not return; the "
+            "task lands on the status its work adds up to. Called without ``confirm`` it "
+            "changes nothing and returns ``{would: {...}}``."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "slug": {"type": "string", "description": "Epic slug, e.g. BCK-214."},
+                "confirm": {
+                    "type": "boolean",
+                    "description": "Apply the change. Without it the call is a dry run.",
                 },
             },
             "required": ["slug"],
@@ -1705,6 +1853,8 @@ def project_create(user: User, arguments: dict[str, Any]) -> Any:
 CALLABLES: dict[str, Callable[[User, dict[str, Any]], Any]] = {
     "acta_task_create": task_create,
     "acta_task_update": task_update,
+    "acta_task_turn_into_epic": task_turn_into_epic,
+    "acta_task_turn_into_task": task_turn_into_task,
     "acta_task_archive": task_archive,
     "acta_task_link": task_link,
     "acta_task_unlink": task_unlink,
