@@ -42,21 +42,27 @@ class TaskQuerySet(models.QuerySet):
         One aggregate for the whole page: the Epics tab and the epic
         picker both show a percentage per epic, and walking
         ``epic_counts`` per row would be an N+1 over the entire
-        workspace. Cancelled and archived members are left out, matching
-        :meth:`Task.epic_members`.
+        workspace. Counts what :meth:`Task.epic_counted` counts — which
+        is NOT what :meth:`Task.epic_members` lists.
 
         Returns:
             The queryset with ``member_total`` and ``member_done``
             annotations.
         """
-        live = models.Q(epic_tasks__archived_at__isnull=True) & ~models.Q(
-            epic_tasks__status=Task.STATUS_CANCELLED,
+        # Finished work keeps counting after the auto-archive job files
+        # it away: dropping it would walk progress backwards with nothing
+        # having happened (1/3 → 0/2), and leave a finished epic reading
+        # 0/0. Unfinished work that was archived is shelved, not done, and
+        # stays out — that is the case the exclusion was written for.
+        live = models.Q(epic_tasks__archived_at__isnull=True) | models.Q(
+            epic_tasks__status=Task.STATUS_DONE,
         )
+        counted = live & ~models.Q(epic_tasks__status=Task.STATUS_CANCELLED)
         return self.annotate(
-            member_total=models.Count("epic_tasks", filter=live, distinct=True),
+            member_total=models.Count("epic_tasks", filter=counted, distinct=True),
             member_done=models.Count(
                 "epic_tasks",
-                filter=live & models.Q(epic_tasks__status=Task.STATUS_DONE),
+                filter=counted & models.Q(epic_tasks__status=Task.STATUS_DONE),
                 distinct=True,
             ),
         )
@@ -534,6 +540,29 @@ class Task(models.Model):
             return Task.objects.none()
         return self.epic_tasks.exclude(status=self.STATUS_CANCELLED).filter(archived_at__isnull=True)
 
+    def epic_counted(self):
+        """Return the tasks that count towards this epic's progress.
+
+        Deliberately not :meth:`epic_members`. That one answers "what is
+        on the board", and the board is live work. This one answers "how
+        much of the effort is done", and finished work does not stop
+        having happened when the auto-archive job files it away — losing
+        it would walk the counter backwards (1/3 → 0/2) with nothing
+        having changed, and leave a finished epic reading 0/0.
+
+        Cancelled work is out: it was never done and never will be.
+        Archived work that is *not* done is shelved, and counting it
+        would hold progress down for work nobody is doing.
+
+        Returns:
+            A queryset of :class:`Task`, empty for a non-epic.
+        """
+        if self.kind != self.KIND_EPIC:
+            return Task.objects.none()
+        return self.epic_tasks.exclude(status=self.STATUS_CANCELLED).filter(
+            models.Q(archived_at__isnull=True) | models.Q(status=self.STATUS_DONE),
+        )
+
     @property
     def epic_counts(self) -> tuple[int, int]:
         """Return ``(done, total)`` over the tasks this epic collects.
@@ -545,7 +574,7 @@ class Task(models.Model):
         Returns:
             A ``(done, total)`` pair; ``(0, 0)`` for a non-epic.
         """
-        members = list(self.epic_members())
+        members = list(self.epic_counted())
         return sum(1 for t in members if t.status == self.STATUS_DONE), len(members)
 
     @property
@@ -561,7 +590,9 @@ class Task(models.Model):
         Returns:
             One of :data:`STATUS_VALUES`.
         """
-        statuses = [t.status for t in self.epic_members()]
+        # Counted, not listed: an epic whose work is finished and filed
+        # away is done, not "planned" for want of anything on the board.
+        statuses = [t.status for t in self.epic_counted()]
         if not statuses:
             return self.STATUS_PLANNED
         if all(s == self.STATUS_DONE for s in statuses):

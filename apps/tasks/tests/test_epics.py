@@ -503,3 +503,89 @@ class TestTheApiAndMcpHideEpicsUnlessAsked:
         task_update(workspace.owner, {"slug": task.slug, "epic_slug": None})
         task.refresh_from_db()
         assert task.epic_id is None
+
+
+@pytest.mark.django_db
+class TestProgressSurvivesTheArchive:
+    """Finished work keeps counting after the auto-archive job files it.
+
+    The daily ``archive_stale_done_tasks`` job archives done tasks, and
+    while archived work was excluded outright, an epic's progress walked
+    backwards with nothing having happened — 1/3 became 0/2, and a
+    finished epic eventually read 0/0, which says "no tasks yet". What
+    an archive means is "filed away", not "never happened".
+    """
+
+    def _epic(self, project):
+        return TaskFactory(project=project, kind=Task.KIND_EPIC, status=Task.STATUS_PLANNED)
+
+    def test_an_archived_done_task_still_counts_on_both_sides(self, db):
+        from django.utils import timezone
+
+        project = ProjectFactory()
+        epic = self._epic(project)
+        TaskFactory(project=project, epic=epic, status=Task.STATUS_TODO)
+        TaskFactory(project=project, epic=epic, status=Task.STATUS_TODO)
+        TaskFactory(project=project, epic=epic, status=Task.STATUS_DONE, archived_at=timezone.now())
+        assert epic.epic_counts == (1, 3)
+
+    def test_archiving_a_finished_task_does_not_move_the_counter(self, db):
+        from django.utils import timezone
+
+        project = ProjectFactory()
+        epic = self._epic(project)
+        done = TaskFactory(project=project, epic=epic, status=Task.STATUS_DONE)
+        TaskFactory(project=project, epic=epic, status=Task.STATUS_TODO)
+        before = epic.epic_counts
+        done.archived_at = timezone.now()
+        done.save(update_fields=["archived_at"])
+        assert epic.epic_counts == before == (1, 2)
+
+    def test_a_fully_archived_epic_reads_done_not_empty(self, db):
+        from django.utils import timezone
+
+        project = ProjectFactory()
+        epic = self._epic(project)
+        for _ in range(2):
+            TaskFactory(project=project, epic=epic, status=Task.STATUS_DONE, archived_at=timezone.now())
+        assert epic.epic_counts == (2, 2)
+        assert epic.epic_status == Task.STATUS_DONE
+
+    def test_archived_but_unfinished_work_stays_out(self, db):
+        """Shelved, not done — counting it holds progress down forever."""
+        from django.utils import timezone
+
+        project = ProjectFactory()
+        epic = self._epic(project)
+        TaskFactory(project=project, epic=epic, status=Task.STATUS_DONE)
+        TaskFactory(project=project, epic=epic, status=Task.STATUS_TODO, archived_at=timezone.now())
+        assert epic.epic_counts == (1, 1)
+
+    def test_cancelled_work_counts_nowhere(self, db):
+        project = ProjectFactory()
+        epic = self._epic(project)
+        TaskFactory(project=project, epic=epic, status=Task.STATUS_DONE)
+        TaskFactory(project=project, epic=epic, status=Task.STATUS_CANCELLED)
+        assert epic.epic_counts == (1, 1)
+
+    def test_the_board_still_lists_only_live_work(self, db):
+        """Counted is not listed: an archived card must not come back."""
+        from django.utils import timezone
+
+        project = ProjectFactory()
+        epic = self._epic(project)
+        live = TaskFactory(project=project, epic=epic, status=Task.STATUS_TODO)
+        TaskFactory(project=project, epic=epic, status=Task.STATUS_DONE, archived_at=timezone.now())
+        assert [t.pk for t in epic.epic_members()] == [live.pk]
+        assert epic.epic_counted().count() == 2
+
+    def test_the_annotation_agrees_with_the_property(self, db):
+        """The tab annotates; a single epic uses the property. One rule."""
+        from django.utils import timezone
+
+        project = ProjectFactory()
+        epic = self._epic(project)
+        TaskFactory(project=project, epic=epic, status=Task.STATUS_DONE, archived_at=timezone.now())
+        TaskFactory(project=project, epic=epic, status=Task.STATUS_TODO)
+        row = Task.objects.epics().with_epic_rollup().get(pk=epic.pk)
+        assert (row.member_done, row.member_total) == epic.epic_counts == (1, 2)

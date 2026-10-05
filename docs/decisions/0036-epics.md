@@ -152,6 +152,31 @@ a kanban is a row that can never move on its own.
   migration" loses the project they belong to, which is the thing that
   says who maintains them afterwards.
 
+## Progress counts finished work, not live work
+
+An epic's progress is read off its tasks, and the first rule — "count
+what is on the board" — was wrong in a way that only showed up with
+time. The daily ``archive_stale_done_tasks`` job files done tasks away,
+and while archived work was excluded outright, a counter went
+**backwards with nothing having happened**: 1/3 became 0/2 when the
+finished task archived, and a fully delivered epic ended up reading 0/0,
+which the UI words as "no tasks yet".
+
+So the counted set is not the listed set:
+
+- **done** counts, archived or not — an archive is where finished work
+  is kept, not a statement that it never happened;
+- **cancelled** counts nowhere, as before;
+- **archived and not done** stays out — that is shelved work, and
+  counting it would hold progress down for work nobody is doing, which
+  is the case the original exclusion was written for.
+
+``Task.epic_counted`` is that set and ``Task.epic_members`` is the live
+one; the board, the panel and the member lists use the second, every
+counter and the computed status use the first. The property and the
+``with_epic_rollup`` annotation implement the same rule, and a test
+pins them to each other.
+
 ## How the region is drawn
 
 No polygon arithmetic anywhere. The figure is a padded rounded box per

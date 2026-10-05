@@ -460,7 +460,10 @@ def _graph_context(scope, *, user, workspace, include_all=False):
         rollup = {}
         for member in (
             Task.objects.work()
-            .filter(epic_id__in=epic_ids, archived_at__isnull=True)
+            # Done work still counts once the auto-archive job files it
+            # away — see ``Task.epic_counted``.
+            .filter(epic_id__in=epic_ids)
+            .filter(Q(archived_at__isnull=True) | Q(status=Task.STATUS_DONE))
             .exclude(status=Task.STATUS_CANCELLED)
             .values("epic_id", "project_id", "project__name")
             .annotate(
@@ -6425,7 +6428,10 @@ def _epic_rows(workspace, params=None, *, user=None):
         return []
     members = list(
         Task.objects.work()
-        .filter(epic__in=epics, archived_at__isnull=True)
+        # ``Task.epic_counted``'s rule: finished work keeps counting
+        # after it is archived, shelved work does not.
+        .filter(epic__in=epics)
+        .filter(Q(archived_at__isnull=True) | Q(status=Task.STATUS_DONE))
         .exclude(status=Task.STATUS_CANCELLED)
         .select_related("project")
         .prefetch_related("blocked_by"),
