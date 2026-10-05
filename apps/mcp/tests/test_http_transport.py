@@ -305,3 +305,60 @@ class TestTools:
         names = {ws["name"] for ws in payload}
         assert "VisibleToUser" in names
         assert "HiddenFromUser" not in names
+
+
+@pytest.mark.django_db
+class TestArgumentValidation:
+    """An argument the tool does not declare must fail, not be ignored.
+
+    This transport dispatches straight from ``CALLABLES``, so until the
+    guard went in, an unknown key reached the handler, was dropped, and
+    the call reported success: ``acta_task_update`` with ``kind="epic"``
+    answered 200 and converted nothing.
+    """
+
+    def test_an_undeclared_argument_is_refused(self, client, auth):
+        _, plain = auth
+        status, body = _post(
+            client,
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {"name": "acta_task_update", "arguments": {"slug": "ACTA-1", "kind": "epic"}},
+            },
+            token=plain,
+        )
+        assert status == 200
+        assert body["error"]["code"] == -32602
+        assert "does not take kind" in body["error"]["message"]
+
+    def test_the_refusal_lists_what_the_tool_does_take(self, client, auth):
+        _, plain = auth
+        status, body = _post(
+            client,
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": {"name": "acta_task_update", "arguments": {"slug": "ACTA-1", "epicSlug": "ACTA-2"}},
+            },
+            token=plain,
+        )
+        assert "epic_slug" in body["error"]["message"]
+
+    def test_a_declared_argument_still_goes_through(self, client, auth):
+        """The guard must not swallow a legitimate call."""
+        _, plain = auth
+        status, body = _post(
+            client,
+            {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "tools/call",
+                "params": {"name": "acta_tasks_list", "arguments": {"kind": "epic"}},
+            },
+            token=plain,
+        )
+        assert status == 200
+        assert "error" not in body

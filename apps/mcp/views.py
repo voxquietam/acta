@@ -40,7 +40,7 @@ from apps.mcp.auth import (
 )
 from apps.mcp.context import mcp_request_scope
 from apps.mcp.server import _PING_TOOL, ACTA_MCP_VERSION
-from apps.mcp.tools import CALLABLES, TOOLS
+from apps.mcp.tools import CALLABLES, TOOLS, reject_unknown_arguments
 
 # Protocol version we advertise back to the client during ``initialize``.
 # Matches what ``mcp_serve`` (stdio) negotiates so the two transports
@@ -189,6 +189,14 @@ async def _call_tool(session: AuthenticatedSession, params: dict, req_id: Any) -
     handler = CALLABLES.get(name)
     if handler is None:
         return _error(req_id, -32602, f"Unknown tool: {name!r}")
+
+    # -32602 is "invalid params", which is what an argument the tool does
+    # not declare is. Letting it through and ignoring it answered success
+    # for work never done.
+    try:
+        reject_unknown_arguments(name, arguments)
+    except ValueError as exc:
+        return _error(req_id, -32602, str(exc))
 
     try:
         payload = await sync_to_async(handler)(session.user, arguments)

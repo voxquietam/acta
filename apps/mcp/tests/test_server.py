@@ -68,6 +68,22 @@ class TestMcpServer:
         with pytest.raises(ValueError, match="Unknown tool"):
             asyncio.run(_invoke_call_tool(server, "acta.does_not_exist", {}))
 
+    def test_an_unknown_argument_never_reaches_the_tool(self, monkeypatch):
+        """Refused, whichever layer catches it.
+
+        On this transport the MCP SDK validates ``additionalProperties``
+        itself; over HTTP (:mod:`apps.mcp.views`) nothing did, which is
+        where ``kind`` on an update silently vanished. Either way the
+        call must not succeed — see ``test_http_transport`` for the
+        path that actually regressed.
+        """
+        user = UserFactory()
+        _, plain = ApiToken.generate(user=user, name="t")
+        monkeypatch.setenv("ACTA_API_TOKEN", plain)
+        server = build_server()
+        with pytest.raises(Exception, match="not allowed|does not take"):
+            asyncio.run(_invoke_call_tool(server, "acta_task_update", {"slug": "ACTA-1", "kind": "epic"}))
+
     def test_auth_failure_surfaces_to_client(self, monkeypatch):
         monkeypatch.delenv("ACTA_API_TOKEN", raising=False)
         server = build_server()
@@ -117,7 +133,7 @@ def _unwrap_error(call_tool_result):
     matching exception for the test assertion.
     """
     text = call_tool_result.content[0].text if call_tool_result.content else ""
-    if "Unknown tool" in text:
+    if "Unknown tool" in text or "does not take" in text:
         return ValueError(text)
     if "authentication failed" in text.lower():
         return RuntimeError(text)

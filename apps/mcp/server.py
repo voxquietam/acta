@@ -21,7 +21,7 @@ from mcp.types import TextContent, Tool
 from acta.version import get_version
 from apps.mcp.auth import AuthenticationError, RateLimitExceeded, authenticate_from_env, enforce_rate_limit
 from apps.mcp.context import mcp_request_scope
-from apps.mcp.tools import CALLABLES, TOOLS
+from apps.mcp.tools import CALLABLES, TOOLS, reject_unknown_arguments
 
 ACTA_MCP_VERSION = get_version()
 
@@ -92,6 +92,7 @@ def build_server() -> Server:
         handler = CALLABLES.get(name)
         if handler is None:
             raise ValueError(f"Unknown tool: {name!r}")
+        reject_unknown_arguments(name, args)
 
         # Tool callables hit Django ORM (sync), so jump out of the
         # async loop for the DB pass. The result is JSON-serialisable
