@@ -3246,8 +3246,13 @@ def _epic_board_context(epic, request):
         A context dict with the kanban ``columns`` plus the rollup, the
         date span, which projects carry the work, and the filter dock.
     """
+    # Archived members are always rendered and hidden by the client pass
+    # (``data-archived`` on the card, the dock's "Archived tasks" tick),
+    # so the toggle works without a round trip — the dock cancels those
+    # anyway. Scoped to one epic, this is a handful of extra cards, not
+    # the workspace's whole archive.
     members = list(
-        epic.epic_members()
+        epic.epic_members(include_archived=True)
         .select_related("project", "assignee")
         .prefetch_related("labels", "blocks", "blocked_by", "subtasks")
         .order_by("project__slug_prefix", "number"),
@@ -3255,8 +3260,12 @@ def _epic_board_context(epic, request):
     members.sort(key=lambda task: not task.is_blocked)
     # Which teams are carrying this, and how much each. The point of an
     # epic is that the answer spans projects, so the page says it.
+    # Counted, not drawn: the archived members ride along for the toggle,
+    # but the numbers follow ``Task.epic_counted`` — done work counts
+    # wherever it is filed, shelved work counts nowhere.
+    counted = [t for t in members if t.archived_at is None or t.status == Task.STATUS_DONE]
     by_project: dict[str, dict] = {}
-    for task in members:
+    for task in counted:
         row = by_project.setdefault(
             task.project.slug_prefix,
             {"project": task.project, "total": 0, "done": 0},
@@ -3303,7 +3312,9 @@ def _epic_board_context(epic, request):
         "project": epic.project,
         "wip_mode": None,
         "epic_projects": sorted(by_project.values(), key=lambda row: -row["total"]),
-        "epic_blocked_total": sum(1 for task in members if task.is_blocked),
+        # Archived work is not blocked, it is filed — counting it would
+        # put a red number on the page for work nobody is waiting on.
+        "epic_blocked_total": sum(1 for task in members if task.is_blocked and task.archived_at is None),
         "epic_done": done,
         "epic_total": total,
         "epic_pct": round(done / total * 100) if total else None,

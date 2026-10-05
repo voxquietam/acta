@@ -341,11 +341,18 @@ class TestEpicsAreAbsentWhereWorkIsCounted:
         assert epic.title not in body
 
     def test_my_work_leaves_the_epic_out(self, client, seeded):
+        """An epic is not work, so it is not a row — but it may well be a
+        heading: grouping by epic names it over the tasks it collects."""
         workspace, _, user, epic, task = seeded
         client.force_login(user)
-        body = client.get(f"/{workspace.slug}/my-work/").content.decode()
+        resp = client.get(f"/{workspace.slug}/my-work/")
+        body = resp.content.decode()
         assert task.title in body
-        assert epic.title not in body
+        assert f'data-task-id="{epic.pk}"' not in body
+        rows = [
+            t.pk for sections in resp.context["list_sections_by_axis"].values() for s in sections for t in s["tasks"]
+        ]
+        assert epic.pk not in rows
 
     def test_the_export_leaves_the_epic_out(self, client, seeded):
         import json

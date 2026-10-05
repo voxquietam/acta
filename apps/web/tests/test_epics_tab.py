@@ -613,3 +613,56 @@ class TestTheDetailsDrawer:
         body = client.get(f"/{workspace.slug}/epics/").content.decode()
         assert "epicDrawer.open" in body
         assert f'href="/{workspace.slug}/projects/{epic.project.slug_prefix}/{epic.number}/"' in body
+
+
+@pytest.mark.django_db
+class TestArchivedOnTheEpicBoard:
+    """The board carries its archived members so the toggle can show them.
+
+    The filter dock cancels its own round trip and filters in the browser,
+    so a row the server never sent cannot be revealed by flipping a
+    switch. An epic's archive is small — its own members — so the board
+    renders them and the client pass hides them until asked.
+    """
+
+    def _board(self, client, epic):
+        return client.get(f"/{epic.project.workspace.slug}/projects/{epic.project.slug_prefix}/{epic.number}/")
+
+    def test_an_archived_member_is_rendered_and_marked(self, client, setup):
+        from django.utils import timezone
+
+        _, project, user, epic = setup
+        gone = TaskFactory(
+            project=project, epic=epic, status=Task.STATUS_DONE, archived_at=timezone.now(), title="Filed away"
+        )
+        client.force_login(user)
+        body = self._board(client, epic).content.decode()
+        assert gone.slug in body
+        assert 'data-archived="1"' in body
+
+    def test_a_cancelled_member_is_not(self, client, setup):
+        """Cancelled is not filed away, it is not work at all."""
+        _, project, user, epic = setup
+        dropped = TaskFactory(project=project, epic=epic, status=Task.STATUS_CANCELLED, title="Dropped")
+        client.force_login(user)
+        assert dropped.slug not in self._board(client, epic).content.decode()
+
+    def test_the_numbers_ignore_shelved_work(self, client, setup):
+        """Rendered is not counted: archived-but-unfinished counts nowhere."""
+        from django.utils import timezone
+
+        _, project, user, epic = setup
+        TaskFactory(project=project, epic=epic, status=Task.STATUS_TODO, archived_at=timezone.now())
+        client.force_login(user)
+        resp = self._board(client, epic)
+        assert resp.context["epic_total"] == epic.epic_counts[1]
+
+    def test_an_archived_member_is_not_counted_as_blocked(self, client, setup):
+        from django.utils import timezone
+
+        _, project, user, epic = setup
+        blocker = TaskFactory(project=project, status=Task.STATUS_TODO)
+        stuck = TaskFactory(project=project, epic=epic, status=Task.STATUS_TODO, archived_at=timezone.now())
+        stuck.blocked_by.add(blocker)
+        client.force_login(user)
+        assert self._board(client, epic).context["epic_blocked_total"] == 0

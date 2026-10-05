@@ -3174,14 +3174,27 @@ button.acta-gepic-row:hover .acta-gepic-name {
   box-sizing: border-box;
   border-radius: 6px;
   border: 1px solid rgb(79 70 229 / 0.55);
-  background: rgb(79 70 229 / 0.18);
-  color: #c7cefd;
+  background: rgb(79 70 229 / 0.12);
+  /* Light first, dark overridden below — the convention the rest of the
+     file follows (see ``.acta-rail-active``). This chip had it the other
+     way round: a light periwinkle on a pale wash is invisible in the
+     light theme, which is where the label of an active filter matters
+     most. */
+  color: rgb(36 53 173); /* brand-700 */
   white-space: nowrap;
   overflow: hidden;
   flex-shrink: 0;
 }
 .acta-dock-chip.is-ex {
   border-color: rgb(244 63 94 / 0.4);
+  background: rgb(244 63 94 / 0.08);
+  color: rgb(159 18 57); /* rose-800 */
+}
+html.dark .acta-dock-chip {
+  background: rgb(79 70 229 / 0.18);
+  color: #c7cefd;
+}
+html.dark .acta-dock-chip.is-ex {
   background: rgb(244 63 94 / 0.1);
   color: #fda4af;
 }

@@ -526,19 +526,26 @@ class Task(models.Model):
     # no signal, so a cached rollup would go stale exactly when a lot of
     # tasks move at once. See docs/decisions/0036-epics.md.
 
-    def epic_members(self):
+    def epic_members(self, *, include_archived=False):
         """Return the tasks this epic collects, as a queryset.
 
-        Cancelled and archived tasks are left out: neither is work any
-        more, and counting them would hold an epic's progress down
-        forever.
+        The live work, which is what a board shows. Cancelled tasks are
+        never included — "won't do" is not work. Archived ones are out by
+        default and come back on request, the same way the rest of the
+        app treats the archive: filed away, not gone. Progress is counted
+        from a different set, :meth:`epic_counted`.
+
+        Args:
+            include_archived: Bring the archived members back, for the
+                board's "show archived" toggle.
 
         Returns:
             A queryset of :class:`Task`, empty for a non-epic.
         """
         if self.kind != self.KIND_EPIC:
             return Task.objects.none()
-        return self.epic_tasks.exclude(status=self.STATUS_CANCELLED).filter(archived_at__isnull=True)
+        members = self.epic_tasks.exclude(status=self.STATUS_CANCELLED)
+        return members if include_archived else members.filter(archived_at__isnull=True)
 
     def epic_counted(self):
         """Return the tasks that count towards this epic's progress.

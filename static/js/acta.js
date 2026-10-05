@@ -4627,7 +4627,10 @@ window.actaFilterDock = function actaFilterDock() {
       // The Epics tab filters epics, not tasks; the noun rides on the
       // dock element so the count does not misname what it counted.
       const noun = this.$root.dataset.dockNoun || "tasks";
-      return this.chips.length ? `${shown} of ${total}` : `${total} ${noun}`;
+      // "N of M" whenever anything is hidden, not only when a chip did
+      // the hiding: the scope toggles hide rows too, and the epic board
+      // renders its archived members for exactly that reason.
+      return shown === total ? `${total} ${noun}` : `${shown} of ${total}`;
     },
 
     get suggestions() {
