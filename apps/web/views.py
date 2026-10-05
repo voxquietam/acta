@@ -6461,9 +6461,40 @@ def _epic_rows(workspace, params=None, *, user=None):
         epic.last_done = max(closed) if closed else None
         epic.quiet_days = (today - timezone.localtime(epic.last_done).date()).days if epic.last_done else None
         epic.paused = epic.quiet_days is not None and epic.quiet_days > EPIC_PAUSED_AFTER_DAYS
-    # Quietest first: the epic nobody has touched is the one worth
-    # opening, and one that has never closed anything sorts with them.
-    return sorted(epics, key=lambda e: (0 if e.quiet_days is None else 1, -(e.quiet_days or 0)))
+    return _sort_epic_rows(epics, (params or {}).get("order") or "")
+
+
+#: Sort keys the Epics tab offers, mirroring the ``data-sort-*`` the rows
+#: carry and the comparators in acta.js. Missing values sort last in both.
+_EPIC_SORT_KEYS = {
+    "title": lambda e: (e.title or "").lower(),
+    "priority": lambda e: e.priority or 99,
+    "done": lambda e: e.done_pct or 0,
+    "dates": lambda e: (e.span_start is None, e.span_start or datetime.date.min),
+    "quiet": lambda e: (0 if e.quiet_days is None else 1, -(e.quiet_days or 0)),
+}
+
+
+def _sort_epic_rows(epics, order):
+    """Order the tab's rows, honouring ``?order=`` when it names a column.
+
+    The click itself is handled client-side (acta.js reshuffles in place),
+    so this runs for a cold load or a shared link — which must land on the
+    same order the click produced, or the URL lies about what it shows.
+
+    Args:
+        epics: The decorated rows.
+        order: The ``order`` querystring value; ``-`` prefix descends.
+
+    Returns:
+        The list, sorted. Falls back to quietest-first, which is the
+        column that earns the page: "5 of 22 done" does not say whether
+        an epic is moving, "26d ago" does.
+    """
+    key = _EPIC_SORT_KEYS.get(order.lstrip("-"))
+    if key is None:
+        return sorted(epics, key=_EPIC_SORT_KEYS["quiet"])
+    return sorted(epics, key=key, reverse=order.startswith("-"))
 
 
 @login_required
@@ -6492,10 +6523,11 @@ def epics_overview(request):
             # status is derived from its tasks, and size, cycle and
             # deadline it never carries at all. Offering them would be a
             # filter that answers with an empty page and no reason.
+            # Priority stays: it is the epic's own field, and the column
+            # on this page is the one answer to "which effort first".
             **filter_sidebar_context(
                 request,
                 hide_status=True,
-                hide_priority=True,
                 hide_size=True,
                 hide_cycle=True,
                 hide_date=True,

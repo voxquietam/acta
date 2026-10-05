@@ -479,12 +479,23 @@ class TestTheFilterDock:
         workspace, _, user, _ = setup
         client.force_login(user)
         offered = self._fields(client, workspace)
-        assert not offered & {"status", "priority", "size", "cycle", "date"}
+        assert not offered & {"status", "size", "cycle", "date"}
 
     def test_it_keeps_the_axes_an_epic_does_have(self, client, setup):
+        """Priority among them: it is stored on the epic, not derived,
+        and the tab shows it as the column that orders the efforts."""
         workspace, _, user, _ = setup
         client.force_login(user)
-        assert "project" in self._fields(client, workspace)
+        assert {"project", "priority"} <= self._fields(client, workspace)
+
+    def test_the_priority_column_is_rendered(self, client, setup):
+        workspace, _, user, epic = setup
+        epic.priority = 1
+        epic.save(update_fields=["priority"])
+        client.force_login(user)
+        body = client.get(f"/{workspace.slug}/epics/").content.decode()
+        assert "Urgent" in body
+        assert 'data-filter-name="priority"' in body
 
     def test_filtering_by_project_narrows_the_list(self, client, setup):
         workspace, project, user, epic = setup
@@ -507,3 +518,54 @@ class TestTheFilterDock:
         body = client.get(f"/{workspace.slug}/epics/").content.decode()
         assert f'data-task-id="{epic.pk}"' in body
         assert "data-filter-ignore-backlog" in body
+
+
+@pytest.mark.django_db
+class TestSorting:
+    """Clicking a header sorts client-side; the URL has to mean the same.
+
+    acta.js reshuffles the rows in place and pushes ``?order=`` — so a
+    reload or a shared link must land on that order, or the URL
+    describes something the page is not showing.
+    """
+
+    @pytest.fixture
+    def three(self, setup):
+        workspace, project, user, epic = setup
+        epic.title, epic.priority = "bbb", 3
+        epic.save(update_fields=["title", "priority"])
+        first = TaskFactory(project=project, kind=Task.KIND_EPIC, status=Task.STATUS_PLANNED, title="aaa", priority=1)
+        last = TaskFactory(project=project, kind=Task.KIND_EPIC, status=Task.STATUS_PLANNED, title="ccc", priority=0)
+        return workspace, user, [first, epic, last]
+
+    def _slugs(self, client, workspace, order=None):
+        resp = client.get(f"/{workspace.slug}/epics/", {"order": order} if order else {})
+        return [e.slug for e in resp.context["epics"]]
+
+    def test_by_title(self, client, three):
+        workspace, user, (a, b, c) = three
+        client.force_login(user)
+        assert self._slugs(client, workspace, "title") == [a.slug, b.slug, c.slug]
+
+    def test_descending_reverses_it(self, client, three):
+        workspace, user, (a, b, c) = three
+        client.force_login(user)
+        assert self._slugs(client, workspace, "-title") == [c.slug, b.slug, a.slug]
+
+    def test_no_priority_sorts_last_not_first(self, client, three):
+        """Priority 0 means "none", and none is not the most urgent."""
+        workspace, user, (a, b, c) = three
+        client.force_login(user)
+        assert self._slugs(client, workspace, "priority") == [a.slug, b.slug, c.slug]
+
+    def test_an_unknown_key_falls_back_to_the_default(self, client, three):
+        workspace, user, _ = three
+        client.force_login(user)
+        assert self._slugs(client, workspace, "nonsense") == self._slugs(client, workspace)
+
+    def test_the_headers_are_sortable_links(self, client, setup):
+        workspace, _, user, _ = setup
+        client.force_login(user)
+        body = client.get(f"/{workspace.slug}/epics/").content.decode()
+        assert 'data-sort-key="priority"' in body
+        assert "data-sort-root" in body

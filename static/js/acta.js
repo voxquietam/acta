@@ -2110,7 +2110,9 @@
     // ``clauses`` is an array of ``{key, dir}`` evaluated in order
     // (lexicographic on the first column, ties broken by the next,
     // and so on) — matches Django's multi-key ``order_by``.
-    const rows = Array.from(tbody.querySelectorAll("tr[data-task-id]"));
+    // Any row carrying an id: ``<tr>`` in the task table, ``<a>`` in a
+    // grid list like the Epics tab. Same comparators either way.
+    const rows = Array.from(tbody.querySelectorAll("[data-task-id]"));
     rows.sort((a, b) => {
       for (const { key, dir } of clauses) {
         const c = compareRows(a, b, key, dir);
@@ -2185,10 +2187,17 @@
     if (evt.button !== 0) return;
     const a = evt.target.closest("a[data-sort-key]");
     if (!a) return;
-    const root = a.closest("[data-task-list-root]");
+    // ``[data-sort-root]`` is the same contract without the task table:
+    // a list that sorts but has no <table> (and must not inherit the
+    // task root's SSE refetch) marks its rows container instead.
+    const root = a.closest("[data-task-list-root], [data-sort-root]");
     if (!root) return;
     const table = root.querySelector("table");
-    const tbody = table && table.querySelector("tbody");
+    // The rows container may BE the root (a grid list holds its rows
+    // directly), so match self before descendants.
+    const tbody =
+      (table && table.querySelector("tbody")) ||
+      (root.matches("[data-sort-rows]") ? root : root.querySelector("[data-sort-rows]"));
     if (!tbody) return;
     const clickedKey = a.getAttribute("data-sort-key");
     if (!clickedKey) return;
@@ -2203,18 +2212,18 @@
     const nextUrl = buildUrl(window.location.search, next.key, next.dir);
     if (next.key) {
       applyClientSort(tbody, [{ key: next.key, dir: next.dir }]);
-      refreshSortIndicators(table, next.key, next.dir);
+      refreshSortIndicators(table || root, next.key, next.dir);
     } else {
       // Cleared sort — re-apply the page's default ordering entirely
       // client-side. The server exposes it via
       // ``data-default-order`` on ``#task-table-root`` so we don't
       // have to round-trip just to undo a sort.
-      const tableRoot = root.querySelector("#task-table-root");
+      const tableRoot = root.querySelector("#task-table-root") || root;
       const defaultClauses = parseClauses(tableRoot && tableRoot.getAttribute("data-default-order"));
       if (defaultClauses.length) {
         applyClientSort(tbody, defaultClauses);
       }
-      refreshSortIndicators(table, "", "asc");
+      refreshSortIndicators(table || root, "", "asc");
     }
     // Row order changed under the virtualiser — the window indexes
     // positions, not identities, so it has to re-slice from scratch
