@@ -121,6 +121,7 @@ all until a reload.
           {% trans "Last done" %} <span class="text-brand-400 text-[10px]">{% sort_indicator request 'quiet' %}</span>
         </a>
         <span></span>
+        <span></span>
       </div>
 
       {% comment %}
@@ -200,6 +201,21 @@ all until a reload.
           {% include "web/_user_avatar.html" with user=epic.assignee class="w-5 h-5" text_class="text-[9px]" %}
           {% endif %}
         </span>
+
+        {% comment %}
+        Details opens the drawer; the row itself still goes to the
+        epic's board. A button rather than a second click on the row:
+        the row is a link, and hijacking its first click would make
+        Cmd-click, the middle button and Enter behave differently from
+        a plain one — and nobody discovers a click they have to make
+        twice. ``@click.prevent`` keeps the row's own link out of it.
+        {% endcomment %}
+        <button type="button"
+                @click.prevent.stop="$store.epicDrawer.open('{% url 'web:epic_panel' slug_prefix=epic.project.slug_prefix number=epic.number %}')"
+                class="justify-self-end text-placeholder-foreground hover:text-foreground transition inline-flex"
+                title="{% trans 'Details' %}" aria-label="{% trans 'Details' %}">
+          {% lucide "panel-right-open" "w-3.5 h-3.5" %}
+        </button>
       </a>
       {% endfor %}
     </div>
@@ -216,5 +232,23 @@ Same dock as the other views, so the controls and the hotkeys are the
 ones already learned. The rows carry ``task_filter_attrs``, which is all
 the client-side pass needs.
 {% endcomment %}
+{% comment %}
+The drawer. Loaded on demand — the panel is a full task payload, and a
+list of forty epics must not fetch forty of them to show one.
+{% endcomment %}
+<div x-data x-show="$store.epicDrawer.url" x-cloak
+     @keydown.escape.window="$store.epicDrawer.close()"
+     class="fixed inset-0 z-40">
+  <div class="absolute inset-0 bg-black/40" @click="$store.epicDrawer.close()"></div>
+  <aside class="absolute right-0 top-0 bottom-0 w-full sm:w-[420px] bg-card border-l border-border-strong
+                flex flex-col shadow-2xl"
+         data-epic-drawer
+         @click="if ($event.target.closest('[data-epic-drawer-close]')) $store.epicDrawer.close()">
+    <div data-epic-drawer-body class="flex-1 min-h-0 flex flex-col">
+      <p class="p-4 text-xs text-placeholder-foreground">{% trans "Loading…" %}</p>
+    </div>
+  </aside>
+</div>
+
 {% if epics_enabled %}{% include "web/_filter_dock.html" %}{% endif %}
 {% endblock %}

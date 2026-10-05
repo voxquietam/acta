@@ -569,3 +569,47 @@ class TestSorting:
         body = client.get(f"/{workspace.slug}/epics/").content.decode()
         assert 'data-sort-key="priority"' in body
         assert "data-sort-root" in body
+
+
+@pytest.mark.django_db
+class TestTheDetailsDrawer:
+    """A button on the row, not a second click on it.
+
+    The row is a link to the epic's board; hijacking its first click
+    would make Cmd-click, the middle button and Enter behave differently
+    from a plain one, and a click you have to make twice is a click
+    nobody discovers.
+    """
+
+    def _url(self, epic):
+        return f"/projects/{epic.project.slug_prefix}/{epic.number}/epic-panel/"
+
+    def test_the_panel_carries_what_the_epic_page_shows(self, client, setup):
+        _, _, user, epic = setup
+        client.force_login(user)
+        resp = client.get(self._url(epic))
+        assert resp.status_code == 200
+        body = resp.content.decode()
+        assert epic.title in body
+        # Progress is computed, and the panel says so with a lock.
+        assert "0 / 2" in body or "1 / 2" in body
+
+    def test_a_plain_task_has_no_panel(self, client, setup):
+        """The drawer means nothing for something that is not an epic."""
+        _, project, user, _ = setup
+        plain = TaskFactory(project=project)
+        client.force_login(user)
+        assert client.get(self._url(plain)).status_code == 404
+
+    def test_a_stranger_cannot_read_it(self, client, setup):
+        _, _, _, epic = setup
+        outsider = UserFactory()
+        client.force_login(outsider)
+        assert client.get(self._url(epic)).status_code == 404
+
+    def test_the_row_offers_the_button_and_still_links_to_the_board(self, client, setup):
+        workspace, _, user, epic = setup
+        client.force_login(user)
+        body = client.get(f"/{workspace.slug}/epics/").content.decode()
+        assert "epicDrawer.open" in body
+        assert f'href="/{workspace.slug}/projects/{epic.project.slug_prefix}/{epic.number}/"' in body

@@ -6498,6 +6498,44 @@ def _sort_epic_rows(epics, order):
 
 
 @login_required
+def epic_panel(request, slug_prefix, number):
+    """Render an epic's details for the drawer on the Epics tab.
+
+    The same four blocks the epic's own page shows in its right-hand
+    aside — description, properties, files, activity — so the tab can
+    answer "what is this epic" without leaving the list. Built from the
+    same helpers the detail view uses rather than a second assembly of
+    the same context.
+
+    Returns:
+        The panel fragment, or ``404`` when the task is not an epic —
+        the drawer has no meaning for anything else.
+    """
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    if task.kind != Task.KIND_EPIC:
+        raise Http404("Not an epic")
+    task.reaction_summary = summarize_reactions(
+        target_field="task",
+        ids=[task.id],
+        user_id=request.user.id,
+    ).get(task.id, [])
+    return HttpResponse(
+        render_to_string(
+            "web/_epic_panel.html",
+            {
+                "task": task,
+                "activity": _task_activity(task),
+                "status_labels": Task.STATUS_LABELS,
+                "priority_labels": dict(Task.PRIORITY_CHOICES),
+                "size_values": Task.SIZE_VALUES,
+                **task_picker_context(task),
+            },
+            request=request,
+        ),
+    )
+
+
+@login_required
 def epics_overview(request):
     """The Epics tab — every epic in the workspace against the statuses.
 

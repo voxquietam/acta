@@ -4848,6 +4848,23 @@ document.addEventListener("alpine:init", () => {
   window.Alpine.store("epicPanel", {
     open: false,
   });
+
+  // The Epics tab's drawer: the same panel, reached from the list. The
+  // fragment is fetched on open rather than rendered with the page — a
+  // panel is a whole task payload, and a list of forty epics must not
+  // pay for forty of them to show one.
+  window.Alpine.store("epicDrawer", {
+    url: "",
+    open(url) {
+      this.url = url;
+      const body = document.querySelector("[data-epic-drawer-body]");
+      if (!body || !window.htmx) return;
+      window.htmx.ajax("GET", url, { target: body, swap: "innerHTML" });
+    },
+    close() {
+      this.url = "";
+    },
+  });
 });
 
 /**

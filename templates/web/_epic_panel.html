@@ -1,0 +1,32 @@
+{% load i18n %}
+{% load web_extras %}
+{% load lucide %}
+{% comment %}
+The epic details drawer, opened from a row on the Epics tab.
+
+Same four blocks the epic's own page carries in its aside, in the same
+order, so the drawer is not a second way of showing an epic — it is the
+same panel, reached without leaving the list. The row itself still links
+to the epic's board: this answers "what is this", the row answers "show
+me its work".
+
+Rendered by ``epic_panel``; expects what that view passes.
+{% endcomment %}
+<div class="flex items-center gap-2 px-4 py-3 border-b border-border shrink-0">
+  {% lucide "square-kanban" "w-4 h-4 shrink-0 text-placeholder-foreground" %}
+  <span class="font-mono text-[11px] text-placeholder-foreground shrink-0">{{ task.slug }}</span>
+  <span class="text-sm font-medium truncate min-w-0 flex-1">{{ task.title }}</span>
+  <a href="{% task_url task %}" class="acta-btn-ghost inline-flex items-center gap-1.5 shrink-0"
+     title="{% trans 'Open the epic and its tasks' %}">
+    {% lucide "maximize-2" "w-3.5 h-3.5" %}{% trans "Open" %}
+  </a>
+  <button type="button" data-epic-drawer-close class="acta-btn-ghost shrink-0"
+          aria-label="{% trans 'Close' %}">{% lucide "x" "w-3.5 h-3.5" %}</button>
+</div>
+
+<div class="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
+  {% include "web/projects/_description_cell.html" %}
+  {% include "web/projects/_task_meta.html" %}
+  {% include "web/projects/_attachments_panel.html" %}
+  {% include "web/projects/_activity_list.html" %}
+</div>

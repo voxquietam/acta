@@ -38,6 +38,7 @@ from .views import (
     delete_workspace,
     edit_comment,
     edit_project_update,
+    epic_panel,
     epics_overview,
     export_all_tasks_json,
     export_my_work_json,
@@ -449,6 +450,11 @@ urlpatterns = [
         "projects/<str:slug_prefix>/<int:number>/epic/",
         set_task_epic,
         name="set_task_epic",
+    ),
+    path(
+        "projects/<str:slug_prefix>/<int:number>/epic-panel/",
+        epic_panel,
+        name="epic_panel",
     ),
     path(
         "projects/<str:slug_prefix>/<int:number>/turn-into-epic/",

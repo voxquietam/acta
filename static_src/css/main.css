@@ -3936,7 +3936,7 @@ button.acta-gepic-row:hover .acta-gepic-name {
 
 .acta-epic-row {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) 116px 104px 140px 124px 104px 28px;
+  grid-template-columns: minmax(220px, 1fr) 116px 104px 140px 124px 104px 28px 24px;
   align-items: center;
   gap: 12px;
   padding: 10px 14px;
