@@ -212,13 +212,31 @@ quietly swap nothing at all.
     </div>
     {% endif %}
 
+    {# ---------- What is missing from this date ---------- #}
+    {% if reports %}{% include "web/milestones/_reports.html" %}{% endif %}
+
     {# ---------- Attached work ---------- #}
-    <div class="bg-card border border-border rounded-lg">
+    <div class="bg-card border border-border rounded-lg relative">
       <div class="flex items-center gap-2 px-4 h-11 border-b border-border">
         <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground">
           {% blocktrans with counted=total attached=attached_count %}Attached work · {{ counted }} counted · {{ attached }} attached{% endblocktrans %}
         </span>
+        <span class="flex-1"></span>
+        {% if not milestone.is_closed %}
+        <button type="button"
+                hx-get="{% wurl 'milestone_fill_panel' pk=milestone.id %}"
+                hx-target="#milestone-add-panel"
+                hx-swap="innerHTML"
+                class="acta-btn-ghost border border-border-strong">
+          {% lucide "plus" "w-3.5 h-3.5" %}{% trans "Add tasks" %}
+        </button>
+        {% endif %}
       </div>
+      {% comment %}
+      The picker lands here, positioned against this panel — hence
+      ``relative`` on it. Emptied again whenever the page refreshes.
+      {% endcomment %}
+      <div id="milestone-add-panel"></div>
       {% for group in groups %}
       <div x-data="{ open: {% if group.status == 'done' %}false{% else %}true{% endif %} }">
         <div @click="open = !open"
@@ -258,7 +276,7 @@ quietly swap nothing at all.
       </div>
       {% empty %}
       <p class="text-xs italic text-placeholder-foreground px-4 py-6 text-center">
-        {% trans "Nothing attached yet — commit a task to this milestone from its rail, or from a selection on any list." %}
+        {% trans "Nothing attached yet — add work here, or commit a task from its rail or from a selection on any list." %}
       </p>
       {% endfor %}
     </div>

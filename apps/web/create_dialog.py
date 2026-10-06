@@ -226,6 +226,41 @@ def _cycle_options(cycles, selected_id):
     return options
 
 
+def _milestone_options(milestones, selected_id):
+    """Milestone rows — the dates this task's project aims at.
+
+    Only milestones whose scope covers the project are offered: a task
+    may join nothing else, and a picker that lists refusals is a picker
+    that lies. See docs/decisions/0037-milestones.md.
+
+    Args:
+        milestones: Open milestones covering the selected project.
+        selected_id: The currently picked milestone id, or ``""``.
+
+    Returns:
+        A list of option dicts for the Alpine popover.
+    """
+    options = [
+        {
+            "v": "",
+            "n": str(_("No milestone")),
+            "empty": True,
+            "on": not selected_id,
+        },
+    ]
+    for milestone in milestones:
+        options.append(
+            {
+                "v": str(milestone.id),
+                "n": milestone.name,
+                "sub": date_format(milestone.target_date, "M j"),
+                "c": "#425af5",
+                "on": str(milestone.id) == str(selected_id),
+            },
+        )
+    return options
+
+
 def _repeat_options(selected):
     """Cadence rows for the Repeat popover.
 
@@ -327,6 +362,7 @@ def build_create_task_data(
     members,
     label_groups,
     workspace_cycles,
+    project_milestones,
     pre_status,
     pre_priority,
     pre_size,
@@ -334,6 +370,7 @@ def build_create_task_data(
     pre_label_ids,
     pre_due_date,
     pre_cycle_id,
+    pre_milestone_id,
     meetings,
     pre_parent,
     pre_epic,
@@ -354,6 +391,8 @@ def build_create_task_data(
         selected_project: The project the dialog is currently on.
         members: Users in that project's workspace.
         label_groups: ``grouped_labels()`` output for that workspace.
+        project_milestones: Open milestones covering the selected
+            project (empty when it aims at no date yet).
         workspace_cycles: Cycles for that workspace (empty when cadence
             is off).
         pre_status: Status key to start on.
@@ -363,6 +402,7 @@ def build_create_task_data(
         pre_label_ids: Label ids to start on.
         pre_due_date: ``YYYY-MM-DD`` to start on, or ``""``.
         pre_cycle_id: Cycle id to start on, or ``""``.
+        pre_milestone_id: Milestone id to start on, or ``""``.
         meetings: Recent meetings in that workspace.
         pre_parent: ``{"v", "n", "cls"}`` for the parent, or ``None``.
         pre_epic: The same for the epic, or ``None``.
@@ -441,6 +481,20 @@ def build_create_task_data(
                 "hotkey": "C",
                 "input": "cycle",
                 "options": _cycle_options(workspace_cycles, pre_cycle_id),
+            },
+        )
+    # An epic stores no milestone — it derives the set from the tasks it
+    # collects — so the row is simply absent on one, the way the rail
+    # omits it rather than offering a control that would be refused.
+    if project_milestones and kind != Task.KIND_EPIC:
+        fields.append(
+            {
+                "key": "milestone",
+                "name": str(_("Milestone")),
+                "icon": "diamond",
+                "hotkey": "⇧M",
+                "input": "milestone",
+                "options": _milestone_options(project_milestones, pre_milestone_id),
             },
         )
     fields.extend(

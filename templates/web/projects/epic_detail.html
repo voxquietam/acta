@@ -80,6 +80,68 @@ by default. Expects ``epic_columns`` / ``epic_projects`` / ``epic_done``
         <span class="font-mono text-[10px]">{{ row.done }}/{{ row.total }}</span>
       </span>
       {% endfor %}
+      {% comment %}
+      Where this epic's work sits, and the one control that changes it.
+      The epic stores no milestone of its own — it derives the set from
+      its tasks, the way it already derives dates and progress — so the
+      chips are a reading and "Set milestone" is a bulk write onto the
+      tasks. See docs/decisions/0037-milestones.md.
+      {% endcomment %}
+      {% if epic_milestones %}
+      {% for row in epic_milestones %}
+      {% if row.milestone %}
+      <a href="{% wurl 'milestone_detail' pk=row.milestone.id %}"
+         class="inline-flex items-center gap-1.5 text-placeholder-foreground hover:text-foreground">
+        {% lucide "diamond" "w-3 h-3" %}{{ row.milestone.name }}
+        <span class="font-mono text-[10px]">{{ row.count }}</span>
+      </a>
+      {% else %}
+      <span class="inline-flex items-center gap-1.5 text-placeholder-foreground">
+        {% lucide "diamond" "w-3 h-3 opacity-50" %}{% trans "no milestone" %}
+        <span class="font-mono text-[10px]">{{ row.count }}</span>
+      </span>
+      {% endif %}
+      {% endfor %}
+      {% endif %}
+      {% if epic_milestone_targets %}
+      <div class="relative" x-data="{ open: false }" @click.outside="open = false" @keydown.escape="open = false">
+        <button type="button" @click="open = !open"
+                class="inline-flex items-center gap-1 text-placeholder-foreground hover:text-foreground">
+          {% lucide "plus" "w-3 h-3" %}{% trans "Set milestone" %}
+        </button>
+        <div x-show="open" x-cloak
+             class="absolute left-0 top-full mt-1 w-72 bg-card border border-border-strong rounded-lg shadow-lg z-20 overflow-hidden p-1">
+          <p class="px-2 py-1 text-[10px] uppercase tracking-wider text-placeholder-foreground">
+            {% trans "Writes onto this epic’s tasks" %}
+          </p>
+          {% for row in epic_milestone_targets %}
+          <form hx-post="{% wurl 'epic_set_milestone' slug_prefix=task.project.slug_prefix number=task.number %}"
+                hx-swap="none" @htmx:after-request="open = false">
+            {% csrf_token %}
+            <input type="hidden" name="milestone_id" value="{{ row.milestone.id }}">
+            <button type="submit" class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-xs hover:bg-muted text-muted-foreground hover:text-foreground">
+              <span class="w-1.5 h-1.5 rounded-full bg-brand-500 shrink-0"></span>
+              <span class="flex-1 truncate">{{ row.milestone.name }}</span>
+              <span class="font-mono text-[10px] text-placeholder-foreground">{{ row.milestone.target_date|date:"M j" }}</span>
+              <span class="text-[10px] text-placeholder-foreground shrink-0">
+                {% if row.fits == row.total %}{% blocktrans with counter=row.fits %}all {{ counter }}{% endblocktrans %}{% else %}{% blocktrans with counter=row.fits total=row.total %}{{ counter }} of {{ total }}{% endblocktrans %}{% endif %}
+              </span>
+            </button>
+          </form>
+          {% endfor %}
+          {% if epic_milestones %}
+          <form hx-post="{% wurl 'epic_set_milestone' slug_prefix=task.project.slug_prefix number=task.number %}"
+                hx-swap="none" @htmx:after-request="open = false" class="border-t border-border mt-1 pt-1">
+            {% csrf_token %}
+            <input type="hidden" name="milestone_id" value="">
+            <button type="submit" class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-xs hover:bg-muted text-muted-foreground hover:text-foreground">
+              <span class="flex-1">{% trans "Take them all out" %}</span>
+            </button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
     </div>
 
     {# ---- the board ---- #}

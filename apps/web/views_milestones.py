@@ -23,6 +23,7 @@ from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbid
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+from django.utils.translation import ngettext
 from django.views.decorators.http import require_POST
 
 from apps.activity.models import ActivityLog
@@ -133,8 +134,84 @@ def milestone_detail(request, pk):
             "today": today,
         },
     )
+    # A closed milestone is a record, not a plan: nothing is missing from
+    # it any more, so the two membership questions stop being asked.
+    if not milestone.is_closed:
+        context["reports"] = services.membership_reports(milestone, today)
     context.update(_burndown_json(context["burndown"]))
     return render(request, "web/milestones/detail.html", context)
+
+
+@login_required
+def milestone_fill_panel(request, pk):
+    """The reverse picker: standing on the date, pick work for it.
+
+    The task rail asks "which date is this work for"; this asks the same
+    question from the other end, which is the only cheap way to fill a
+    milestone that wants twenty tasks. Searching reaches outside the
+    scope too, and says so on those rows — a search that silently drops
+    what someone is looking for reads as a bug, where "Web is not in this
+    milestone's scope" names the fix.
+    """
+    milestone = _get_milestone_or_404(request, pk)
+    query = (request.GET.get("q") or "").strip()
+    return render(
+        request,
+        "web/milestones/_fill_panel.html",
+        {
+            "milestone": milestone,
+            "query": query,
+            "candidates": services.fill_candidates(milestone, query),
+            "outside": services.out_of_scope_matches(milestone, query),
+        },
+    )
+
+
+@require_POST
+@login_required
+def milestone_attach(request, pk):
+    """Commit the chosen tasks to this milestone.
+
+    Runs through the bulk path, so each task's history records the move
+    and the scope rule is enforced in one place: a task may only join a
+    milestone that covers its project, whichever surface asked.
+
+    The picker takes several tasks at once, so it closes on attach and
+    the page behind it refreshes with the new numbers; a toast says what
+    landed, because the row that proves it is now one of many.
+
+    Returns:
+        ``204`` carrying the refresh and the toast, or ``400`` when the
+        request names work the scope does not cover.
+    """
+    milestone = _get_milestone_or_404(request, pk)
+    ids = _int_list(request.POST.getlist("task_ids"))
+    if not ids:
+        return HttpResponseBadRequest("no tasks given")
+    scope = set(milestone.projects.values_list("id", flat=True))
+    outside = Task.objects.filter(id__in=ids).exclude(project_id__in=scope).exists()
+    if outside:
+        return HttpResponseBadRequest("a task may only join a milestone that covers its project")
+    try:
+        _run_bulk_update(user=request.user, ids=ids, updates={"milestone": milestone.pk})
+    except PermissionError:
+        return HttpResponseForbidden("some of this work is out of reach")
+    message = ngettext(
+        "%(count)d task attached to %(name)s",
+        "%(count)d tasks attached to %(name)s",
+        len(ids),
+    ) % {
+        "count": len(ids),
+        "name": milestone.name,
+    }
+    response = HttpResponse(status=204)
+    response["HX-Trigger"] = json.dumps(
+        {
+            "acta:milestone-changed": True,
+            "acta:toast": {"message": message, "level": "success"},
+        },
+    )
+    return response
 
 
 def _burndown_json(burndown) -> dict:
@@ -695,3 +772,82 @@ def _int_list(values) -> list[int]:
         if value is not None:
             parsed.append(value)
     return parsed
+
+
+@require_POST
+@login_required
+def epic_set_milestone(request, slug_prefix, number):
+    """Commit an epic's work to a milestone — by writing it on the tasks.
+
+    An epic stores no milestone (ADR 0037): this is a bulk action over
+    the tasks it collects, and it says so in what it reports back. Work
+    the milestone's scope does not cover simply stays where it is, and
+    the toast names how much — an epic that spans four projects will meet
+    plenty of milestones that cover one.
+
+    Returns:
+        ``204`` carrying the board refresh and a toast, or ``400`` when
+        the milestone is not in this workspace.
+    """
+    from apps.web.views import _get_user_task_or_404
+
+    epic = _get_user_task_or_404(request.user, slug_prefix, number)
+    if epic.kind != Task.KIND_EPIC:
+        return HttpResponseBadRequest("not an epic")
+    raw = (request.POST.get("milestone_id") or "").strip()
+    workspace = epic.project.workspace
+    milestone = None
+    if raw:
+        try:
+            milestone = Milestone.objects.get(pk=int(raw), workspace=workspace)
+        except (TypeError, ValueError, Milestone.DoesNotExist):
+            return HttpResponseBadRequest("invalid milestone")
+    members = list(
+        epic.epic_members().filter(counted_q()).select_related("project").only("id", "project_id"),
+    )
+    if milestone is None:
+        ids = [task.id for task in members]
+        message = ngettext(
+            "%(count)d task taken out of its milestone",
+            "%(count)d tasks taken out of their milestone",
+            len(ids),
+        ) % {"count": len(ids)}
+    else:
+        scope = set(milestone.projects.values_list("id", flat=True))
+        ids = [task.id for task in members if task.project_id in scope]
+        outside = len(members) - len(ids)
+        message = ngettext(
+            "%(count)d task committed to %(name)s",
+            "%(count)d tasks committed to %(name)s",
+            len(ids),
+        ) % {
+            "count": len(ids),
+            "name": milestone.name,
+        }
+        if outside:
+            message += " · " + (
+                ngettext(
+                    "%(count)d stays outside its scope",
+                    "%(count)d stay outside its scope",
+                    outside,
+                )
+                % {"count": outside}
+            )
+    if not ids:
+        return HttpResponseBadRequest("nothing this milestone can take")
+    try:
+        _run_bulk_update(
+            user=request.user,
+            ids=ids,
+            updates={"milestone": milestone.pk if milestone else None},
+        )
+    except PermissionError:
+        return HttpResponseForbidden("some of this work is out of reach")
+    response = HttpResponse(status=204)
+    response["HX-Trigger"] = json.dumps(
+        {
+            "acta:bulk-changed": True,
+            "acta:toast": {"message": message, "level": "success"},
+        },
+    )
+    return response

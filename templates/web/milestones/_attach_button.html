@@ -1,0 +1,20 @@
+{% load i18n %}
+{% load web_extras %}
+{% comment %}
+One-click attach from a report row. Expects ``milestone``, ``task`` and
+``label``.
+
+Posts the same endpoint the picker does, so the scope rule and the
+activity trail are enforced in one place. The page refreshes itself on
+``acta:milestone-changed``, so the row leaves the report the moment the
+task joins — the report is a question, and answering it removes it.
+{% endcomment %}
+<form hx-post="{% wurl 'milestone_attach' pk=milestone.id %}"
+      hx-swap="none"
+      class="shrink-0">
+  {% csrf_token %}
+  <input type="hidden" name="task_ids" value="{{ task.id }}">
+  <button type="submit" class="text-[11px] text-brand-400 hover:text-brand-300 px-1.5 py-0.5 rounded hover:bg-muted">
+    {{ label }}
+  </button>
+</form>

@@ -50,6 +50,7 @@ from apps.cycles.services import (
 from apps.labels.models import Label, LabelGroup
 from apps.labels.palette import LABEL_COLORS, is_curated_label_color
 from apps.labels.services import add_labels_to_tasks, grouped_labels, trim_exclusive_conflicts
+from apps.milestones import services as milestone_services
 from apps.notifications.models import Notification
 from apps.notifications.services import (
     notify_announcement,
@@ -3316,6 +3317,11 @@ def _epic_board_context(epic, request):
             row["done"] += 1
     done, total = epic.epic_counts
     start, end = epic.epic_span
+    # Where the epic's work sits, and where it could be committed — both
+    # read off the tasks, because an epic stores no milestone of its own
+    # (ADR 0037). ``counted`` already excludes the shelved members.
+    milestone_rows = milestone_services.epic_milestone_rows(counted)
+    milestone_targets = milestone_services.epic_milestone_targets(epic.project.workspace, counted)
     # The dock belongs here as much as on any board, and the project axis
     # matters more: an epic is the one board whose cards come from
     # several. Status is hidden the way it is on any kanban — the columns
@@ -3353,6 +3359,8 @@ def _epic_board_context(epic, request):
         "project": epic.project,
         "wip_mode": None,
         "epic_projects": sorted(by_project.values(), key=lambda row: -row["total"]),
+        "epic_milestones": milestone_rows,
+        "epic_milestone_targets": milestone_targets,
         # Archived work is not blocked, it is filed — counting it would
         # put a red number on the page for work nobody is waiting on.
         "epic_blocked_total": sum(1 for task in members if task.is_blocked and task.archived_at is None),
@@ -7295,6 +7303,7 @@ def bulk_context_menu(request):
     members, projects, labels = [], [], []
     cycles = []
     epics = []
+    milestones = []
     if workspace:
         members = list(
             WorkspaceMember.objects.filter(workspace=workspace).select_related("user").order_by("user__username"),
@@ -7304,6 +7313,7 @@ def bulk_context_menu(request):
         label_groups_ctx = grouped_labels(workspace)
         cycles = _workspace_cycles(workspace)
         epics = _workspace_epics(workspace) if workspace.epics_enabled else []
+        milestones = _workspace_milestones(workspace)
     return HttpResponse(
         render_to_string(
             "web/projects/_bulk_context_menu.html",
@@ -7318,10 +7328,43 @@ def bulk_context_menu(request):
                 "workspace_labels": labels,
                 "workspace_label_groups": label_groups_ctx,
                 "workspace_cycles": cycles,
+                "workspace_milestones": milestones,
             },
             request=request,
         ),
     )
+
+
+def _workspace_milestones(workspace):
+    """Return the open milestones a bulk action may commit work to.
+
+    Closed ones are left out for the same reason the task rail leaves
+    them out: joining a milestone someone has already closed is almost
+    always a mistake. Each row carries the project ids its scope covers,
+    because the menu has to say which of them can take the selection —
+    a task may only join a milestone that covers its project, and a bulk
+    update is all-or-nothing.
+
+    Args:
+        workspace: The active :class:`Workspace`.
+
+    Returns:
+        A list of milestones, soonest date first, each with a
+        ``project_ids`` list attached.
+    """
+    from apps.milestones.models import Milestone
+
+    milestones = list(
+        Milestone.objects.filter(workspace=workspace, closed_at__isnull=True)
+        .prefetch_related("projects")
+        .order_by(
+            "target_date",
+            "id",
+        )[:20],
+    )
+    for milestone in milestones:
+        milestone.project_ids = [project.id for project in milestone.projects.all()]
+    return milestones
 
 
 @require_POST
@@ -7966,6 +8009,7 @@ def _create_task_get(request):
         pre_cycle_id = active_cycle_id
     else:
         pre_cycle_id = requested_cycle if any(str(c.id) == requested_cycle for c in workspace_cycles) else ""
+    project_milestones, pre_milestone_id = _create_dialog_milestone(request, selected_project)
     return HttpResponse(
         render_to_string(
             "web/_create_task_modal.html",
@@ -7996,6 +8040,7 @@ def _create_task_get(request):
                     members=members,
                     label_groups=label_groups,
                     workspace_cycles=workspace_cycles,
+                    project_milestones=project_milestones,
                     pre_status=pre_status,
                     pre_priority=pre_priority,
                     pre_size=pre_size,
@@ -8003,6 +8048,7 @@ def _create_task_get(request):
                     pre_label_ids=pre_label_ids,
                     pre_due_date=pre_due_date,
                     pre_cycle_id=pre_cycle_id,
+                    pre_milestone_id=pre_milestone_id,
                     meetings=meetings,
                     pre_parent=pre_parent,
                     pre_epic=pre_epic,
@@ -8015,6 +8061,31 @@ def _create_task_get(request):
             request=request,
         ),
     )
+
+
+def _create_dialog_milestone(request, selected_project):
+    """Return the milestone rows the create dialog offers, and its default.
+
+    Prefilled only when the project aims at exactly one open date — a
+    default from the project, not a rule. Two candidates and the form
+    guesses nothing: membership is chosen, never inferred (ADR 0037).
+    Picking a project re-renders the whole dialog, so a default can never
+    survive into a project its milestone does not cover.
+
+    Args:
+        request: The ``GET`` request, which may name a ``milestone``.
+        selected_project: The project in the dialog, or ``None``.
+
+    Returns:
+        A ``(milestones, pre_milestone_id)`` pair.
+    """
+    milestones = _project_milestones(selected_project) if selected_project else []
+    requested = request.GET.get("milestone")
+    if requested is not None:
+        return milestones, (requested if any(str(m.id) == requested for m in milestones) else "")
+    if len(milestones) == 1:
+        return milestones, str(milestones[0].id)
+    return milestones, ""
 
 
 def _parse_create_task_fields(request, project):
@@ -8074,6 +8145,20 @@ def _parse_create_task_fields(request, project):
         cycle = Cycle.objects.filter(pk=cycle_id, workspace=project.workspace).first()
         if cycle is None:
             return None, HttpResponseBadRequest("cycle not in workspace")
+    milestone = None
+    raw_milestone = (request.POST.get("milestone") or "").strip()
+    if raw_milestone:
+        from apps.milestones.models import Milestone
+
+        try:
+            milestone_id = int(raw_milestone)
+        except (TypeError, ValueError):
+            return None, HttpResponseBadRequest("invalid milestone")
+        # Scope, not workspace: a milestone may only take work from the
+        # projects it covers, and that is the whole meaning of its scope.
+        milestone = Milestone.objects.filter(pk=milestone_id, projects=project).first()
+        if milestone is None:
+            return None, HttpResponseBadRequest("milestone does not cover this project")
     assignee = None
     assignee_id_raw = request.POST.get("assignee") or ""
     if assignee_id_raw:
@@ -8103,6 +8188,7 @@ def _parse_create_task_fields(request, project):
         "due_date": due_date,
         "assignee": assignee,
         "cycle": cycle,
+        "milestone": milestone,
     }, None
 
 
@@ -8398,6 +8484,9 @@ def _create_task_post(request):
         fields["due_date"] = None
         fields["size"] = None
         fields["cycle"] = None
+        # An epic derives its milestones from the tasks it collects and
+        # stores none of its own (ADR 0037).
+        fields["milestone"] = None
     label_ids, error = _parse_create_task_labels(request, project)
     if error is not None:
         return error

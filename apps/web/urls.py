@@ -133,10 +133,13 @@ from .views_meetings import (
     task_meetings_fragment,
 )
 from .views_milestones import (
+    epic_set_milestone,
+    milestone_attach,
     milestone_close,
     milestone_delete,
     milestone_detail,
     milestone_editor,
+    milestone_fill_panel,
     milestone_reopen,
     milestones_overview,
 )
@@ -196,6 +199,8 @@ urlpatterns = [
     path("milestones/new/", milestone_editor, name="milestone_new"),
     path("milestones/<int:pk>/", milestone_detail, name="milestone_detail"),
     path("milestones/<int:pk>/edit/", milestone_editor, name="milestone_edit"),
+    path("milestones/<int:pk>/add/", milestone_fill_panel, name="milestone_fill_panel"),
+    path("milestones/<int:pk>/attach/", milestone_attach, name="milestone_attach"),
     path("milestones/<int:pk>/close/", milestone_close, name="milestone_close"),
     path("milestones/<int:pk>/reopen/", milestone_reopen, name="milestone_reopen"),
     path("milestones/<int:pk>/delete/", milestone_delete, name="milestone_delete"),
@@ -466,6 +471,11 @@ urlpatterns = [
         "projects/<str:slug_prefix>/<int:number>/milestone/",
         set_task_milestone,
         name="set_task_milestone",
+    ),
+    path(
+        "projects/<str:slug_prefix>/<int:number>/epic-milestone/",
+        epic_set_milestone,
+        name="epic_set_milestone",
     ),
     path(
         "projects/<str:slug_prefix>/<int:number>/epic/",

@@ -1,0 +1,99 @@
+{% load i18n %}
+{% load lucide %}
+{% load web_extras %}
+{% comment %}
+"Add tasks" — the reverse picker, anchored under the button on the
+milestone page. Expects ``milestone``, ``query``, ``candidates`` and
+``outside`` from ``milestone_fill_panel``.
+
+The task rail asks which date a piece of work is for; this asks the
+same question standing on the date, which is the only cheap way to fill
+a milestone that wants twenty tasks.
+
+Two things it refuses to hide. Work already committed elsewhere is
+offered and says where it would leave — attaching moves it, and that is
+a decision worth making with the consequence in view. Matches outside
+the scope are listed disabled, with the project that would have to join
+the scope named, because a search that silently drops what you are
+looking for reads as broken.
+{% endcomment %}
+<div class="absolute right-3 top-10 bg-card border border-border-strong rounded-lg shadow-lg z-20 overflow-hidden w-[26rem] max-w-[calc(100vw-2rem)]"
+     x-data="{ chosen: [] }"
+     @click.outside="$el.remove()"
+     @keydown.escape.window="$el.remove()">
+
+  <div class="flex items-center gap-2 h-10 px-3 border-b border-border">
+    {% lucide "search" "w-3.5 h-3.5 text-subtle-foreground shrink-0" %}
+    <input type="search" name="q" value="{{ query }}" autofocus
+           placeholder="{% trans 'Search this workspace' %}"
+           hx-get="{% wurl 'milestone_fill_panel' pk=milestone.id %}"
+           hx-trigger="input changed delay:250ms"
+           hx-target="#milestone-add-panel"
+           hx-swap="innerHTML"
+           class="flex-1 min-w-0 bg-transparent border-0 p-0 text-sm text-foreground placeholder-placeholder-foreground outline-none focus:ring-0">
+    {# The keycap the bulk menu uses, so a bare word is not left to guess at. #}
+    <button type="button" @click="$el.closest('[x-data]').remove()"
+            aria-label="{% trans 'Close' %}"
+            class="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-muted border border-border text-placeholder-foreground hover:text-foreground shrink-0">esc</button>
+  </div>
+
+  {% comment %}
+  Ticks several, attaches once: the page refresh that follows clears this
+  panel, and a toast reports what landed.
+  {% endcomment %}
+  <form hx-post="{% wurl 'milestone_attach' pk=milestone.id %}"
+        hx-swap="none">
+    {% csrf_token %}
+    <div class="max-h-80 overflow-y-auto">
+      <p class="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-placeholder-foreground">
+        {% trans "In scope" %}
+      </p>
+      {% for row in candidates %}
+      <label class="flex items-center gap-2 px-3 min-h-[34px] py-1 hover:bg-muted cursor-pointer text-xs">
+        <input type="checkbox" name="task_ids" value="{{ row.task.id }}" x-model.number="chosen" class="acta-checkbox shrink-0">
+        <span class="font-mono text-[11px] text-placeholder-foreground w-16 shrink-0">{{ row.task.slug }}</span>
+        <span class="flex-1 min-w-0">
+          <span class="block truncate">{{ row.task.title }}</span>
+          <span class="block text-[10px] {% if row.other %}text-amber-400{% else %}text-placeholder-foreground{% endif %}">
+            {% if row.other %}
+            {% blocktrans with project=row.task.project.name name=row.other.name %}{{ project }} · in {{ name }} — attaching moves it here{% endblocktrans %}
+            {% else %}
+            {% blocktrans with project=row.task.project.name %}{{ project }} · no milestone{% endblocktrans %}
+            {% endif %}
+          </span>
+        </span>
+      </label>
+      {% empty %}
+      <p class="px-3 py-4 text-xs italic text-placeholder-foreground">
+        {% if query %}{% trans "Nothing in scope matches." %}{% else %}{% trans "Every task in scope is already here." %}{% endif %}
+      </p>
+      {% endfor %}
+
+      {% if outside %}
+      <p class="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-placeholder-foreground border-t border-border mt-1">
+        {% trans "Outside this milestone’s scope" %}
+      </p>
+      {% for row in outside %}
+      <div class="flex items-center gap-2 px-3 min-h-[40px] py-1 text-xs cursor-not-allowed">
+        {% lucide "ban" "w-3.5 h-3.5 text-placeholder-foreground shrink-0" %}
+        <span class="font-mono text-[11px] text-placeholder-foreground w-16 shrink-0">{{ row.task.slug }}</span>
+        <span class="flex-1 min-w-0">
+          <span class="block truncate text-subtle-foreground">{{ row.task.title }}</span>
+          <span class="block text-[10px] text-placeholder-foreground">
+            {% blocktrans with project=row.project.name %}{{ project }} is not in this milestone’s scope{% endblocktrans %}
+          </span>
+        </span>
+      </div>
+      {% endfor %}
+      {% endif %}
+    </div>
+
+    <div class="flex items-center gap-2 px-3 h-10 border-t border-border text-[11px] text-placeholder-foreground">
+      <span>{% trans "One milestone per task." %}</span>
+      <span class="flex-1"></span>
+      <button type="submit" class="acta-btn-primary" :disabled="!chosen.length" :class="chosen.length ? '' : 'opacity-50 pointer-events-none'">
+        <span x-text="chosen.length ? '{% trans "Attach" %} ' + chosen.length : '{% trans "Attach" %}'">{% trans "Attach" %}</span>
+      </button>
+    </div>
+  </form>
+</div>
