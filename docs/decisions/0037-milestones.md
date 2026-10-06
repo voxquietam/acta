@@ -100,13 +100,20 @@ feels careful or sloppy.
   no overlap, no "days left in the stage". A milestone draws as a marker
   across the chart, the way MS Project, Linear and Asana draw it.
 
+## Addendum, 2026-10-06 — the burndown has a home
+
+The burndown lives on the milestone's own page and nowhere else, and it
+is drawn from the activity log: ``task.milestone_changed`` gives the
+scope line (when each task joined and left), ``task.status_changed``
+gives the remaining line, exactly the replay the cycle burndown already
+uses (ADR 0026) and with no snapshot table. Three lines and a
+projection: remaining, scope, the straight line to zero on the date, and
+today's pace carried forward — which is what the verdict sentence reads
+out loud. A milestone with nothing attached draws no chart, because zero
+of zero is not a hundred per cent.
+
 ## Still open
 
-- Whether a milestone needs a burndown in the product or only on its own
-  page. The chart is the classic artifact (GitLab, Jira) and its verdict
-  line — "at this pace, done eight days after the date" — is the part
-  people read. It needs real completion timestamps, which the activity
-  log has; it must never be drawn from due dates.
 - Whether "cycle" survives alongside milestones. A task would otherwise
   carry three time-shaped fields — its own dates, a cycle, a milestone —
   and three is the point where people stop filling any of them in.
