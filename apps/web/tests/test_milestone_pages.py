@@ -661,3 +661,57 @@ class TestFromAnEpic:
 
         assert inside.milestone_id is None
         assert other.milestone_id is None
+
+
+@pytest.mark.django_db
+class TestOnTheTimeline:
+    """A milestone is a date, so the chart of dates has to show it."""
+
+    def test_a_date_the_drawn_work_aims_at_is_marked(self, client, setup):
+        workspace, user, backend, _, milestone = setup
+        TaskFactory(
+            project=backend,
+            status=Task.STATUS_TODO,
+            start_date=timezone.localdate(),
+            due_date=milestone.target_date,
+        )
+        client.force_login(user)
+
+        resp = client.get(f"/{workspace.slug}/tasks/?view=timeline")
+        body = resp.content.decode()
+
+        assert [m.pk for m in resp.context["timeline_milestones"]] == [milestone.pk]
+        assert f'data-ms-date="{milestone.target_date:%Y-%m-%d}"' in body
+        assert milestone.name in body
+
+    def test_a_milestone_outside_the_window_is_left_off(self, client, setup):
+        workspace, user, backend, _, milestone = setup
+        milestone.target_date = timezone.localdate() + datetime.timedelta(days=400)
+        milestone.save()
+        TaskFactory(
+            project=backend,
+            status=Task.STATUS_TODO,
+            start_date=timezone.localdate(),
+            due_date=timezone.localdate() + datetime.timedelta(days=3),
+        )
+        client.force_login(user)
+
+        resp = client.get(f"/{workspace.slug}/tasks/?view=timeline")
+
+        assert resp.context["timeline_milestones"] == []
+
+    def test_a_milestone_over_projects_that_are_not_drawn_is_left_off(self, client, setup):
+        workspace, user, _, _, milestone = setup
+        elsewhere = ProjectFactory(workspace=workspace, slug_prefix="MTL")
+        milestone.projects.set([elsewhere])
+        TaskFactory(
+            project=ProjectFactory(workspace=workspace, slug_prefix="MTM"),
+            status=Task.STATUS_TODO,
+            start_date=timezone.localdate(),
+            due_date=milestone.target_date,
+        )
+        client.force_login(user)
+
+        resp = client.get(f"/{workspace.slug}/tasks/?view=timeline")
+
+        assert resp.context["timeline_milestones"] == []

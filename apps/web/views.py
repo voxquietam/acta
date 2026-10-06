@@ -163,9 +163,15 @@ def _timeline_context(table_tasks, today):
         table_tasks: The filtered task list (reused, not re-queried).
         today: ``date`` used as the chart anchor / fallback window.
 
+    Milestones ride along as markers: a milestone is a date, and a plan
+    that draws the work but not the dates it aims at makes the reader do
+    the arithmetic. They are read off the projects actually on screen —
+    the dates that matter here are the ones whose scope touches this
+    work. See docs/decisions/0037-milestones.md.
+
     Returns:
         A context dict with ``timeline_tasks`` + ``chart_start_iso`` /
-        ``chart_end_iso`` / ``today_iso``.
+        ``chart_end_iso`` / ``today_iso`` + ``timeline_milestones``.
     """
     timeline_tasks = sorted(
         table_tasks,
@@ -188,7 +194,46 @@ def _timeline_context(table_tasks, today):
         "chart_start_iso": chart_start.isoformat(),
         "chart_end_iso": chart_end.isoformat(),
         "today_iso": today.isoformat(),
+        # Lazy: the timeline partial renders only in the timeline view,
+        # and All Tasks must not pay a query for a chart nobody opened.
+        "timeline_milestones": SimpleLazyObject(
+            lambda: _timeline_milestones(timeline_tasks, chart_start, chart_end),
+        ),
     }
+
+
+def _timeline_milestones(tasks, chart_start, chart_end):
+    """Return the milestones to mark on a timeline's window.
+
+    Scoped to the projects the drawn work lives in and to the window the
+    chart actually shows: a marker for a date nobody can see is a query
+    for nothing.
+
+    Args:
+        tasks: The tasks the timeline draws.
+        chart_start: First day of the chart window.
+        chart_end: Last day of the chart window.
+
+    Returns:
+        A list of milestones, soonest date first.
+    """
+    from apps.milestones.models import Milestone
+
+    project_ids = {task.project_id for task in tasks}
+    if not project_ids:
+        return []
+    return list(
+        Milestone.objects.filter(
+            projects__in=project_ids,
+            target_date__gte=chart_start,
+            target_date__lte=chart_end,
+        )
+        .distinct()
+        .order_by(
+            "target_date",
+            "id",
+        )[:30],
+    )
 
 
 def _resolve_list_axis(request, *, default, options):

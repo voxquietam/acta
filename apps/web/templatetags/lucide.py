@@ -88,6 +88,20 @@ def lucide(name: str, css_class: str = "w-4 h-4") -> str:
     )
 
 
+@register.simple_tag
+def lucide_sprite_url() -> str:
+    """Return the sprite's static URL, for code that builds its own SVG.
+
+    The timeline draws its milestone markers from JavaScript, where
+    ``{% lucide %}`` cannot run and ``STATIC_URL`` is not the script's to
+    guess — so the page hands the URL over on a data attribute.
+
+    Returns:
+        The sprite URL, hashed in production like any other static file.
+    """
+    return static(_SPRITE_PATH)
+
+
 def has_icon(name: str) -> bool:
     """Return whether ``name`` exists in the loaded icon set.
 

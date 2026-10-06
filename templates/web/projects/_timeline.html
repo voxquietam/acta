@@ -391,6 +391,12 @@ because grid items' containing block was just the 56px header row.
   {% comment %} Right Gantt column — no own overflow; outer ``#tl-scroll`` handles scroll. {% endcomment %}
   <div id="tl-right" class="flex-1 relative">
     <div id="tl-gantt"
+         {% comment %}
+         Sprite URL handed over rather than hardcoded: the markers draw
+         their diamond from the same sheet the templates use, and
+         ``STATIC_URL`` is not the JS's to guess.
+         {% endcomment %}
+         data-sprite="{% lucide_sprite_url %}"
          data-chart-start="{{ chart_start_iso }}"
          data-chart-end="{{ chart_end_iso }}"
          data-today="{{ today_iso }}"
@@ -418,6 +424,28 @@ because grid items' containing block was just the 56px header row.
       <div id="tl-header" class="sticky top-0 z-10 bg-muted border-b border-border">
         <div id="tl-months" class="flex border-b border-border bg-muted" style="height:24px"></div>
         <div id="tl-units"  class="flex bg-muted" style="height:32px"></div>
+        {% comment %}
+        Milestone strip — a lane of chips the timeline JS positions, one
+        per date this work aims at. Empty (and zero-height) when nothing
+        on screen is committed to a date. The chips live in the sticky
+        header so they stay readable while the rows scroll under them;
+        their lines are drawn down the body, next to the today line.
+        {% endcomment %}
+        <div id="tl-ms-strip" class="relative bg-muted" style="height:0"></div>
+      </div>
+
+      {% comment %}
+      The milestones themselves, as data for the JS: date, name, where it
+      stands, and where it links. Server-rendered rather than fetched —
+      the chart window is already decided here.
+      {% endcomment %}
+      <div id="tl-ms-data" hidden>
+        {% for milestone in timeline_milestones %}
+        <span data-ms-date="{{ milestone.target_date|date:'Y-m-d' }}"
+              data-ms-name="{{ milestone.name }}"
+              data-ms-closed="{% if milestone.is_closed %}1{% endif %}"
+              data-ms-url="{% wurl 'milestone_detail' pk=milestone.id %}"></span>
+        {% endfor %}
       </div>
 
       {% comment %}
@@ -440,6 +468,12 @@ because grid items' containing block was just the 56px header row.
         <div id="tl-today-line"
              class="absolute top-0 pointer-events-none"
              style="width:2px;background:rgb(66 90 245);display:none;"></div>
+        {% comment %}
+        One dashed line per milestone, drawn by the same JS that places
+        the chips — same stacking layer as the today line, so both pass
+        behind the bars rather than over them.
+        {% endcomment %}
+        <div id="tl-ms-lines" class="absolute top-0 left-0 pointer-events-none"></div>
         {% for task in timeline_tasks %}
         {% comment %}
         ``task_filter_attrs`` emits data-status/-priority/-assignee/etc.

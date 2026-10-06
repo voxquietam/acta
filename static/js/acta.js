@@ -1851,6 +1851,79 @@
         });
     }
 
+    // Milestones as markers, the way MS Project, Linear and Asana draw
+    // them: a line down the chart and a chip at the top, never a band.
+    // A milestone is a point — it has no duration to fill (ADR 0037).
+    // Chips that would overlap drop to a second lane and keep their line;
+    // the strip grows to fit, and collapses to nothing when there is
+    // nothing to mark.
+    const MS_LANE_H = 20;
+    const MS_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const shortDate = (d) => MS_MONTHS[d.getMonth()] + " " + d.getDate();
+    const escapeHtml = (text) => String(text).replace(/[&<>"']/g, (ch) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    })[ch]);
+    function renderMilestones(dayW) {
+      const strip = document.getElementById("tl-ms-strip");
+      const lines = document.getElementById("tl-ms-lines");
+      const data = document.getElementById("tl-ms-data");
+      if (!strip || !lines || !data) return;
+      strip.innerHTML = "";
+      lines.innerHTML = "";
+      const marks = [...data.children];
+      if (!marks.length) {
+        strip.style.height = "0px";
+        return;
+      }
+      const rows = document.querySelectorAll("#tl-body .tl-row:not([hidden])").length;
+      const height = rows * 40;
+      const sprite = gantt.dataset.sprite || "";
+      const lanes = [];
+      marks.forEach((mark) => {
+        const date = parseDate(mark.dataset.msDate);
+        if (!date) return;
+        const x = diffDays(chartStart, date) * dayW;
+        const closed = mark.dataset.msClosed === "1";
+        const overdue = !closed && date < today;
+        const colour = closed ? CSS_PFGD : overdue ? "rgb(251 113 133)" : CSS_BRAND_A;
+
+        const line = document.createElement("div");
+        line.style.cssText = "position:absolute;top:0;width:0;pointer-events:none;" +
+          `height:${height}px;left:${x}px;border-left:1px ${closed ? "dotted" : "dashed"} ${colour};`;
+        lines.appendChild(line);
+
+        const chip = document.createElement("a");
+        chip.href = mark.dataset.msUrl;
+        chip.title = mark.dataset.msName + " · " + mark.dataset.msDate;
+        chip.innerHTML =
+          `<svg width="10" height="10" viewBox="0 0 24 24" style="flex:none;color:${colour}">` +
+          `<use href="${sprite}#lu-diamond"/></svg>` +
+          `<span style="overflow:hidden;text-overflow:ellipsis">${escapeHtml(mark.dataset.msName)}</span>` +
+          `<span style="font-family:ui-monospace,monospace;color:${CSS_PFGD}">${shortDate(date)}</span>`;
+        chip.style.cssText = "position:absolute;display:inline-flex;align-items:center;gap:4px;" +
+          "height:16px;padding:0 6px;border-radius:5px;font-size:10px;white-space:nowrap;" +
+          `background:rgb(var(--card));border:1px solid ${colour};color:rgb(var(--foreground));` +
+          "max-width:200px;overflow:hidden;";
+        // Width is only knowable once it is in the DOM, and the lane it
+        // lands in depends on that width — so measure, then place.
+        strip.appendChild(chip);
+        const w = chip.getBoundingClientRect().width || 80;
+        // Near the right edge the chip hangs off the chart, so it flips
+        // to the other side of its own line rather than being cut.
+        const flip = x + w > strip.scrollWidth - 8;
+        const left = flip ? Math.max(0, x - w) : x;
+        let lane = lanes.findIndex((edge) => left > edge + 6);
+        if (lane === -1) {
+          lane = lanes.length;
+          lanes.push(0);
+        }
+        lanes[lane] = left + w;
+        chip.style.left = left + "px";
+        chip.style.top = (lane * MS_LANE_H + 2) + "px";
+      });
+      strip.style.height = lanes.length ? (lanes.length * MS_LANE_H + 4) + "px" : "0px";
+    }
+
     function renderTodayLine(dayW) {
       const line = document.getElementById("tl-today-line");
       const snap = document.getElementById("tl-snap");
@@ -1864,6 +1937,7 @@
     // Re-run by acta.js applyClientFilters after a client-side filter pass.
     window.__tlAfterFilter = () => {
       renderTodayLine(DAY_W[zoom]);
+      renderMilestones(DAY_W[zoom]);
       updateMissingCount();
     };
 
@@ -1886,6 +1960,7 @@
       renderHeader(dayW);
       renderBars(dayW);
       renderTodayLine(dayW);
+      renderMilestones(dayW);
       requestAnimationFrame(() => {
         scrollContainer.scrollLeft = todayScrollLeft(dayW, 0.4);
       });
@@ -1903,7 +1978,10 @@
     if (panel) {
       if (panel._tlObs) panel._tlObs.disconnect();
       panel._tlObs = new MutationObserver(() => {
-        if (panel.style.display !== "none") renderTodayLine(DAY_W[zoom]);
+        if (panel.style.display !== "none") {
+          renderTodayLine(DAY_W[zoom]);
+          renderMilestones(DAY_W[zoom]);
+        }
       });
       panel._tlObs.observe(panel, { attributes: true, attributeFilter: ["style"] });
     }
