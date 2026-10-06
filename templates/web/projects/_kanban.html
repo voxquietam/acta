@@ -16,6 +16,38 @@ benign noise — it survives in the URL across list↔kanban tab switches
 (``applyClientFilters`` preserves it), and the kanban template never
 reads it. See ``apps/web/views.py:1632`` for the kanban ctx builder.
 {% endcomment %}
+{% comment %}
+The Lanes knob. Slicing is a server-side regroup, so it refetches the
+board's own slot the way the Plan's cut knob does, and the choice is
+remembered in a cookie.
+
+Both this and the branch below test for the thing itself rather than for
+a mode string. The epic board renders this same partial and never builds
+lanes, and a missing ``lanes_axis`` compares unequal to ``"none"`` —
+which emptied that board completely.
+{% endcomment %}
+{% if lanes_options %}
+<div class="flex items-center gap-3 mb-3 text-xs shrink-0">
+  <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground font-medium">{% trans "Lanes" %}</span>
+  <nav class="flex items-center gap-1">
+    {% for option in lanes_options %}
+    <a href="?view=kanban&lanes={{ option.key }}"
+       hx-get="{{ request.path }}?panel=kanban&lanes={{ option.key }}"
+       hx-target="closest [data-panel-slot]"
+       hx-swap="innerHTML"
+       @click="document.cookie = `acta_kanban_lanes={{ option.key }}; path=/; max-age=${60*60*24*365}; samesite=Lax`"
+       class="px-2 py-0.5 rounded-md transition cursor-pointer
+         {% if option.active %}bg-muted text-foreground{% else %}text-subtle-foreground hover:text-foreground hover:bg-muted/60{% endif %}">
+      {{ option.label }}
+    </a>
+    {% endfor %}
+  </nav>
+</div>
+{% endif %}
+
+{% if lanes %}
+{% include "web/projects/_kanban_lanes.html" %}
+{% else %}
 <div data-scroll-wrap class="relative flex-1 min-h-0">
 <div id="kanban" data-scroll-target class="flex gap-3 overflow-x-auto pb-3 scrollbar-none h-full">
   {% for col in columns %}
@@ -222,6 +254,7 @@ reads it. See ``apps/web/views.py:1632`` for the kanban ctx builder.
 <div data-fade-right aria-hidden="true"
      class="pointer-events-none absolute right-0 inset-y-0 w-8 bg-gradient-to-l from-background to-transparent"></div>
 </div>
+{% endif %}
 {% comment %}
 Drag-and-drop + open-in-new-tab are wired in acta.js (``initKanbanDnD``),
 not inline here — an inline script in this partial doesn't re-run when

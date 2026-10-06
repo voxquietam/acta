@@ -90,6 +90,11 @@ def resolve_render(request) -> str:
     raw = request.GET.get("render")
     if raw in RENDERS:
         return raw
+    # The Timeline tab folded into this one. A link or a cookie still
+    # saying ``view=timeline`` asked for the gantt, so it outranks the
+    # stored render — otherwise an old bookmark opens a tree.
+    if request.GET.get("view") == "timeline":
+        return "timeline"
     cookie = request.COOKIES.get("acta_plan_render")
     return cookie if cookie in RENDERS else DEFAULT_RENDER
 
@@ -108,7 +113,7 @@ def _counts(task) -> bool:
     return task.archived_at is None or task.status == Task.STATUS_DONE
 
 
-def _late_days(task) -> int:
+def late_days(task) -> int:
     """Return how far a task runs past the date it is committed to.
 
     Args:
@@ -143,7 +148,7 @@ def _aggregate(tasks: list) -> dict:
         "done": done,
         "total": total,
         "percent": round(done / total * 100) if total else 0,
-        "risk": sum(1 for task in tasks if _late_days(task) > 0),
+        "risk": sum(1 for task in tasks if late_days(task) > 0),
         "window_start": min(starts) if starts else None,
         "window_end": max(ends) if ends else None,
     }
@@ -276,19 +281,28 @@ def build_plan_rows(tasks: list, cut: str, today=None, project=None) -> list[dic
     counted = [task for task in tasks if _counts(task)]
     first, second = CUTS.get(cut, CUTS[DEFAULT_CUT])
     scope = _milestone_scopes(counted)
+    progress = _milestone_progress(scope)
     rows: list[dict] = []
     if first is None:
         rows.extend(_leaves(counted, "flat", 0, name_milestone=True))
         return rows
     for group in _GROUPERS[first](counted):
-        rows.append(_group_row(group, depth=0, scope=scope, project=project))
+        rows.append(_group_row(group, depth=0, scope=scope, project=project, progress=progress))
         if second is None:
             rows.extend(_leaves(group["tasks"], group["key"], 1))
             continue
         for inner in _GROUPERS[second](group["tasks"]):
             inner_key = f"{group['key']}:{inner['key']}"
             rows.append(
-                _group_row(inner, depth=1, key=inner_key, parent=group["key"], scope=scope, project=project),
+                _group_row(
+                    inner,
+                    depth=1,
+                    key=inner_key,
+                    parent=group["key"],
+                    scope=scope,
+                    project=project,
+                    progress=progress,
+                ),
             )
             note = _direct_note(first, second, inner)
             if note:
@@ -305,6 +319,27 @@ def build_plan_rows(tasks: list, cut: str, today=None, project=None) -> list[dic
                 )
             rows.extend(_leaves(inner["tasks"], inner_key, 2))
     return rows
+
+
+def _milestone_progress(scope: dict) -> dict[int, tuple[int, int]]:
+    """Return every milestone's progress across its whole scope, in one query.
+
+    Two rows read this. A shared date needs it to report what it is as a
+    whole, next to the part this project holds. Every date needs it for
+    its own state, which is otherwise two counts per row —
+    :meth:`Milestone.counts` says as much, and the Plan draws a row per
+    milestone.
+
+    Args:
+        scope: Milestone scopes from :func:`_milestone_scopes`.
+
+    Returns:
+        ``{milestone_id: (done, total)}``; a milestone with no counted
+        work is absent.
+    """
+    if not scope:
+        return {}
+    return milestone_services.progress_by_milestone(list(scope))
 
 
 def _direct_note(first: str, second: str, group: dict) -> str:
@@ -484,6 +519,7 @@ def _group_row(
     parent: str | None = None,
     scope: dict | None = None,
     project=None,
+    progress: dict | None = None,
 ) -> dict:
     """Build one group row with its rollup.
 
@@ -492,6 +528,9 @@ def _group_row(
         depth: 0 for the outer level, 1 for the inner one.
         key: Collapse key; defaults to the group's own key.
         parent: The outer group's key, when nested.
+        scope: Milestone scopes from :func:`_milestone_scopes`.
+        project: The project the plan is scoped to, or ``None``.
+        progress: Whole-scope counts from :func:`_milestone_progress`.
 
     Returns:
         The row dict the Plan template renders.
@@ -522,9 +561,21 @@ def _group_row(
     # how much work it holds, because that is the whole of what it is.
     milestone = group["milestone"]
     if milestone is not None:
-        state = milestone.state()
+        counts = (progress or {}).get(milestone.id, (0, 0))
+        state = milestone.state(counts=counts)
+        countdown = milestone_services.countdown(milestone, state)
         row["state"] = state
-        row["sub"] = f"{date_format(milestone.target_date, 'M j')} · {milestone_services.countdown(milestone, state)}"
+        row["state_label"] = milestone_services.STATE_LABELS[state]
+        # The tree prints the countdown under the date and the state beside
+        # the name, the way every other milestone surface does; ``sub`` is
+        # the one-line form the timeline's narrow left column takes.
+        row["countdown"] = countdown
+        row["sub"] = f"{date_format(milestone.target_date, 'M j')} · {countdown}"
+        # A shared date reports twice: what this project holds, and what
+        # the milestone is as a whole. Either number alone misreads — a
+        # local 1/1 on a date that is 1/9 overall looks finished.
+        if project is not None and len((scope or {}).get(milestone.id, [])) > 1:
+            row["overall_done"], row["overall_total"] = counts
     else:
         row["sub"] = ngettext(
             "%(count)d task",
@@ -603,7 +654,7 @@ def _task_row(task, *, depth: int, parent: str | None = None, name_milestone: bo
         "key": f"task-{task.id}",
         "parent": parent,
         "task": task,
-        "late": _late_days(task),
+        "late": late_days(task),
         # The flat cut has no group row above it to say which date this
         # belongs to, so the row says it itself.
         "milestone_name": (task.milestone.name if task.milestone_id else _("no milestone")) if name_milestone else "",

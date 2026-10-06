@@ -11,18 +11,19 @@ slots reads as clutter, and the places that invite you to fill them in
 are the task rail and the bulk bar, not a list you are scanning.
 
 Hidden below ``md:`` — on a phone the row has room for the title and
-little else.
+little else. Each half carries ``data-col`` so the Display toggles can
+hide it: the same switch that drops the table column drops the chip.
 {% endcomment %}
 {% if task.epic_id or task.milestone_id %}
 <span class="hidden md:inline-flex items-center gap-1 text-[11px] text-placeholder-foreground min-w-0 shrink">
   {% if task.epic_id %}
-  <span class="inline-flex items-center gap-1 min-w-0" title="{% trans 'Epic' %}: {{ task.epic.title }}">
+  <span data-col="epic" class="inline-flex items-center gap-1 min-w-0" title="{% trans 'Epic' %}: {{ task.epic.title }}">
     {% lucide "square-kanban" "w-3 h-3 shrink-0" %}<span class="truncate max-w-[9rem]">{{ task.epic.title }}</span>
   </span>
   {% endif %}
-  {% if task.epic_id and task.milestone_id %}{% lucide "chevron-right" "w-3 h-3 shrink-0 opacity-50" %}{% endif %}
+  {% if task.epic_id and task.milestone_id %}<span data-col="epic">{% lucide "chevron-right" "w-3 h-3 shrink-0 opacity-50" %}</span>{% endif %}
   {% if task.milestone_id %}
-  <span class="inline-flex items-center gap-1 min-w-0" title="{% trans 'Milestone' %}: {{ task.milestone.name }} · {{ task.milestone.target_date|date:'M j' }}">
+  <span data-col="milestone" class="inline-flex items-center gap-1 min-w-0" title="{% trans 'Milestone' %}: {{ task.milestone.name }} · {{ task.milestone.target_date|date:'M j' }}">
     {% lucide "milestone" "w-3 h-3 shrink-0" %}<span class="truncate max-w-[9rem]">{{ task.milestone.name }}</span>
   </span>
   {% endif %}

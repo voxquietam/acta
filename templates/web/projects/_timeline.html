@@ -24,11 +24,17 @@
     [data-tl="body"]   z=1   traps bars under the date header.
     today-line z=1   between row bg (auto) and bars, so the line passes
                      BEHIND task bars instead of painting over them.
+    weekends   z=1   same layer as the today line, and first in the body so
+                     the lines paint over the bands. The rows themselves are
+                     ``position:relative`` with z-index auto, so a band
+                     without a z-index would be buried under the striping of
+                     every even row.
 */
 [data-tl="left"]       { z-index: 30; }                      /* sticky task col, beats header */
 [data-tl="body"]       { position: relative; z-index: 1; }   /* traps bars under the header */
 [data-tl="header"]     { z-index: 20; }                      /* opaque date header, above body */
 [data-tl="today-line"] { z-index: 1; }
+[data-tl="weekends"]   { z-index: 1; }
 
 /* Bar wrapper — positioned absolute inside .tl-row */
 .tl-gwrap {
@@ -275,6 +281,26 @@
   box-shadow: 3px 0 0 0 currentColor;
 }
 
+/* Work the window does not reach: an arrow at the edge it fell off, with
+   the date it would be found at. Pinned to the row's own edge rather than
+   to a day, because the day is not on screen. */
+.tl-offwin {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  white-space: nowrap;
+  color: rgb(var(--placeholder-foreground));
+  z-index: 2;
+  pointer-events: none;
+}
+.tl-offwin.l { left: 4px; }
+.tl-offwin.r { right: 4px; }
+
 /* Snap guide line while dragging — above the sticky header */
 [data-tl="snap"] {
   position: absolute;
@@ -301,10 +327,32 @@ Plan tab draws a second chart on the same page and ids are unique.
 {% endcomment %}
 <div data-timeline class="flex flex-col flex-1 min-h-0">
 
-{% comment %} Sub-toolbar: zoom group + today button + missing-dates badge {% endcomment %}
+{% comment %}
+Sub-toolbar: the window the chart shows, the zoom that sizes it, the range
+it covers, and the missing-dates badge. ``Today`` sits between the two
+arrows because it is the same gesture they perform — put the window back
+where today is — and it lights up while the window is somewhere else. The
+"Zoom" label went: with three more controls in the row the D/W/M group has
+to speak for itself, and the design draws it unlabelled.
+{% endcomment %}
 <div class="flex items-center gap-2.5 px-4 py-2 bg-background shrink-0">
 
-  <span class="font-mono text-[10px] font-bold uppercase tracking-wider text-subtle-foreground">{% trans "Zoom" %}</span>
+  <div class="inline-flex items-center gap-1">
+    <button type="button" data-tl="prev" title="{% trans "Previous window" %}"
+            class="p-1 rounded-md text-subtle-foreground hover:text-foreground hover:bg-muted/50 transition">
+      {% lucide "chevron-left" "w-3.5 h-3.5" %}
+    </button>
+    <button type="button" data-tl="today-btn"
+            class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs text-subtle-foreground hover:text-foreground hover:bg-muted/50 transition">
+      {% lucide "circle-dot" "w-3.5 h-3.5" %}
+      {% trans "Today" %}
+    </button>
+    <button type="button" data-tl="next" title="{% trans "Next window" %}"
+            class="p-1 rounded-md text-subtle-foreground hover:text-foreground hover:bg-muted/50 transition">
+      {% lucide "chevron-right" "w-3.5 h-3.5" %}
+    </button>
+  </div>
+
   <div class="inline-flex bg-card border border-border rounded-md overflow-hidden">
     <button type="button" data-zoom="day"
             class="tl-zoom-btn font-mono text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 border-r border-border text-subtle-foreground hover:bg-muted hover:text-foreground transition">
@@ -320,13 +368,7 @@ Plan tab draws a second chart on the same page and ids are unique.
     </button>
   </div>
 
-  <div class="w-px h-4 bg-border mx-1"></div>
-
-  <button type="button" data-tl="today-btn"
-          class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs text-subtle-foreground hover:text-foreground hover:bg-muted/50 transition">
-    {% lucide "circle-dot" "w-3.5 h-3.5" %}
-    {% trans "Today" %}
-  </button>
+  <span data-tl="range" class="font-mono text-[11px] text-placeholder-foreground whitespace-nowrap"></span>
 
   <div class="flex-1"></div>
 
@@ -475,8 +517,12 @@ because grid items' containing block was just the 56px header row.
          ``STATIC_URL`` is not the JS's to guess.
          {% endcomment %}
          data-sprite="{% lucide_sprite_url %}"
-         data-chart-start="{{ chart_start_iso }}"
-         data-chart-end="{{ chart_end_iso }}"
+         {% comment %}
+         Only today rides in: the window the chart draws is chosen in the
+         browser from the zoom and the ‹ › offset, not handed down. The
+         server still uses its own span to decide which milestones are worth
+         sending.
+         {% endcomment %}
          data-today="{{ today_iso }}"
          {% comment %}
          i18n strings handed to the timeline JS (static acta.js can't use
@@ -495,6 +541,7 @@ because grid items' containing block was just the 56px header row.
          data-i18n-milestones="{% trans 'milestones' %}"
          data-i18n-shared-date="{% trans 'shared date' %}"
          data-i18n-shared-dates="{% trans 'shared dates' %}"
+         data-i18n-outside-window="{% trans 'outside this window' %}"
          class="relative">
 
       {% comment %}
@@ -547,6 +594,12 @@ because grid items' containing block was just the 56px header row.
         bars instead of painting over them. JS sets left + height; the
         ::before pseudo adds the dot at the body top, just under the header.
         {% endcomment %}
+        {% comment %}
+        Weekend bands, drawn by the same JS that places the today line and
+        in the same layer. First in the body so the lines paint over them.
+        Empty outside day zoom.
+        {% endcomment %}
+        <div data-tl="weekends" class="absolute top-0 left-0 pointer-events-none"></div>
         <div data-tl="today-line"
              class="absolute top-0 pointer-events-none"
              style="width:2px;background:rgb(66 90 245);display:none;"></div>

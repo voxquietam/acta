@@ -438,9 +438,12 @@ class TestProjectViewQueryCounts:
         # + 1 for the assignee-picker member ranking pull (project.members
         # lookup so the dropdown can pin project members + lead at top)
         # + 1 for the dock's open-milestone list, capped at 50 and flat in
-        # the number of tasks like every other axis the dock offers.
+        # the number of tasks like every other axis the dock offers
+        # + 1 EXISTS asking whether this workspace plans dates at all,
+        # which gates the Milestone column and the milestone grouping axis
+        # and is memoised on the workspace so the two share it.
         # Still constant — adding more tasks must not move it.
-        with django_assert_max_num_queries(20):
+        with django_assert_max_num_queries(21):
             client.get(
                 reverse(
                     "web_ws:project_detail",

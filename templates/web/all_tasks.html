@@ -28,9 +28,16 @@
 <div x-data class="h-full flex flex-col">
   {% include "web/_assignee_strip.html" %}
   <div class="flex-1 min-h-0 flex flex-col lg:flex-row gap-4 lg:items-stretch">
+    {% comment %}
+    ``data-plan-scope`` marks the subtree the Display toggles act on: the
+    table's two optional columns and the epic / milestone chip on every
+    list row and kanban card. The classes hide, never show, and ``acta.js``
+    flips them client-side — the toggles cancel their own request.
+    {% endcomment %}
     <div id="task-list-wrapper"
          data-task-list-root
-         class="flex-1 min-w-0 min-h-0 flex flex-col"
+         data-plan-scope
+         class="flex-1 min-w-0 min-h-0 flex flex-col {% if hide_epic %}is-hide-epic{% endif %} {% if hide_milestone %}is-hide-milestone{% endif %}"
          hx-get="{{ request.path }}"
          hx-trigger="acta:task-moved from:body, acta:task-changed from:body, acta:bulk-changed from:body"
          hx-target="this"

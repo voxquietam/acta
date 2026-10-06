@@ -8,11 +8,14 @@ count. See docs/decisions/0037-milestones.md.
 
 import datetime
 
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 import pytest
 
 from apps.accounts.tests.factories import UserFactory
+from apps.milestones import services as milestone_services
 from apps.milestones.tests.factories import MilestoneFactory
 from apps.projects.tests.factories import ProjectFactory
 from apps.tasks.models import Task
@@ -297,3 +300,181 @@ class TestTheFlatCut:
 
         assert folds == ["Show 4 more open"]
         assert sum(1 for row in rows if row["kind"] == "task") == plan.FLAT_LIMIT + 4
+
+
+@pytest.mark.django_db
+class TestTheSharedDateReportsTwice:
+    """Inside a project a shared milestone carries two numbers.
+
+    The plan is cut from one project's work, so its own rollup counts the
+    local part. On a date several projects aim at, that part is not the
+    commitment — "1/1 here" on a milestone that is 1/9 overall reads as
+    finished when nothing is. See docs/decisions/0037-milestones.md.
+    """
+
+    def _shared(self, setup):
+        """Put the Beta milestone in a second project and attach work there.
+
+        Returns:
+            ``(project, other, milestone)``.
+        """
+        workspace, _, project, soon, _, _ = setup
+        other = ProjectFactory(workspace=workspace, slug_prefix="OTH")
+        soon.projects.add(other)
+        TaskFactory(project=project, milestone=soon, status=Task.STATUS_DONE)
+        for _index in range(3):
+            TaskFactory(project=other, milestone=soon, status=Task.STATUS_TODO)
+        return project, other, soon
+
+    def _milestone_row(self, project, milestone, **kwargs):
+        """Build the plan and return the row for one milestone.
+
+        Returns:
+            The group row, or ``None`` when the milestone has no row.
+        """
+        tasks = Task.objects.filter(project=project, kind=Task.KIND_TASK).select_related("milestone", "epic")
+        rows = plan.build_plan_rows(list(tasks), "milestone-epic", project=kwargs.get("scope_to", project))
+        return next(
+            (row for row in rows if row["kind"] == "group" and row["milestone"] == milestone),
+            None,
+        )
+
+    def test_a_shared_date_carries_the_whole_count(self, setup):
+        project, _, milestone = self._shared(setup)
+
+        row = self._milestone_row(project, milestone)
+
+        assert (row["done"], row["total"]) == (1, 1)
+        assert (row["overall_done"], row["overall_total"]) == (1, 4)
+
+    def test_a_date_this_project_owns_alone_says_nothing_extra(self, setup):
+        _, _, project, soon, _, _ = setup
+        TaskFactory(project=project, milestone=soon, status=Task.STATUS_TODO)
+
+        row = self._milestone_row(project, soon)
+
+        assert "overall_total" not in row
+
+    def test_across_the_workspace_there_is_no_second_number(self, setup):
+        project, _, milestone = self._shared(setup)
+
+        row = self._milestone_row(project, milestone, scope_to=None)
+
+        assert "overall_total" not in row
+
+    def test_the_whole_count_costs_one_query_however_many_dates(self, setup):
+        """One aggregate for the page — a row each would be an N+1."""
+        workspace, _, project, soon, later, _ = setup
+        other = ProjectFactory(workspace=workspace, slug_prefix="OTH")
+        for milestone in (soon, later):
+            milestone.projects.add(other)
+            TaskFactory(project=project, milestone=milestone, status=Task.STATUS_TODO)
+            TaskFactory(project=other, milestone=milestone, status=Task.STATUS_TODO)
+        tasks = list(Task.objects.filter(project=project, kind=Task.KIND_TASK).select_related("milestone", "epic"))
+
+        with CaptureQueriesContext(connection) as ctx:
+            plan.build_plan_rows(tasks, "milestone-epic", project=project)
+
+        # Two for the milestone scopes (the rows and their prefetched
+        # projects), one for the counts across them — and none per row:
+        # ``state()`` is handed the counts it would otherwise fetch twice
+        # over, which is what made this an N+1 in the milestone count.
+        assert len(ctx.captured_queries) == 3, [query["sql"] for query in ctx.captured_queries]
+
+
+@pytest.mark.django_db
+class TestTheLazyPanel:
+    """``?panel=plan`` must return the panel, not the page around it.
+
+    The Plan slot is lazy like the list and the timeline: ``acta.js``
+    fetches it and swaps the response into the slot. With no template
+    branch for it the fetch fell through to the full inner partial, so
+    the whole panel wrapper — every slot, the Plan one empty — landed
+    inside the Plan slot and the tab went black. A reload hid it, because
+    that path renders the panel inline. The context was right the whole
+    time, which is why asserting on ``resp.context`` alone missed it.
+    """
+
+    def test_the_project_panel_is_the_plan_alone(self, client, setup):
+        workspace, user, project, soon, _, _ = setup
+        TaskFactory(project=project, milestone=soon, status=Task.STATUS_TODO, title="Ship the index")
+        client.force_login(user)
+
+        resp = client.get(
+            f"/{workspace.slug}/projects/{project.slug_prefix}/?panel=plan",
+            HTTP_HX_REQUEST="true",
+        )
+        body = resp.content.decode()
+
+        assert "Ship the index" in body
+        # The panel's own knob says ``closest [data-panel-slot]``; what must
+        # not come back is a slot element, which is the wrapper in disguise.
+        assert 'data-panel-slot="' not in body
+
+    def test_the_workspace_panel_is_the_plan_alone(self, client, setup):
+        workspace, user, project, soon, _, _ = setup
+        TaskFactory(project=project, milestone=soon, status=Task.STATUS_TODO, title="Ship the index")
+        client.force_login(user)
+
+        resp = client.get(
+            f"/{workspace.slug}/tasks/?panel=plan",
+            HTTP_HX_REQUEST="true",
+        )
+        body = resp.content.decode()
+
+        assert "Ship the index" in body
+        # The panel's own knob says ``closest [data-panel-slot]``; what must
+        # not come back is a slot element, which is the wrapper in disguise.
+        assert 'data-panel-slot="' not in body
+
+
+@pytest.mark.django_db
+class TestTheTreeSaysWhereTheDateStands:
+    """A milestone row carries its state, not just its date.
+
+    The tree knew the state all along — it drew every row the same and
+    printed the word "target" under the date. Half of what a plan is for
+    is seeing which commitments have gone past.
+    """
+
+    def _row(self, project, milestone):
+        """Return the plan row for one milestone.
+
+        Returns:
+            The group row, or ``None``.
+        """
+        tasks = Task.objects.filter(project=project, kind=Task.KIND_TASK).select_related("milestone", "epic")
+        rows = plan.build_plan_rows(list(tasks), "milestone-epic", project=project)
+        return next(
+            (row for row in rows if row["kind"] == "group" and row["milestone"] == milestone),
+            None,
+        )
+
+    def test_a_date_that_has_gone_reads_as_overdue(self, setup):
+        _, _, project, soon, _, _ = setup
+        soon.target_date = timezone.localdate() - datetime.timedelta(days=3)
+        soon.save(update_fields=["target_date"])
+        TaskFactory(project=project, milestone=soon, status=Task.STATUS_TODO)
+
+        row = self._row(project, soon)
+
+        assert row["state"] == "overdue"
+        assert "3" in row["countdown"]
+
+    def test_finished_work_reads_as_ready_to_close(self, setup):
+        _, _, project, soon, _, _ = setup
+        TaskFactory(project=project, milestone=soon, status=Task.STATUS_DONE)
+
+        row = self._row(project, soon)
+
+        assert row["state"] == "complete"
+        assert row["state_label"]
+
+    def test_the_countdown_is_the_line_the_milestone_pages_print(self, setup):
+        """One reading in one place — the tree must not grow its own wording."""
+        _, _, project, soon, _, _ = setup
+        TaskFactory(project=project, milestone=soon, status=Task.STATUS_TODO)
+
+        row = self._row(project, soon)
+
+        assert row["countdown"] == milestone_services.countdown(soon, row["state"])

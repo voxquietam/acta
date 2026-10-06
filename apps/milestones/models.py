@@ -165,7 +165,7 @@ class Milestone(models.Model):
             counted.count(),
         )
 
-    def state(self, today=None) -> str:
+    def state(self, today=None, counts=None) -> str:
         """Return the milestone's state for a given day.
 
         Closed is stored because the event either happened or it did
@@ -173,6 +173,10 @@ class Milestone(models.Model):
 
         Args:
             today: Reference date; defaults to the local current date.
+            counts: A ``(done, total)`` pair the caller already has. A
+                page drawing many milestones reads them all in one query
+                and hands them in; without it every row pays the two
+                counts :meth:`counts` runs.
 
         Returns:
             One of ``closed``, ``complete``, ``overdue``, ``today`` or
@@ -180,7 +184,7 @@ class Milestone(models.Model):
         """
         if self.is_closed:
             return self.STATE_CLOSED
-        done, total = self.counts()
+        done, total = counts if counts is not None else self.counts()
         if total and done == total:
             return self.STATE_COMPLETE
         today = today or timezone.localdate()

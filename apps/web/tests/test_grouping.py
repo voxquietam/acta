@@ -198,3 +198,47 @@ def test_every_axis_the_picker_offers_can_be_grouped():
     for key in keys:
         sections = group_tasks(Task.objects.all(), key, request_user=user)
         assert sections, f"axis {key!r} is offered by the picker but groups into nothing"
+
+
+@pytest.mark.django_db
+def test_a_milestone_section_says_its_date_and_what_runs_past_it():
+    """A heading that reads "Beta · 12" hides the one fact worth acting on.
+
+    The section is named after a date, so it carries that date and the
+    count of work already running past it — the same rule the plan and
+    the milestone pages count risk by (ADR 0037).
+    """
+    from apps.milestones.tests.factories import MilestoneFactory
+
+    workspace = WorkspaceFactory()
+    project = ProjectFactory(workspace=workspace)
+    target = timezone.localdate() + datetime.timedelta(days=10)
+    milestone = MilestoneFactory(workspace=workspace, name="Beta", target_date=target, projects=[project])
+    TaskFactory(
+        project=project,
+        milestone=milestone,
+        due_date=target + datetime.timedelta(days=4),
+        status=Task.STATUS_TODO,
+    )
+    TaskFactory(
+        project=project,
+        milestone=milestone,
+        due_date=target - datetime.timedelta(days=1),
+        status=Task.STATUS_TODO,
+    )
+    # Done work is not at risk, however late its deadline sits.
+    TaskFactory(
+        project=project,
+        milestone=milestone,
+        due_date=target + datetime.timedelta(days=9),
+        status=Task.STATUS_DONE,
+    )
+
+    sections = group_tasks(
+        Task.objects.filter(project=project).select_related("milestone"),
+        "milestone",
+    )
+    section = next(s for s in sections if s["label"] == "Beta")
+
+    assert section["risk"] == 1
+    assert section["sub"]

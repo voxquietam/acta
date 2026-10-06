@@ -673,6 +673,7 @@
     const showArchived = viewMode === "archive" || fd.getAll("show_archived").includes("1");
     const showBacklog = fd.getAll("show_backlog").includes("1");
     const showEpic = fd.getAll("show_epic").includes("1");
+    const showMilestone = fd.getAll("show_milestone").includes("1");
     // "Show my projects" — client-side hide of rows whose project the
     // user isn't a member of (or doesn't lead). ``my-project-ids`` is
     // stamped on the form as a CSV by the server. Default ON: when the
@@ -702,6 +703,7 @@
       showArchived,
       showBacklog,
       showEpic,
+      showMilestone,
       showMyProjects,
       myProjectIds,
     };
@@ -895,6 +897,13 @@
     if (form.dataset.serverFilter === "true") return;
     const state = readFilterState(form);
     if (!state) return;
+    // The optional columns and the plan chip are hidden here, not
+    // server-side: this pass is all the toggle gets, because the dock
+    // cancels its own request. Everything is already in the DOM.
+    document.querySelectorAll("[data-plan-scope]").forEach((scope) => {
+      scope.classList.toggle("is-hide-epic", !state.showEpic);
+      scope.classList.toggle("is-hide-milestone", !state.showMilestone);
+    });
     // A chip-filter change round-trips to the server, which replaces the
     // active panel with the correctly-filtered rows. Pre-hiding the
     // non-matching rows here first makes the task list visibly blink (rows
@@ -990,6 +999,22 @@
     document.querySelectorAll("[data-wip-warning]").forEach((el) => {
       el.classList.toggle("hidden", filtersActive);
     });
+    // A sliced board's lanes are groups, so an emptied one leaves — the
+    // same rule as a list section. Its ``done/total`` is recounted from
+    // the cards still standing; its "N past" cannot be, because lateness
+    // is measured against the milestone server-side, so that one hides
+    // while a filter is active like the WIP cues above.
+    document.querySelectorAll("[data-kanban-lane]").forEach((lane) => {
+      const cards = [...lane.querySelectorAll("[data-kanban-card]:not([hidden])")];
+      const done = cards.filter((card) => card.dataset.status === "done").length;
+      const progress = lane.querySelector("[data-lane-progress]");
+      if (progress) progress.textContent = `${done}/${cards.length}`;
+      const bar = lane.querySelector("[data-lane-bar]");
+      if (bar) bar.style.width = `${cards.length ? Math.round((done / cards.length) * 100) : 0}%`;
+      const risk = lane.querySelector("[data-lane-risk]");
+      if (risk) risk.classList.toggle("hidden", filtersActive);
+      lane.classList.toggle("hidden", cards.length === 0);
+    });
     recomputeKanbanSubstatus();
     // Backlog off → hide the planned / ready kanban COLUMNS entirely (not just
     // their cards), so an empty column doesn't linger. The column wrapper
@@ -1013,6 +1038,11 @@
     const hasEpicToggle = document.querySelector('#filter-form input[name="show_epic"][type="checkbox"]') !== null;
     if (hasEpicToggle) {
       document.cookie = `acta_show_epic=${state.showEpic ? "1" : "0"}; path=/; max-age=${oneYear}; samesite=Lax`;
+    }
+    const hasMilestoneToggle =
+      document.querySelector('#filter-form input[name="show_milestone"][type="checkbox"]') !== null;
+    if (hasMilestoneToggle) {
+      document.cookie = `acta_show_milestone=${state.showMilestone ? "1" : "0"}; path=/; max-age=${oneYear}; samesite=Lax`;
     }
     const hasMyToggle = document.querySelector('#filter-form input[name="show_my_projects"][type="checkbox"]') !== null;
     if (hasMyToggle) {
@@ -1245,7 +1275,12 @@
     document.querySelectorAll(".kanban-column").forEach((col) => {
       if (window.Sortable.get(col)) return; // already bound on this element
       new window.Sortable(col, {
-        group: "tasks",
+        // A sliced board gives every lane its own group, so a card can be
+        // dragged sideways (its status) but never downwards into another
+        // milestone or epic. Attaching work to a date is a deliberate act
+        // — the rail, the bulk bar, the milestone's own page — not
+        // something a mouse should do on the way past.
+        group: col.dataset.lane ? `tasks-lane-${col.dataset.lane}` : "tasks",
         animation: 150,
         ghostClass: "opacity-30",
         onAdd: handleKanbanDrop,
@@ -1485,11 +1520,27 @@
       milestones: gantt.dataset.i18nMilestones || "milestones",
       sharedDate: gantt.dataset.i18nSharedDate || "shared date",
       sharedDates: gantt.dataset.i18nSharedDates || "shared dates",
+      outsideWindow: gantt.dataset.i18nOutsideWindow || "outside this window",
     };
 
     const MONTHS = ["January", "February", "March", "April", "May", "June",
       "July", "August", "September", "October", "November", "December"];
-    const DAY_W = { day: 44, week: 20, month: 9 };
+    // The window a zoom shows, and what one press of ‹ › moves it by: six
+    // months stepping a quarter, twelve ISO weeks stepping four, three weeks
+    // stepping one. The chart is a window onto the plan, not a canvas with
+    // the whole plan painted on it — a day's width falls out of the window
+    // and the room the track has, instead of being fixed per zoom.
+    const WINDOW = {
+      day: { days: 21, step: 7 },
+      week: { days: 84, step: 28 },
+      month: { months: 6, step: 3 },
+    };
+    // Below this the track stops shrinking and the chart scrolls sideways
+    // instead, so a narrow pane still gets readable columns.
+    const MIN_TRACK_W = 680;
+    // A bar never thinner than this, however short the work or wide the
+    // window: at month zoom a day is about five pixels.
+    const MIN_BAR_W = 10;
     const LS_KEY = "acta_timeline_zoom";
     const STATUS_COLOR = {
       "planned": "rgb(82 82 91)",
@@ -1523,17 +1574,69 @@
       return Math.ceil((((d - y0) / 86400000) + 1) / 7);
     }
 
-    const chartStart = parseDate(gantt.dataset.chartStart);
-    const chartEnd = parseDate(gantt.dataset.chartEnd);
     const today = parseDate(gantt.dataset.today);
-    const totalDays = diffDays(chartStart, chartEnd);
 
     let zoom = localStorage.getItem(LS_KEY) || "week";
+    // How many windows away from the one holding today. Per chart and never
+    // stored: a window is where you are looking right now, not a preference,
+    // and the Plan tab can draw a second chart that pages on its own.
+    let off = 0;
+    // The window itself — ``measure`` fills these before anything draws.
+    let viewStart = today;
+    let viewEnd = today;
+    let viewDays = 1;
+    let curDayW = 1;
+
+    // Where the window starts for the current zoom and offset. Every zoom
+    // keeps today a little in from the left edge: the past worth showing is
+    // the recent past, the rest of the width is what is being planned.
+    function windowStart() {
+      if (zoom === "month") {
+        return new Date(today.getFullYear(), today.getMonth() - 2 + off * WINDOW.month.step, 1);
+      }
+      if (zoom === "week") {
+        const monday = addDays(today, -((today.getDay() + 6) % 7));
+        return addDays(monday, -14 + off * WINDOW.week.step);
+      }
+      return addDays(today, -5 + off * WINDOW.day.step);
+    }
+
+    // A month window is counted in months, not days, so six months always
+    // land on the 1st however long those months happen to be.
+    function windowEnd(start) {
+      if (zoom === "month") {
+        return new Date(start.getFullYear(), start.getMonth() + WINDOW.month.months, 1);
+      }
+      return addDays(start, WINDOW[zoom].days);
+    }
+
+    // The window, plus the pixels one day gets inside it. The track fills
+    // whatever the sticky task column leaves.
+    function measure() {
+      viewStart = windowStart();
+      viewEnd = windowEnd(viewStart);
+      viewDays = diffDays(viewStart, viewEnd);
+      // One pixel of slack: a fractional total would hand the scroller a
+      // horizontal scrollbar it has nothing to scroll.
+      const room = scrollContainer ? Math.floor(scrollContainer.clientWidth - STICKY_LEFT_W) - 1 : 0;
+      curDayW = Math.max(room, MIN_TRACK_W) / viewDays;
+    }
+
+    const inWindow = (date) => date >= viewStart && date < viewEnd;
+    // A date's x inside the window, and that x held inside it.
+    const xOf = (date) => diffDays(viewStart, date) * curDayW;
+    const clampX = (x) => Math.min(Math.max(x, 0), viewDays * curDayW);
 
     function setZoom(z) {
       zoom = z;
+      // The window length just changed, so "two windows back" no longer
+      // names the same place — start again from the one holding today.
+      off = 0;
       localStorage.setItem(LS_KEY, z);
-      document.querySelectorAll(".tl-zoom-btn").forEach((btn) => {
+      // Scoped to this chart, not the document: with a second timeline on
+      // the page a global query had each init binding the other one's
+      // buttons too.
+      qa(".tl-zoom-btn").forEach((btn) => {
         const on = btn.dataset.zoom === z;
         btn.classList.toggle("bg-brand-500/15", on);
         btn.classList.toggle("text-brand-300", on);
@@ -1542,9 +1645,15 @@
       render();
     }
 
-    document.querySelectorAll(".tl-zoom-btn").forEach((btn) =>
+    qa(".tl-zoom-btn").forEach((btn) =>
       btn.addEventListener("click", () => setZoom(btn.dataset.zoom)),
     );
+
+    // ‹ › move the window by its own step.
+    function step(by) {
+      off += by;
+      render();
+    }
 
     function renderHeader(dayW) {
       const monthsEl = q("months");
@@ -1552,11 +1661,11 @@
       monthsEl.innerHTML = "";
       unitsEl.innerHTML = "";
 
-      const renderDays = zoom === "week" ? Math.ceil(totalDays / 7) * 7 : totalDays;
+      const renderDays = viewDays;
 
       let curMonth = -1, mEl = null;
       for (let i = 0; i < renderDays; i++) {
-        const d = addDays(chartStart, i);
+        const d = addDays(viewStart, i);
         if (d.getMonth() !== curMonth) {
           curMonth = d.getMonth();
           mEl = document.createElement("div");
@@ -1572,8 +1681,8 @@
 
       if (zoom === "week") {
         for (let i = 0; i < renderDays; i += 7) {
-          const d = addDays(chartStart, i);
-          const now = diffDays(chartStart, today) >= i && diffDays(chartStart, today) < i + 7;
+          const d = addDays(viewStart, i);
+          const now = diffDays(viewStart, today) >= i && diffDays(viewStart, today) < i + 7;
           const el = document.createElement("div");
           el.style.cssText = "flex-shrink:0;display:flex;align-items:center;justify-content:center;" +
             `font-size:10px;font-family:ui-monospace,monospace;font-weight:${now ? "700" : "500"};` +
@@ -1584,8 +1693,8 @@
         }
       } else if (zoom === "month") {
         let prevM = -1, el = null;
-        for (let i = 0; i < totalDays; i++) {
-          const d = addDays(chartStart, i);
+        for (let i = 0; i < viewDays; i++) {
+          const d = addDays(viewStart, i);
           if (d.getMonth() !== prevM) {
             prevM = d.getMonth();
             const now = d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
@@ -1600,9 +1709,9 @@
           el.style.width = (parseFloat(el.style.width) + dayW) + "px";
         }
       } else {
-        for (let i = 0; i < totalDays; i++) {
-          const d = addDays(chartStart, i);
-          const now = diffDays(chartStart, today) === i;
+        for (let i = 0; i < viewDays; i++) {
+          const d = addDays(viewStart, i);
+          const now = diffDays(viewStart, today) === i;
           const we = d.getDay() === 0 || d.getDay() === 6;
           const el = document.createElement("div");
           el.style.cssText = "flex-shrink:0;display:flex;align-items:center;justify-content:center;" +
@@ -1645,8 +1754,11 @@
       const limit = parseDate(row.dataset.due) || parseDate(row.dataset.end);
       if (!msDate || !limit || limit <= msDate) return;
       if (row.dataset.status === "done") return;
-      const left = (diffDays(chartStart, msDate) + 1) * dayW;
-      const width = Math.max(dayW, diffDays(msDate, limit) * dayW);
+      // The overrun starts the day after the milestone; outside the window
+      // there is nothing to draw it against.
+      if (limit < viewStart || msDate >= viewEnd) return;
+      const left = clampX(xOf(msDate) + dayW);
+      const width = Math.max(clampX(xOf(limit) + dayW) - left, MIN_BAR_W);
       const over = document.createElement("div");
       over.className = "tl-gwrap tl-overrun";
       over.style.cssText = `left:${left}px;width:${width}px;pointer-events:none;`;
@@ -1659,15 +1771,40 @@
       row.appendChild(over);
     }
 
+    // Work the window does not reach: an arrow pinned to the edge it fell
+    // off, carrying the date it would be found at. A bar clamped to the
+    // boundary instead would claim this window holds work that is months
+    // away. Returns true when it drew one, so the bars skip the row.
+    function renderOffWindow(row, start, end, due) {
+      const last = due || end || start;
+      const first = start || due || end;
+      if (!first || !last) return false;
+      const before = last < viewStart;
+      const after = first >= viewEnd;
+      if (!before && !after) return false;
+      const sprite = gantt.dataset.sprite || "";
+      const icon = before ? "chevron-left" : "chevron-right";
+      const chip = document.createElement("span");
+      chip.className = "tl-offwin " + (before ? "l" : "r");
+      chip.innerHTML =
+        `<svg width="12" height="12" viewBox="0 0 24 24" style="flex:none"><use href="${sprite}#lu-${icon}"/></svg>` +
+        `<span>${before ? L.due : L.start} ${fmtDate(before ? last : first)}</span>`;
+      row.appendChild(chip);
+      return true;
+    }
+
     function renderBars(dayW) {
       qa(".tl-row").forEach((row) => {
-        row.querySelectorAll(".tl-gwrap,.tl-nodate,.tl-deadline,.tl-overrun").forEach((el) => el.remove());
-        renderOverrun(row, dayW);
+        row.querySelectorAll(".tl-gwrap,.tl-nodate,.tl-deadline,.tl-overrun,.tl-offwin")
+          .forEach((el) => el.remove());
 
         const start = parseDate(row.dataset.start);
         const end = parseDate(row.dataset.end);
         const due = parseDate(row.dataset.due);
         const status = row.dataset.status;
+
+        if (renderOffWindow(row, start, end, due)) return;
+        renderOverrun(row, dayW);
         // "overdue" tracks the DEADLINE (due_date), not the bar: not done and
         // the hard deadline has passed.
         const overdue = due && due < today && status !== "done";
@@ -1684,8 +1821,8 @@
           const inverted = start > end;
           const lo = inverted ? end : start;
           const hi = inverted ? start : end;
-          const left = diffDays(chartStart, lo) * dayW;
-          const width = Math.max((diffDays(lo, hi) + 1) * dayW, dayW * 2);
+          const left = clampX(xOf(lo));
+          const width = Math.max(clampX(xOf(hi) + dayW) - left, MIN_BAR_W);
           const cls = inverted
             ? barClass(status, false) + " tl-invalid"
             : barClass(status, overdue) + (overdue ? " tl-overdue" : "");
@@ -1713,15 +1850,15 @@
           wrap.className = "tl-gwrap";
 
           if (start) {
-            const left = diffDays(chartStart, start) * dayW;
-            wrap.style.cssText = `left:${left}px;width:${fadeW}px;`;
+            const left = clampX(xOf(start));
+            const width = Math.min(fadeW, viewDays * dayW - left);
+            wrap.style.cssText = `left:${left}px;width:${width}px;`;
             wrap.innerHTML =
               `<div class="tl-fadebar" style="background:linear-gradient(to right, ${color} 0%, ${color} 45%, transparent 100%);">` +
                 `<span class="tl-label">${tlEsc(title)}</span>` +
               "</div>";
           } else {
-            const endX = diffDays(chartStart, end) * dayW;
-            const right = endX + dayW;
+            const right = clampX(xOf(end) + dayW);
             const left = Math.max(0, right - fadeW);
             wrap.style.cssText = `left:${left}px;width:${right - left}px;`;
             wrap.innerHTML =
@@ -1741,8 +1878,12 @@
         // (drag it to set the deadline; a plain click opens the task). Rose
         // when breached (overdue, or the plan ends after it).
         const breached = due && (overdue || (end && end > due && status !== "done"));
-        const anchorDay = due ? diffDays(chartStart, due) : diffDays(chartStart, today);
-        const x = Math.max(0, anchorDay) * dayW + dayW / 2;
+        // No diamond for a date the window does not cover: pinned to the
+        // edge it would read as a deadline today, and dragging it would set
+        // one.
+        const anchor = due || today;
+        if (!inWindow(anchor)) return;
+        const x = xOf(anchor) + dayW / 2;
         const mark = document.createElement("div");
         mark.className =
           "tl-deadline" + (breached ? " tl-deadline-late" : "") + (due ? "" : " tl-deadline-ghost");
@@ -1868,7 +2009,7 @@
         }
         // Marker centre sits at ``left + 6`` → recover the day under it.
         const centerX = parseInt(mark.style.left, 10) + 6;
-        const newDue = addDays(chartStart, Math.round((centerX - dayW / 2) / dayW));
+        const newDue = addDays(viewStart, Math.round((centerX - dayW / 2) / dayW));
         row.dataset.due = toISO(newDue);
         patchDate(row.dataset.dueUrl, { due_date: toISO(newDue) }, csrf);
         renderBars(dayW);
@@ -1949,10 +2090,17 @@
       const sprite = gantt.dataset.sprite || "";
       const lanes = [];
       let shared = 0;
+      // Dates the window has paged past still deserve a mention: a lane that
+      // simply empties reads as "nothing is committed here".
+      let outside = 0;
       [...byDate.entries()].sort().forEach(([iso, group]) => {
         const date = parseDate(iso);
         if (!date) return;
-        const x = diffDays(chartStart, date) * dayW;
+        if (!inWindow(date)) {
+          outside += group.length;
+          return;
+        }
+        const x = xOf(date);
         const closed = group.every((m) => m.dataset.msClosed === "1");
         const overdue = !closed && date < today;
         const colour = closed ? CSS_PFGD : overdue ? "rgb(251 113 133)" : CSS_BRAND_A;
@@ -1995,7 +2143,9 @@
         chip.style.top = (lane * MS_LANE_H + 3) + "px";
       });
 
-      const stripH = lanes.length ? lanes.length * MS_LANE_H + 6 : 0;
+      // One empty row when every date is out of the window, so the note
+      // below has somewhere to sit.
+      const stripH = lanes.length ? lanes.length * MS_LANE_H + 6 : outside ? MS_LANE_H + 6 : 0;
       strip.style.height = stripH + "px";
       if (leftCell) {
         leftCell.style.display = stripH ? "flex" : "none";
@@ -2004,7 +2154,9 @@
       if (note) {
         note.textContent = shared
           ? `${shared} ${shared === 1 ? L.sharedDate : L.sharedDates}`
-          : "";
+          : outside
+            ? `${outside} ${L.outsideWindow}`
+            : "";
       }
     }
 
@@ -2022,12 +2174,12 @@
       qa(".tl-lane").forEach((lane) => {
         lane.querySelectorAll(".tl-lane-mark").forEach((el) => el.remove());
         const date = parseDate(lane.dataset.laneDate);
-        if (!date) return;
+        if (!date || !inWindow(date)) return;
         const mark = document.createElement("span");
         mark.className = "tl-lane-mark";
         mark.title = lane.dataset.laneLabel || "";
         mark.style.cssText = "position:absolute;top:50%;width:10px;height:10px;border-radius:2px;" +
-          `left:${diffDays(chartStart, date) * dayW}px;transform:translate(-50%,-50%) rotate(45deg);` +
+          `left:${xOf(date)}px;transform:translate(-50%,-50%) rotate(45deg);` +
           `background:${MS_STATE_COLOUR[lane.dataset.laneState] || CSS_BRAND_A};`;
         lane.appendChild(mark);
       });
@@ -2041,16 +2193,38 @@
       // the lines short by one note each.
       const body = q("body");
       const height = body ? body.scrollHeight : 0;
-      line.style.left = (diffDays(chartStart, today) * dayW) + "px";
+      line.style.left = xOf(today) + "px";
       line.style.height = height + "px";
-      line.style.display = "block";
+      line.style.display = inWindow(today) ? "block" : "none";
       snap.style.height = (height + 56) + "px";
+    }
+
+    // Saturdays and Sundays, shaded the full height of the chart — day zoom
+    // only, where a column is wide enough for the break to read. The bands
+    // share the today line's layer (see the template's style block) so they
+    // cover the row striping and still pass under the bars.
+    function renderWeekends() {
+      const strip = q("weekends");
+      if (!strip) return;
+      strip.innerHTML = "";
+      if (zoom !== "day") return;
+      const body = q("body");
+      const height = body ? body.scrollHeight : 0;
+      for (let i = 0; i < viewDays; i++) {
+        const d = addDays(viewStart, i);
+        if (d.getDay() % 6) continue; // 0 Sunday, 6 Saturday
+        const band = document.createElement("div");
+        band.style.cssText = "position:absolute;top:0;background:rgb(var(--muted) / .3);" +
+          `left:${i * curDayW}px;width:${curDayW}px;height:${height}px;`;
+        strip.appendChild(band);
+      }
     }
 
     // Re-run by acta.js applyClientFilters after a client-side filter pass.
     window.__tlAfterFilter = () => {
-      renderTodayLine(DAY_W[zoom]);
-      renderMilestones(DAY_W[zoom]);
+      renderTodayLine(curDayW);
+      renderWeekends();
+      renderMilestones(curDayW);
       updateMissingCount();
     };
 
@@ -2059,25 +2233,52 @@
     // trackpad lag the previous two-pane setup couldn't dodge.
     const scrollContainer = q("scroll");
     const STICKY_LEFT_W = 260;
-    const todayScrollLeft = (dayW, frac) => {
-      const visibleGanttW = Math.max(0, scrollContainer.clientWidth - STICKY_LEFT_W);
-      return Math.max(0, diffDays(chartStart, today) * dayW - visibleGanttW * frac);
-    };
 
-    q("today-btn").addEventListener("click", () => {
-      scrollContainer.scrollTo({ left: todayScrollLeft(DAY_W[zoom], 0.35), behavior: "smooth" });
+    // Today no longer scrolls the chart — it brings the window back to the
+    // one holding today, which is the same gesture the arrows perform.
+    const prevBtn = q("prev");
+    const nextBtn = q("next");
+    const todayBtn = q("today-btn");
+    todayBtn.addEventListener("click", () => {
+      off = 0;
+      render();
     });
+    if (prevBtn) prevBtn.addEventListener("click", () => step(-1));
+    if (nextBtn) nextBtn.addEventListener("click", () => step(1));
+
+    // What the window is called, and whether it is the one holding today.
+    function renderWindowLabel() {
+      const range = q("range");
+      if (range) range.textContent = `${fmtDate(viewStart)} – ${fmtDate(addDays(viewEnd, -1))}`;
+      todayBtn.classList.toggle("text-brand-300", off !== 0);
+      todayBtn.classList.toggle("text-subtle-foreground", off === 0);
+    }
 
     function render() {
-      const dayW = DAY_W[zoom];
-      renderHeader(dayW);
-      renderBars(dayW);
-      renderTodayLine(dayW);
-      renderLanes(dayW);
-      renderMilestones(dayW);
-      requestAnimationFrame(() => {
-        scrollContainer.scrollLeft = todayScrollLeft(dayW, 0.4);
+      measure();
+      renderWindowLabel();
+      renderHeader(curDayW);
+      renderBars(curDayW);
+      renderTodayLine(curDayW);
+      renderWeekends();
+      renderLanes(curDayW);
+      renderMilestones(curDayW);
+    }
+
+    // The room the track has decides a day's width, so a resized pane is a
+    // re-render. Guarded on a real width change: the render writes
+    // ``minWidth`` inside the scroller, and an unguarded observer would feed
+    // itself its own output.
+    if (scrollContainer) {
+      if (scrollContainer._tlRO) scrollContainer._tlRO.disconnect();
+      let lastW = scrollContainer.clientWidth;
+      scrollContainer._tlRO = new ResizeObserver(() => {
+        const w = scrollContainer.clientWidth;
+        if (Math.abs(w - lastW) < 2) return;
+        lastW = w;
+        render();
       });
+      scrollContainer._tlRO.observe(scrollContainer);
     }
 
     setZoom(zoom);
@@ -2092,10 +2293,9 @@
     if (panel) {
       if (panel._tlObs) panel._tlObs.disconnect();
       panel._tlObs = new MutationObserver(() => {
-        if (panel.style.display !== "none") {
-          renderTodayLine(DAY_W[zoom]);
-          renderMilestones(DAY_W[zoom]);
-        }
+        // A full render, not just the lines: everything was measured against
+        // a zero-width track while the panel was hidden.
+        if (panel.style.display !== "none") render();
       });
       panel._tlObs.observe(panel, { attributes: true, attributeFilter: ["style"] });
     }

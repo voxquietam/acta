@@ -273,6 +273,49 @@ def resolve_show_epic(request):
     return "1" if request.COOKIES.get("acta_show_epic") == "1" else "0"
 
 
+def workspace_plans_dates(workspace) -> bool:
+    """Whether this workspace has ever planned a date, read once per render.
+
+    Milestones have no on/off switch — having one is the switch — so three
+    places ask this on every render: the grouping axes, the Display menu
+    and the table column. Three ``EXISTS`` for one fact is how a page's
+    query count creeps, so the answer is memoised on the workspace
+    instance, which ``resolve_active_workspace`` and ``project.workspace``
+    both hand back unchanged within a request.
+
+    Args:
+        workspace: The workspace in scope, or ``None``.
+
+    Returns:
+        ``True`` when the workspace holds at least one milestone.
+    """
+    if workspace is None:
+        return False
+    cached = getattr(workspace, "_acta_plans_dates", None)
+    if cached is None:
+        cached = workspace.milestones.exists()
+        workspace._acta_plans_dates = cached
+    return cached
+
+
+def resolve_show_milestone(request):
+    """Resolve whether the table renders its optional Milestone column.
+
+    Same shape as :func:`resolve_show_epic` and for the same reason: it
+    changes what a row shows, never which rows exist.
+
+    Args:
+        request: The active ``HttpRequest``.
+
+    Returns:
+        ``"1"`` or ``"0"``.
+    """
+    raw_list = request.GET.getlist("show_milestone")
+    if raw_list:
+        return "1" if "1" in raw_list else "0"
+    return "1" if request.COOKIES.get("acta_show_milestone") == "1" else "0"
+
+
 def resolve_show_backlog(request):
     """Resolve the effective ``show_backlog`` for this request.
 
@@ -666,7 +709,19 @@ _PRIORITY_NOPRIO_LAST = Case(
 # sequential per-project counter sorts numerically (slug prefixes never
 # differ within a single project, and across-project numeric ordering
 # is still meaningful — newer tasks have higher numbers).
-SORTABLE_COLUMNS = ("id", "title", "status", "priority", "size", "assignee", "project", "due", "updated")
+SORTABLE_COLUMNS = (
+    "id",
+    "title",
+    "status",
+    "priority",
+    "size",
+    "assignee",
+    "project",
+    "epic",
+    "milestone",
+    "due",
+    "updated",
+)
 
 
 def apply_task_ordering(qs, params, *, default_ordering=("-updated_at",)):
@@ -676,7 +731,9 @@ def apply_task_ordering(qs, params, *, default_ordering=("-updated_at",)):
     (planned → done; urgent → low) rather than alphabetical. For
     ``title`` we lowercase to ignore case. ``assignee`` sorts by name
     with unassigned rows sinking to the bottom in both directions
-    (same for nullable ``size`` and ``due_date``).
+    (same for nullable ``size`` and ``due_date``). ``milestone`` sorts by
+    its target date rather than its name — it is a date, and the column
+    is read as "what is committed first".
 
     Args:
         qs: Base Task queryset.
@@ -731,6 +788,16 @@ def apply_task_ordering(qs, params, *, default_ordering=("-updated_at",)):
             ]
     elif key == "project":
         clauses = [directed(Lower("project__name"))]
+    elif key == "epic":
+        # By name, the way the column reads; rows with no epic sink.
+        clauses = [
+            F("epic__title").desc(nulls_last=True) if direction == "desc" else F("epic__title").asc(nulls_last=True)
+        ]
+    elif key == "milestone":
+        # By the DATE, not the name: a milestone is a date, and a column
+        # of commitments sorted alphabetically answers nothing. Rows with
+        # no milestone sink either way.
+        clauses = [directed_nulls_last("milestone__target_date"), "-priority"]
     elif key == "due":
         clauses = [directed_nulls_last("due_date"), "-priority"]
     else:  # "updated"
@@ -967,6 +1034,11 @@ def filter_sidebar_context(
             excluded_ids=excluded_assignees,
         )
 
+    # A workspace that has never planned a date is offered no Milestone
+    # column, the same rule the grouping axis uses — having a milestone is
+    # the switch, so there is nothing to configure.
+    milestones_enabled = workspace_plans_dates(active)
+
     context = {
         "filter_form_url": form_url or request.path,
         "filter_htmx_target": htmx_target or "#task-list-wrapper",
@@ -1007,6 +1079,8 @@ def filter_sidebar_context(
         # it at all — a workspace with epics off gets neither.
         "epics_enabled": bool(active and active.epics_enabled),
         "show_epic": bool(active and active.epics_enabled) and resolve_show_epic(request) == "1",
+        "milestones_enabled": milestones_enabled,
+        "show_milestone": milestones_enabled and resolve_show_milestone(request) == "1",
         # Only pages that actually expose a Backlog view-mode tab (All Tasks,
         # project detail) should let the ``acta_view_mode`` cookie hide the
         # "Show backlog" toggle when that tab is active — the toggle is
@@ -1280,6 +1354,8 @@ def build_filter_dock_data(ctx, *, request=None):
             "show_my_projects": bool(ctx.get("show_my_projects")),
             "show_epic": bool(ctx.get("show_epic")),
             "epic_toggle": bool(ctx.get("epics_enabled")),
+            "show_milestone": bool(ctx.get("show_milestone")),
+            "milestone_toggle": bool(ctx.get("milestones_enabled")),
             "backlog_toggle": bool(ctx.get("show_backlog_toggle")),
             "my_projects_toggle": bool(ctx.get("show_my_projects_toggle")),
         },

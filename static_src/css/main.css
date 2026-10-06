@@ -3990,10 +3990,64 @@ html.dark .acta-dock-chip.is-ex {
   background: rgb(var(--card));
 }
 
+/* ---- Optional plan columns --------------------------------------------
+   Epic and Milestone render whenever the workspace can fill them, and the
+   Display toggle only hides them. It has to work this way round: the dock's
+   toggles run client-side and cancel their own request, so a column the
+   server decided to omit only appeared after a reload. ``acta.js`` flips
+   the two classes on ``[data-plan-scope]`` the moment a toggle changes,
+   and one switch governs every surface — the table column and the
+   epic / milestone chip on list rows and kanban cards alike.
+
+   The table needs the collapsing trick rather than ``display:none``. The
+   table is ``table-fixed``: each visible cell takes the Nth ``<col>`` in
+   order, so dropping a cell out of the row shifts every later column onto
+   the wrong width and leaves the last one's share as blank space at the
+   right edge. The cells stay in the row and the column is squeezed to
+   nothing instead, which hands the freed width to the elastic title. */
+[data-plan-scope].is-hide-epic col[data-col="epic"],
+[data-plan-scope].is-hide-milestone col[data-col="milestone"] {
+  /* ``!important`` because the colgroup sets its widths inline, as every
+     column here does; this is the one that has to be overridden. */
+  width: 0 !important;
+}
+[data-plan-scope].is-hide-epic th[data-col="epic"],
+[data-plan-scope].is-hide-epic td[data-col="epic"],
+[data-plan-scope].is-hide-milestone th[data-col="milestone"],
+[data-plan-scope].is-hide-milestone td[data-col="milestone"] {
+  padding-left: 0;
+  padding-right: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+/* A folded column in a sliced board: the cell narrows to a strip and its
+   contents go, rather than being squeezed into it. Hiding the children
+   rather than wrapping them keeps the cell's own children the cards,
+   which is what Sortable drags. */
+.kanban-column.is-folded > * {
+  display: none;
+}
+
+/* Inside a lane the card need not repeat the lane. Slicing by milestone,
+   the card shows its epic; slicing by epic, its milestone. Independent of
+   the Display toggles above — those hide a dimension everywhere, this
+   hides the one the row is already named after. */
+[data-kanban-lanes][data-lane-axis="milestone"] [data-col="milestone"],
+[data-kanban-lanes][data-lane-axis="epic"] [data-col="epic"] {
+  display: none;
+}
+
+/* The chip halves are ordinary inline elements — nothing to realign. */
+[data-plan-scope].is-hide-epic span[data-col="epic"],
+[data-plan-scope].is-hide-milestone span[data-col="milestone"] {
+  display: none;
+}
+
 /* ---- Plan tree --------------------------------------------------------
    The project's Plan tab: the cut's first column carries the tree, then
-   the window, the rollup and what runs past its date. Below ``lg`` the
-   three right-hand columns are hidden and the grid is a single column. */
+   the window, the rollup, what runs past its date, and — only once the
+   panel is genuinely wide — what the row is made of. Below ``lg`` the
+   right-hand columns are hidden and the grid is a single column. */
 .acta-plan-grid {
   grid-template-columns: minmax(0, 1fr);
 }
@@ -4003,6 +4057,14 @@ html.dark .acta-dock-chip.is-ex {
        collapse, and fixed widths added up to more than a panel beside a
        sidebar has to give. */
     grid-template-columns: minmax(0, 2.4fr) 104px minmax(0, 1.1fr) 86px;
+  }
+}
+@media (min-width: 1280px) {
+  /* The Scope column arrives last and costs the tree the most, so it
+     waits for the width the design drew it at. Until then the same line
+     rides beside the name, where it has always been. */
+  .acta-plan-grid {
+    grid-template-columns: minmax(0, 2.4fr) 104px minmax(0, 1.1fr) 86px minmax(0, 1fr);
   }
 }
 

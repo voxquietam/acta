@@ -533,7 +533,7 @@ class TestAllTasksOrdering:
 @pytest.mark.django_db
 class TestAllTasksQueryCount:
     """N+1 audit — large filtered list stays bounded across cold load + each
-    lazy panel short-circuit (``?panel=table|kanban|list|timeline|backlog``).
+    lazy panel short-circuit (``?panel=table|kanban|list|plan|backlog``).
 
     Bounds anchored to Wave 2 baseline M1 (see
     ``docs/audit/wave2/00-baseline.md §3``): on the populated ksu24
@@ -558,9 +558,14 @@ class TestAllTasksQueryCount:
         with CaptureQueriesContext(connection) as ctx:
             resp = client.get(reverse("web_ws:all_tasks", kwargs={"workspace": ws1.slug}))
             assert resp.status_code == 200
-        assert len(ctx.captured_queries) < 20, f"Got {len(ctx.captured_queries)} queries for 30 tasks — N+1 regression."
+        # 21, not 20: the Display menu has to know whether this workspace
+        # plans dates at all before it can offer the Milestone column, and
+        # that is one EXISTS, memoised on the workspace so the grouping
+        # axes and the table column share it. Constant, not per row —
+        # which is what this test is guarding.
+        assert len(ctx.captured_queries) < 21, f"Got {len(ctx.captured_queries)} queries for 30 tasks — N+1 regression."
 
-    @pytest.mark.parametrize("panel", ["table", "kanban", "list", "timeline"])
+    @pytest.mark.parametrize("panel", ["table", "kanban", "list", "plan"])
     def test_panel_short_circuit_query_count(self, client, setup, panel):
         """``?panel=<key>`` skips the filter-sidebar build + sibling-view ctx.
 
@@ -606,7 +611,7 @@ class TestAllTasksQueryCount:
             resp = client.get(reverse("web_ws:all_tasks", kwargs={"workspace": ws1.slug}) + f"?{qs}")
             assert resp.status_code == 200
         assert (
-            len(ctx.captured_queries) < 20
+            len(ctx.captured_queries) < 21
         ), f"?{qs} swap took {len(ctx.captured_queries)} queries — filter join regression."
 
     def test_panel_list_payload_size_bounded(self, client, setup):

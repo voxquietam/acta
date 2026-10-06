@@ -58,9 +58,15 @@ overview tab is active.
     {% include "web/_assignee_strip.html" %}
   </div>
   <div class="flex-1 min-h-0 flex flex-col lg:flex-row gap-4 lg:items-stretch">
+    {% comment %}
+    ``data-plan-scope`` marks the subtree the Display toggles act on — the
+    table's optional columns and the epic / milestone chip on rows and
+    cards. The classes hide, never show; ``acta.js`` flips them.
+    {% endcomment %}
     <div id="project-view-panel"
          data-task-list-root
-         class="flex-1 min-w-0 min-h-0 flex flex-col"
+         data-plan-scope
+         class="flex-1 min-w-0 min-h-0 flex flex-col {% if hide_epic %}is-hide-epic{% endif %} {% if hide_milestone %}is-hide-milestone{% endif %}"
          hx-get="{{ request.path }}"
          hx-trigger="acta:task-moved from:body, acta:task-changed from:body, acta:bulk-changed from:body"
          hx-target="this"

@@ -18,9 +18,11 @@ from __future__ import annotations
 import datetime
 
 from django.utils import timezone
+from django.utils.formats import date_format
 from django.utils.translation import gettext_lazy as _
 
 from apps.tasks.models import Task
+from apps.web.plan import late_days
 
 LIST_AXES = ("deadline", "status", "priority", "assignee", "project", "cycle", "epic")
 
@@ -307,6 +309,11 @@ def _group_by_milestone(tasks):
             "label": entry["milestone"].name,
             # Closed is settled; the rest is still a promise.
             "tone": "zinc" if entry["milestone"].is_closed else "violet",
+            # The date the section is named after, and how much of what
+            # sits under it already runs past that date. A heading that
+            # says only "Beta · 12" hides the one fact worth acting on.
+            "sub": date_format(entry["milestone"].target_date, "M j"),
+            "risk": sum(1 for task in entry["tasks"] if late_days(task) > 0),
             "tasks": entry["tasks"],
         }
         for entry in ordered

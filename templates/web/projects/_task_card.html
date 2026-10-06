@@ -130,9 +130,16 @@ with ``forceFallback`` on the Sortable instance in acta.js.
   {% endif %}
   {% endwith %}
 
+  {% comment %}
+  The footer degrades by clipping, never by wrapping. A card is as narrow
+  as its column, and a sliced board makes columns narrower than the plain
+  one — "Nov 3" broken across two lines, or "7 hours, 44 minutes" folded
+  under it, reads as a layout fault. The date keeps its place, the
+  relative time gives way first, and the avatar never moves.
+  {% endcomment %}
   <div class="flex items-center gap-2 mt-2 pt-2 border-t border-border text-[11px] text-placeholder-foreground min-w-0">
     {% if task.due_date %}
-    <span class="inline-flex items-center gap-1 font-mono
+    <span class="inline-flex items-center gap-1 font-mono shrink-0 whitespace-nowrap
       {% if today and task.due_date < today and task.status != 'done' %}text-rose-400
       {% elif today and task.due_date == today and task.status != 'done' %}text-amber-400
       {% endif %}"
@@ -141,7 +148,7 @@ with ``forceFallback`` on the Sortable instance in acta.js.
       {{ task.due_date|date:"M j" }}
     </span>
     {% endif %}
-    <span class="font-mono text-[10px] opacity-70"
+    <span class="font-mono text-[10px] opacity-70 min-w-0 truncate"
           title="{{ task.updated_at|date:'M j Y H:i' }}">{{ task.updated_at|timesince }}</span>
     {% comment %}
     Kanban card avatar carries explicit ``data-avatar-*`` attrs so the

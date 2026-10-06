@@ -7,7 +7,7 @@ the SSE handler in ``acta.js`` can swap one row at a time via the
 ``/tasks/<id>/row/?as=table`` fragment endpoint — no flash, no scroll
 jump, neighbouring rows stay put. Expects ``task`` + ``status_labels``
 + ``priority_labels`` + ``today`` + ``show_labels`` + ``show_project``
-+ ``show_epic``
++ ``show_epic`` / ``show_milestone``
 in context.
 
 Perf: the priority icon, link badges, and assignee avatar are inlined here
@@ -175,12 +175,24 @@ for every other surface; keep the inlined markup here in sync with them.
     </div>
   </td>
   {% endif %}
-  {% if show_epic %}
+  {% if epics_enabled %}
   <td data-col="epic" class="px-3 py-2 text-xs text-subtle-foreground overflow-hidden">
     {% if task.epic_id %}
     <a href="{% task_url task.epic %}" class="flex items-center gap-1.5 min-w-0 hover:text-foreground transition">
       {% lucide "square-kanban" "w-3 h-3 shrink-0 text-placeholder-foreground" %}
       <span class="truncate">{{ task.epic.title }}</span>
+    </a>
+    {% else %}
+    <span class="text-placeholder-foreground">—</span>
+    {% endif %}
+  </td>
+  {% endif %}
+  {% if milestones_enabled %}
+  <td data-col="milestone" class="px-3 py-2 text-xs text-subtle-foreground overflow-hidden">
+    {% if task.milestone_id %}
+    <a href="{% wurl 'milestone_detail' pk=task.milestone_id %}" class="flex items-center gap-1.5 min-w-0 hover:text-foreground transition">
+      {% lucide "diamond" "w-3 h-3 shrink-0 text-placeholder-foreground" %}
+      <span class="truncate">{{ task.milestone.name }}</span>
     </a>
     {% else %}
     <span class="text-placeholder-foreground">—</span>

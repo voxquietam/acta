@@ -158,6 +158,31 @@ def _counted_cells(milestone_ids: list[int]) -> list[tuple]:
     )
 
 
+def progress_by_milestone(milestone_ids: list[int]) -> dict[int, tuple[int, int]]:
+    """Return ``{milestone_id: (done, total)}`` across each milestone's whole scope.
+
+    The Plan tab cuts its rows from one project's work, so the rollup it
+    computes itself is the local part. On a date several projects share
+    that part is not the commitment: "3/4 here" says nothing about
+    whether the milestone is nearly met or barely started. This is the
+    other number, read in one query for the whole page.
+
+    Args:
+        milestone_ids: Milestones to read the attached work of.
+
+    Returns:
+        Done and total counted tasks per milestone; a milestone with no
+        counted work is absent rather than ``(0, 0)``.
+    """
+    counts: dict[int, list[int]] = {}
+    for milestone_id, _project_id, status, _due_date in _counted_cells(milestone_ids):
+        cell = counts.setdefault(milestone_id, [0, 0])
+        cell[1] += 1
+        if status == Task.STATUS_DONE:
+            cell[0] += 1
+    return {milestone_id: (done, total) for milestone_id, (done, total) in counts.items()}
+
+
 def workspace_rows(workspace, today=None) -> list[dict]:
     """Return a row per milestone of the workspace, soonest date first.
 

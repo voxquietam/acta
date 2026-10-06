@@ -67,6 +67,7 @@ from apps.tasks.metrics import compute_bottlenecks, compute_cfd, compute_flow_me
 from apps.tasks.models import Task
 from apps.tasks.search import search_tasks
 from apps.tasks.services import turn_epic_into_task, turn_task_into_epic
+from apps.web import kanban as kanban_lanes
 from apps.web import plan
 from apps.web.create_dialog import build_create_task_data
 from apps.web.dashboard import DEFAULT_RANGE, build_dashboard_context
@@ -83,10 +84,12 @@ from apps.web.filters import (
     resolve_show_archived,
     resolve_show_backlog,
     resolve_show_epic,
+    resolve_show_milestone,
     resolve_show_my_projects,
     user_project_ids,
     visible_assignee_facets,
     visible_project_facets,
+    workspace_plans_dates,
 )
 from apps.web.grouping import compute_list_section_keys, group_tasks
 from apps.web.nav import resolve_active_workspace, set_active_workspace
@@ -266,6 +269,9 @@ def _plan_context(request, tasks, today, project=None) -> dict:
         "plan_cut_label": plan.CUT_LABELS[cut],
         "plan_heading": plan.CUT_HEADINGS[cut],
         "plan_cuts": [{"key": key, "label": label} for key, label in plan.CUT_LABELS.items()],
+        # Inside a project the Progress column carries two numbers, and the
+        # header has to say which is which.
+        "plan_in_project": project is not None,
         "plan_render": render_mode,
         "plan_renders": [{"key": key, "label": label} for key, label in plan.RENDERS.items()],
     }
@@ -787,8 +793,10 @@ def _optional_axes(base_keys, workspace):
         keys = (*keys, "epic")
     # No switch for milestones: having one is the switch. A workspace
     # that has never planned a date gets no axis, and the first milestone
-    # someone creates brings it along. One EXISTS per render.
-    if workspace.milestones.exists():
+    # someone creates brings it along. The EXISTS is memoised on the
+    # workspace, because the Display menu and the table column ask the
+    # same question on the same render.
+    if workspace_plans_dates(workspace):
         keys = (*keys, "milestone")
     return keys
 
@@ -811,6 +819,59 @@ def _show_epic_column(request, workspace):
     return resolve_show_epic(request) == "1"
 
 
+def _column_flags(request, workspace) -> dict:
+    """What optional columns the table may render, and which are hidden.
+
+    Two different questions. ``*_enabled`` says the workspace can fill the
+    column at all — a board with no epics gets none, and the markup is
+    never emitted. ``show_*`` is the viewer's Display toggle, and it only
+    hides: the cells render either way, because the toggle runs
+    client-side and a server-gated column appeared only after a reload.
+    It governs the chip on list rows and kanban cards too, which is the
+    whole of what it means on a board with no table.
+
+    Args:
+        request: The active ``HttpRequest``.
+        workspace: The workspace in scope, or ``None``.
+
+    Returns:
+        ``epics_enabled`` / ``milestones_enabled`` / ``show_epic`` /
+        ``show_milestone``.
+    """
+    show_epic = _show_epic_column(request, workspace)
+    show_milestone = _show_milestone_column(request, workspace)
+    return {
+        "epics_enabled": bool(workspace and workspace.epics_enabled),
+        "milestones_enabled": workspace_plans_dates(workspace),
+        "show_epic": show_epic,
+        "show_milestone": show_milestone,
+        # The templates hide, never show: a page that never computes these
+        # (My Work, the task modal) must not accidentally hide a chip
+        # because a flag it does not set reads as false.
+        "hide_epic": not show_epic,
+        "hide_milestone": not show_milestone,
+    }
+
+
+def _show_milestone_column(request, workspace):
+    """Whether the table should render its optional Milestone column.
+
+    Off wherever no date has ever been planned: having a milestone is the
+    switch, the same rule the grouping axis follows, so a workspace that
+    plans no dates is never offered a column of dashes.
+
+    Args:
+        request: The active ``HttpRequest``.
+        workspace: The workspace in scope, or ``None``.
+
+    Returns:
+        ``True`` when the column should render.
+    """
+    if not workspace_plans_dates(workspace):
+        return False
+    return resolve_show_milestone(request) == "1"
+
+
 def _table_colspan(ctx):
     """Count the table's columns for the empty-state row.
 
@@ -825,7 +886,9 @@ def _table_colspan(ctx):
     Returns:
         The number of columns the ``colspan`` should span.
     """
-    optional = ("show_labels", "show_project", "show_epic")
+    # What is rendered, not what is shown: a hidden column still occupies
+    # a cell in every row, so an empty-state row has to span it.
+    optional = ("show_labels", "show_project", "epics_enabled", "milestones_enabled")
     return 8 + sum(1 for key in optional if ctx.get(key))
 
 
@@ -875,9 +938,9 @@ def _resolve_view_mode(
 
     Returns:
         One of ``"overview"`` / ``"kanban"`` / ``"table"`` / ``"list"`` /
-        ``"timeline"`` / ``"graph"`` / ``"backlog"`` / ``"archive"``.
+        ``"plan"`` / ``"graph"`` / ``"backlog"`` / ``"archive"``.
     """
-    allowed = {"kanban", "table", "list", "timeline"}
+    allowed = {"kanban", "table", "list"}
     if allow_overview:
         allowed.add("overview")
     if allow_backlog:
@@ -888,11 +951,34 @@ def _resolve_view_mode(
         allowed.add("graph")
     if allow_plan:
         allowed.add("plan")
-    view_mode = request.GET.get("view")
+    view_mode = _fold_timeline(request.GET.get("view"), allowed)
     if view_mode in allowed:
         return view_mode
-    cookie_pref = request.COOKIES.get("acta_view_mode")
+    cookie_pref = _fold_timeline(request.COOKIES.get("acta_view_mode"), allowed)
     return cookie_pref if cookie_pref in allowed else default
+
+
+def _fold_timeline(view_mode, allowed):
+    """Resolve the retired ``timeline`` view onto the Plan tab.
+
+    The Plan tab draws the same gantt — its ``Flat`` cut in the Timeline
+    render *is* the old tab — so the design carries one tab, not two, and
+    so do we. Links, bookmarks and the persisted cookie still say
+    ``timeline``; they land on the Plan rather than on the page default.
+    ``apps.web.plan.resolve_render`` reads the same value and opens the
+    gantt rather than the tree.
+
+    Args:
+        view_mode: The raw value from the querystring or the cookie.
+        allowed: The view modes this page accepts.
+
+    Returns:
+        ``"plan"`` for ``"timeline"`` where the page has a Plan, the
+        value unchanged otherwise.
+    """
+    if view_mode == "timeline" and "plan" in allowed:
+        return "plan"
+    return view_mode
 
 
 def _params_with_archive_cookie(request):
@@ -980,7 +1066,11 @@ def _user_task_qs(user):
             # title off every row; without the join that is one query per
             # task on a thousand-row list. The plan chip reads the
             # milestone's name the same way, so it joins on the same terms.
-            "epic",
+            # ``epic__project__workspace`` because the cell links to the
+            # epic, and the canonical task URL reads the project's slug AND
+            # its workspace. The column renders on every row now, so each
+            # missing hop was a query per row.
+            "epic__project__workspace",
             "milestone",
         )
         # ``Prefetch("labels", queryset=...select_related("group"))`` rather
@@ -1219,8 +1309,10 @@ def _my_work_tasks(user, params, workspace, *, restrict_to_project_ids=None):
             "assignee",
             "reporter",
             "parent__project",
-            # The plan chip on every My Work row reads both names.
-            "epic",
+            # The plan chip on every My Work row reads both names, and the
+            # table's Epic cell links to the epic — that URL reads the
+            # epic's project and workspace.
+            "epic__project__workspace",
             "milestone",
         )
         .prefetch_related(
@@ -1279,8 +1371,14 @@ class AllTasksView(LoginRequiredMixin, ListView):
             if self.request.GET.get("axis_only"):
                 return ["web/projects/_list_axis_section.html"]
             return ["web/projects/_list_panel.html"]
-        if self.request.GET.get("panel") == "timeline":
-            return ["web/projects/_timeline.html"]
+        if self.request.GET.get("panel") == "plan":
+            # The Plan slot is lazy like the list and the timeline, but it
+            # had no branch here: the fetch fell through to the full inner
+            # partial and the whole panel wrapper was swapped INTO the plan
+            # slot, whose own copy renders empty — a black screen on any
+            # client-side switch into Plan, cured by a reload only because
+            # that renders the panel inline.
+            return ["web/projects/_plan_panel.html"]
         if self.request.GET.get("panel") == "graph":
             return ["web/projects/_graph_panel.html"]
         if self.request.GET.get("panel") == "backlog":
@@ -1442,6 +1540,25 @@ class AllTasksView(LoginRequiredMixin, ListView):
                 wip_limits=wip_limits,
                 over_by_status=wip_over,
             ),
+            **self._lanes_ctx(kanban_tasks),
+        }
+
+    def _lanes_ctx(self, kanban_tasks, project=None):
+        """The board's lanes, when it is sliced by one.
+
+        Args:
+            kanban_tasks: The board's tasks, already ordered.
+            project: The project in view, or ``None``.
+
+        Returns:
+            A context dict with ``lanes_axis`` / ``lanes_options`` /
+            ``lanes``.
+        """
+        axis = kanban_lanes.resolve_lanes(self.request)
+        return {
+            "lanes_axis": axis,
+            "lanes_options": kanban_lanes.lane_options(axis),
+            "lanes": kanban_lanes.build_lanes(kanban_tasks, axis, project=project),
         }
 
     def _list_axes_ctx(self, table_tasks):
@@ -1508,7 +1625,7 @@ class AllTasksView(LoginRequiredMixin, ListView):
         ctx["view_panel_target"] = "#task-list-wrapper"
         ctx["show_project"] = True
         ctx["show_labels"] = True
-        ctx["show_epic"] = _show_epic_column(self.request, resolve_active_workspace(self.request))
+        ctx.update(_column_flags(self.request, resolve_active_workspace(self.request)))
         ctx["table_colspan"] = _table_colspan(ctx)
         # All Tasks renders only the *active* view body inline and lazy-loads
         # the rest via ``?panel=`` (see _view_panel.html). Keeps the
@@ -1536,15 +1653,6 @@ class AllTasksView(LoginRequiredMixin, ListView):
         table_tasks = list(ctx["tasks"])
         ctx["table_tasks"] = table_tasks
         ctx["tasks"] = table_tasks
-
-        # Timeline context — shared derivation with ProjectDetailView.
-        ctx.update(_timeline_context(table_tasks, ctx["today"]))
-
-        # ``?panel=timeline`` is the lazy-load fetch for just the Gantt
-        # body — return now with only the timeline context, skipping the
-        # kanban sort + five list-axis groupings + filter sidebar build.
-        if self.request.GET.get("panel") == "timeline":
-            return ctx
 
         # ``?panel=plan`` — lazy fetch of just the Plan tree. Across the
         # workspace the cut reads the same way it does in one project;
@@ -2804,6 +2912,25 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
                 wip_limits=wip_limits,
                 over_by_status=wip_over,
             ),
+            **self._lanes_ctx(kanban_tasks, project=project),
+        }
+
+    def _lanes_ctx(self, kanban_tasks, project=None):
+        """The board's lanes, when it is sliced by one.
+
+        Args:
+            kanban_tasks: The board's tasks, already ordered.
+            project: The project in view.
+
+        Returns:
+            A context dict with ``lanes_axis`` / ``lanes_options`` /
+            ``lanes``.
+        """
+        axis = kanban_lanes.resolve_lanes(self.request)
+        return {
+            "lanes_axis": axis,
+            "lanes_options": kanban_lanes.lane_options(axis),
+            "lanes": kanban_lanes.build_lanes(kanban_tasks, axis, project=project),
         }
 
     def _list_axes_ctx(self, *, table_tasks, project):
@@ -2861,8 +2988,14 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             return ["web/projects/_table.html"]
         if self.request.GET.get("panel") == "list":
             return ["web/projects/_list_panel.html"]
-        if self.request.GET.get("panel") == "timeline":
-            return ["web/projects/_timeline.html"]
+        if self.request.GET.get("panel") == "plan":
+            # The Plan slot is lazy like the list and the timeline, but it
+            # had no branch here: the fetch fell through to the full inner
+            # partial and the whole panel wrapper was swapped INTO the plan
+            # slot, whose own copy renders empty — a black screen on any
+            # client-side switch into Plan, cured by a reload only because
+            # that renders the panel inline.
+            return ["web/projects/_plan_panel.html"]
         if self.request.GET.get("panel") == "graph":
             return ["web/projects/_graph_panel.html"]
         if self.request.GET.get("panel") == "backlog":
@@ -3195,14 +3328,11 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         if panel == "table":
             ctx["tasks"] = table_tasks
             ctx["show_labels"] = True
-            ctx["show_epic"] = _show_epic_column(self.request, project.workspace)
+            ctx.update(_column_flags(self.request, project.workspace))
             ctx["table_colspan"] = _table_colspan(ctx)
             return ctx
         if panel == "list":
             ctx.update(self._list_axes_ctx(table_tasks=table_tasks, project=project))
-            return ctx
-        if panel == "timeline":
-            ctx.update(_timeline_context(table_tasks, today))
             return ctx
         if panel == "plan":
             ctx.update(_plan_context(self.request, table_tasks, today, project=project))
@@ -3237,8 +3367,6 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
                 )
             elif view_mode == "list":
                 ctx.update(self._list_axes_ctx(table_tasks=table_tasks, project=project))
-            elif view_mode == "timeline":
-                ctx.update(_timeline_context(table_tasks, today))
             elif view_mode == "plan":
                 ctx.update(_plan_context(self.request, table_tasks, today, project=project))
             elif view_mode == "graph":
@@ -3284,14 +3412,8 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             )
         )
         ctx["show_labels"] = True
-        ctx["show_epic"] = _show_epic_column(self.request, project.workspace)
+        ctx.update(_column_flags(self.request, project.workspace))
         ctx["table_colspan"] = _table_colspan(ctx)
-
-        # Timeline context — shared derivation with AllTasksView. Not on
-        # the Plan tab: the chart there draws the plan's own rows, and
-        # this would put the flat task list back over them.
-        if view_mode != "plan":
-            ctx.update(_timeline_context(table_tasks, today))
 
         return ctx
 
@@ -3696,6 +3818,9 @@ def task_row_fragment(request, task_id):
                 "show_project": True,
                 "show_labels": True,
                 "show_epic": True,
+                "show_milestone": True,
+                "epics_enabled": True,
+                "milestones_enabled": True,
             },
             request=request,
         ),

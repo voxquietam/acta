@@ -1,4 +1,5 @@
 {% load i18n %}
+{% load lucide %}
 {% load web_extras %}
 {% comment %}
 One axis grouping of the list view (a stack of sections, each a card
@@ -38,7 +39,18 @@ Optional context:
         {% elif section.tone == 'orange' %}text-orange-400
         {% elif section.tone == 'sky' %}text-sky-400
         {% else %}text-placeholder-foreground{% endif %}">{{ section.label }}</h2>
+      {% if section.sub %}<span class="font-mono text-[11px] text-placeholder-foreground">{{ section.sub }}</span>{% endif %}
       <span data-list-count class="text-xs text-placeholder-foreground">{{ section.tasks|length }}</span>
+      {% comment %}
+      How much of this section already runs past the date it is named
+      after. Only a milestone section carries it — nothing else in the
+      list has a date to be late against.
+      {% endcomment %}
+      {% if section.risk %}
+      <span class="inline-flex items-center gap-1 text-[11px] text-rose-400">
+        {% lucide "calendar-x" "w-3 h-3" %}{% blocktrans count counter=section.risk %}{{ counter }} past{% plural %}{{ counter }} past{% endblocktrans %}
+      </span>
+      {% endif %}
       {% if wip_self_over %}{% with over=wip_self_over|get_item:section.key %}{% if over %}
       <span class="text-[11px] font-mono text-rose-400" title="{% trans 'Over your WIP limit' %}">!! {{ over.count }}/{{ over.limit }} {% trans "over WIP" %}</span>
       {% endif %}{% endwith %}{% endif %}
@@ -56,7 +68,7 @@ Optional context:
 <div class="grid place-items-center text-center py-20">
   <div>
     <div class="w-12 h-12 rounded-full border border-dashed border-border-strong grid place-items-center text-placeholder-foreground mx-auto mb-3">
-      {% load lucide %}{% lucide "list" "w-5 h-5" %}
+      {% lucide "list" "w-5 h-5" %}
     </div>
     <h2 class="text-lg font-medium text-muted-foreground">{% trans "No tasks match these filters" %}</h2>
     <p class="text-sm text-placeholder-foreground mt-1">{% trans "Try a different group axis or clear filters." %}</p>

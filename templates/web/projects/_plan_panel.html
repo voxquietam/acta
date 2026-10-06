@@ -137,8 +137,13 @@ that inside another scroller leaves the chart unable to scroll at all.
     <div class="hidden lg:grid items-center gap-3 px-4 h-8 acta-plan-grid text-[10px] uppercase tracking-wider text-placeholder-foreground bg-subtle/95 border-b border-border">
       <span>{{ plan_heading }}</span>
       <span>{% trans "Target date" %}</span>
+      {% if plan_in_project %}
+      <span>{% trans "Progress · here / overall" %}</span>
+      {% else %}
       <span>{% trans "Progress" %}</span>
+      {% endif %}
       <span>{% trans "Past its date" %}</span>
+      <span class="hidden xl:block">{% trans "Scope" %}</span>
     </div>
 
     {% for row in plan_rows %}
@@ -180,7 +185,15 @@ that inside another scroller leaves the chart unable to scroll at all.
           <span x-show="isOpen('{{ row.key }}')">{% lucide "chevron-down" "w-3 h-3 text-placeholder-foreground shrink-0" %}</span>
           <span x-show="!isOpen('{{ row.key }}')" x-cloak>{% lucide "chevron-right" "w-3 h-3 text-placeholder-foreground shrink-0" %}</span>
           {% if row.milestone %}
-          {% lucide "diamond" "w-3.5 h-3.5 text-brand-400 shrink-0" %}
+          {% comment %}
+          Same state palette the milestone pages and the timeline use:
+          rose once the date has gone, emerald when the work is done and
+          it waits to be closed, muted once someone closed it.
+          {% endcomment %}
+          {% if row.state == "overdue" %}{% lucide "diamond" "w-3.5 h-3.5 shrink-0 text-rose-400" %}
+          {% elif row.state == "complete" %}{% lucide "diamond" "w-3.5 h-3.5 shrink-0 text-emerald-400" %}
+          {% elif row.state == "closed" %}{% lucide "diamond" "w-3.5 h-3.5 shrink-0 text-placeholder-foreground" %}
+          {% else %}{% lucide "diamond" "w-3.5 h-3.5 shrink-0 text-brand-400" %}{% endif %}
           {% elif row.epic %}
           {% lucide "square-kanban" "w-3.5 h-3.5 text-subtle-foreground shrink-0" %}
           {% elif row.status %}
@@ -189,8 +202,15 @@ that inside another scroller leaves the chart unable to scroll at all.
           {% lucide "circle-dashed" "w-3.5 h-3.5 text-placeholder-foreground shrink-0" %}
           {% endif %}
           <span class="truncate {% if row.milestone or row.epic or row.status %}text-foreground font-medium{% else %}text-subtle-foreground font-medium{% endif %}">{{ row.label }}</span>
+          {% if row.milestone %}
+          {% include "web/milestones/_state_badge.html" with state=row.state state_label=row.state_label %}
+          {% endif %}
           <span class="font-mono text-[11px] text-placeholder-foreground shrink-0">{{ row.count }}</span>
-          {% if row.scope %}<span class="text-[11px] text-placeholder-foreground truncate hidden md:inline">{{ row.scope }}</span>{% endif %}
+          {% comment %}
+          Below ``lg`` there is no Scope column, so the line rides beside
+          the name instead of disappearing.
+          {% endcomment %}
+          {% if row.scope %}<span class="text-[11px] text-placeholder-foreground truncate hidden md:inline xl:hidden">{{ row.scope }}</span>{% endif %}
         </div>
         {% if row.milestone and row.milestone.goal %}
         <div class="mt-0.5 text-[11px] text-placeholder-foreground truncate" style="padding-left: 24px;">{{ row.milestone.goal }}</div>
@@ -218,8 +238,17 @@ that inside another scroller leaves the chart unable to scroll at all.
 
       <div class="hidden lg:flex flex-col min-w-0 text-xs">
         {% if row.milestone %}
+        {% comment %}
+        The second line is the reading of the date, not the word "target":
+        a row that already draws a diamond does not need to be told it is
+        a target, it needs to be told the date has gone.
+        {% endcomment %}
         <span class="font-mono">{{ row.milestone.target_date|date:"M j" }}</span>
-        <span class="text-[11px] text-placeholder-foreground">{% trans "target" %}</span>
+        <span class="text-[11px] truncate
+          {% if row.state == 'overdue' %}text-rose-400
+          {% elif row.state == 'complete' %}text-emerald-400
+          {% elif row.state == 'closed' %}text-placeholder-foreground
+          {% else %}text-subtle-foreground{% endif %}">{{ row.countdown }}</span>
         {% elif row.window_start or row.window_end %}
         <span class="font-mono text-subtle-foreground">{{ row.window_start|date:"M j"|default:"—" }} → {{ row.window_end|date:"M j"|default:"—" }}</span>
         {% else %}
@@ -227,14 +256,24 @@ that inside another scroller leaves the chart unable to scroll at all.
         {% endif %}
       </div>
 
-      <div class="hidden lg:flex items-center gap-2 min-w-0 text-xs">
+      <div class="hidden lg:flex flex-col gap-0.5 min-w-0 text-xs">
         {% if row.total %}
-        <span class="font-mono text-[11px] w-10 tabular-nums">{{ row.done }}/{{ row.total }}</span>
-        <span class="w-[90px] h-1 rounded-full bg-muted overflow-hidden shrink-0">
-          <span class="block h-full bg-emerald-500" style="width: {{ row.percent }}%;"></span>
+        <span class="flex items-center gap-2">
+          <span class="font-mono text-[11px] w-10 tabular-nums">{{ row.done }}/{{ row.total }}</span>
+          <span class="w-[90px] h-1 rounded-full bg-muted overflow-hidden shrink-0">
+            <span class="block h-full bg-emerald-500" style="width: {{ row.percent }}%;"></span>
+          </span>
         </span>
         {% else %}
         <span class="text-[11px] italic text-placeholder-foreground">{% trans "no work here" %}</span>
+        {% endif %}
+        {% comment %}
+        A date several projects share counts twice: what this project
+        holds, and what the milestone is as a whole. Only the second
+        number says whether the commitment is close.
+        {% endcomment %}
+        {% if row.overall_total %}
+        <span class="font-mono text-[10px] text-placeholder-foreground">{% blocktrans with done=row.overall_done total=row.overall_total %}{{ done }}/{{ total }} overall{% endblocktrans %}</span>
         {% endif %}
       </div>
 
@@ -245,6 +284,8 @@ that inside another scroller leaves the chart unable to scroll at all.
         <span class="text-placeholder-foreground">—</span>
         {% endif %}
       </div>
+
+      <div class="hidden xl:block text-[11px] text-subtle-foreground truncate">{{ row.scope }}</div>
     </div>
 
     {% else %}
@@ -284,6 +325,17 @@ that inside another scroller leaves the chart unable to scroll at all.
         <span class="font-mono text-rose-400">+{{ row.late }}d</span>
         {% else %}
         <span class="text-placeholder-foreground">—</span>
+        {% endif %}
+      </div>
+      {% comment %}
+      A group says what it is made of; a task says who is carrying it.
+      Same column, because both answer "whose part of the plan is this".
+      {% endcomment %}
+      <div class="hidden xl:block text-[11px] truncate">
+        {% if row.task.assignee %}
+        <span class="text-subtle-foreground">{{ row.task.assignee.display_name }}</span>
+        {% else %}
+        <span class="italic text-placeholder-foreground">{% trans "Unassigned" %}</span>
         {% endif %}
       </div>
     </a>
