@@ -97,7 +97,13 @@ class ActivityLog(models.Model):
             ),
         ]
         ordering = [
+            # ``id`` breaks the tie: rows written inside one transaction
+            # (a bulk action, an import) share a timestamp, and without a
+            # second key the order is whatever the database felt like —
+            # which shows up as a feed that reshuffles and a paginated
+            # list that repeats or skips a row at the page boundary.
             "-created_at",
+            "-id",
         ]
 
     def __str__(self) -> str:

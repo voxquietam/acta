@@ -1807,7 +1807,7 @@ def _inbox_base_qs(user):
             "comment",
             "meeting",
         )
-        .order_by("-created_at")
+        .order_by("-created_at", "-id")
     )
 
 
@@ -2018,7 +2018,7 @@ class InboxView(LoginRequiredMixin, TemplateView):
                 filtered = filtered.filter(project_id__in=selected_projects)
             if excluded_projects:
                 filtered = filtered.exclude(project_id__in=excluded_projects)
-            updates = list(filtered.order_by("-created_at")[:_INBOX_PAGE_SIZE])
+            updates = list(filtered.order_by("-created_at", "-id")[:_INBOX_PAGE_SIZE])
             sel_pk = self.request.GET.get("selected")
             selected_update = None
             if sel_pk:
@@ -2344,7 +2344,9 @@ class MyActivityView(LoginRequiredMixin, TemplateView):
             ctx["my_activity_count"] = events_qs.count()
 
         if tab == "comments":
-            comments = list(comments_qs.select_related("task__project__workspace").order_by("-created_at")[offset:end])
+            comments = list(
+                comments_qs.select_related("task__project__workspace").order_by("-created_at", "-id")[offset:end]
+            )
             ctx["my_comments"] = comments
             total = comments_qs.count()
             ctx["has_more"] = len(comments) == page and total > end
@@ -2380,7 +2382,7 @@ class MyActivityView(LoginRequiredMixin, TemplateView):
                     match |= Q(target_type=ActivityLog.TARGET_COMMENT, payload__task_id__in=matched_task_ids)
                 filtered = filtered.filter(match)
 
-            events = list(filtered.select_related("project").order_by("-created_at")[offset:end])
+            events = list(filtered.select_related("project").order_by("-created_at", "-id")[offset:end])
 
             # Resolve the task each event points at, in one batch (no N+1).
             # Task events carry it as ``target_id``; comment events
@@ -2501,7 +2503,9 @@ class ProjectListView(LoginRequiredMixin, ListView):
             self._mine_project_ids = set()
             return Project.objects.none()
         self._mine_project_ids = user_project_ids(self.request.user, active)
-        latest = ProjectUpdate.objects.filter(project=OuterRef("pk")).order_by("-created_at").values("health")[:1]
+        latest = (
+            ProjectUpdate.objects.filter(project=OuterRef("pk")).order_by("-created_at", "-id").values("health")[:1]
+        )
         # Archived projects are hidden by default; ``?archived=1`` reveals
         # them (the "Show archived" toggle on the page).
         base = Project.objects.filter(workspace=active)
@@ -2939,7 +2943,9 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         # full history lives in the inbox Updates tab (filtered by project).
         # Skip the COUNT(*) entirely when there are no updates (the common
         # case), so the empty project keeps its constant query count.
-        ctx["overview_latest_updates"] = list(project.updates.select_related("author").order_by("-created_at")[:1])
+        ctx["overview_latest_updates"] = list(
+            project.updates.select_related("author").order_by("-created_at", "-id")[:1]
+        )
         ctx["overview_updates_total"] = project.updates.count() if ctx["overview_latest_updates"] else 0
         if ctx["overview_latest_updates"]:
             user_id = self.request.user.id
@@ -2963,7 +2969,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
                 target_id=OuterRef("pk"),
                 event_type="task.status_changed",
             )
-            .order_by("-created_at")
+            .order_by("-created_at", "-id")
             .values("created_at")[:1]
         )
         base = (
@@ -3594,7 +3600,7 @@ def _task_activity(task, limit=25):
         )
         .exclude(event_type="task.labels_changed")
         .select_related("actor")
-        .order_by("-created_at")[:limit],
+        .order_by("-created_at", "-id")[:limit],
     )
     # Hide title-only / description-only ``task.updated`` events from
     # the feed. Done in Python (not via JSON queries) because the test
@@ -6963,7 +6969,7 @@ def delete_project_update(request, pk):
         )
         response["HX-Trigger"] = json.dumps({"acta:update-deleted": {"id": pk}})
         return response
-    latest = list(project.updates.select_related("author").order_by("-created_at")[:1])
+    latest = list(project.updates.select_related("author").order_by("-created_at", "-id")[:1])
     html = ""
     if latest:
         html = _render_overview_update_card(request, latest[0])
@@ -8835,7 +8841,7 @@ def _render_workspace_invites(workspace, *, viewer):
     from django.utils import timezone
 
     invites = list(
-        workspace.invites.filter(accepted_at__isnull=True).select_related("created_by").order_by("-created_at")
+        workspace.invites.filter(accepted_at__isnull=True).select_related("created_by").order_by("-created_at", "-id")
     )
     viewer_membership = _workspace_member_or_none(viewer, workspace)
     viewer_is_admin = viewer_membership is not None and viewer_membership.role in (

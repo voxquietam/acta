@@ -196,7 +196,7 @@ def project_updates_list(user: User, arguments: dict[str, Any]) -> Any:
     qs = (
         ProjectUpdate.objects.filter(project__slug_prefix=project_prefix)
         .select_related("author")
-        .order_by("-created_at")[:limit]
+        .order_by("-created_at", "-id")[:limit]
     )
     return [
         {
@@ -360,7 +360,7 @@ def activity_list(user: User, arguments: dict[str, Any]) -> Any:
         qs = qs.filter(created_at__lte=until)
 
     limit = min(int(args.get("limit", 200)), 1000)
-    qs = qs.order_by("-created_at")[:limit]
+    qs = qs.order_by("-created_at", "-id")[:limit]
 
     return [
         {
@@ -425,7 +425,7 @@ def comments_list(user: User, arguments: dict[str, Any]) -> Any:
         qs = qs.filter(created_at__lte=until)
 
     limit = min(int(args.get("limit", 200)), 1000)
-    qs = qs.order_by("-created_at")[:limit]
+    qs = qs.order_by("-created_at", "-id")[:limit]
 
     return [
         {

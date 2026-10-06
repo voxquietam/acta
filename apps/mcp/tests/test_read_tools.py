@@ -681,6 +681,31 @@ class TestProjectUpdatesList:
         assert result[0]["health"] == ProjectUpdate.AT_RISK
         assert result[0]["author_username"] == user.username
 
+    def test_posts_sharing_a_timestamp_keep_a_stable_order(self):
+        """A tie on ``created_at`` must still answer the same way twice.
+
+        This used to be left to the database: two posts written inside
+        one transaction — an import, a bulk action — share a timestamp,
+        and the feed then reshuffled between requests. The newest id
+        wins, so the order is the insertion order and nothing else.
+        """
+        from apps.projects.models import ProjectUpdate
+
+        user = UserFactory()
+        ws = WorkspaceFactory()
+        WorkspaceMember.objects.create(user=user, workspace=ws)
+        project = ProjectFactory(workspace=ws, slug_prefix="TIE")
+        first = ProjectUpdate.objects.create(project=project, author=user, health=ProjectUpdate.ON_TRACK, body="first")
+        second = ProjectUpdate.objects.create(
+            project=project, author=user, health=ProjectUpdate.ON_TRACK, body="second"
+        )
+        stamp = timezone.now()
+        ProjectUpdate.objects.filter(pk__in=[first.pk, second.pk]).update(created_at=stamp)
+
+        for _ in range(3):
+            result = CALLABLES["acta_project_updates_list"](user, {"project": "TIE"})
+            assert [row["body"] for row in result] == ["second", "first"]
+
     def test_foreign_project_raises(self):
         user = UserFactory()
         WorkspaceMember.objects.create(user=user, workspace=WorkspaceFactory())
