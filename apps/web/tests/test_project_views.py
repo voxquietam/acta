@@ -436,9 +436,11 @@ class TestProjectViewQueryCounts:
         # board cards need for the blocked / blocking badges + 1 for the
         # sidebar inbox-unread badge (context processor COUNT, ADR 0021)
         # + 1 for the assignee-picker member ranking pull (project.members
-        # lookup so the dropdown can pin project members + lead at top).
+        # lookup so the dropdown can pin project members + lead at top)
+        # + 1 for the dock's open-milestone list, capped at 50 and flat in
+        # the number of tasks like every other axis the dock offers.
         # Still constant — adding more tasks must not move it.
-        with django_assert_max_num_queries(19):
+        with django_assert_max_num_queries(20):
             client.get(
                 reverse(
                     "web_ws:project_detail",

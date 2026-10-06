@@ -257,6 +257,8 @@ def task_filter_attrs(context, task):
     * ``data-size`` — Fibonacci estimate or empty (no size)
     * ``data-context-menu-url`` — URL of the right-click menu fragment
     * ``data-assignee-id`` — ``Task.assignee_id`` or empty
+    * ``data-milestone-id`` — ``Task.milestone_id``, omitted when none
+      (the matcher reads a missing attribute as "no milestone")
     * ``data-assignee-me`` — ``"1"`` when assigned to ``request.user``
     * ``data-project-id`` — ``Task.project_id``
     * ``data-workspace-id`` — ``Task.project.workspace_id``
@@ -304,7 +306,10 @@ def task_filter_attrs(context, task):
         f'data-size="{task.size or ""}" '
         f'data-context-menu-url="{menu_url}" '
         f'data-assignee-id="{task.assignee_id or ""}" '
-        f'data-assignee-me="{is_me}" '
+        # Printed only when there is one: a row with no attribute is the
+        # "no milestone" bucket, which is what the matcher reads, and
+        # most rows on most boards carry no milestone at all.
+        + (f'data-milestone-id="{task.milestone_id}" ' if task.milestone_id else "") + f'data-assignee-me="{is_me}" '
         f'data-project-id="{task.project_id}" '
         f'data-workspace-id="{task.project.workspace_id}" '
         f'data-label-ids="{html.escape(label_ids)}" '

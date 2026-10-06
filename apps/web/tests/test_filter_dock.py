@@ -104,3 +104,78 @@ class TestDockPayload:
         body = client.get("/tasks/").content.decode()
         assert "acta-flt-rail" not in body
         assert "acta-dock" in body
+
+
+@pytest.mark.django_db
+class TestMilestoneAxis:
+    """The dock offers milestones only where there are open ones."""
+
+    def test_absent_until_a_milestone_exists(self, client, setup):
+        _, _, user = setup
+        client.force_login(user)
+
+        data = dock_of(client, "/tasks/")
+
+        assert "milestone" not in [f["key"] for f in data["fields"]]
+
+    def test_lists_open_milestones_with_their_date(self, client, setup):
+        from apps.milestones.tests.factories import MilestoneFactory
+
+        workspace, project, user = setup
+        milestone = MilestoneFactory(workspace=workspace, projects=[project], name="Search GA")
+        client.force_login(user)
+
+        data = dock_of(client, "/tasks/")
+
+        field = next(f for f in data["fields"] if f["key"] == "milestone")
+        assert field["options"][0]["v"] == str(milestone.id)
+        # The date is the milestone — a name alone says nothing about
+        # what you would be filtering down to.
+        assert milestone.target_date.strftime("%b") in field["options"][0]["n"]
+        assert field["options"][-1]["v"] == "none"
+
+    def test_closed_milestones_are_not_offered(self, client, setup):
+        from django.utils import timezone
+
+        from apps.milestones.tests.factories import MilestoneFactory
+
+        workspace, project, user = setup
+        MilestoneFactory(workspace=workspace, projects=[project], closed_at=timezone.now())
+        client.force_login(user)
+
+        data = dock_of(client, "/tasks/")
+
+        assert "milestone" not in [f["key"] for f in data["fields"]]
+
+    def test_the_selection_comes_back_marked(self, client, setup):
+        from apps.milestones.tests.factories import MilestoneFactory
+
+        workspace, project, user = setup
+        milestone = MilestoneFactory(workspace=workspace, projects=[project])
+        client.force_login(user)
+
+        data = dock_of(client, f"/tasks/?milestone={milestone.id}")
+
+        field = next(f for f in data["fields"] if f["key"] == "milestone")
+        assert next(o for o in field["options"] if o["v"] == str(milestone.id))["in"] is True
+
+
+@pytest.mark.django_db
+class TestMilestoneRowAttribute:
+    """The row carries its milestone so the dock can match in the browser."""
+
+    def test_printed_only_when_the_task_has_one(self, client, setup):
+        from apps.milestones.tests.factories import MilestoneFactory
+
+        workspace, project, user = setup
+        milestone = MilestoneFactory(workspace=workspace, projects=[project])
+        committed = TaskFactory(project=project, reporter=user, milestone=milestone)
+        client.force_login(user)
+
+        body = client.get("/tasks/?view=list").content.decode()
+
+        assert f'data-milestone-id="{milestone.id}"' in body
+        # One attribute, not one per row: a board where nothing is
+        # committed must not pay for the axis at all.
+        assert body.count("data-milestone-id") == 1
+        assert committed.title in body

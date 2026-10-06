@@ -49,6 +49,7 @@ def apply_task_filters(qs, params, *, request_user, default_show_done=True, defa
     qs = _filter_assignee(qs, params, request_user)
     qs = _filter_labels(qs, params)
     qs = _filter_cycle(qs, params)
+    qs = _filter_milestone(qs, params)
     qs = _filter_due(qs, params)
     qs = _filter_meta(qs, params)
     qs = _filter_date_range(qs, params)
@@ -445,6 +446,42 @@ def _filter_labels(qs, params):
     return qs
 
 
+def _filter_milestone(qs, params):
+    """Apply the ``milestone`` filter: ``none`` or a milestone id.
+
+    Accepts repeated ``?milestone=`` values, OR-combined:
+
+    * ``none`` — work committed to no milestone.
+    * a numeric milestone **id** — work committed to that one.
+
+    No live "open milestones" token on purpose: the dock evaluates this
+    axis in the browser, and the row cannot tell an open milestone from
+    a closed one without carrying its state too. The picker already
+    lists only open ones, so selecting them is the same question asked
+    in a way both sides can answer.
+
+    No ``milestone`` param leaves the queryset untouched.
+    """
+    values = params.getlist("milestone")
+    if not values:
+        return qs
+    q = Q()
+    ids = []
+    for value in values:
+        if value == "none":
+            q |= Q(milestone__isnull=True)
+        else:
+            try:
+                ids.append(int(value))
+            except (TypeError, ValueError):
+                continue
+    if ids:
+        q |= Q(milestone_id__in=ids)
+    if q:
+        qs = qs.filter(q)
+    return qs
+
+
 def _filter_cycle(qs, params):
     """Apply the ``cycle`` filter: ``active`` / ``backlog`` / a cycle id.
 
@@ -812,7 +849,19 @@ def filter_sidebar_context(
     selected_statuses = set(params.getlist("status"))
     selected_priorities = {int(p) for p in params.getlist("priority") if p.isdigit()}
     selected_sizes = {int(s) for s in params.getlist("size") if s.isdigit()}
+    # Open milestones of the active workspace. Closed ones are left out
+    # for the same reason the rail's picker leaves them out: committing
+    # to a date someone has already closed is almost always a mistake.
+    available_milestones = []
+    if active:
+        from apps.milestones.models import Milestone
+
+        available_milestones = list(
+            Milestone.objects.filter(workspace=active, closed_at__isnull=True).order_by("target_date", "id")[:50],
+        )
+
     selected_cycles = set(params.getlist("cycle"))
+    selected_milestones = set(params.getlist("milestone"))
     selected_projects = {int(p) for p in params.getlist("project") if p.isdigit()}
     selected_labels = {int(i) for i in params.getlist("label") if i.isdigit()}
     selected_assignees = set(params.getlist("assignee"))
@@ -939,7 +988,9 @@ def filter_sidebar_context(
         "selected_priorities": selected_priorities,
         "selected_sizes": selected_sizes,
         "selected_cycles": selected_cycles,
+        "selected_milestones": selected_milestones,
         "available_cycles": available_cycles,
+        "available_milestones": available_milestones,
         "selected_projects": selected_projects,
         "selected_labels": selected_labels,
         "selected_assignees": selected_assignees,
@@ -1162,6 +1213,27 @@ def build_filter_dock_data(ctx, *, request=None):
         ]
         options.append({"v": "backlog", "n": "Backlog", "in": "backlog" in ctx["selected_cycles"], "ex": False})
         field("cycle", "Cycle", "iteration-cw", "c", options, exclude=False)
+
+    milestones = ctx.get("available_milestones") or []
+    if milestones:
+        options = [
+            {
+                "v": str(milestone.id),
+                "n": f"{milestone.name} · {milestone.target_date:%b %-d}",
+                "in": str(milestone.id) in ctx["selected_milestones"],
+                "ex": False,
+            }
+            for milestone in milestones
+        ]
+        options.append(
+            {
+                "v": "none",
+                "n": "No milestone",
+                "in": "none" in ctx["selected_milestones"],
+                "ex": False,
+            },
+        )
+        field("milestone", "Milestone", "milestone", "h", options, exclude=False)
 
     if not ctx.get("filter_hide_size"):
         field(

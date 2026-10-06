@@ -688,6 +688,7 @@
       xpriority: new Set(multi("xpriority")),
       size: new Set(multi("size")),
       xsize: new Set(multi("xsize")),
+      milestone: new Set(multi("milestone")),
       assignee: new Set(multi("assignee")),
       xassignee: new Set(multi("xassignee")),
       project: new Set(multi("project")),
@@ -781,6 +782,13 @@
     }
     if (state.xassignee.size) {
       for (const t of state.xassignee) if (aTokens.has(t)) return false;
+    }
+    // Milestone — the row carries an id only when it is committed to
+    // one, so a missing attribute IS the "no milestone" bucket and
+    // matches the ``none`` token the dock writes. No exclude side: the
+    // dock offers this axis as include-only, like Cycle.
+    if (state.milestone && state.milestone.size) {
+      if (!state.milestone.has(row.dataset.milestoneId || "none")) return false;
     }
     // Project
     const proj = row.dataset.projectId || "";

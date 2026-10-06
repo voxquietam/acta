@@ -208,3 +208,62 @@ class TestHygieneSentinels:
         ids = self._ids(project, "desc=none")
         assert empty.id in ids
         assert filled.id not in ids
+
+
+@pytest.mark.django_db
+class TestMilestoneFilter:
+    """``?milestone=`` — a milestone id, or ``none`` for uncommitted work."""
+
+    def _seed(self):
+        from apps.milestones.tests.factories import MilestoneFactory
+
+        ws = WorkspaceFactory()
+        project = ProjectFactory(workspace=ws)
+        milestone = MilestoneFactory(workspace=ws, projects=[project])
+        other = MilestoneFactory(workspace=ws, projects=[project])
+        committed = TaskFactory(project=project, milestone=milestone)
+        elsewhere = TaskFactory(project=project, milestone=other)
+        loose = TaskFactory(project=project)
+        return milestone, committed, elsewhere, loose
+
+    def test_narrows_to_one_milestone(self):
+        milestone, committed, elsewhere, loose = self._seed()
+
+        qs = apply_task_filters(Task.objects.all(), QueryDict(f"milestone={milestone.id}"), request_user=None)
+
+        assert list(qs) == [committed]
+
+    def test_none_selects_the_uncommitted_work(self):
+        _, committed, elsewhere, loose = self._seed()
+
+        qs = apply_task_filters(Task.objects.all(), QueryDict("milestone=none"), request_user=None)
+
+        assert list(qs) == [loose]
+
+    def test_values_are_or_combined(self):
+        """Two chips of one axis widen the result, they do not intersect."""
+        milestone, committed, _, loose = self._seed()
+
+        qs = apply_task_filters(
+            Task.objects.all(), QueryDict(f"milestone={milestone.id}&milestone=none"), request_user=None
+        )
+
+        assert set(qs) == {committed, loose}
+
+    def test_absent_param_does_not_filter(self):
+        """An opt-in axis means nothing when nobody asked for it."""
+        _, committed, elsewhere, loose = self._seed()
+
+        qs = apply_task_filters(Task.objects.all(), QueryDict(""), request_user=None)
+
+        assert set(qs) == {committed, elsewhere, loose}
+
+    def test_a_junk_value_is_ignored_not_fatal(self):
+        """A hand-edited query string must not 500 the page."""
+        milestone, committed, _, _ = self._seed()
+
+        qs = apply_task_filters(
+            Task.objects.all(), QueryDict(f"milestone=abc&milestone={milestone.id}"), request_user=None
+        )
+
+        assert list(qs) == [committed]
