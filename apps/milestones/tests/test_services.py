@@ -434,3 +434,146 @@ class TestBurndown:
         assert chart["open"] == 0
         assert chart["verdict"] == "all done"
         assert chart["behind"] is False
+
+
+class TestFilling:
+    """The reverse picker: standing on the date, pick work for it."""
+
+    def test_only_in_scope_unfinished_work_is_offered(self, scope):
+        backend, infra, milestone = scope
+        outside = ProjectFactory(workspace=milestone.workspace, slug_prefix="WEB")
+        wanted = TaskFactory(project=backend, status=Task.STATUS_TODO)
+        TaskFactory(project=backend, status=Task.STATUS_DONE)
+        TaskFactory(project=backend, milestone=milestone, status=Task.STATUS_TODO)
+        TaskFactory(project=outside, status=Task.STATUS_TODO)
+        TaskFactory(project=infra, kind=Task.KIND_EPIC, title="An epic is not work")
+
+        offered = [row["task"].id for row in services.fill_candidates(milestone)]
+
+        assert offered == [wanted.id]
+
+    def test_work_committed_elsewhere_is_offered_and_says_so(self, scope):
+        backend, _, milestone = scope
+        other = MilestoneFactory(workspace=milestone.workspace, name="Later", projects=[backend])
+        task = TaskFactory(project=backend, milestone=other, status=Task.STATUS_TODO)
+
+        rows = services.fill_candidates(milestone)
+
+        assert [row["task"].id for row in rows] == [task.id]
+        assert rows[0]["other"].id == other.id
+
+    def test_search_matches_a_title_or_a_slug(self, scope):
+        backend, _, milestone = scope
+        hit = TaskFactory(project=backend, status=Task.STATUS_TODO, title="Shard the search index")
+        TaskFactory(project=backend, status=Task.STATUS_TODO, title="Rotate the signing keys")
+
+        by_title = services.fill_candidates(milestone, "shard")
+        by_slug = services.fill_candidates(milestone, hit.slug)
+
+        assert [row["task"].id for row in by_title] == [hit.id]
+        assert [row["task"].id for row in by_slug] == [hit.id]
+
+    def test_a_match_outside_the_scope_is_named_not_hidden(self, scope):
+        _, _, milestone = scope
+        outside = ProjectFactory(workspace=milestone.workspace, slug_prefix="WEB", name="Web")
+        task = TaskFactory(project=outside, status=Task.STATUS_TODO, title="Search results page")
+
+        rows = services.out_of_scope_matches(milestone, "search")
+
+        assert [row["task"].id for row in rows] == [task.id]
+        assert rows[0]["project"].name == "Web"
+
+    def test_nothing_is_listed_outside_scope_without_a_search(self, scope):
+        _, _, milestone = scope
+        outside = ProjectFactory(workspace=milestone.workspace, slug_prefix="WEB")
+        TaskFactory(project=outside, status=Task.STATUS_TODO)
+
+        assert services.out_of_scope_matches(milestone, "") == []
+
+
+class TestMembershipReports:
+    """Two questions, and neither of them joins anything by itself."""
+
+    def test_near_lists_in_scope_work_due_before_the_date(self, scope):
+        backend, _, milestone = scope
+        near = TaskFactory(
+            project=backend,
+            status=Task.STATUS_TODO,
+            due_date=milestone.target_date - datetime.timedelta(days=2),
+        )
+        TaskFactory(
+            project=backend,
+            status=Task.STATUS_TODO,
+            due_date=milestone.target_date + datetime.timedelta(days=2),
+        )
+        TaskFactory(project=backend, milestone=milestone, status=Task.STATUS_TODO, due_date=milestone.target_date)
+        TaskFactory(project=backend, status=Task.STATUS_DONE, due_date=milestone.target_date)
+
+        rows = services.membership_reports(milestone)["near"]
+
+        assert [row["task"].id for row in rows] == [near.id]
+
+    def test_a_blocker_from_outside_is_reported_with_its_chain(self, scope):
+        backend, infra, milestone = scope
+        inside = TaskFactory(project=backend, milestone=milestone, status=Task.STATUS_TODO)
+        blocker = TaskFactory(project=infra, status=Task.STATUS_TODO, title="Size the cluster")
+        blocker.blocks.add(inside)
+
+        rows = services.membership_reports(milestone)["blocks"]
+
+        assert [row["task"].id for row in rows] == [blocker.id]
+        assert rows[0]["chain"] == [blocker.id, inside.id]
+        assert rows[0]["in_scope"] is True
+        assert "no milestone at all" in str(rows[0]["why"])
+
+    def test_a_blocker_scheduled_after_the_work_it_blocks_says_so(self, scope):
+        backend, _, milestone = scope
+        later = MilestoneFactory(
+            workspace=milestone.workspace,
+            name="Cluster cut over",
+            target_date=milestone.target_date + datetime.timedelta(days=12),
+            projects=[backend],
+        )
+        inside = TaskFactory(project=backend, milestone=milestone, status=Task.STATUS_TODO)
+        blocker = TaskFactory(project=backend, milestone=later, status=Task.STATUS_TODO)
+        blocker.blocks.add(inside)
+
+        row = services.membership_reports(milestone)["blocks"][0]
+
+        assert "12 days after this date" in str(row["why"])
+
+    def test_a_blocker_outside_the_scope_names_the_project(self, scope):
+        backend, _, milestone = scope
+        outside = ProjectFactory(workspace=milestone.workspace, slug_prefix="WEB", name="Web")
+        inside = TaskFactory(project=backend, milestone=milestone, status=Task.STATUS_TODO)
+        blocker = TaskFactory(project=outside, status=Task.STATUS_TODO)
+        blocker.blocks.add(inside)
+
+        row = services.membership_reports(milestone)["blocks"][0]
+
+        assert row["in_scope"] is False
+        assert "Web is outside this milestone's scope" in str(row["why"])
+
+    def test_the_walk_reaches_two_hops_and_stops(self, scope):
+        backend, _, milestone = scope
+        inside = TaskFactory(project=backend, milestone=milestone, status=Task.STATUS_TODO)
+        first = TaskFactory(project=backend, status=Task.STATUS_TODO)
+        second = TaskFactory(project=backend, status=Task.STATUS_TODO)
+        third = TaskFactory(project=backend, status=Task.STATUS_TODO)
+        first.blocks.add(inside)
+        second.blocks.add(first)
+        third.blocks.add(second)
+
+        reported = {row["task"].id for row in services.membership_reports(milestone)["blocks"]}
+
+        assert reported == {first.id, second.id}
+
+    def test_finished_blockers_and_the_milestone_s_own_work_stay_out(self, scope):
+        backend, _, milestone = scope
+        inside = TaskFactory(project=backend, milestone=milestone, status=Task.STATUS_TODO)
+        sibling = TaskFactory(project=backend, milestone=milestone, status=Task.STATUS_TODO)
+        done = TaskFactory(project=backend, status=Task.STATUS_DONE)
+        sibling.blocks.add(inside)
+        done.blocks.add(inside)
+
+        assert services.membership_reports(milestone)["blocks"] == []

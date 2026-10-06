@@ -958,3 +958,347 @@ def _verdict(open_now: int, projected, slip: int) -> str:
             "count": -slip,
         }
     return _("On track · at this pace done %(date)s") % {"date": date_label(projected)}
+
+
+def fill_candidates(milestone, query: str = "", limit: int = 12) -> list[dict]:
+    """Return in-scope work this milestone could still take, soonest first.
+
+    The reverse of the task rail: standing on the date, pick the work
+    that belongs to it. Only counted, unfinished work that is not already
+    here, and only from projects the scope covers — a task may not join
+    a milestone that does not cover its project.
+
+    Work that already sits in another milestone is offered, and says so:
+    attaching moves it, which is a decision worth making with the
+    consequence in view.
+
+    Args:
+        milestone: The milestone being filled.
+        query: Optional text to match against title and slug.
+        limit: How many rows to return.
+
+    Returns:
+        Row dicts with ``task`` and the ``other`` milestone it would
+        leave, if any.
+    """
+    rows = (
+        Task.objects.filter(
+            counted_q(),
+            kind=Task.KIND_TASK,
+            project__in=milestone.projects.all(),
+        )
+        .exclude(status=Task.STATUS_DONE)
+        .exclude(milestone_id=milestone.pk)
+        .select_related("project", "milestone", "assignee")
+    )
+    rows = _search(rows, query).order_by(
+        "due_date",
+        "project__slug_prefix",
+        "number",
+    )
+    return [
+        {
+            "task": task,
+            "other": task.milestone,
+        }
+        for task in rows[:limit]
+    ]
+
+
+def out_of_scope_matches(milestone, query: str, limit: int = 3) -> list[dict]:
+    """Return matching work the scope does not reach, with the way in.
+
+    Shown and refused rather than hidden: a search that silently drops
+    the task someone is looking for reads as a bug, where a row saying
+    "Web is not in this milestone's scope" names the fix — widen the
+    scope, or leave the task where it is.
+
+    Args:
+        milestone: The milestone being filled.
+        query: Text to match against title and slug; empty returns
+            nothing, since "everything else in the workspace" is not an
+            answer to a question nobody asked.
+        limit: How many rows to return.
+
+    Returns:
+        Row dicts with ``task`` and its ``project``.
+    """
+    if not query.strip():
+        return []
+    rows = (
+        Task.objects.filter(
+            counted_q(),
+            kind=Task.KIND_TASK,
+            project__workspace_id=milestone.workspace_id,
+        )
+        .exclude(status=Task.STATUS_DONE)
+        .exclude(project__in=milestone.projects.all())
+        .select_related("project")
+    )
+    return [
+        {
+            "task": task,
+            "project": task.project,
+        }
+        for task in _search(rows, query).order_by("project__slug_prefix", "number")[:limit]
+    ]
+
+
+def _search(queryset, query: str):
+    """Narrow a task queryset by a free-text query over title and slug.
+
+    Args:
+        queryset: The tasks to narrow.
+        query: What the person typed; blank leaves the queryset alone.
+
+    Returns:
+        The narrowed queryset.
+    """
+    query = query.strip()
+    if not query:
+        return queryset
+    number = None
+    tail = query.rsplit("-", 1)[-1]
+    if tail.isdigit():
+        number = int(tail)
+    match = Q(title__icontains=query) | Q(project__slug_prefix__istartswith=query)
+    if number is not None:
+        match |= Q(number=number)
+    return queryset.filter(match)
+
+
+def membership_reports(milestone, today=None) -> dict:
+    """Return the two reports that keep a milestone's membership honest.
+
+    Both read off data already held, and neither ever joins a task to
+    anything: they are questions, and a person answers them.
+
+    *Near, not in* — work in scope, unfinished, due on or before the
+    date, committed to no milestone. Forgotten, or deliberately out?
+
+    *Blocks, not in* — work that blocks this milestone's tasks from
+    outside it, up to two hops out. This is the valuable one: it finds a
+    hole in the plan rather than a slip of the hand, and the worst case
+    it names is a blocker scheduled *after* the work it blocks.
+
+    Args:
+        milestone: The milestone to examine.
+        today: Reference date; defaults to the local current date.
+
+    Returns:
+        ``{"near": [...], "blocks": [...]}``.
+    """
+    today = today or timezone.localdate()
+    return {
+        "near": _near_report(milestone),
+        "blocks": _blocks_report(milestone, today),
+    }
+
+
+def _near_report(milestone, limit: int = 8) -> list[dict]:
+    """Return in-scope work due before the date that joined no milestone.
+
+    Args:
+        milestone: The milestone to examine.
+        limit: How many rows to return.
+
+    Returns:
+        Row dicts with ``task``, soonest due first.
+    """
+    rows = (
+        Task.objects.filter(
+            counted_q(),
+            kind=Task.KIND_TASK,
+            project__in=milestone.projects.all(),
+            milestone__isnull=True,
+            due_date__lte=milestone.target_date,
+        )
+        .exclude(status=Task.STATUS_DONE)
+        .select_related("project")
+        .order_by("due_date", "number")
+    )
+    return [{"task": task} for task in rows[:limit]]
+
+
+def _blocks_report(milestone, today, limit: int = 6) -> list[dict]:
+    """Return the work blocking this milestone from outside it.
+
+    Walks the ``blocks`` graph outwards from the milestone's own open
+    work: first what blocks it directly, then what blocks those blockers.
+    Two hops and no further — past that the chain stops being something
+    a person can act on.
+
+    Args:
+        milestone: The milestone to examine.
+        today: Reference date.
+        limit: How many rows to return.
+
+    Returns:
+        Row dicts with ``task``, the ``chain`` back to the milestone's
+        own task, the ``other`` milestone it sits in, whether it is
+        ``in_scope``, and ``why`` it matters.
+    """
+    inside = list(
+        milestone.tasks.filter(counted_q()).exclude(status=Task.STATUS_DONE).values_list("id", flat=True),
+    )
+    if not inside:
+        return []
+    scope_ids = set(milestone.projects.values_list("id", flat=True))
+    seen: dict[int, list] = {}
+    frontier = inside
+    chains: dict[int, list] = {task_id: [task_id] for task_id in inside}
+    for _hop in range(2):
+        blockers = (
+            Task.objects.filter(counted_q(), blocks__id__in=frontier)
+            .exclude(status=Task.STATUS_DONE)
+            .exclude(id__in=inside)
+            .select_related("project", "milestone")
+            .prefetch_related("blocks")
+            .distinct()
+        )
+        next_frontier = []
+        for blocker in blockers:
+            if blocker.id in seen:
+                continue
+            blocked = next(
+                (task.id for task in blocker.blocks.all() if task.id in chains),
+                frontier[0],
+            )
+            chains[blocker.id] = [blocker.id, *chains.get(blocked, [blocked])]
+            seen[blocker.id] = chains[blocker.id]
+            next_frontier.append(blocker.id)
+            if len(seen) >= limit:
+                break
+        if len(seen) >= limit or not next_frontier:
+            frontier = next_frontier
+            break
+        frontier = next_frontier
+    if not seen:
+        return []
+    rows = []
+    blockers = (
+        Task.objects.filter(id__in=list(seen))
+        .select_related("project", "milestone")
+        .order_by("project__slug_prefix", "number")
+    )
+    for blocker in blockers:
+        in_scope = blocker.project_id in scope_ids
+        other = blocker.milestone
+        rows.append(
+            {
+                "task": blocker,
+                "chain": seen[blocker.id],
+                "other": other,
+                "in_scope": in_scope,
+                "why": _blocker_reason(milestone, blocker, other, in_scope),
+            },
+        )
+    return rows
+
+
+def _blocker_reason(milestone, blocker, other, in_scope: bool) -> str:
+    """Say why a blocker outside the milestone is worth looking at.
+
+    Args:
+        milestone: The milestone being blocked.
+        blocker: The blocking task.
+        other: The milestone the blocker sits in, if any.
+        in_scope: Whether the milestone's scope covers the blocker.
+
+    Returns:
+        A translated sentence.
+    """
+    if not in_scope:
+        return _("%(project)s is outside this milestone's scope — widen it or drop the dependency.") % {
+            "project": blocker.project.name,
+        }
+    if other is None:
+        return _("In no milestone at all.")
+    gap = (other.target_date - milestone.target_date).days
+    if gap > 0:
+        return ngettext(
+            "Sits in %(name)s, %(count)d day after this date — the blocker is scheduled after the work it blocks.",
+            "Sits in %(name)s, %(count)d days after this date — the blocker is scheduled after the work it blocks.",
+            gap,
+        ) % {
+            "name": other.name,
+            "count": gap,
+        }
+    return _("Sits in %(name)s, %(date)s.") % {
+        "name": other.name,
+        "date": date_label(other.target_date),
+    }
+
+
+def epic_milestone_rows(tasks) -> list[dict]:
+    """Return where an epic's work sits, read off the tasks.
+
+    An epic stores no milestone of its own; it derives the set from the
+    work it collects, exactly as it already derives its dates, its size
+    and its progress. An epic whose work spans three milestones is
+    normal and reads as normal here.
+
+    Args:
+        tasks: The epic's counted tasks, with ``milestone`` loaded.
+
+    Returns:
+        Row dicts with ``milestone`` (``None`` for the unattached
+        remainder) and ``count``, biggest first, unattached last.
+    """
+    buckets: dict[int | None, dict] = {}
+    for task in tasks:
+        row = buckets.setdefault(
+            task.milestone_id,
+            {
+                "milestone": task.milestone,
+                "count": 0,
+            },
+        )
+        row["count"] += 1
+    rows = list(buckets.values())
+    rows.sort(key=lambda row: (row["milestone"] is None, -row["count"]))
+    return rows
+
+
+def epic_milestone_targets(workspace, tasks) -> list[dict]:
+    """Return the milestones an epic's work could be committed to.
+
+    "Set the milestone for this epic's tasks" is a bulk write onto the
+    tasks, so the question each candidate has to answer is how much of
+    the epic it can actually take: a milestone only covers the projects
+    in its scope, and an epic that spans four projects will meet plenty
+    that cover one.
+
+    Args:
+        workspace: The epic's workspace.
+        tasks: The epic's counted tasks.
+
+    Returns:
+        Row dicts with ``milestone``, ``fits`` and ``total``, soonest
+        date first, leaving out the ones that fit nothing.
+    """
+    if not tasks:
+        return []
+    project_ids = [task.project_id for task in tasks]
+    rows = []
+    candidates = (
+        Milestone.objects.filter(workspace=workspace, closed_at__isnull=True)
+        .prefetch_related("projects")
+        .order_by(
+            "target_date",
+            "id",
+        )[:20]
+    )
+    for milestone in candidates:
+        scope = {project.id for project in milestone.projects.all()}
+        fits = sum(1 for project_id in project_ids if project_id in scope)
+        if not fits:
+            continue
+        rows.append(
+            {
+                "milestone": milestone,
+                "fits": fits,
+                "total": len(tasks),
+            },
+        )
+    return rows
