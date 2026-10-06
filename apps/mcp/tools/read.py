@@ -14,7 +14,14 @@ from typing import Any, Callable
 from mcp.types import Tool
 
 from apps.accounts.models import User
-from apps.mcp.tools._shared import resolve_project, resolve_task, resolve_workspace, user_workspace_ids
+from apps.mcp.tools._shared import (
+    resolve_milestone,
+    resolve_project,
+    resolve_task,
+    resolve_workspace,
+    serialize_milestone,
+    user_workspace_ids,
+)
 from apps.tasks.models import Task
 
 
@@ -671,7 +678,78 @@ def tasks_find_similar(user: User, arguments: dict[str, Any]) -> Any:
     }
 
 
+def milestones_list(user: User, arguments: dict[str, Any]) -> Any:
+    """List milestones, newest date last, with progress and risk."""
+    from apps.milestones.models import Milestone
+
+    args = arguments or {}
+    qs = Milestone.objects.filter(workspace_id__in=user_workspace_ids(user))
+    if args.get("workspace"):
+        qs = qs.filter(workspace=resolve_workspace(user, args["workspace"]))
+    if args.get("project"):
+        qs = qs.filter(projects=resolve_project(user, args["project"]))
+    rows = [serialize_milestone(m) for m in qs.prefetch_related("projects").distinct()]
+    state = args.get("state")
+    if state:
+        rows = [row for row in rows if row["state"] == state]
+    return rows
+
+
+def milestone_get(user: User, arguments: dict[str, Any]) -> Any:
+    """Read one milestone with its breakdown and what is at risk."""
+    args = arguments or {}
+    milestone_id = args.get("milestone_id")
+    if not milestone_id:
+        raise ValueError("Argument 'milestone_id' is required.")
+    return serialize_milestone(resolve_milestone(user, milestone_id), detail=True)
+
+
 TOOLS: list[Tool] = [
+    Tool(
+        name="acta_milestones_list",
+        description=(
+            "List milestones — the dates work aims at. A milestone is a POINT, not a "
+            "span: one target date by which something must be true, scoped to one or "
+            "more projects. One project is a local checkpoint; several is a shared "
+            "commitment every one of them shows. "
+            "Optional: ``workspace`` (slug), ``project`` (slug prefix — milestones that "
+            "cover it), ``state`` (``open``, ``today``, ``overdue``, ``complete``, "
+            "``closed``). "
+            "Each row carries ``target_date``, ``days_left`` (negative once past), "
+            "``state``, ``done``/``total`` over the work that counts, ``at_risk`` and "
+            "the project scope. Progress excludes cancelled work, counts archived work "
+            "that is done, and drops archived work that is not."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "workspace": {"type": "string", "description": "Workspace slug."},
+                "project": {"type": "string", "description": "Project slug prefix, e.g. ACTA."},
+                "state": {
+                    "type": "string",
+                    "enum": ["open", "today", "overdue", "complete", "closed"],
+                },
+            },
+            "additionalProperties": False,
+        },
+    ),
+    Tool(
+        name="acta_milestone_get",
+        description=(
+            "Read one milestone in full: its goal, scope, progress, the breakdown by "
+            "project and by epic, and ``at_risk_tasks`` — the unfinished work that will "
+            "not make the date. Risk has two sides: a task whose own due date falls "
+            "after the milestone's date contradicts the plan, and once the date has "
+            "passed every still-open task is late whatever its due date says. "
+            "Required: ``milestone_id`` (from ``acta_milestones_list``)."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {"milestone_id": {"type": "integer"}},
+            "required": ["milestone_id"],
+            "additionalProperties": False,
+        },
+    ),
     Tool(
         name="acta_tasks_find_similar",
         description=(
@@ -1067,6 +1145,8 @@ CALLABLES: dict[str, Callable[[User, dict[str, Any]], Any]] = {
     "acta_comments_list": comments_list,
     "acta_labels_list": labels_list,
     "acta_label_groups_list": label_groups_list,
+    "acta_milestones_list": milestones_list,
+    "acta_milestone_get": milestone_get,
 }
 
 

@@ -11,6 +11,7 @@ palette colour) instead of rejected, so the LLM doesn't get stuck in a
 
 from __future__ import annotations
 
+import datetime
 from typing import Any, Callable
 
 from mcp.types import Tool
@@ -20,9 +21,11 @@ from apps.mcp.tools._shared import (
     FakeRequest,
     as_cleared,
     is_workspace_admin,
+    resolve_milestone,
     resolve_project,
     resolve_task,
     resolve_user_reference,
+    serialize_milestone,
     serialize_task_summary,
     user_workspace_ids,
 )
@@ -976,7 +979,282 @@ def tasks_bulk_archive(user: User, arguments: dict[str, Any]) -> Any:
     return {"archived": archived, "count": len(archived)}
 
 
+def _milestone_date(value):
+    """Parse an ISO date argument into a real date.
+
+    The MCP transport hands dates over as strings, and assigning one
+    straight to the model leaves a ``str`` on the in-memory instance —
+    every comparison against it then raises rather than answering.
+
+    Args:
+        value: An ISO date string, or a date.
+
+    Returns:
+        A :class:`datetime.date`.
+
+    Raises:
+        ValueError: If the value is not an ISO date.
+    """
+    if isinstance(value, datetime.date):
+        return value
+    try:
+        return datetime.date.fromisoformat(str(value))
+    except ValueError as exc:
+        raise ValueError(f"target_date must be an ISO date like 2026-12-04, got {value!r}.") from exc
+
+
+def _milestone_projects(user, prefixes):
+    """Resolve project slug prefixes to the projects a milestone covers."""
+    projects = [resolve_project(user, prefix) for prefix in prefixes]
+    workspaces = {p.workspace_id for p in projects}
+    if len(workspaces) > 1:
+        raise ValueError("A milestone's projects must all live in one workspace.")
+    return projects
+
+
+def milestone_create(user: User, arguments: dict[str, Any]) -> Any:
+    """Create a milestone and set the projects that aim at it."""
+    from apps.milestones.models import Milestone
+
+    args = arguments or {}
+    name = (args.get("name") or "").strip()
+    target_date = args.get("target_date")
+    prefixes = args.get("projects") or []
+    if not name or not target_date or not prefixes:
+        raise ValueError("Arguments 'name', 'target_date' and 'projects' are required.")
+    projects = _milestone_projects(user, prefixes)
+    workspace = projects[0].workspace
+    owner = resolve_user_reference(user, args["owner_username"]) if args.get("owner_username") else None
+    milestone = Milestone.objects.create(
+        workspace=workspace,
+        name=name,
+        target_date=_milestone_date(target_date),
+        goal=(args.get("goal") or "").strip(),
+        description=(args.get("description") or "").strip(),
+        owner=owner,
+    )
+    milestone.projects.set(projects)
+    return serialize_milestone(milestone, detail=True)
+
+
+def milestone_update(user: User, arguments: dict[str, Any]) -> Any:
+    """Edit a milestone; narrowing its scope detaches the work it drops."""
+    args = arguments or {}
+    milestone = resolve_milestone(user, args.get("milestone_id"))
+    fields = []
+    for key in ("name", "goal", "description", "target_date"):
+        if key in args and args[key] is not None:
+            value = _milestone_date(args[key]) if key == "target_date" else args[key]
+            setattr(milestone, key, value)
+            fields.append(key)
+    if "owner_username" in args:
+        milestone.owner = resolve_user_reference(user, args["owner_username"]) if args["owner_username"] else None
+        fields.append("owner")
+    detached = 0
+    if args.get("projects"):
+        projects = _milestone_projects(user, args["projects"])
+        if projects[0].workspace_id != milestone.workspace_id:
+            raise ValueError("A milestone cannot move to another workspace.")
+        keep = {p.id for p in projects}
+        # Narrowing scope is destructive: work from a dropped project can
+        # no longer belong here, so it is detached rather than left in a
+        # milestone that does not cover it. See ADR 0037.
+        detached = milestone.tasks.exclude(project_id__in=keep).update(milestone=None)
+        milestone.projects.set(projects)
+        fields.append("projects")
+    if fields:
+        milestone.save()
+    payload = serialize_milestone(milestone, detail=True)
+    payload["detached_tasks"] = detached
+    return payload
+
+
+def milestone_close(user: User, arguments: dict[str, Any]) -> Any:
+    """Close a milestone, optionally moving or detaching the open work."""
+    from django.utils import timezone
+
+    from apps.tasks.bulk import _run_bulk_update
+    from apps.tasks.models import Task
+
+    args = arguments or {}
+    milestone = resolve_milestone(user, args.get("milestone_id"))
+    open_ids = list(
+        milestone.counted_tasks().exclude(status=Task.STATUS_DONE).values_list("id", flat=True),
+    )
+    moved = 0
+    if open_ids and args.get("move_open_to"):
+        target = resolve_milestone(user, args["move_open_to"])
+        _run_bulk_update(user=user, ids=open_ids, updates={"milestone": target.id})
+        moved = len(open_ids)
+    elif open_ids and args.get("detach_open"):
+        _run_bulk_update(user=user, ids=open_ids, updates={"milestone": None})
+        moved = len(open_ids)
+    milestone.closed_at = timezone.now()
+    milestone.save(update_fields=["closed_at", "updated_at"])
+    payload = serialize_milestone(milestone, detail=True)
+    payload["open_work_handled"] = moved
+    payload["open_work_left_attached"] = len(open_ids) - moved
+    return payload
+
+
+def milestone_reopen(user: User, arguments: dict[str, Any]) -> Any:
+    """Reopen a closed milestone."""
+    args = arguments or {}
+    milestone = resolve_milestone(user, args.get("milestone_id"))
+    milestone.closed_at = None
+    milestone.save(update_fields=["closed_at", "updated_at"])
+    return serialize_milestone(milestone, detail=True)
+
+
+def milestone_delete(user: User, arguments: dict[str, Any]) -> Any:
+    """Delete a milestone; its tasks keep everything but the milestone."""
+    args = arguments or {}
+    milestone = resolve_milestone(user, args.get("milestone_id"))
+    if not args.get("confirm"):
+        raise ValueError(
+            f"Deleting '{milestone.name}' would detach {milestone.tasks.count()} task(s). "
+            "Call again with confirm=true to proceed.",
+        )
+    name, detached = milestone.name, milestone.tasks.count()
+    milestone.delete()
+    return {"deleted": True, "name": name, "detached_tasks": detached}
+
+
+def tasks_set_milestone(user: User, arguments: dict[str, Any]) -> Any:
+    """Commit tasks to a milestone, or take them out of one."""
+    from apps.tasks.bulk import _run_bulk_update
+
+    args = arguments or {}
+    slugs = args.get("tasks") or []
+    if not slugs:
+        raise ValueError("Argument 'tasks' (list of slugs) is required.")
+    ids = [resolve_task(user, slug).id for slug in slugs]
+    milestone_id = args.get("milestone_id")
+    if milestone_id:
+        resolve_milestone(user, milestone_id)
+    _run_bulk_update(user=user, ids=ids, updates={"milestone": milestone_id})
+    return {"updated": len(ids), "milestone_id": milestone_id}
+
+
 TOOLS: list[Tool] = [
+    Tool(
+        name="acta_milestone_create",
+        description=(
+            "Create a milestone: a POINT in time something must be true by, not a span. "
+            "Required: ``name``, ``target_date`` (ISO date), ``projects`` (list of slug "
+            "prefixes — all in one workspace). One project makes a local checkpoint; "
+            "several make a shared commitment every one of them shows. "
+            "Optional: ``goal`` (one line — what must be true when this is reached), "
+            "``description``, ``owner_username`` (``me`` for yourself). "
+            "Tasks do NOT join by themselves: membership is chosen, never inferred from "
+            "dates. Use ``acta_tasks_set_milestone`` after creating."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "target_date": {"type": "string", "description": "ISO date, e.g. 2026-12-04."},
+                "projects": {"type": "array", "items": {"type": "string"}},
+                "goal": {"type": "string"},
+                "description": {"type": "string"},
+                "owner_username": {"type": "string"},
+            },
+            "required": ["name", "target_date", "projects"],
+            "additionalProperties": False,
+        },
+    ),
+    Tool(
+        name="acta_milestone_update",
+        description=(
+            "Edit a milestone. Required: ``milestone_id``. Optional: ``name``, "
+            "``goal``, ``description``, ``target_date``, ``owner_username`` (pass an "
+            "empty string to clear), ``projects`` (REPLACES the scope). "
+            "Narrowing the scope is destructive: work in a project you drop is detached "
+            "from the milestone, and the reply says how many in ``detached_tasks``."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "milestone_id": {"type": "integer"},
+                "name": {"type": "string"},
+                "goal": {"type": "string"},
+                "description": {"type": "string"},
+                "target_date": {"type": "string"},
+                "owner_username": {"type": "string"},
+                "projects": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["milestone_id"],
+            "additionalProperties": False,
+        },
+    ),
+    Tool(
+        name="acta_milestone_close",
+        description=(
+            "Close a milestone — the event happened, or the team decided it is done "
+            "with. Closing is the one state a person sets; everything else (overdue, "
+            "complete) is derived. Required: ``milestone_id``. "
+            "Optional, for the work still open: ``move_open_to`` (another milestone's "
+            "id) or ``detach_open`` (true). With neither, open work stays attached and "
+            "the reply says how much in ``open_work_left_attached``."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "milestone_id": {"type": "integer"},
+                "move_open_to": {"type": "integer"},
+                "detach_open": {"type": "boolean"},
+            },
+            "required": ["milestone_id"],
+            "additionalProperties": False,
+        },
+    ),
+    Tool(
+        name="acta_milestone_reopen",
+        description="Reopen a closed milestone. Required: ``milestone_id``.",
+        inputSchema={
+            "type": "object",
+            "properties": {"milestone_id": {"type": "integer"}},
+            "required": ["milestone_id"],
+            "additionalProperties": False,
+        },
+    ),
+    Tool(
+        name="acta_milestone_delete",
+        description=(
+            "Delete a milestone. Its tasks are kept — they lose the milestone and "
+            "nothing else. Required: ``milestone_id`` and ``confirm`` (true); calling "
+            "without ``confirm`` reports how many tasks would be detached."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "milestone_id": {"type": "integer"},
+                "confirm": {"type": "boolean"},
+            },
+            "required": ["milestone_id"],
+            "additionalProperties": False,
+        },
+    ),
+    Tool(
+        name="acta_tasks_set_milestone",
+        description=(
+            "Commit tasks to a milestone, or take them out of one by passing a null "
+            "``milestone_id``. Required: ``tasks`` (list of slugs). "
+            "A task may only join a milestone whose scope covers that task's project, "
+            "and an epic may not join at all — it derives its milestones from the tasks "
+            "it collects, the way it already derives its dates. The batch is "
+            "all-or-nothing: if one task breaks either rule, none are changed."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "tasks": {"type": "array", "items": {"type": "string"}},
+                "milestone_id": {"type": ["integer", "null"]},
+            },
+            "required": ["tasks"],
+            "additionalProperties": False,
+        },
+    ),
     Tool(
         name="acta_task_create",
         description=(
@@ -1852,6 +2130,12 @@ def project_create(user: User, arguments: dict[str, Any]) -> Any:
 
 
 CALLABLES: dict[str, Callable[[User, dict[str, Any]], Any]] = {
+    "acta_milestone_create": milestone_create,
+    "acta_milestone_update": milestone_update,
+    "acta_milestone_close": milestone_close,
+    "acta_milestone_reopen": milestone_reopen,
+    "acta_milestone_delete": milestone_delete,
+    "acta_tasks_set_milestone": tasks_set_milestone,
     "acta_task_create": task_create,
     "acta_task_update": task_update,
     "acta_task_turn_into_epic": task_turn_into_epic,

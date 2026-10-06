@@ -253,3 +253,131 @@ class FakeRequest:
     def __init__(self, user: User):
         self.user = user
         self.query_params: dict[str, str] = {}
+
+
+def resolve_milestone(user: User, milestone_id):
+    """Load a milestone in one of the user's workspaces.
+
+    Args:
+        user: The authenticated MCP user.
+        milestone_id: Primary key of the milestone.
+
+    Returns:
+        The :class:`~apps.milestones.models.Milestone`, scope prefetched.
+
+    Raises:
+        ValueError: If no such milestone is visible to this user.
+    """
+    from apps.milestones.models import Milestone
+
+    try:
+        return Milestone.objects.prefetch_related("projects").get(
+            pk=milestone_id,
+            workspace_id__in=user_workspace_ids(user),
+        )
+    except Milestone.DoesNotExist as exc:
+        raise ValueError(f"Milestone {milestone_id} not found in your workspaces.") from exc
+
+
+def milestone_at_risk(milestone, today=None):
+    """Return the counted, unfinished work that will not make the date.
+
+    Two sides, and the second is the one people forget: a task whose own
+    due date falls after the milestone's date contradicts the plan, and
+    once the date has passed every still-open task is late whatever its
+    due date says. See docs/decisions/0037-milestones.md.
+
+    Args:
+        milestone: The milestone to examine.
+        today: Reference date; defaults to the local current date.
+
+    Returns:
+        A list of ``(task, days_over, why)`` tuples, worst first.
+    """
+    from django.utils import timezone
+
+    from apps.tasks.models import Task
+
+    today = today or timezone.localdate()
+    open_work = (
+        milestone.counted_tasks().exclude(status=Task.STATUS_DONE).select_related("project").order_by("due_date")
+    )
+    past = milestone.target_date < today
+    rows = []
+    for task in open_work:
+        if task.due_date and task.due_date > milestone.target_date:
+            rows.append((task, (task.due_date - milestone.target_date).days, "due after the milestone"))
+        elif past:
+            rows.append((task, (today - milestone.target_date).days, "still open"))
+    rows.sort(key=lambda row: -row[1])
+    return rows
+
+
+def serialize_milestone(milestone, *, detail: bool = False):
+    """Serialise a milestone for the MCP payloads.
+
+    Args:
+        milestone: The milestone to serialise.
+        detail: Include the per-project and per-epic breakdown plus the
+            at-risk list.
+
+    Returns:
+        A JSON-serialisable dict.
+    """
+    from django.utils import timezone
+
+    from apps.tasks.models import Task
+
+    today = timezone.localdate()
+    done, total = milestone.counts()
+    at_risk = milestone_at_risk(milestone, today=today)
+    payload = {
+        "id": milestone.id,
+        "name": milestone.name,
+        "goal": milestone.goal,
+        "target_date": milestone.target_date.isoformat(),
+        "days_left": (milestone.target_date - today).days,
+        "state": milestone.state(today=today),
+        "projects": sorted(p.slug_prefix for p in milestone.projects.all()),
+        "owner_username": milestone.owner.username if milestone.owner else None,
+        "done": done,
+        "total": total,
+        "at_risk": len(at_risk),
+    }
+    if not detail:
+        return payload
+    counted = milestone.counted_tasks().select_related("project", "epic")
+    by_project: dict[str, dict] = {}
+    by_epic: dict[str, dict] = {}
+    for task in counted:
+        key = task.project.slug_prefix
+        row = by_project.setdefault(key, {"project": key, "done": 0, "total": 0})
+        row["total"] += 1
+        row["done"] += task.status == Task.STATUS_DONE
+        ekey = task.epic.slug if task.epic_id else None
+        erow = by_epic.setdefault(
+            ekey or "",
+            {"epic_slug": ekey, "epic_title": task.epic.title if task.epic_id else None, "done": 0, "total": 0},
+        )
+        erow["total"] += 1
+        erow["done"] += task.status == Task.STATUS_DONE
+    payload.update(
+        {
+            "description": milestone.description,
+            "closed": milestone.is_closed,
+            "by_project": sorted(by_project.values(), key=lambda row: row["project"]),
+            "by_epic": sorted(by_epic.values(), key=lambda row: -row["total"]),
+            "at_risk_tasks": [
+                {
+                    "slug": task.slug,
+                    "title": task.title,
+                    "status": task.status,
+                    "due_date": task.due_date.isoformat() if task.due_date else None,
+                    "days_over": days,
+                    "why": why,
+                }
+                for task, days, why in at_risk[:50]
+            ],
+        },
+    )
+    return payload
