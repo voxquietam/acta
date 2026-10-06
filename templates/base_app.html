@@ -390,26 +390,65 @@ Pages extend this and override the `app_main` block.
         </button>
 
         {% comment %}
-        Theme toggle — three-state cycle: light → dark → midnight → light.
-        Button icon represents the CURRENT theme (so the active theme is
-        always visible at a glance — sun = light, moon = dark, moon-star =
-        midnight); the tooltip names the action (what clicking switches
-        to). Alpine store ``theme.toggle()`` advances through
-        ``['light','dark','midnight']`` and writes ``localStorage["acta:theme"]``.
+        Theme picker — four themes chosen from a menu: light, paper, dark,
+        midnight. It replaced a three-state cycle button, where reaching
+        the theme you wanted meant clicking past the ones you didn't.
+        The trigger icon is the CURRENT theme (so the active one is
+        visible at a glance); the menu marks it with a check. Alpine
+        store ``theme.set(name)`` writes ``localStorage["acta:theme"]``,
+        which the pre-paint script in base.html reads back before the
+        first frame. Menu radius follows the user menu beside it rather
+        than the ``rounded-lg`` default — two adjacent dropdowns with
+        different corners read worse than one deviation does.
         {% endcomment %}
-        <button type="button"
-                @click="$store.theme.toggle()"
-                :data-tooltip="$store.theme.current === 'light'
-                    ? '{% trans 'Switch to dark mode' %}'
-                  : $store.theme.current === 'dark'
-                    ? '{% trans 'Switch to midnight mode' %}'
-                    : '{% trans 'Switch to light mode' %}'"
-                data-tooltip-pos="below"
-                class="hidden sm:grid place-items-center p-1.5 rounded-md text-placeholder-foreground hover:bg-muted hover:text-foreground">
-          <span x-show="$store.theme.current === 'light'">{% lucide "sun" "w-4 h-4" %}</span>
-          <span x-show="$store.theme.current === 'dark'" x-cloak>{% lucide "moon" "w-4 h-4" %}</span>
-          <span x-show="$store.theme.current === 'midnight'" x-cloak>{% lucide "moon-star" "w-4 h-4" %}</span>
-        </button>
+        <div x-data="{ open: false }" class="hidden sm:block relative shrink-0">
+          <button type="button"
+                  @click="open = !open"
+                  data-tooltip="{% trans 'Theme' %}"
+                  data-tooltip-pos="below"
+                  aria-label="{% trans 'Theme' %}"
+                  class="grid place-items-center p-1.5 rounded-md text-placeholder-foreground hover:bg-muted hover:text-foreground">
+            <span x-show="$store.theme.current === 'light'">{% lucide "sun" "w-4 h-4" %}</span>
+            <span x-show="$store.theme.current === 'paper'" x-cloak>{% lucide "sun-dim" "w-4 h-4" %}</span>
+            <span x-show="$store.theme.current === 'dark'" x-cloak>{% lucide "moon" "w-4 h-4" %}</span>
+            <span x-show="$store.theme.current === 'midnight'" x-cloak>{% lucide "moon-star" "w-4 h-4" %}</span>
+          </button>
+          <div x-show="open" @click.outside="open = false" x-cloak
+               class="absolute right-0 mt-2 w-44 bg-card border border-border rounded-md shadow-lg overflow-hidden z-20">
+            <button type="button" @click="$store.theme.set('light'); open = false"
+                    class="w-full text-left flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted">
+              {% lucide "sun" "w-3.5 h-3.5" %}
+              {% trans "Light" %}
+              <span class="flex-1"></span>
+              <span x-show="$store.theme.current === 'light'" x-cloak
+                    class="text-brand-500">{% lucide "check" "w-3.5 h-3.5" %}</span>
+            </button>
+            <button type="button" @click="$store.theme.set('paper'); open = false"
+                    class="w-full text-left flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted">
+              {% lucide "sun-dim" "w-3.5 h-3.5" %}
+              {% trans "Paper" %}
+              <span class="flex-1"></span>
+              <span x-show="$store.theme.current === 'paper'" x-cloak
+                    class="text-brand-500">{% lucide "check" "w-3.5 h-3.5" %}</span>
+            </button>
+            <button type="button" @click="$store.theme.set('dark'); open = false"
+                    class="w-full text-left flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted border-t border-border">
+              {% lucide "moon" "w-3.5 h-3.5" %}
+              {% trans "Dark" %}
+              <span class="flex-1"></span>
+              <span x-show="$store.theme.current === 'dark'" x-cloak
+                    class="text-brand-500">{% lucide "check" "w-3.5 h-3.5" %}</span>
+            </button>
+            <button type="button" @click="$store.theme.set('midnight'); open = false"
+                    class="w-full text-left flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted">
+              {% lucide "moon-star" "w-3.5 h-3.5" %}
+              {% trans "Midnight" %}
+              <span class="flex-1"></span>
+              <span x-show="$store.theme.current === 'midnight'" x-cloak
+                    class="text-brand-500">{% lucide "check" "w-3.5 h-3.5" %}</span>
+            </button>
+          </div>
+        </div>
 
         {% if user.is_authenticated %}
         <div x-data="{ open: false }" class="relative shrink-0">

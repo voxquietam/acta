@@ -172,6 +172,32 @@ code, kbd, pre, samp, .font-mono {
 
     --ring: 66 90 245;              /* brand-500 — same accent across themes */
   }
+
+  html.paper {
+    /* Fourth theme — warm dimmed paper from the design system
+       (acta-design-system/colors_and_type.css). A light theme, so no
+       ``dark:*`` utility may fire: the toggle keeps ``light`` on and
+       layers ``paper`` to override surface tokens. */
+    color-scheme: light;
+    --background: 232 230 224;      /* #e8e6e0 — warm beige-grey page */
+    --card: 245 243 238;            /* #f5f3ee — elevated cream */
+    /* Light's canvas sits a step BELOW the card, same as the dark
+       themes: here the page tone already is that step, so the graph
+       canvas tracks the background rather than inventing a shade. */
+    --graph-canvas: 232 230 224;    /* #e8e6e0 — same as the page */
+    --muted: 221 218 211;           /* #dddad3 */
+    --subtle: 226 223 217;          /* #e2dfd9 */
+
+    --foreground: 38 38 48;         /* #262630 */
+    --muted-foreground: 78 80 96;   /* #4e5060 */
+    --subtle-foreground: 105 108 124; /* #696c7c */
+    --placeholder-foreground: 141 143 156; /* #8d8f9c */
+
+    --border: 207 203 193;          /* #cfcbc1 */
+    --border-strong: 184 180 168;   /* #b8b4a8 */
+
+    --ring: 66 90 245;              /* brand-500 — same accent across themes */
+  }
 }
 
 /* Acta-specific tweaks that Tailwind utilities don't cover. */
@@ -3991,4 +4017,18 @@ html.dark .acta-dock-chip.is-ex {
   height: 100%;
   border-radius: 999px;
   background: rgb(var(--acta-st-done));
+}
+
+/* Task-table row background. Lived in a per-row Alpine ``:class`` until the
+   All Tasks page grew past a few hundred rows: 139 bytes on every ``<tr>``
+   (the single largest attribute there) plus one expression re-evaluated per
+   row whenever the selection changed. ``:data-selected`` already carries the
+   state, so the paint belongs here. The selected rule follows the hover one
+   deliberately — same specificity, so selection wins while hovered. */
+.acta-row:hover {
+  background-color: rgb(var(--muted) / 0.4);
+}
+.acta-row[data-selected="true"] {
+  background-color: rgb(66 90 245 / 0.07);
+  box-shadow: inset 3px 0 0 0 rgb(66 90 245 / 0.5);
 }

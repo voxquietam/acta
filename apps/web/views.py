@@ -1560,7 +1560,15 @@ class MyWorkView(LoginRequiredMixin, TemplateView):
     """
 
     def get_template_names(self):
-        """Full page on cold load, inner fragment for HTMX filter swaps."""
+        """Full page on cold load, inner fragment for HTMX filter swaps.
+
+        ``?axis_only=KEY`` is the per-axis lazy fetch fired the first
+        time the user switches to an axis the cold load left as a
+        placeholder. Returns just that axis's sections — the same
+        contract All Tasks has used since Wave 3 PR-1 F4.
+        """
+        if self.request.GET.get("axis_only"):
+            return ["web/projects/_list_axis_section.html"]
         if _is_htmx_partial(self.request):
             return ["web/_my_work_inner.html"]
         return ["web/my_work.html"]
@@ -1569,7 +1577,9 @@ class MyWorkView(LoginRequiredMixin, TemplateView):
         """Persist the ``show_archived`` + ``list_axis`` toggles."""
         response = super().render_to_response(context, **response_kwargs)
         _persist_archive_cookie(response, _params_with_archive_cookie(self.request))
-        if context.get("list_axis"):
+        # A per-axis fetch reads the preference, never writes it back: the
+        # client switched axis locally and owns the cookie until then.
+        if context.get("list_axis") and not self.request.GET.get("axis_only"):
             response.set_cookie(
                 "acta_list_axis",
                 context["list_axis"],
@@ -1604,15 +1614,29 @@ class MyWorkView(LoginRequiredMixin, TemplateView):
         # hand-written four: ``_optional_axes`` appends ``cycle`` and
         # ``epic`` where the workspace runs them, and a key missing here
         # is a tab that renders nothing at all when picked.
+        # Only the axis on screen is grouped and rendered. Building every
+        # axis on every load meant the same tasks rendered up to six times
+        # over — most of a 1.7 MB page, for five groupings nobody had asked
+        # to see. The rest arrive through ``?axis_only=KEY`` when the user
+        # switches to them, the way All Tasks already does it.
+        axis_only = self.request.GET.get("axis_only")
+        wanted = axis_only if axis_only in list_axis_keys else list_axis
         ctx["list_sections_by_axis"] = {
-            key: group_tasks(
-                tasks,
-                key,
-                request_user=self.request.user,
-                keep_empty={"recently_done"} if key == "deadline" else (),
+            key: (
+                group_tasks(
+                    tasks,
+                    key,
+                    request_user=self.request.user,
+                    keep_empty={"recently_done"} if key == "deadline" else (),
+                )
+                if key == wanted
+                else []
             )
             for key in list_axis_keys
         }
+        ctx["list_lazy_axes"] = True
+        if axis_only in list_axis_keys:
+            ctx["sections"] = ctx["list_sections_by_axis"][axis_only]
         # Personal WIP: flag the statuses where the current user holds more
         # than their per-person workspace limit, so the status-axis section
         # headers can warn (e.g. "!! 4/2 over WIP" next to In progress).

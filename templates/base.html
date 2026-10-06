@@ -33,11 +33,17 @@
   <script>
     (function () {
       var saved = localStorage.getItem("acta:theme");
-      var theme = (saved === "light" || saved === "midnight") ? saved : "dark";
+      var theme = (saved === "light" || saved === "paper" || saved === "midnight") ? saved : "dark";
       var html = document.documentElement;
-      html.classList.remove("light", "dark", "midnight");
+      html.classList.remove("light", "paper", "dark", "midnight");
       if (theme === "light") {
         html.classList.add("light");
+      } else if (theme === "paper") {
+        // Paper = light theme variant. Keep ``light`` on so no Tailwind
+        // ``dark:*`` utility fires; ``paper`` then overrides surface
+        // tokens via ``html.paper`` in main.css.
+        html.classList.add("light");
+        html.classList.add("paper");
       } else if (theme === "midnight") {
         // Midnight = dark theme variant. Keep ``dark`` class on so all
         // Tailwind ``dark:*`` utilities (badge bgs, fg colours, status
@@ -96,6 +102,14 @@
       --foreground: 244 244 250;
       --muted: 33 36 53;
       --border: 36 39 56;
+    }
+    html.paper {
+      --background: 232 230 224;
+      --card: 245 243 238;
+      --foreground: 38 38 48;
+      --muted: 221 218 211;
+      --border: 207 203 193;
+      color-scheme: light;
     }
     body.bg-background { background-color: rgb(var(--background)); }
     body.text-foreground { color: rgb(var(--foreground)); }

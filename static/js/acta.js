@@ -2088,10 +2088,20 @@
   // size are NULLS LAST regardless of direction.
   const SORT_BLANK_LAST_KEYS = new Set(["size", "due", "assignee"]);
   const SORT_NUMERIC_KEYS = new Set(["status", "priority", "size"]);
+  // ``title`` has no ``data-sort-title``: the row already carries
+  // ``data-task-title`` and printing a lowercased copy beside it cost 55
+  // bytes a row for nothing. Lowercase here instead.
+  function sortValue(el, key, prop) {
+    if (key === "title") {
+      return (el.dataset.sortTitle || el.dataset.taskTitle || "").toLowerCase();
+    }
+    return el.dataset[prop] || "";
+  }
+
   function compareRows(a, b, key, dir) {
     const prop = "sort" + key.charAt(0).toUpperCase() + key.slice(1);
-    const av = a.dataset[prop] || "";
-    const bv = b.dataset[prop] || "";
+    const av = sortValue(a, key, prop);
+    const bv = sortValue(b, key, prop);
     if (SORT_BLANK_LAST_KEYS.has(key)) {
       if (av === "" && bv === "") return 0;
       if (av === "") return 1;
@@ -4177,22 +4187,30 @@
       open: true,
     });
 
-    // Theme — three-state cycle: light → dark → midnight → light.
-    // Midnight reuses the ``dark`` Tailwind variant (so ``dark:*``
-    // utilities keep firing) and layers a ``midnight`` class on top
-    // that overrides surface CSS vars in main.css.
-    const THEMES = ["light", "dark", "midnight"];
+    // Theme — four of them, picked from a menu rather than cycled:
+    // light, paper, dark, midnight. Each variant rides on the base
+    // theme it belongs to so Tailwind's ``dark:*`` utilities fire for
+    // exactly the dark ones — ``midnight`` keeps ``dark`` on,
+    // ``paper`` keeps ``light`` on, and the variant class then
+    // overrides the surface CSS vars in main.css.
+    const THEMES = ["light", "paper", "dark", "midnight"];
     function currentThemeFromDom() {
       const cls = document.documentElement.classList;
+      // Variants before their base: paper also carries ``light`` and
+      // midnight also carries ``dark``.
       if (cls.contains("midnight")) return "midnight";
+      if (cls.contains("paper")) return "paper";
       if (cls.contains("light")) return "light";
       return "dark";
     }
     function applyTheme(theme) {
       const cls = document.documentElement.classList;
-      cls.remove("light", "dark", "midnight");
+      cls.remove("light", "paper", "dark", "midnight");
       if (theme === "light") {
         cls.add("light");
+      } else if (theme === "paper") {
+        cls.add("light");
+        cls.add("paper");
       } else if (theme === "midnight") {
         cls.add("dark");
         cls.add("midnight");
@@ -4202,11 +4220,18 @@
     }
     window.Alpine.store("theme", {
       current: currentThemeFromDom(),
+      options: THEMES,
+      set(theme) {
+        if (!THEMES.includes(theme)) return;
+        this.current = theme;
+        applyTheme(theme);
+        localStorage.setItem("acta:theme", theme);
+      },
+      // Kept so a keyboard path or an old binding still advances the
+      // list; the topbar uses the menu and calls ``set`` directly.
       toggle() {
         const idx = THEMES.indexOf(this.current);
-        this.current = THEMES[(idx + 1) % THEMES.length];
-        applyTheme(this.current);
-        localStorage.setItem("acta:theme", this.current);
+        this.set(THEMES[(idx + 1) % THEMES.length]);
       },
     });
 
@@ -4462,8 +4487,40 @@
     // the table) so the popover doesn't clip past the sticky header.
     window.Alpine.data("labelsCluster", () => ({
       open: false,
+      built: false,
       coords: { top: 0, left: 0, placement: "above" },
+      // The pills live here rather than in the row. Rendering one per
+      // label into every row put 5.4 MB of HTML on All Tasks at 777 rows
+      // — a third of the page — for markup only the hovered row shows.
+      // The row carries names + colours in ``data-labels``; this builds
+      // the pills once, on first hover. Built with DOM APIs, not
+      // innerHTML: a label name is whatever a person typed.
+      build() {
+        if (this.built) return;
+        this.built = true;
+        let rows = [];
+        try {
+          rows = JSON.parse(this.$el.dataset.labels || "[]");
+        } catch (e) {
+          rows = [];
+        }
+        const frag = document.createDocumentFragment();
+        rows.forEach((label) => {
+          const pill = document.createElement("span");
+          pill.className = "acta-label-pill";
+          pill.style.setProperty("--label-color", label.c);
+          const dot = document.createElement("span");
+          dot.className = "acta-label-pill-dot";
+          dot.style.backgroundColor = label.c;
+          const name = document.createElement("span");
+          name.textContent = label.n;
+          pill.append(dot, name);
+          frag.append(pill);
+        });
+        this.$refs.pop.replaceChildren(frag);
+      },
       show() {
+        this.build();
         const r = this.$refs.cluster.getBoundingClientRect();
         const above = r.top > 120;
         this.coords = {

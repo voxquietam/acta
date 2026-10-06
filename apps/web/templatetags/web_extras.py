@@ -3,6 +3,7 @@
 import datetime
 from functools import lru_cache
 import html
+import json
 from pathlib import Path
 import re
 
@@ -736,3 +737,30 @@ def wurl(context, name, **kwargs):
     if workspace is None:
         return reverse(f"web:{name}", kwargs=kwargs)
     return reverse(f"web_ws:{name}", kwargs={"workspace": workspace.slug, **kwargs})
+
+
+@register.filter(name="labels_payload")
+def labels_payload(labels) -> str:
+    """Serialise labels to the payload the table's hover popover is built from.
+
+    The table row used to render a full pill per label into a popover
+    that stays hidden until the row is hovered. Across the whole All
+    Tasks page that markup was a third of the HTML — 5.4 MB at 777 rows
+    — for something only one row ever shows. The row now ships names and
+    colours and ``labelsCluster`` in ``acta.js`` builds the pills on
+    first hover.
+
+    Django escapes the quotes when this lands in an attribute and the
+    browser decodes them again, so the result must NOT be marked safe.
+
+    Args:
+        labels: An iterable of :class:`~apps.labels.models.Label`.
+
+    Returns:
+        A JSON array of ``{"n": name, "c": color}`` objects.
+    """
+    return json.dumps(
+        [{"n": label.name, "c": label.color} for label in labels],
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
