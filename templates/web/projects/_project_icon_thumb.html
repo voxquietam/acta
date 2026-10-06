@@ -11,6 +11,6 @@ span tints the icon without forcing every callsite to interpolate
 into the ``{% lucide %}`` tag's class string.
 {% endcomment %}
 <span id="project-icon-thumb"
-      class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-muted shrink-0 {{ project.icon_color_class }}">
-  {% lucide project.icon|default:"folder" "w-6 h-6" %}
+      class="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-muted shrink-0 {{ project.icon_color_class }}">
+  {% lucide project.icon|default:"folder" "w-7 h-7" %}
 </span>

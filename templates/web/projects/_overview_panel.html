@@ -22,7 +22,7 @@ Members with role badges.
       <div class="flex items-start gap-3">
         {% include "web/projects/_project_icon_picker.html" %}
         <div class="flex-1 min-w-0 flex flex-col gap-0.5">
-          <div class="flex items-baseline gap-1.5 text-[11px] text-placeholder-foreground font-mono">
+          <div class="flex items-baseline gap-1.5 text-xs text-placeholder-foreground font-mono">
             <span>{{ project.slug_prefix }}</span>
             <span>·</span>
             {% if overview_project_age_days == 0 %}
@@ -32,9 +32,11 @@ Members with role badges.
             {% else %}
             <span>{% blocktrans with d=project.created_at|date:"M j" %}started {{ d }}{% endblocktrans %}</span>
             {% endif %}
-            {% if overview_total %}
+            {% if overview_all_tasks %}
             <span>·</span>
-            <span>{% blocktrans count counter=overview_total %}{{ counter }} task{% plural %}{{ counter }} tasks{% endblocktrans %}</span>
+            {# Everything the project holds, cancelled and archived included — #}
+            {# Stats below counts the live work, and the two differ on purpose. #}
+            <span>{% blocktrans count counter=overview_all_tasks %}{{ counter }} task{% plural %}{{ counter }} tasks{% endblocktrans %}</span>
             {% endif %}
           </div>
           {% include "web/projects/_overview_name.html" %}
@@ -138,16 +140,18 @@ Members with role badges.
       </div>
       {% endif %}
 
-      <div class="flex flex-wrap items-center gap-x-5 gap-y-2 mt-3 text-[11.5px] text-subtle-foreground">
+      <div class="flex flex-wrap items-center gap-x-5 gap-y-2 mt-3 text-sm text-subtle-foreground">
         {# Lead: editable picker for workspace owners/admins (matches the #}
         {# permission gate on ``set_project_lead``); read-only chip for #}
         {# regular members so they still see who owns the project. #}
         {% if viewer_is_workspace_admin %}
         {% include "web/projects/_overview_lead.html" %}
         {% elif project.lead %}
-        <span class="inline-flex items-center gap-1.5">
-          <span class="text-placeholder-foreground">{% lucide "star" "w-3 h-3" %}</span>
-          {% trans "Lead" %}
+        {# Same chip as the editable one in ``_overview_lead.html``, minus #}
+        {# the picker: who leads the project must not look like a different #}
+        {# fact depending on who is reading it. #}
+        <span class="inline-flex items-center gap-1.5 rounded-full pl-1 pr-2 py-0.5 text-xs bg-brand-500/15">
+          {% lucide "crown" "w-3 h-3 text-amber-400 shrink-0 ml-0.5" %}
           {% include "web/_user_avatar.html" with user=project.lead class="w-5 h-5" text_class="text-[10px]" %}
           <span class="text-foreground">{{ project.lead.display_name }}</span>
         </span>
@@ -156,12 +160,6 @@ Members with role badges.
           <span class="text-placeholder-foreground">{% lucide "users" "w-3 h-3" %}</span>
           {% blocktrans count counter=members|length %}{{ counter }} member{% plural %}{{ counter }} members{% endblocktrans %}
         </span>
-        {% if overview_overdue %}
-        <span class="inline-flex items-center gap-1.5 text-rose-400">
-          {% lucide "circle-alert" "w-3 h-3" %}
-          {% blocktrans count counter=overview_overdue %}{{ counter }} overdue{% plural %}{{ counter }} overdue{% endblocktrans %}
-        </span>
-        {% endif %}
         {% if overview_last_activity_at %}
         <span class="inline-flex items-center gap-1.5">
           {% lucide "trending-up" "w-3 h-3" %}
@@ -186,11 +184,11 @@ Members with role badges.
             {% lucide "chart-line" "w-3.5 h-3.5" %}{% trans "Insights" %}
           </a>
         </div>
-        <div class="bg-background border border-border rounded-lg p-4">
+        <div class="bg-card border border-border rounded-lg p-5">
           {% if overview_total %}
           <div class="flex items-baseline gap-4 text-[11px] text-placeholder-foreground">
-            <span class="text-[26px] font-bold text-foreground leading-none tracking-tight tabular-nums">{{ overview_done }}</span>
-            <span class="text-sm text-subtle-foreground font-medium">/ {{ overview_total }} {% trans "done" %}</span>
+            <span class="text-[26px] font-semibold text-foreground leading-none tracking-tight tabular-nums">{{ overview_done }}</span>
+            <span class="text-base text-subtle-foreground font-medium">/ {{ overview_total }} {% trans "done" %}</span>
             {% if overview_velocity_7d %}
             <span class="inline-flex items-center gap-1.5 text-emerald-400 font-medium">
               {% lucide "trending-up" "w-3.5 h-3.5" %}
@@ -205,30 +203,30 @@ Members with role badges.
             {% endif %}
           </div>
 
-          <div class="mt-3 h-2 rounded-full bg-muted overflow-hidden flex">
+          <div class="mt-3 h-1.5 rounded-full bg-muted overflow-hidden flex">
             {% with done=overview_status_counts|get_item:'done' rev=overview_status_counts|get_item:'in-review' prog=overview_status_counts|get_item:'in-progress' td=overview_status_counts|get_item:'to-do' rdy=overview_status_counts|get_item:'ready' pl=overview_status_counts|get_item:'planned' %}
+            {# Finished first, then by how far along the work is, with the #}
+            {# untouched end last — the bar reads left to right as progress. #}
             {% if done %}<span class="bg-emerald-500 h-full" style="width: {% widthratio done overview_total 100 %}%;"></span>{% endif %}
-            {% if rev %}<span class="bg-amber-500 h-full" style="width: {% widthratio rev overview_total 100 %}%;"></span>{% endif %}
             {% if prog %}<span class="bg-violet-500 h-full" style="width: {% widthratio prog overview_total 100 %}%;"></span>{% endif %}
             {% if td %}<span class="bg-blue-500 h-full" style="width: {% widthratio td overview_total 100 %}%;"></span>{% endif %}
             {% if rdy %}<span class="bg-cyan-500 h-full" style="width: {% widthratio rdy overview_total 100 %}%;"></span>{% endif %}
+            {% if rev %}<span class="bg-amber-500 h-full" style="width: {% widthratio rev overview_total 100 %}%;"></span>{% endif %}
             {% if pl %}<span class="bg-zinc-500 h-full" style="width: {% widthratio pl overview_total 100 %}%;"></span>{% endif %}
             {% endwith %}
           </div>
 
-          <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2.5 text-[11.5px] text-subtle-foreground">
+          <div class="flex flex-wrap items-center gap-x-5 gap-y-1.5 mt-2.5 text-xs text-subtle-foreground">
             <span class="inline-flex items-center gap-1.5">
               <span class="w-1.5 h-1.5 rounded-full bg-zinc-500"></span>
               <span class="text-foreground tabular-nums font-semibold">{{ overview_status_counts|get_item:'planned' }}</span>
               <span>{% trans "planned" %}</span>
             </span>
-            {% if overview_status_counts|get_item:'ready' %}
             <span class="inline-flex items-center gap-1.5">
               <span class="w-1.5 h-1.5 rounded-full bg-cyan-500"></span>
               <span class="text-foreground tabular-nums font-semibold">{{ overview_status_counts|get_item:'ready' }}</span>
               <span>{% trans "ready" %}</span>
             </span>
-            {% endif %}
             <span class="inline-flex items-center gap-1.5">
               <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
               <span class="text-foreground tabular-nums font-semibold">{{ overview_status_counts|get_item:'to-do' }}</span>
@@ -249,13 +247,11 @@ Members with role badges.
               <span class="text-foreground tabular-nums font-semibold">{{ overview_status_counts|get_item:'done' }}</span>
               <span>{% trans "done" %}</span>
             </span>
-            {% if overview_cancelled %}
             <span class="inline-flex items-center gap-1.5">
               <span class="w-1.5 h-1.5 rounded-full bg-zinc-600"></span>
               <span class="text-foreground tabular-nums font-semibold line-through">{{ overview_cancelled }}</span>
               <span>{% trans "cancelled" %}</span>
             </span>
-            {% endif %}
           </div>
           {% else %}
           <p class="text-[12px] text-placeholder-foreground italic">{% trans "No tasks yet — bring this project to life." %}</p>
@@ -389,12 +385,10 @@ Members with role badges.
       </section>
 
       {% comment %}
-      Members section — design uses 3 role tiers (lead / member /
-      viewer). Acta's model only has lead + members M2M, so we render
-      ``lead`` for the project lead and ``member`` for everyone else;
-      the dashed ``viewer`` styling stays available for when a viewer
-      role lands. The existing ``_overview_members.html`` partial owns
-      the picker + role-mgmt UI — this section just wraps it.
+      Members. ``_overview_members.html`` owns the chips, the remove-✕
+      and the add picker; this section is the label and the count around
+      it. Notify scope is admin-only because it changes what everyone
+      else receives.
       {% endcomment %}
       <section>
         <div class="flex items-center gap-2 mb-2.5">

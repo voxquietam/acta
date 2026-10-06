@@ -3271,6 +3271,12 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
                     filter=Q(status=Task.STATUS_DONE, updated_at__gte=velocity_cutoff),
                 ),
                 last_activity=Max("updated_at"),
+                # Everything the project holds, cancelled and archived
+                # included. The header says how big the project is; Stats
+                # says how much of the live work is done. Two different
+                # numbers, and a header that repeated the second one was
+                # telling the reader nothing it did not already know.
+                everything=Count("id"),
             )
         )
         ctx["overview_status_counts"] = {
@@ -3282,6 +3288,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             Task.STATUS_DONE: stats["done"],
         }
         ctx["overview_total"] = sum(ctx["overview_status_counts"].values())
+        ctx["overview_all_tasks"] = stats["everything"]
         ctx["overview_done"] = stats["done"]
         ctx["overview_cancelled"] = stats["cancelled"]
         ctx["overview_overdue"] = stats["overdue"]

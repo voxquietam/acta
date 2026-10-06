@@ -1,6 +1,7 @@
 """Project list and detail page views."""
 
 from django.urls import reverse
+from django.utils import timezone
 
 import pytest
 
@@ -594,3 +595,33 @@ def test_build_kanban_columns_hides_statuses():
     assert Task.STATUS_PLANNED not in keys
     assert Task.STATUS_READY not in keys
     assert Task.STATUS_TODO in keys
+
+
+@pytest.mark.django_db
+class TestTheOverviewHeaderCount:
+    """How big the project is, which is not how much of it is live."""
+
+    def test_the_header_counts_what_stats_leaves_out(self, client, member_user):
+        """Cancelled and shelved work is still work the project holds."""
+        user, _ws, project = member_user
+        TaskFactory(project=project, status=Task.STATUS_TODO)
+        TaskFactory(project=project, status=Task.STATUS_CANCELLED)
+        TaskFactory(project=project, status=Task.STATUS_TODO, archived_at=timezone.now())
+        client.force_login(user)
+
+        resp = client.get(reverse("web:project_detail", kwargs={"slug_prefix": project.slug_prefix}))
+
+        assert resp.context["overview_all_tasks"] == 3
+        assert resp.context["overview_total"] == 1
+
+    def test_an_epic_is_not_one_of_the_tasks_it_collects(self, client, member_user):
+        user, ws, project = member_user
+        ws.epics_enabled = True
+        ws.save(update_fields=["epics_enabled"])
+        epic = TaskFactory(project=project, kind=Task.KIND_EPIC)
+        TaskFactory(project=project, epic=epic, status=Task.STATUS_TODO)
+        client.force_login(user)
+
+        resp = client.get(reverse("web:project_detail", kwargs={"slug_prefix": project.slug_prefix}))
+
+        assert resp.context["overview_all_tasks"] == 1
