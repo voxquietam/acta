@@ -282,10 +282,10 @@ def resolve_milestone(user: User, milestone_id):
 def milestone_at_risk(milestone, today=None):
     """Return the counted, unfinished work that will not make the date.
 
-    Two sides, and the second is the one people forget: a task whose own
-    due date falls after the milestone's date contradicts the plan, and
-    once the date has passed every still-open task is late whatever its
-    due date says. See docs/decisions/0037-milestones.md.
+    Thin delegate to :func:`apps.milestones.services.at_risk` — the
+    pages and these tools must answer "what is at risk" identically, and
+    two copies of the rule is how a container once read ``1/3`` in one
+    place and ``0/2`` in another.
 
     Args:
         milestone: The milestone to examine.
@@ -294,23 +294,9 @@ def milestone_at_risk(milestone, today=None):
     Returns:
         A list of ``(task, days_over, why)`` tuples, worst first.
     """
-    from django.utils import timezone
+    from apps.milestones.services import at_risk
 
-    from apps.tasks.models import Task
-
-    today = today or timezone.localdate()
-    open_work = (
-        milestone.counted_tasks().exclude(status=Task.STATUS_DONE).select_related("project").order_by("due_date")
-    )
-    past = milestone.target_date < today
-    rows = []
-    for task in open_work:
-        if task.due_date and task.due_date > milestone.target_date:
-            rows.append((task, (task.due_date - milestone.target_date).days, "due after the milestone"))
-        elif past:
-            rows.append((task, (today - milestone.target_date).days, "still open"))
-    rows.sort(key=lambda row: -row[1])
-    return rows
+    return at_risk(milestone, today=today)
 
 
 def serialize_milestone(milestone, *, detail: bool = False):
