@@ -94,6 +94,8 @@ status dot · slug + priority chevron · title (flex-1) · size · labels
     </span>
     {% endif %}
 
+    {% include "web/projects/_plan_chip.html" %}
+
     {% if task.cycle_id %}
     <span class="hidden md:inline-flex text-placeholder-foreground items-center gap-0.5 acta-filter-chip hover:ring-zinc-500/40"
           title="{% trans 'Cycle' %}: {{ task.cycle.display_name }}"

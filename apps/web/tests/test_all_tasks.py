@@ -721,3 +721,45 @@ class TestShowBacklogKanbanPartial:
         # The Planned column should be present (not hidden) when backlog shown.
         cols = {c["key"] for c in resp.context["columns"]} if resp.context else set()
         assert Task.STATUS_PLANNED in cols
+
+
+@pytest.mark.django_db
+class TestPlanChipQueryCount:
+    """The epic › milestone chip must not cost a query per row.
+
+    It reads two related names off every row it draws, which is the
+    shape that turns into an N+1 the moment a surface forgets the join.
+    Counting once and then again with five times the rows is the only
+    assertion that actually catches that — a fixed budget would just
+    drift upward.
+    """
+
+    def _seed(self, project, milestone, epic, count):
+        for _ in range(count):
+            TaskFactory(project=project, epic=epic, milestone=milestone, status=Task.STATUS_TODO)
+
+    def _count(self, client, url):
+        with CaptureQueriesContext(connection) as ctx:
+            assert client.get(url).status_code == 200
+        return len(ctx.captured_queries)
+
+    @pytest.mark.parametrize("view", ["list", "kanban", "table"])
+    def test_rows_do_not_add_queries(self, client, view):
+        from apps.milestones.tests.factories import MilestoneFactory
+
+        ws = WorkspaceFactory()
+        WorkspaceMemberFactory(user=ws.owner, workspace=ws)
+        project = ProjectFactory(workspace=ws)
+        milestone = MilestoneFactory(workspace=ws, projects=[project])
+        epic = TaskFactory(project=project, kind=Task.KIND_EPIC)
+        client.force_login(ws.owner)
+        url = f"{reverse('web:all_tasks')}?view={view}"
+
+        self._seed(project, milestone, epic, 2)
+        few = self._count(client, url)
+        self._seed(project, milestone, epic, 10)
+        many = self._count(client, url)
+
+        # Not equality: a page can legitimately ask one question fewer once
+        # a list stops being empty. What must never happen is growth.
+        assert many <= few, f"{view} view grew from {few} to {many} queries on 10 more rows"

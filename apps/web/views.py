@@ -837,8 +837,10 @@ def _user_task_qs(user):
             "cycle",
             # Grouping by epic and the Epic column both read the epic's
             # title off every row; without the join that is one query per
-            # task on a thousand-row list.
+            # task on a thousand-row list. The plan chip reads the
+            # milestone's name the same way, so it joins on the same terms.
             "epic",
+            "milestone",
         )
         # ``Prefetch("labels", queryset=...select_related("group"))`` rather
         # than the bare ``"labels"`` string: the task-detail rail's chip
@@ -1076,6 +1078,9 @@ def _my_work_tasks(user, params, workspace, *, restrict_to_project_ids=None):
             "assignee",
             "reporter",
             "parent__project",
+            # The plan chip on every My Work row reads both names.
+            "epic",
+            "milestone",
         )
         .prefetch_related(
             "labels",
@@ -2672,7 +2677,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         qs = (
             Task.objects.work()
             .filter(project=project, archived_at__isnull=False)
-            .select_related("assignee", "reporter", "parent", "project__workspace")
+            .select_related("assignee", "reporter", "parent", "project__workspace", "epic", "milestone")
             .prefetch_related("labels")
         )
         params = self.request.GET.copy()
@@ -3283,7 +3288,7 @@ def _epic_board_context(epic, request):
     # the workspace's whole archive.
     members = list(
         epic.epic_members(include_archived=True)
-        .select_related("project", "assignee")
+        .select_related("project", "assignee", "epic", "milestone")
         .prefetch_related("labels", "blocks", "blocked_by", "subtasks")
         .order_by("project__slug_prefix", "number"),
     )

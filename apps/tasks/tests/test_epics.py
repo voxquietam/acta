@@ -331,14 +331,25 @@ class TestEpicsAreAbsentWhereWorkIsCounted:
         client.force_login(user)
         body = client.get(f"/{workspace.slug}/tasks/").content.decode()
         assert task.title in body
-        assert epic.title not in body
+        assert self._has_no_row_for(epic, body)
 
     def test_the_project_board_leaves_the_epic_out(self, client, seeded):
         workspace, project, user, epic, task = seeded
         client.force_login(user)
         body = client.get(f"/{workspace.slug}/projects/{project.slug_prefix}/").content.decode()
         assert task.title in body
-        assert epic.title not in body
+        assert self._has_no_row_for(epic, body)
+
+    @staticmethod
+    def _has_no_row_for(epic, body):
+        """Assert the epic has no row or card of its own on a work surface.
+
+        Checking that its *name* is absent is too blunt now that a member
+        task says where it sits: the plan chip prints "epic › milestone"
+        on the card, and that is the epic being referenced, not listed.
+        What must never appear is a row carrying the epic's own id.
+        """
+        return f'data-task-id="{epic.id}"' not in body
 
     def test_my_work_leaves_the_epic_out(self, client, seeded):
         """An epic is not work, so it is not a row — but it may well be a

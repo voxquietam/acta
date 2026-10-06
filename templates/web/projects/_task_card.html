@@ -110,6 +110,9 @@ with ``forceFallback`` on the Sortable instance in acta.js.
     {{ task.title }}
   </div>
 
+  {# Where this card sits in the plan — epic, milestone, or both. #}
+  <div class="mt-1.5 min-w-0">{% include "web/projects/_plan_chip.html" %}</div>
+
   {# ``labels`` cached once — was evaluated 4× per card otherwise. #}
   {% with labels=task.labels.all %}
   {% if labels %}
