@@ -1,0 +1,118 @@
+{% load i18n %}
+{% load lucide %}
+{% load web_extras %}
+{% comment %}
+Closing a milestone that still has unfinished work (design
+"AppMilestone", artboard 05). Expects ``milestone``, ``open``, ``done``,
+``total`` and ``close_targets`` from the detail context.
+
+This is the moment the feature either feels careful or sloppy: the date
+was reached or missed, which is a fact about the date, but the work that
+did not make it is still work, and it has to land somewhere on purpose.
+So the dialog asks — move it to a milestone that covers it, or detach it
+— and says what each choice does before it happens. A target whose scope
+covers none of the open work is shown disabled rather than hidden: the
+absence is the answer.
+{% endcomment %}
+<div x-data="{
+       shown: false,
+       mode: '{{ close_default_mode }}',
+       target: '{{ close_default_target }}',
+       close() { this.shown = false; }
+     }"
+     x-show="shown"
+     x-cloak
+     @acta:open-close-dialog.window="shown = true"
+     @keydown.escape.window="close()"
+     class="acta-modal-backdrop">
+  <div class="acta-modal-panel sm:max-w-xl">
+    <header class="flex items-center gap-2 px-4 py-3 border-b border-border">
+      {% lucide "diamond" "w-4 h-4 text-rose-400 shrink-0" %}
+      <h2 class="text-sm font-medium truncate">{% blocktrans with name=milestone.name %}Close {{ name }}{% endblocktrans %}</h2>
+      <span class="flex-1"></span>
+      <button type="button" @click="close()" aria-label="{% trans 'Close' %}"
+              class="p-1.5 rounded-md text-placeholder-foreground hover:bg-muted hover:text-foreground transition">
+        {% lucide "x" "w-4 h-4" %}
+      </button>
+    </header>
+
+    <form method="post" action="{% wurl 'milestone_close' pk=milestone.id %}" class="flex flex-col min-h-0">
+      {% csrf_token %}
+      <input type="hidden" name="move_to" :value="mode === 'move' ? target : ''">
+
+      <div class="p-4 flex flex-col gap-3 overflow-y-auto min-h-0">
+        <p class="text-sm">
+          {% blocktrans count counter=open with total=total %}{{ counter }} of {{ total }} tasks is unfinished. Closing records this date as reached today.{% plural %}{{ counter }} of {{ total }} tasks are unfinished. Closing records this date as reached today.{% endblocktrans %}
+        </p>
+        <p class="text-xs text-subtle-foreground">
+          {% blocktrans count counter=done with name=milestone.name %}The {{ counter }} done task stays with {{ name }}. Where should the rest go?{% plural %}The {{ counter }} done tasks stay with {{ name }}. Where should the rest go?{% endblocktrans %}
+        </p>
+
+        {% if close_targets %}
+        <div @click="mode = 'move'"
+             class="rounded-lg border p-3 cursor-pointer"
+             :class="mode === 'move' ? 'border-brand-500' : 'border-border'">
+          <div class="flex items-center gap-2 text-sm">
+            <span class="w-3.5 h-3.5 rounded-full border grid place-items-center shrink-0"
+                  :class="mode === 'move' ? 'border-brand-400' : 'border-border-strong'">
+              <span class="w-1.5 h-1.5 rounded-full bg-brand-400" x-show="mode === 'move'"></span>
+            </span>
+            {% trans "Move them to another milestone" %}
+          </div>
+          <div class="mt-2 flex flex-col gap-0.5" x-show="mode === 'move'">
+            {% for row in close_targets %}
+            <div {% if row.fits %}@click.stop="mode = 'move'; target = '{{ row.milestone.id }}'"{% endif %}
+                 class="flex items-center gap-2 min-h-[32px] px-2 rounded-md text-xs
+                   {% if not row.fits %}opacity-50 cursor-not-allowed text-subtle-foreground{% else %}cursor-pointer{% endif %}"
+                 {% if row.fits %}:class="target === '{{ row.milestone.id }}' ? 'bg-brand-500/15 text-brand-300' : 'hover:bg-muted'"{% endif %}>
+              {% lucide "diamond" "w-3 h-3 shrink-0" %}
+              <span class="truncate">{{ row.milestone.name }}</span>
+              <span class="font-mono text-[11px] text-placeholder-foreground shrink-0">{{ row.milestone.target_date|date:"M j" }}</span>
+              <span class="flex-1"></span>
+              <span class="text-[11px] shrink-0 text-right {% if row.fits %}text-subtle-foreground{% else %}text-placeholder-foreground{% endif %}">
+                {% if row.fits == row.total %}{% blocktrans with counter=row.fits %}all {{ counter }} fit{% endblocktrans %}
+                {% elif row.fits %}{% blocktrans with counter=row.fits total=row.total %}{{ counter }} of {{ total }} fit{% endblocktrans %}
+                {% else %}{% trans "covers none of it" %}{% endif %}
+              </span>
+            </div>
+            {% endfor %}
+          </div>
+          <div class="mt-2" x-show="mode === 'move'">
+            {% for row in close_targets %}
+            <p class="text-[11px] {% if row.late_there %}text-rose-400{% else %}text-subtle-foreground{% endif %}"
+               x-show="target === '{{ row.milestone.id }}'" x-cloak>
+              {% blocktrans with counter=row.fits name=row.milestone.name date=row.milestone.target_date|date:"M j" %}{{ counter }} move to {{ name }} ({{ date }}){% endblocktrans %}{% if row.late_there %} · {% blocktrans count counter=row.late_there %}{{ counter }} is due after its date and will show as at risk there.{% plural %}{{ counter }} are due after its date and will show as at risk there.{% endblocktrans %}{% else %} · {% trans "all due on or before its date." %}{% endif %}
+            </p>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        <div @click="mode = 'leave'"
+             class="rounded-lg border p-3 cursor-pointer"
+             :class="mode === 'leave' ? 'border-brand-500' : 'border-border'">
+          <div class="flex items-center gap-2 text-sm">
+            <span class="w-3.5 h-3.5 rounded-full border grid place-items-center shrink-0"
+                  :class="mode === 'leave' ? 'border-brand-400' : 'border-border-strong'">
+              <span class="w-1.5 h-1.5 rounded-full bg-brand-400" x-show="mode === 'leave'"></span>
+            </span>
+            {% trans "Leave them unattached" %}
+          </div>
+          <p class="text-[11px] text-placeholder-foreground mt-1 pl-[22px]">
+            {% trans "They keep status, assignee and due date. The milestone chip clears." %}
+          </p>
+        </div>
+      </div>
+
+      <footer class="flex items-center gap-2 px-4 py-3 border-t border-border bg-subtle/60 flex-wrap">
+        <span class="text-[11px] text-placeholder-foreground">{% trans "Reopen undoes the close, not the move." %}</span>
+        <span class="flex-1"></span>
+        <button type="button" @click="close()" class="acta-btn-ghost">{% trans "Cancel" %}</button>
+        <button type="submit" class="acta-btn-primary">
+          <span x-show="mode === 'move'">{% blocktrans with counter=open %}Close and move {{ counter }}{% endblocktrans %}</span>
+          <span x-show="mode === 'leave'" x-cloak>{% blocktrans with counter=open %}Close and detach {{ counter }}{% endblocktrans %}</span>
+        </button>
+      </footer>
+    </form>
+  </div>
+</div>

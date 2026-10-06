@@ -1,0 +1,16 @@
+{% load i18n %}
+{% comment %}
+A project in a milestone's scope, with how much work it has attached.
+Expects a ``slice`` row from ``apps.milestones.services``.
+
+A project in scope with nothing attached is drawn dashed and kept: it
+says the commitment has not reached that team yet, which is the row
+worth seeing, not the row worth hiding.
+{% endcomment %}
+<span title="{{ slice.project.name }}{% if slice.total %} · {{ slice.done }}/{{ slice.total }}{% else %} · {% trans 'no work yet' %}{% endif %}"
+      class="inline-flex items-center gap-1 h-5 px-1.5 rounded-md text-[11px]
+        {% if slice.total %}border border-border text-muted-foreground{% else %}border border-dashed border-border-strong text-placeholder-foreground italic{% endif %}">
+  <span class="w-1.5 h-1.5 rounded-full bg-current {{ slice.project.icon_color_class }}"></span>
+  {{ slice.project.slug_prefix }}
+  {% if slice.total %}<span class="font-mono text-placeholder-foreground">{{ slice.total }}</span>{% endif %}
+</span>

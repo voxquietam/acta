@@ -132,6 +132,14 @@ from .views_meetings import (
     post_meeting_comment,
     task_meetings_fragment,
 )
+from .views_milestones import (
+    milestone_close,
+    milestone_delete,
+    milestone_detail,
+    milestone_editor,
+    milestone_reopen,
+    milestones_overview,
+)
 from .views_recurring import recurring_delete, recurring_editor, recurring_list, recurring_run_now, recurring_toggle
 
 app_name = "web"
@@ -184,6 +192,13 @@ urlpatterns = [
     path("tasks/export.json", export_all_tasks_json, name="export_all_tasks_json"),
     path("cycles/", cycles_overview, name="cycles_overview"),
     path("epics/", epics_overview, name="epics_overview"),
+    path("milestones/", milestones_overview, name="milestones_overview"),
+    path("milestones/new/", milestone_editor, name="milestone_new"),
+    path("milestones/<int:pk>/", milestone_detail, name="milestone_detail"),
+    path("milestones/<int:pk>/edit/", milestone_editor, name="milestone_edit"),
+    path("milestones/<int:pk>/close/", milestone_close, name="milestone_close"),
+    path("milestones/<int:pk>/reopen/", milestone_reopen, name="milestone_reopen"),
+    path("milestones/<int:pk>/delete/", milestone_delete, name="milestone_delete"),
     path("tasks/new/", create_task, name="create_task"),
     path("tasks/new/search/", create_task_search, name="create_task_search"),
     path("tasks/bulk-menu/", bulk_context_menu, name="bulk_context_menu"),

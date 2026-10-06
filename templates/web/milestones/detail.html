@@ -1,0 +1,381 @@
+{% extends "base_app.html" %}
+{% load i18n %}
+{% load web_extras %}
+{% load lucide %}
+{% comment %}
+One milestone's page (design "AppMilestone", artboards 01–05).
+
+Three readings side by side, which is the shape GitLab and Jira release
+reports settled on: progress says how much is done, the burndown says
+whether that pace lands before the date, and the at-risk list names the
+work that will not. A number on its own has never moved anything.
+
+Below them the same work twice, sliced two ways — by project, because a
+shared commitment has to say whose part is whose, and by epic, because
+an epic whose work spans three milestones is normal and must read as
+normal. Then the attached work itself, including what the counting rule
+leaves out, so a page that says ``4/7`` and lists nine rows accounts for
+the other two.
+
+Expects the context from ``apps.milestones.services.detail_context``.
+{% endcomment %}
+
+{% block title %}{{ milestone.name }} · {% trans "Milestones" %} · Acta{% endblock %}
+
+{% block topbar_left %}
+<div class="flex items-center gap-1.5 min-w-0">
+  <a href="{% wurl 'milestones_overview' %}" class="text-xs text-placeholder-foreground hover:text-foreground shrink-0">{% trans "Milestones" %}</a>
+  {% lucide "chevron-right" "w-3 h-3 text-placeholder-foreground shrink-0" %}
+  <h1 class="text-base font-medium truncate">{{ milestone.name }}</h1>
+</div>
+{% endblock %}
+
+{% block app_main %}
+{% comment %}
+``hx-disinherit``: this wrapper refetches itself and plucks
+``#milestone-body`` out of the response, and HTMX passes ``hx-select``
+down to every child that makes a request. The Edit button inside it
+would then ask for ``#milestone-body`` in a modal that has none, and
+quietly swap nothing at all.
+{% endcomment %}
+<div class="h-full overflow-y-auto"
+     hx-get="{{ request.path }}"
+     hx-trigger="acta:milestone-changed from:body, acta:task-changed from:body, acta:bulk-changed from:body"
+     hx-target="this"
+     hx-select="#milestone-body"
+     hx-swap="innerHTML"
+     hx-disinherit="hx-select hx-target hx-swap">
+  <div id="milestone-body" class="max-w-6xl mx-auto p-4 space-y-4">
+
+    {# ---------- Header ---------- #}
+    <div class="flex items-start gap-3 flex-wrap">
+      <div class="flex items-center gap-2 min-w-0 flex-1">
+        {% lucide "diamond" "w-5 h-5 shrink-0" %}
+        <h2 class="text-2xl font-semibold leading-tight truncate">{{ milestone.name }}</h2>
+        {% include "web/milestones/_state_badge.html" with state=state state_label=state_label %}
+      </div>
+      <div class="flex items-center gap-1.5 shrink-0">
+        <button type="button"
+                hx-get="{% wurl 'milestone_edit' pk=milestone.id %}"
+                hx-target="#modal-root"
+                hx-swap="innerHTML"
+                class="acta-btn-ghost border border-border">
+          {% lucide "pencil" "w-3.5 h-3.5" %}{% trans "Edit" %}
+        </button>
+        {% if milestone.is_closed %}
+        <form method="post" action="{% wurl 'milestone_reopen' pk=milestone.id %}" class="inline">
+          {% csrf_token %}
+          <button type="submit" class="acta-btn-ghost border border-border-strong">
+            {% lucide "rotate-ccw" "w-3.5 h-3.5" %}{% trans "Reopen" %}
+          </button>
+        </form>
+        {% elif open %}
+        <button type="button"
+                x-data
+                @click="$dispatch('acta:open-close-dialog')"
+                class="acta-btn-ghost border border-border-strong">
+          {% lucide "circle-check" "w-3.5 h-3.5" %}{% trans "Close" %}
+        </button>
+        {% else %}
+        {% include "web/milestones/_close_button.html" with milestone=milestone %}
+        {% endif %}
+        {% if can_delete %}
+        <form method="post" action="{% wurl 'milestone_delete' pk=milestone.id %}" class="inline"
+              @submit="if (!confirm('{% blocktrans with name=milestone.name count counter=attached_count %}Delete {{ name }}? Its {{ counter }} task keeps everything but the milestone.{% plural %}Delete {{ name }}? Its {{ counter }} tasks keep everything but the milestone.{% endblocktrans %}')) $event.preventDefault()">
+          {% csrf_token %}
+          {% comment %}
+          ``below-left``: this row sits at the top of a scrolling pane and
+          hugs its right edge, so the default upward, centred tooltip is
+          clipped by the pane and spills past the border.
+          {% endcomment %}
+          <button type="submit"
+                  data-tooltip="{% trans 'Delete milestone' %}"
+                  data-tooltip-pos="below-left"
+                  class="p-1.5 rounded-md text-placeholder-foreground hover:text-rose-400 hover:bg-muted transition">
+            {% lucide "trash-2" "w-3.5 h-3.5" %}
+          </button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if milestone.goal %}
+    <p class="text-sm text-muted-foreground">{{ milestone.goal }}</p>
+    {% else %}
+    <p class="text-sm italic text-placeholder-foreground">{% trans "No goal yet — what must be true on this date?" %}</p>
+    {% endif %}
+
+    <div class="flex items-center gap-x-4 gap-y-2 flex-wrap text-xs">
+      <span class="inline-flex items-center gap-1.5">
+        {% lucide "calendar" "w-3.5 h-3.5 text-subtle-foreground" %}
+        <span class="font-mono">{{ milestone.target_date|date:"M j, Y" }}</span>
+        <span class="{% if state == 'overdue' %}text-rose-400{% elif state == 'complete' %}text-emerald-400{% elif state == 'closed' %}text-placeholder-foreground{% else %}text-subtle-foreground{% endif %}">{{ countdown }}</span>
+      </span>
+      <span class="inline-flex items-center gap-1.5">
+        {% if milestone.owner %}
+        {% include "web/_user_avatar.html" with user=milestone.owner class="w-5 h-5 rounded-full shrink-0" text_class="text-[10px]" thumb_size=32 %}
+        <span class="text-muted-foreground">{{ milestone.owner.get_full_name|default:milestone.owner.username }}</span>
+        {% else %}
+        {% lucide "user" "w-3.5 h-3.5 text-placeholder-foreground" %}
+        <span class="italic text-placeholder-foreground">{% trans "No owner" %}</span>
+        {% endif %}
+      </span>
+      <span class="inline-flex items-center gap-1 flex-wrap">
+        <span class="text-subtle-foreground mr-0.5">{% trans "Covers" %}</span>
+        {% for slice in by_project %}
+        {% include "web/milestones/_project_chip.html" with slice=slice %}
+        {% endfor %}
+      </span>
+    </div>
+
+    {% if milestone.description %}
+    <p class="text-xs text-muted-foreground whitespace-pre-line">{{ milestone.description }}</p>
+    {% endif %}
+
+    {# ---------- Progress + burndown | At risk ---------- #}
+    <div class="grid gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+      <div class="bg-card border border-border rounded-lg p-4 min-w-0">
+        <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Progress" %}</div>
+        {% if total %}
+        <div class="flex items-center gap-3 mt-1">
+          <span class="font-mono text-base tabular-nums">{{ done }} / {{ total }}</span>
+          <span class="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+            <span class="block h-full bg-emerald-500" style="width: {{ percent }}%;"></span>
+          </span>
+          <span class="font-mono text-xs text-subtle-foreground">{{ percent }}%</span>
+        </div>
+        <p class="text-[11px] text-placeholder-foreground mt-1">
+          {% if note %}{{ note }}{% else %}{% trans "Every attached task is counted." %}{% endif %}
+        </p>
+        {% else %}
+        <p class="text-xs italic text-placeholder-foreground mt-1">{% trans "Nothing attached yet — no progress bar, no burndown: 0 of 0 is not 100%." %}</p>
+        {% endif %}
+
+        {% if burndown %}
+        <div class="flex items-center gap-1.5 mt-3 text-xs {% if burndown.behind %}text-rose-400{% else %}text-emerald-400{% endif %}">
+          {% if burndown.behind %}{% lucide "triangle-alert" "w-3.5 h-3.5" %}{% else %}{% lucide "circle-check" "w-3.5 h-3.5" %}{% endif %}
+          {{ burndown.verdict }}
+        </div>
+        <div class="relative mt-2" style="height: 180px;"><canvas id="milestoneBurndown"></canvas></div>
+        <p class="text-[11px] text-placeholder-foreground mt-2">
+          {% trans "Read off the activity log, never from due dates — a burndown drawn from plans cannot be wrong." %}
+          {{ burndown.scope_note }}.
+        </p>
+        {% endif %}
+      </div>
+
+      <div class="bg-card border border-border rounded-lg p-4 min-w-0">
+        <div class="flex items-center gap-2">
+          <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% blocktrans with counter=risk %}At risk · {{ counter }}{% endblocktrans %}</span>
+          <span class="flex-1"></span>
+          <span class="text-[11px] text-placeholder-foreground">{% trans "days over the date" %}</span>
+        </div>
+        <p class="text-[11px] text-placeholder-foreground mt-1">
+          {% blocktrans with date=milestone.target_date|date:"M j" %}Unfinished and due after {{ date }}, or still open once it passed.{% endblocktrans %}
+        </p>
+        <div class="mt-2 flex flex-col">
+          {% for row in risk_rows|slice:":8" %}
+          <a href="{% task_url row.task %}" class="flex items-center gap-2 h-8 px-2 -mx-2 rounded-md hover:bg-muted text-xs">
+            <span class="w-[7px] h-[7px] rounded-full shrink-0 {{ row.task.status|status_dot_classes }}"></span>
+            <span class="font-mono text-[11px] text-placeholder-foreground w-16 shrink-0">{{ row.task.slug }}</span>
+            <span class="flex-1 truncate">{{ row.task.title }}</span>
+            <span class="text-[11px] text-placeholder-foreground shrink-0 hidden sm:inline">{{ row.why }}</span>
+            <span class="font-mono text-rose-400 w-10 text-right shrink-0">+{{ row.over }}d</span>
+          </a>
+          {% empty %}
+          <p class="text-xs italic text-placeholder-foreground">{% trans "Nothing runs past this date." %}</p>
+          {% endfor %}
+          {% if risk > 8 %}
+          <span class="text-[11px] text-placeholder-foreground mt-1">
+            {% blocktrans with counter=risk|add:"-8" %}+ {{ counter }} more at risk{% endblocktrans %}
+          </span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {# ---------- Slices ---------- #}
+    {% translate "By project" as by_project_heading %}
+    {% translate "By epic" as by_epic_heading %}
+    <div class="grid gap-4 lg:grid-cols-2">
+      {% include "web/milestones/_slice_table.html" with heading=by_project_heading rows=by_project kind="project" %}
+      {% include "web/milestones/_slice_table.html" with heading=by_epic_heading rows=by_epic kind="epic" %}
+    </div>
+
+    {% if state == 'complete' %}
+    <div class="flex items-center gap-3 flex-wrap bg-card border border-border rounded-lg px-3 py-2.5">
+      {% lucide "circle-check" "w-4 h-4 text-emerald-400 shrink-0" %}
+      <span class="text-xs flex-1 min-w-[200px]">
+        {% blocktrans count counter=total %}All {{ counter }} task is done — ready to close. It stays open until someone closes it.{% plural %}All {{ counter }} tasks are done — ready to close. It stays open until someone closes it.{% endblocktrans %}
+      </span>
+      {% include "web/milestones/_close_button.html" with milestone=milestone %}
+    </div>
+    {% endif %}
+
+    {# ---------- Attached work ---------- #}
+    <div class="bg-card border border-border rounded-lg">
+      <div class="flex items-center gap-2 px-4 h-11 border-b border-border">
+        <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground">
+          {% blocktrans with counted=total attached=attached_count %}Attached work · {{ counted }} counted · {{ attached }} attached{% endblocktrans %}
+        </span>
+      </div>
+      {% for group in groups %}
+      <div x-data="{ open: {% if group.status == 'done' %}false{% else %}true{% endif %} }">
+        <div @click="open = !open"
+             class="flex items-center gap-2 h-8 px-4 bg-subtle/60 border-b border-border text-xs cursor-pointer select-none">
+          <span x-show="!open">{% lucide "chevron-right" "w-3 h-3 text-placeholder-foreground" %}</span>
+          <span x-show="open" x-cloak>{% lucide "chevron-down" "w-3 h-3 text-placeholder-foreground" %}</span>
+          <span class="font-medium">{{ group.label }}</span>
+          <span class="font-mono text-placeholder-foreground">{{ group.count }}</span>
+          {% if group.note %}<span class="text-[11px] text-placeholder-foreground italic">{{ group.note }}</span>{% endif %}
+        </div>
+        <div x-show="open" {% if group.status == 'done' %}x-cloak{% endif %}>
+          {% for row in group.tasks %}
+          <a href="{% task_url row.task %}"
+             class="flex items-center gap-2 min-h-[36px] px-4 border-b border-border hover:bg-muted/60 text-xs">
+            <span class="w-[7px] h-[7px] rounded-full shrink-0 {{ row.task.status|status_dot_classes }}"></span>
+            <span class="font-mono text-[11px] text-placeholder-foreground w-16 shrink-0">{{ row.task.slug }}</span>
+            <span class="flex-1 min-w-0 flex items-center gap-2">
+              <span class="truncate {% if row.task.status == 'cancelled' %}line-through text-placeholder-foreground{% elif row.task.status == 'done' %}text-subtle-foreground{% endif %}">{{ row.task.title }}</span>
+              {% if row.task.epic_id %}
+              <span class="hidden md:inline-flex items-center gap-1 text-[11px] text-subtle-foreground min-w-0">
+                {% lucide "square-kanban" "w-3 h-3 shrink-0" %}<span class="truncate max-w-[10rem]">{{ row.task.epic.title }}</span>
+              </span>
+              {% endif %}
+            </span>
+            {% if row.why %}<span class="text-[11px] text-placeholder-foreground shrink-0 hidden sm:inline">{{ row.why }}</span>{% endif %}
+            {% if row.task.due_date %}
+            <span class="font-mono text-[11px] shrink-0 {% if row.over > 0 %}text-rose-400{% else %}text-placeholder-foreground{% endif %}">{{ row.task.due_date|date:"M j" }}</span>
+            {% endif %}
+            {% if row.over > 0 %}
+            <span class="inline-flex items-center gap-0.5 font-mono text-[11px] text-rose-400 w-10 shrink-0">
+              {% lucide "calendar-x" "w-3 h-3" %}+{{ row.over }}d
+            </span>
+            {% endif %}
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+      {% empty %}
+      <p class="text-xs italic text-placeholder-foreground px-4 py-6 text-center">
+        {% trans "Nothing attached yet — commit a task to this milestone from its rail, or from a selection on any list." %}
+      </p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+{% if open and not milestone.is_closed %}
+{% include "web/milestones/_close_dialog.html" %}
+{% endif %}
+
+{% if burndown %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  (function () {
+    const canvas = document.getElementById("milestoneBurndown");
+    if (!canvas || !window.Chart) return;
+    const gridColor = "rgb(113 113 122 / 0.18)";
+    const tickColor = "rgb(161 161 170)";
+    const line = {% if burndown.behind %}"rgb(251 113 133)"{% else %}"rgb(16 185 129)"{% endif %};
+    const brand = "rgb(66 90 245)";
+    // The target date and today are the two things this chart is read
+    // against, and Chart.js draws neither without a plugin — so they are
+    // drawn here, over the finished canvas.
+    const markers = {
+      id: "milestoneMarkers",
+      afterDatasetsDraw(chart) {
+        const x = chart.scales.x;
+        const area = chart.chartArea;
+        const draw = (index, color, dash) => {
+          if (index < 0 || index > x.max) return;
+          const px = x.getPixelForValue(index);
+          chart.ctx.save();
+          chart.ctx.strokeStyle = color;
+          chart.ctx.setLineDash(dash);
+          chart.ctx.beginPath();
+          chart.ctx.moveTo(px, area.top);
+          chart.ctx.lineTo(px, area.bottom);
+          chart.ctx.stroke();
+          chart.ctx.restore();
+        };
+        draw({{ burndown.today_index }}, brand, []);
+        draw({{ burndown.target_index }}, tickColor, [4, 4]);
+      },
+    };
+    new Chart(canvas, {
+      type: "line",
+      data: {
+        labels: {{ burndown_labels_json|safe }},
+        datasets: [
+          {
+            label: "{% trans 'Scope' %}",
+            data: {{ burndown_scope_json|safe }},
+            borderColor: gridColor,
+            borderWidth: 1,
+            pointRadius: 0,
+            fill: false,
+            spanGaps: false,
+          },
+          {
+            label: "{% trans 'Ideal' %}",
+            data: {{ burndown_ideal_json|safe }},
+            borderColor: tickColor,
+            borderDash: [4, 4],
+            borderWidth: 1.5,
+            pointRadius: 0,
+            fill: false,
+          },
+          {
+            label: "{% trans 'Remaining' %}",
+            data: {{ burndown_remaining_json|safe }},
+            borderColor: line,
+            backgroundColor: "rgb(16 185 129 / 0.10)",
+            borderWidth: 2,
+            pointRadius: 0,
+            tension: 0.2,
+            fill: false,
+            spanGaps: false,
+          },
+          {
+            label: "{% trans 'At this pace' %}",
+            data: {{ burndown_projection_json|safe }},
+            borderColor: line,
+            borderDash: [2, 3],
+            borderWidth: 1.5,
+            pointRadius: 0,
+            fill: false,
+            spanGaps: false,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: { legend: { display: true, labels: { color: tickColor, boxWidth: 10, font: { size: 10 } } } },
+        scales: {
+          x: {
+            grid: { color: gridColor },
+            ticks: {
+              color: tickColor,
+              font: { size: 10 },
+              maxTicksLimit: 8,
+              // The axis is a month or two of days; the full ISO date on
+              // every tick is what turns that into a wall of digits.
+              callback(value, index) {
+                const iso = this.getLabelForValue(value);
+                const day = new Date(iso + "T00:00:00");
+                return isNaN(day) ? iso : day.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+              },
+            },
+          },
+          y: { beginAtZero: true, grid: { color: gridColor }, ticks: { color: tickColor, font: { size: 10 }, precision: 0 } },
+        },
+      },
+      plugins: [markers],
+    });
+  })();
+</script>
+{% endif %}
+{% endblock %}

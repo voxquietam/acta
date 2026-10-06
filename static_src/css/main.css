@@ -3990,6 +3990,20 @@ html.dark .acta-dock-chip.is-ex {
   background: rgb(var(--card));
 }
 
+/* ---- Milestone list ---------------------------------------------------
+   Five columns on the workspace Milestones tab: the name carries the
+   goal line under it, then the date with its countdown, progress, the
+   projects in scope, and what will not make the date. Below ``md`` the
+   row re-stacks and this grid is not used. */
+.acta-milestone-grid {
+  grid-template-columns: minmax(0, 2fr) 104px minmax(0, 1.1fr) minmax(0, 1.4fr) 84px;
+}
+/* The two slice tables on a milestone's page: name, done, at risk. */
+.acta-milestone-slice {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 110px) 48px;
+}
+
 /* ---- Epic page --------------------------------------------------------
    The board an epic's page is made of: six status columns, each with its
    own scroll so a long column never pushes the others off the screen. */

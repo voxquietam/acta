@@ -1,0 +1,112 @@
+{% load i18n %}
+{% load lucide %}
+{% load web_extras %}
+{% comment %}
+One milestone in the workspace list. Expects a ``row`` from
+``apps.milestones.services.workspace_rows``.
+
+Two layouts of the same row: a grid from ``md:`` up, a stack below it.
+The date, the progress and what is at risk are the three things a person
+scans this list for, so all three survive to the phone; the per-project
+chips come with them, because a shared commitment that does not say
+whose slice is whose is just a date.
+
+The whole row is a link, drawn as a stretched anchor underneath the
+content rather than wrapped around it — a form (the "Close" button on a
+finished milestone) cannot live inside an ``<a>``. Hence
+``pointer-events-none`` on the content and ``pointer-events-auto`` on
+the one control that has its own job.
+{% endcomment %}
+<div class="relative border-b border-border hover:bg-muted/60 transition {% if row.state == 'closed' %}opacity-75{% endif %}">
+  <a href="{% wurl 'milestone_detail' pk=row.milestone.id %}"
+     class="absolute inset-0"
+     aria-label="{{ row.milestone.name }}"></a>
+
+  {# ---------- md+ : one grid row ---------- #}
+  <div class="hidden lg:grid items-center gap-3 px-4 py-2 acta-milestone-grid relative pointer-events-none">
+    <div class="min-w-0">
+      <div class="flex items-center gap-2 min-w-0">
+        {% lucide "diamond" "w-3.5 h-3.5 shrink-0" %}
+        <span class="truncate font-medium {% if row.state == 'closed' %}text-subtle-foreground{% else %}text-foreground{% endif %}">{{ row.milestone.name }}</span>
+        {% include "web/milestones/_state_badge.html" with state=row.state state_label=row.state_label %}
+      </div>
+      <div class="text-[11px] truncate pl-[22px] text-placeholder-foreground {% if not row.milestone.goal %}italic{% endif %}">
+        {% if row.milestone.goal %}{{ row.milestone.goal }}{% else %}{% trans "No goal yet — what must be true on this date?" %}{% endif %}
+      </div>
+    </div>
+
+    <div class="flex flex-col min-w-0">
+      <span class="font-mono text-xs">{{ row.milestone.target_date|date:"M j" }}</span>
+      <span class="text-[11px]
+        {% if row.state == 'overdue' %}text-rose-400
+        {% elif row.state == 'complete' %}text-emerald-400
+        {% elif row.state == 'closed' %}text-placeholder-foreground
+        {% else %}text-subtle-foreground{% endif %}">{{ row.countdown }}</span>
+      {% if row.same_day %}
+      <span class="text-[10px] text-placeholder-foreground truncate">{% blocktrans with names=row.same_day|join:", " %}same day as {{ names }}{% endblocktrans %}</span>
+      {% endif %}
+    </div>
+
+    <div class="flex items-center gap-2 min-w-0">
+      {% if row.total %}
+      <span class="w-[90px] h-1 rounded-full bg-muted overflow-hidden shrink-0">
+        <span class="block h-full bg-emerald-500" style="width: {{ row.percent }}%;"></span>
+      </span>
+      <span class="font-mono text-[11px] tabular-nums">{{ row.done }}/{{ row.total }}</span>
+      {% else %}
+      <span class="text-[11px] italic text-placeholder-foreground">{% trans "no work attached" %}</span>
+      {% endif %}
+    </div>
+
+    <div class="flex items-center gap-1 flex-wrap min-w-0">
+      {% for slice in row.projects %}
+      {% include "web/milestones/_project_chip.html" with slice=slice %}
+      {% endfor %}
+    </div>
+
+    <div class="text-xs min-w-0">
+      {% if row.state == 'complete' %}
+      <span class="pointer-events-auto">{% include "web/milestones/_close_button.html" with milestone=row.milestone %}</span>
+      {% elif row.risk %}
+      <span class="inline-flex items-center gap-1 text-rose-400">
+        {% lucide "calendar-x" "w-3 h-3" %}{{ row.risk }}
+      </span>
+      {% else %}
+      <span class="text-placeholder-foreground">—</span>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ---------- below md : stacked ---------- #}
+  <div class="lg:hidden px-3 py-2.5 flex flex-col gap-1.5 relative pointer-events-none">
+    <div class="flex items-center gap-2 min-w-0">
+      {% lucide "diamond" "w-3.5 h-3.5 shrink-0" %}
+      <span class="truncate font-medium {% if row.state == 'closed' %}text-subtle-foreground{% else %}text-foreground{% endif %}">{{ row.milestone.name }}</span>
+      {% include "web/milestones/_state_badge.html" with state=row.state state_label=row.state_label %}
+      <span class="flex-1"></span>
+      <span class="font-mono text-[11px] text-subtle-foreground shrink-0">{{ row.milestone.target_date|date:"M j" }}</span>
+    </div>
+    <div class="flex items-center gap-2 text-[11px] pl-[22px]">
+      <span class="{% if row.state == 'overdue' %}text-rose-400{% elif row.state == 'complete' %}text-emerald-400{% else %}text-subtle-foreground{% endif %}">{{ row.countdown }}</span>
+      <span class="flex-1"></span>
+      {% if row.risk %}
+      <span class="inline-flex items-center gap-1 text-rose-400">{% lucide "calendar-x" "w-3 h-3" %}{{ row.risk }}</span>
+      {% endif %}
+    </div>
+    <div class="flex items-center gap-2 text-[11px] pl-[22px]">
+      {% if row.total %}
+      <span class="flex-1 h-1 rounded-full bg-muted overflow-hidden">
+        <span class="block h-full bg-emerald-500" style="width: {{ row.percent }}%;"></span>
+      </span>
+      <span class="font-mono tabular-nums">{{ row.done }}/{{ row.total }}</span>
+      {% else %}
+      <span class="italic text-placeholder-foreground">{% trans "no work attached" %}</span>
+      {% endif %}
+    </div>
+    <div class="flex items-center gap-1 flex-wrap pl-[22px]">
+      {% for slice in row.projects %}
+      {% include "web/milestones/_project_chip.html" with slice=slice %}
+      {% endfor %}
+    </div>
+  </div>
+</div>

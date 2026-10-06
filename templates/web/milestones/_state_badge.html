@@ -1,0 +1,16 @@
+{% load i18n %}
+{% comment %}
+The badge beside a milestone's name. Expects ``state`` and
+``state_label`` from ``apps.milestones.services``.
+
+It shows the *stored* state — open or closed. "Ready to close" is the
+one derived reading that earns a colour of its own, because it is an
+invitation: all the counted work is done and the milestone still waits
+for a person to say the date was reached. Overdue keeps the open badge;
+the countdown next to it carries the rose, so one row never shouts
+twice.
+{% endcomment %}
+<span class="text-[11px] px-1.5 py-0.5 rounded-md shrink-0
+  {% if state == 'complete' %}bg-emerald-500/15 text-emerald-300
+  {% elif state == 'closed' %}bg-muted text-subtle-foreground
+  {% else %}bg-brand-500/15 text-brand-300{% endif %}">{{ state_label }}</span>

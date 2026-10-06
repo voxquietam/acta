@@ -1,0 +1,213 @@
+{% extends "web/_modal_shell.html" %}
+{% load i18n %}
+{% load web_extras %}
+{% load lucide %}
+{% comment %}
+Create / edit a milestone (design "AppMilestoneEdit"). Loaded into
+``#modal-root`` via HTMX; on save the server answers ``204`` with an
+``HX-Redirect`` to the milestone's page, so creating one lands on the
+thing just created.
+
+Four fields and a scope. The scope is the part that carries weight: one
+project is a local checkpoint, several make a shared commitment every
+one of them shows — and it is what lets a task attach at all, so the
+footer says how much work becomes eligible as the ticks change.
+
+Narrowing the scope of a milestone that already holds work from the
+project being dropped is the one destructive edit here, and it is never
+silent: each dropped project gets its own question — move its work to a
+milestone that covers it, or detach it.
+{% endcomment %}
+
+{% block root_attrs %}
+x-data="{
+  query: '',
+  scope: [{% for row in project_rows %}{% if row.selected %}{{ row.project.id }},{% endif %}{% endfor %}],
+  close() { const r = document.getElementById('modal-root'); if (r) r.innerHTML = ''; },
+  matches(haystack) { const q = this.query.trim().toLowerCase(); return !q || haystack.toLowerCase().includes(q); },
+  inScope(id) { return this.scope.includes(id); }
+}"
+{% endblock %}
+
+{% block panel_class %}sm:max-w-3xl sm:max-h-[88vh]{% endblock %}
+
+{% block panel_attrs %}x-init="$nextTick(() => $refs.name?.focus())"{% endblock %}
+
+{% block title %}
+<h2 class="text-sm font-medium text-foreground">
+  {% if milestone %}{% trans "Edit milestone" %}{% else %}{% trans "New milestone" %}{% endif %}
+</h2>
+{% endblock %}
+
+{% block body %}
+{% if not project_rows %}
+<div class="p-6">
+  <div class="rounded-lg border border-dashed border-border bg-card/50 p-8 text-center space-y-2">
+    <p class="text-sm text-foreground">{% trans "A milestone needs at least one project in scope." %}</p>
+    <p class="text-xs text-placeholder-foreground">{% trans "This workspace has no projects yet — create one first." %}</p>
+  </div>
+</div>
+<footer class="flex items-center justify-end gap-2 px-4 py-3 border-t border-border bg-subtle/60">
+  <button type="button" @click="close()" class="acta-btn-ghost">{% trans "Close" %}</button>
+</footer>
+{% else %}
+<form hx-post="{% if milestone %}{% wurl 'milestone_edit' pk=milestone.id %}{% else %}{% wurl 'milestone_new' %}{% endif %}"
+      hx-target="#modal-root"
+      hx-swap="innerHTML"
+      class="flex flex-col flex-1 min-h-0">
+  {% csrf_token %}
+
+  <div class="grid min-h-0 flex-1 overflow-y-auto sm:grid-cols-[minmax(0,1fr)_280px]">
+
+    {# ---------- What gets reached ---------- #}
+    <div class="p-4 space-y-3 min-w-0">
+      <input type="text" name="name" value="{{ form.name }}" x-ref="name" maxlength="120"
+             placeholder="{% trans 'What gets reached?' %}"
+             class="w-full bg-transparent border-0 p-0 text-lg font-medium text-foreground placeholder-placeholder-foreground outline-none focus:ring-0">
+      {% if errors.name %}<p class="text-xs text-rose-400">{{ errors.name }}</p>{% endif %}
+
+      <input type="text" name="goal" value="{{ form.goal }}" maxlength="200"
+             placeholder="{% trans 'Goal — what must be true on this date?' %}"
+             class="w-full bg-transparent border-0 p-0 text-sm text-muted-foreground placeholder-placeholder-foreground outline-none focus:ring-0">
+
+      <div class="rounded-lg border border-border bg-subtle/40 p-3">
+        <textarea name="description" rows="4"
+                  placeholder="{% trans 'Optional details — context, links, the go/no-go call…' %}"
+                  class="w-full bg-transparent border-0 p-0 text-sm text-muted-foreground placeholder-placeholder-foreground outline-none resize-none focus:ring-0">{{ form.description }}</textarea>
+      </div>
+
+      {% if errors.projects %}
+      <div class="flex items-start gap-1.5 text-xs text-rose-400">
+        {% lucide "triangle-alert" "w-3.5 h-3.5 shrink-0 mt-0.5" %}<span>{{ errors.projects }}</span>
+      </div>
+      {% endif %}
+
+      {# ---------- What a narrowed scope does to the work ---------- #}
+      {% comment %}
+      One block per in-scope project that holds work, shown the moment
+      its tick comes off. Dropping a project detaches its tasks, so the
+      question is asked while the choice is still being made — not
+      reported once it has happened.
+      {% endcomment %}
+      {% for conflict in conflicts %}
+      <div class="border border-rose-500 rounded-lg p-3 flex flex-col gap-2"
+           x-show="!inScope({{ conflict.project.id }})"
+           x-cloak
+           x-data="{ action: 'detach' }">
+        <div class="flex items-start gap-2 text-xs">
+          {% lucide "triangle-alert" "w-3.5 h-3.5 text-rose-400 shrink-0 mt-0.5" %}
+          <span>
+            {% blocktrans with name=conflict.project.name counter=conflict.attached milestone_name=milestone.name %}{{ name }} has {{ counter }} tasks in {{ milestone_name }}. A task can only sit in a milestone that covers its project, so dropping {{ name }} means they leave.{% endblocktrans %}
+          </span>
+        </div>
+        <div class="flex flex-col gap-1 pl-[22px]">
+          {% if conflict.targets %}
+          <label class="cursor-pointer">
+            <input type="radio" name="scope_action_{{ conflict.project.slug_prefix }}" value="move"
+                   x-model="action" class="peer sr-only">
+            <span class="flex items-center gap-2 min-h-[32px] px-2 rounded-md text-xs text-subtle-foreground hover:bg-muted peer-checked:bg-brand-500/[0.16] peer-checked:text-brand-300">
+              <span class="shrink-0">{% trans "Move them to" %}</span>
+              <select name="scope_move_{{ conflict.project.slug_prefix }}" class="acta-input text-xs py-0.5 flex-1 min-w-0"
+                      @click.stop @change="action = 'move'">
+                {% for target in conflict.targets %}
+                <option value="{{ target.id }}">{{ target.name }} · {{ target.target_date|date:"M j" }}</option>
+                {% endfor %}
+              </select>
+            </span>
+          </label>
+          {% endif %}
+          <label class="cursor-pointer">
+            <input type="radio" name="scope_action_{{ conflict.project.slug_prefix }}" value="detach"
+                   x-model="action" checked class="peer sr-only">
+            <span class="flex items-center gap-2 min-h-[32px] px-2 rounded-md text-xs text-subtle-foreground hover:bg-muted peer-checked:bg-brand-500/[0.16] peer-checked:text-brand-300">
+              <span class="flex-1">{% trans "Leave them unattached" %}</span>
+              <span class="text-[11px] text-placeholder-foreground">{% trans "they keep status and dates" %}</span>
+            </span>
+          </label>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    {# ---------- Properties ---------- #}
+    <div class="border-t sm:border-t-0 sm:border-l border-border bg-subtle/40 p-2">
+      <p class="px-2 pt-2 pb-1 text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Properties" %}</p>
+
+      <label class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs">
+        {% lucide "calendar" "w-3.5 h-3.5 text-subtle-foreground shrink-0" %}
+        <span class="text-subtle-foreground w-16 shrink-0">{% trans "Target" %}</span>
+        <input type="date" name="target_date" value="{{ form.target_date }}" required
+               class="acta-input text-xs py-1 flex-1 min-w-0">
+      </label>
+      {% if errors.target_date %}
+      <p class="px-2 text-xs text-rose-400 flex items-start gap-1.5">
+        {% lucide "calendar-x" "w-3.5 h-3.5 shrink-0 mt-0.5" %}<span>{{ errors.target_date }}</span>
+      </p>
+      {% endif %}
+
+      <label class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs">
+        {% lucide "user" "w-3.5 h-3.5 text-subtle-foreground shrink-0" %}
+        <span class="text-subtle-foreground w-16 shrink-0">{% trans "Owner" %}</span>
+        <select name="owner" class="acta-input text-xs py-1 flex-1 min-w-0">
+          <option value="">{% trans "No owner" %}</option>
+          {% for member in members %}
+          <option value="{{ member.id }}" {% if member.id == form.owner %}selected{% endif %}>
+            {{ member.get_full_name|default:member.username }}
+          </option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <div class="flex items-center gap-2 px-2 pt-3 pb-1">
+        <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Scope" %}</span>
+        <span class="flex-1"></span>
+        <span class="text-[10px] text-placeholder-foreground"><span x-text="scope.length"></span> {% blocktrans with total=project_rows|length %}of {{ total }}{% endblocktrans %}</span>
+      </div>
+
+      {% if project_rows|length > 6 %}
+      <div class="px-1 pb-1">
+        <div class="flex items-center gap-2 h-8 px-2 rounded-md border border-border-strong bg-muted">
+          {% lucide "search" "w-3.5 h-3.5 text-subtle-foreground shrink-0" %}
+          <input type="text" x-model="query" placeholder="{% trans 'Search projects' %}"
+                 class="flex-1 min-w-0 bg-transparent border-0 p-0 text-xs text-foreground placeholder-placeholder-foreground outline-none focus:ring-0">
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="overflow-y-auto max-h-60">
+        {% for row in project_rows %}
+        <label class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs hover:bg-muted cursor-pointer"
+               x-show="matches('{{ row.project.slug_prefix }} {{ row.project.name|escapejs }}')">
+          {# ``checked`` as well as ``x-model``: the box has to be right in #}
+          {# the first frame, before Alpine syncs it from ``scope``.          #}
+          <input type="checkbox" name="projects" value="{{ row.project.id }}"
+                 {% if row.selected %}checked{% endif %}
+                 x-model.number="scope" class="acta-checkbox">
+          <span class="w-2 h-2 rounded-full shrink-0 bg-current {{ row.project.icon_color_class }}"></span>
+          <span class="w-16 shrink-0 truncate font-mono text-[11px]">{{ row.project.slug_prefix }}</span>
+          <span class="truncate flex-1 text-[11px] text-placeholder-foreground">
+            {% if row.attached %}{% blocktrans count counter=row.attached %}{{ counter }} attached{% plural %}{{ counter }} attached{% endblocktrans %}{% else %}{{ row.project.name }}{% endif %}
+          </span>
+        </label>
+        {% endfor %}
+      </div>
+
+      <p class="mx-2 mt-2 pt-2 border-t border-border text-[11px] text-placeholder-foreground">
+        {% trans "One project is a local checkpoint only it shows. Several make a shared commitment every one of them shows." %}
+      </p>
+    </div>
+  </div>
+
+  <footer class="shrink-0 flex items-center gap-2 flex-wrap px-4 py-3 border-t border-border bg-subtle/60">
+    <span class="text-[11px] text-placeholder-foreground">
+      {% trans "Membership is chosen, never inferred — attaching work is a separate step." %}
+    </span>
+    <span class="flex-1"></span>
+    <button type="button" @click="close()" class="acta-btn-ghost">{% trans "Cancel" %}</button>
+    <button type="submit" class="acta-btn-primary">
+      {% if milestone %}{% trans "Save" %}{% else %}{% trans "Create milestone" %}{% endif %}
+    </button>
+  </footer>
+</form>
+{% endif %}
+{% endblock %}

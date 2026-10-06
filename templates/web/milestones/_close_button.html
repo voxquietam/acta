@@ -1,0 +1,18 @@
+{% load i18n %}
+{% load lucide %}
+{% load web_extras %}
+{% comment %}
+"Close" for a milestone whose counted work is all done. Expects
+``milestone``.
+
+Offered, never taken: *reached* is a thing a person says happened, so a
+finished milestone waits here with the invitation rather than closing
+itself. Safe to post with no target — nothing is open, so nothing has to
+be moved anywhere.
+{% endcomment %}
+<form method="post" action="{% wurl 'milestone_close' pk=milestone.id %}" class="inline">
+  {% csrf_token %}
+  <button type="submit" class="acta-btn-ghost border border-border text-emerald-400">
+    {% lucide "circle-check" "w-3.5 h-3.5" %}{% trans "Close" %}
+  </button>
+</form>

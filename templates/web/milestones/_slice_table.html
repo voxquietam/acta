@@ -1,0 +1,48 @@
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+The same work, sliced. Expects ``heading``, ``rows`` (slice rows from
+``apps.milestones.services``) and ``kind`` — ``"project"`` or ``"epic"``.
+
+Two slices, two different questions. By project: whose part of a shared
+commitment is whose, including the project in scope with nothing attached
+yet. By epic: which efforts this date is made of, read off the tasks,
+because an epic stores no milestone of its own and may well span three.
+{% endcomment %}
+<div class="bg-card border border-border rounded-lg overflow-hidden min-w-0">
+  <div class="grid items-center gap-3 px-3 h-8 acta-milestone-slice text-[10px] uppercase tracking-wider text-placeholder-foreground bg-subtle/95 border-b border-border">
+    <span>{{ heading }}</span>
+    <span>{% trans "Done" %}</span>
+    <span>{% trans "At risk" %}</span>
+  </div>
+  {% for row in rows %}
+  <div class="grid items-center gap-3 px-3 h-9 border-b border-border text-xs hover:bg-muted/60 acta-milestone-slice">
+    <span class="flex items-center gap-2 min-w-0">
+      {% if kind == "project" %}
+      <span class="w-1.5 h-1.5 rounded-full shrink-0 bg-current {{ row.project.icon_color_class }}"></span>
+      {% else %}
+      {% lucide "square-kanban" "w-3 h-3 text-subtle-foreground shrink-0" %}
+      {% endif %}
+      <span class="truncate {% if not row.total %}italic text-placeholder-foreground{% endif %}">{{ row.label }}</span>
+      {% if kind == "project" and not row.total %}
+      <span class="text-[11px] text-placeholder-foreground shrink-0">· {% trans "no work yet" %}</span>
+      {% endif %}
+    </span>
+    <span class="flex items-center gap-2">
+      <span class="font-mono text-[11px] w-10 tabular-nums {% if not row.total %}text-placeholder-foreground{% endif %}">
+        {% if row.total %}{{ row.done }}/{{ row.total }}{% else %}—{% endif %}
+      </span>
+      {% if row.total %}
+      <span class="flex-1 h-1 rounded-full bg-muted overflow-hidden">
+        <span class="block h-full bg-emerald-500" style="width: {{ row.percent }}%;"></span>
+      </span>
+      {% endif %}
+    </span>
+    <span class="font-mono text-[11px] {% if row.risk %}text-rose-400{% else %}text-placeholder-foreground{% endif %}">
+      {% if row.risk %}{{ row.risk }}{% else %}—{% endif %}
+    </span>
+  </div>
+  {% empty %}
+  <p class="text-xs italic text-placeholder-foreground px-3 py-4">{% trans "Nothing to slice yet." %}</p>
+  {% endfor %}
+</div>
