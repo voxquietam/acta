@@ -921,7 +921,12 @@
       const match = rowMatches(row, state);
       if (match) {
         target.removeAttribute("hidden");
-        target.style.display = "";
+        // ``display`` may not be ours to clear: on the Plan tab Alpine
+        // folds whole lanes with ``x-show``, which writes the same
+        // property. Clearing it here unfolded every collapsed lane on
+        // the next filter pass. Alpine marks what it owns with
+        // ``_x_isShown``; leave those to it and only lift ``hidden``.
+        if (target._x_isShown === undefined) target.style.display = "";
         visible += 1;
       } else {
         // ``[hidden]`` attribute has UA specificity 0,1,0 — equal to

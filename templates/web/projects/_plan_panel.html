@@ -32,15 +32,21 @@ that inside another scroller leaves the chart unable to scroll at all.
        // page opens on the part that still has to happen.
        isOpen(key) {
          const closed = this.closed[key];
-         return closed === undefined ? !key.endsWith(':done') : !closed;
+         return closed === undefined ? !(key.endsWith(':done') || key.endsWith(':more')) : !closed;
        },
-       toggle(key) { this.closed[key] = this.isOpen(key); },
+       toggle(key) {
+         this.closed[key] = this.isOpen(key);
+         // The chart measures its own height for the today line and the
+         // milestone lines; folding a lane changes it.
+         this.$nextTick(() => window.__tlAfterFilter && window.__tlAfterFilter());
+       },
        keys() { return [...this.$root.querySelectorAll('[data-plan-group]')].map((el) => el.dataset.planGroup); },
        anyOpen() { return this.keys().some((key) => !this.closed[key]); },
        foldAll() {
          const next = {};
          if (this.anyOpen()) this.keys().forEach((key) => { next[key] = true; });
          this.closed = next;
+         this.$nextTick(() => window.__tlAfterFilter && window.__tlAfterFilter());
        }
      }">
 <div {% if plan_render != "timeline" %}data-scroll-target class="h-full overflow-y-auto scrollbar-none pb-4"{% else %}class="flex-1 min-h-0 flex flex-col"{% endif %}>
@@ -80,7 +86,7 @@ that inside another scroller leaves the chart unable to scroll at all.
 
     <span class="flex-1"></span>
     <span class="text-subtle-foreground truncate min-w-0 shrink">
-      {% blocktrans count counter=plan_milestone_count with counted=plan_counted %}{{ counter }} milestone · {{ counted }} counted{% plural %}{{ counter }} milestones · {{ counted }} counted{% endblocktrans %}
+      {% blocktrans count counter=plan_milestone_count with counted=plan_counted %}{{ counter }} milestone · {{ counted }} counted{% plural %}{{ counter }} milestones · {{ counted }} counted{% endblocktrans %}{% if plan_shared_count %} · {% blocktrans count counter=plan_shared_count %}{{ counter }} shared{% plural %}{{ counter }} shared{% endblocktrans %}{% endif %}
     </span>
 
     {% comment %}
@@ -103,10 +109,11 @@ that inside another scroller leaves the chart unable to scroll at all.
       {% lucide "square-kanban" "w-3.5 h-3.5" %}{% trans "New epic" %}
     </button>
     {% endif %}
-    {% if plan_render != "timeline" %}
+    {% if plan_has_groups %}
     {% comment %}
-    Fold is a tree affordance: the timeline renders every row, because a
-    chart with its rows folded away is a chart of nothing.
+    Folding is for both renders: collapsed to its milestone lanes, the
+    chart is the dates and nothing else, which is a reading worth having
+    on two hundred rows.
     {% endcomment %}
     <button type="button" @click="foldAll()"
             class="acta-btn-ghost border border-border-strong whitespace-nowrap shrink-0">
@@ -188,6 +195,25 @@ that inside another scroller leaves the chart unable to scroll at all.
         {% if row.milestone and row.milestone.goal %}
         <div class="mt-0.5 text-[11px] text-placeholder-foreground truncate" style="padding-left: 24px;">{{ row.milestone.goal }}</div>
         {% endif %}
+        {% if row.chips %}
+        {% comment %}
+        Which projects this date belongs to. Dashed where a project is in
+        scope but has nothing attached yet — the commitment has not
+        reached that team, which is the row worth seeing.
+        {% endcomment %}
+        <div class="flex items-center gap-1 flex-wrap mt-1 text-[10px] text-placeholder-foreground" style="padding-left: 24px;">
+          <span>{{ row.chips_label }}</span>
+          {% for chip in row.chips %}
+          <span title="{{ chip.project.name }}"
+                class="inline-flex items-center gap-1 h-4 px-1 rounded-md font-mono text-muted-foreground
+                  {% if chip.empty %}border border-dashed border-border-strong{% else %}border border-border{% endif %}">
+            <span class="w-1.5 h-1.5 rounded-full bg-current {{ chip.project.icon_color_class }}"></span>
+            {{ chip.project.slug_prefix }}
+            {% if chip.count is not None %}<span class="text-placeholder-foreground">{{ chip.count }}</span>{% endif %}
+          </span>
+          {% endfor %}
+        </div>
+        {% endif %}
       </div>
 
       <div class="hidden lg:flex flex-col min-w-0 text-xs">
@@ -236,6 +262,12 @@ that inside another scroller leaves the chart unable to scroll at all.
         <span class="w-[7px] h-[7px] rounded-full shrink-0 {{ row.task.status|status_dot_classes }}"></span>
         <span class="font-mono text-[11px] text-placeholder-foreground w-16 shrink-0">{{ row.task.slug }}</span>
         <span class="truncate text-xs {% if row.task.status == 'done' %}text-subtle-foreground{% endif %}">{{ row.task.title }}</span>
+        {% if row.milestone_name %}
+        <span class="inline-flex items-center gap-1 text-[11px] shrink-0 hidden md:inline-flex
+          {% if row.task.milestone_id %}text-muted-foreground{% else %}italic text-placeholder-foreground{% endif %}">
+          {% lucide "diamond" "w-3 h-3 shrink-0" %}{{ row.milestone_name }}
+        </span>
+        {% endif %}
       </div>
       <div class="hidden lg:block text-xs">
         {% if row.task.due_date %}

@@ -210,22 +210,43 @@ class TestThePage:
 
         resp = client.get(f"/{workspace.slug}/tasks/?view=plan")
         group = next(row for row in resp.context["plan_rows"] if row["kind"] == "group")
+        chips = {chip["project"].slug_prefix: chip for chip in group["chips"]}
 
         assert resp.context["view_mode"] == "plan"
         assert group["total"] == 2
         # Whose part is whose — the question only a cross-project plan
-        # raises, so the line only appears there.
-        assert "PLN PLO" in str(group["scope"])
+        # raises, so the chips carry a count each.
+        assert set(chips) == {"PLN", "PLO"}
+        assert chips["PLN"]["count"] == 1
+        assert chips["PLO"]["count"] == 1
+        assert resp.context["plan_shared_count"] == 1
 
-    def test_inside_one_project_the_scope_line_stays_quiet(self, client, setup):
+    def test_a_project_in_scope_with_no_work_is_drawn_dashed(self, client, setup):
         workspace, user, project, soon, _, _ = setup
+        quiet = ProjectFactory(workspace=workspace, slug_prefix="PLQ")
+        soon.projects.add(quiet)
+        TaskFactory(project=project, milestone=soon, status=Task.STATUS_TODO)
+        client.force_login(user)
+
+        resp = client.get(f"/{workspace.slug}/tasks/?view=plan")
+        group = next(row for row in resp.context["plan_rows"] if row["kind"] == "group")
+        chips = {chip["project"].slug_prefix: chip for chip in group["chips"]}
+
+        assert chips["PLQ"]["empty"] is True
+        assert chips["PLN"]["empty"] is False
+
+    def test_inside_one_project_the_chips_name_the_others(self, client, setup):
+        workspace, user, project, soon, _, _ = setup
+        other = ProjectFactory(workspace=workspace, slug_prefix="PLS")
+        soon.projects.add(other)
         TaskFactory(project=project, milestone=soon, status=Task.STATUS_TODO)
         client.force_login(user)
 
         resp = client.get(f"/{workspace.slug}/projects/{project.slug_prefix}/?view=plan")
         group = next(row for row in resp.context["plan_rows"] if row["kind"] == "group")
 
-        assert project.slug_prefix not in str(group["scope"])
+        assert [chip["project"].slug_prefix for chip in group["chips"]] == ["PLS"]
+        assert "plan_shared_count" not in resp.context
 
 
 @pytest.mark.django_db
@@ -249,3 +270,30 @@ class TestTheNoteRow:
         tasks = Task.objects.filter(project=project, kind=Task.KIND_TASK).select_related("milestone", "epic")
 
         assert [row for row in rows_for(tasks, "em") if row["kind"] == "note"] == []
+
+
+@pytest.mark.django_db
+class TestTheFlatCut:
+    """One list, so every row says which date it belongs to."""
+
+    def test_every_row_names_its_milestone(self, setup):
+        _, _, project, soon, _, _ = setup
+        TaskFactory(project=project, milestone=soon, status=Task.STATUS_TODO)
+        TaskFactory(project=project, status=Task.STATUS_TODO)
+        tasks = Task.objects.filter(project=project, kind=Task.KIND_TASK).select_related("milestone", "epic")
+
+        names = sorted(str(row["milestone_name"]) for row in rows_for(tasks, "flat") if row["kind"] == "task")
+
+        assert names == [soon.name, "no milestone"]
+
+    def test_a_long_list_stops_and_offers_the_rest(self, setup):
+        _, _, project, soon, _, _ = setup
+        for _index in range(plan.FLAT_LIMIT + 4):
+            TaskFactory(project=project, milestone=soon, status=Task.STATUS_TODO)
+        tasks = Task.objects.filter(project=project, kind=Task.KIND_TASK).select_related("milestone", "epic")
+
+        rows = rows_for(tasks, "flat")
+        folds = [str(row["label"]) for row in rows if row["kind"] == "fold"]
+
+        assert folds == ["Show 4 more open"]
+        assert sum(1 for row in rows if row["kind"] == "task") == plan.FLAT_LIMIT + 4

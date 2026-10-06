@@ -23,6 +23,7 @@ from django.utils.translation import gettext_lazy as _
 from django.utils.translation import ngettext
 
 from apps.milestones import services as milestone_services
+from apps.milestones.models import Milestone
 from apps.tasks.models import Task
 
 #: The cuts the knob offers: ``key -> (first level, second level)``.
@@ -251,7 +252,7 @@ _GROUPERS = {
 }
 
 
-def build_plan_rows(tasks: list, cut: str, today=None) -> list[dict]:
+def build_plan_rows(tasks: list, cut: str, today=None, project=None) -> list[dict]:
     """Flatten a project's work into the Plan tree's rows.
 
     Args:
@@ -261,26 +262,34 @@ def build_plan_rows(tasks: list, cut: str, today=None) -> list[dict]:
         cut: A key of :data:`CUTS`.
         today: Reference date; unused for now, kept so callers do not
             have to change when a row starts reading it.
+        project: The project the plan is scoped to, or ``None`` for the
+            whole workspace. A milestone row says which projects it
+            belongs to, and what that line is worth depends on where the
+            reader stands: across the workspace it is "whose part is
+            whose", inside one project it is "who else is in this".
 
     Returns:
-        Row dicts: ``kind`` is ``group`` or ``task``, ``depth`` is 0 or
-        1 for groups and 1 or 2 for tasks, and a group's ``key`` is what
-        the collapse state is stored under.
+        Row dicts: ``kind`` is ``group``, ``task``, ``note`` or
+        ``fold``; ``depth`` is the indent level, and a group's ``key``
+        is what the collapse state is stored under.
     """
     counted = [task for task in tasks if _counts(task)]
     first, second = CUTS.get(cut, CUTS[DEFAULT_CUT])
+    scope = _milestone_scopes(counted)
     rows: list[dict] = []
     if first is None:
-        rows.extend(_leaves(counted, "flat", 0))
+        rows.extend(_leaves(counted, "flat", 0, name_milestone=True))
         return rows
     for group in _GROUPERS[first](counted):
-        rows.append(_group_row(group, depth=0))
+        rows.append(_group_row(group, depth=0, scope=scope, project=project))
         if second is None:
             rows.extend(_leaves(group["tasks"], group["key"], 1))
             continue
         for inner in _GROUPERS[second](group["tasks"]):
             inner_key = f"{group['key']}:{inner['key']}"
-            rows.append(_group_row(inner, depth=1, key=inner_key, parent=group["key"]))
+            rows.append(
+                _group_row(inner, depth=1, key=inner_key, parent=group["key"], scope=scope, project=project),
+            )
             note = _direct_note(first, second, inner)
             if note:
                 rows.append(
@@ -323,7 +332,10 @@ def _direct_note(first: str, second: str, group: dict) -> str:
     ) % {"count": count}
 
 
-def _leaves(tasks: list, parent: str, depth: int) -> list[dict]:
+FLAT_LIMIT = 30
+
+
+def _leaves(tasks: list, parent: str, depth: int, *, name_milestone: bool = False) -> list[dict]:
     """Return a bucket's task rows, with the finished work folded away.
 
     Done work is the bulk of a long-running milestone and the part
@@ -342,7 +354,28 @@ def _leaves(tasks: list, parent: str, depth: int) -> list[dict]:
     ordered = _sorted(tasks)
     open_work = [task for task in ordered if task.status != Task.STATUS_DONE]
     done = [task for task in ordered if task.status == Task.STATUS_DONE]
-    rows = [_task_row(task, depth=depth, parent=parent) for task in open_work]
+    # The flat cut is the whole project in one list, so it stops at a
+    # screenful of open work and offers the rest rather than rendering
+    # two hundred rows nobody asked for.
+    capped = open_work[:FLAT_LIMIT] if name_milestone else open_work
+    rows = [_task_row(task, depth=depth, parent=parent, name_milestone=name_milestone) for task in capped]
+    if len(capped) < len(open_work):
+        more = len(open_work) - len(capped)
+        rows.append(
+            {
+                "kind": "fold",
+                "depth": depth,
+                "indent": depth * 22,
+                "ancestors": _ancestors(parent),
+                "key": f"{parent}:more",
+                "parent": parent,
+                "label": ngettext("Show %(count)d more open", "Show %(count)d more open", more) % {"count": more},
+            },
+        )
+        rows.extend(
+            _task_row(task, depth=depth, parent=f"{parent}:more", name_milestone=name_milestone)
+            for task in open_work[FLAT_LIMIT:]
+        )
     if not done:
         return rows
     fold_key = f"{parent}:done"
@@ -357,7 +390,7 @@ def _leaves(tasks: list, parent: str, depth: int) -> list[dict]:
             "label": ngettext("%(count)d done", "%(count)d done", len(done)) % {"count": len(done)},
         },
     )
-    rows.extend(_task_row(task, depth=depth, parent=fold_key) for task in done)
+    rows.extend(_task_row(task, depth=depth, parent=fold_key, name_milestone=name_milestone) for task in done)
     return rows
 
 
@@ -381,7 +414,77 @@ def _sorted(tasks: list) -> list:
     )
 
 
-def _group_row(group: dict, *, depth: int, key: str | None = None, parent: str | None = None) -> dict:
+def _milestone_scopes(tasks: list) -> dict[int, list]:
+    """Return every milestone's project scope, in one query.
+
+    A milestone row names the projects it belongs to, and that list is
+    the milestone's own scope rather than a reading of its work — a
+    project in scope with nothing attached yet is exactly the row worth
+    seeing. One query for the page; walking ``milestone.projects`` per
+    row would be an N+1 down the tree.
+
+    Args:
+        tasks: The counted tasks the rows are built from.
+
+    Returns:
+        ``{milestone_id: [projects]}``.
+    """
+    ids = {task.milestone_id for task in tasks if task.milestone_id}
+    if not ids:
+        return {}
+    return {
+        milestone.id: list(milestone.projects.all())
+        for milestone in Milestone.objects.filter(id__in=ids).prefetch_related("projects")
+    }
+
+
+def _project_chips(group: dict, scope: dict, project) -> dict:
+    """Describe which projects a milestone row belongs to.
+
+    Args:
+        group: The bucket being drawn.
+        scope: Milestone scopes from :func:`_milestone_scopes`.
+        project: The project the plan is scoped to, or ``None``.
+
+    Returns:
+        ``label`` and ``chips`` — each chip with its project, how much
+        of this milestone's work sits there, and whether that is none.
+    """
+    milestone = group["milestone"]
+    if milestone is None:
+        return {"chips": [], "chips_label": ""}
+    projects = scope.get(milestone.id, [])
+    if project is not None:
+        others = [row for row in projects if row.id != project.id]
+        return {
+            "chips": [{"project": row, "count": None, "empty": False} for row in others],
+            "chips_label": _("shared with") if others else "",
+        }
+    here = {}
+    for task in group["tasks"]:
+        here[task.project_id] = here.get(task.project_id, 0) + 1
+    return {
+        "chips": [
+            {
+                "project": row,
+                "count": here.get(row.id, 0),
+                "empty": not here.get(row.id, 0),
+            }
+            for row in projects
+        ],
+        "chips_label": _("shared ·") if len(projects) > 1 else _("local ·"),
+    }
+
+
+def _group_row(
+    group: dict,
+    *,
+    depth: int,
+    key: str | None = None,
+    parent: str | None = None,
+    scope: dict | None = None,
+    project=None,
+) -> dict:
     """Build one group row with its rollup.
 
     Args:
@@ -413,6 +516,7 @@ def _group_row(group: dict, *, depth: int, key: str | None = None, parent: str |
     }
     row.update(_aggregate(group["tasks"]))
     row["scope"] = _group_scope(group)
+    row.update(_project_chips(group, scope or {}, project))
     # The second line under the name. A milestone says where its date
     # stands, because that is the whole of what it is; anything else says
     # how much work it holds, because that is the whole of what it is.
@@ -447,13 +551,6 @@ def _group_scope(group: dict) -> str:
             parts.append(ngettext("%(count)d epic", "%(count)d epics", len(epics)) % {"count": len(epics)})
         if direct:
             parts.append(ngettext("%(count)d direct", "%(count)d direct", direct) % {"count": direct})
-        # Across the workspace the same date holds work from several
-        # projects, and whose part is whose is the first thing a reader
-        # asks. Inside one project it would say the project's own name
-        # back at them, so it only appears when it carries information.
-        projects = sorted({task.project.slug_prefix for task in group["tasks"]})
-        if len(projects) > 1:
-            parts.append(" ".join(projects))
         return " · ".join(parts)
     if group["epic"] is not None:
         milestones = {task.milestone_id for task in group["tasks"] if task.milestone_id}
@@ -487,7 +584,7 @@ def _ancestors(parent: str | None) -> list[str]:
     return [":".join(parts[: index + 1]) for index in range(len(parts))]
 
 
-def _task_row(task, *, depth: int, parent: str | None = None) -> dict:
+def _task_row(task, *, depth: int, parent: str | None = None, name_milestone: bool = False) -> dict:
     """Build one leaf row.
 
     Args:
@@ -507,6 +604,9 @@ def _task_row(task, *, depth: int, parent: str | None = None) -> dict:
         "parent": parent,
         "task": task,
         "late": _late_days(task),
+        # The flat cut has no group row above it to say which date this
+        # belongs to, so the row says it itself.
+        "milestone_name": (task.milestone.name if task.milestone_id else _("no milestone")) if name_milestone else "",
         # The date the bar turns rose at, for the chart: everything past
         # the milestone this task is committed to is overrun, and the
         # line it crosses is the point it was committed to.

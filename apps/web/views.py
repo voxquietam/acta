@@ -241,7 +241,7 @@ def _timeline_milestones(tasks, chart_start, chart_end):
     )
 
 
-def _plan_context(request, tasks, today) -> dict:
+def _plan_context(request, tasks, today, project=None) -> dict:
     """Build the Plan tab's two-level cut of a project's work.
 
     One question the boards cannot answer: how this project's work sits
@@ -253,6 +253,7 @@ def _plan_context(request, tasks, today) -> dict:
         request: The active request, for the chosen cut.
         tasks: The project's filtered tasks.
         today: Reference date.
+        project: The project in view, or ``None`` across the workspace.
 
     Returns:
         A context dict with ``plan_rows``, the chosen ``plan_cut`` and
@@ -268,12 +269,21 @@ def _plan_context(request, tasks, today) -> dict:
         "plan_render": render_mode,
         "plan_renders": [{"key": key, "label": label} for key, label in plan.RENDERS.items()],
     }
-    rows = plan.build_plan_rows(tasks, cut, today)
+    rows = plan.build_plan_rows(tasks, cut, today, project=project)
     context["plan_rows"] = rows
     # The header's count line, in the design's words: how many dates this
     # plan is about, and how much work counts towards them.
-    context["plan_milestone_count"] = len({row["milestone"].pk for row in rows if row.get("milestone")})
+    # Counted off the work, not off the rows: the flat cut draws no group
+    # rows at all and would otherwise report no milestones.
+    context["plan_milestone_count"] = len({row["task"].milestone_id for row in rows if row["kind"] == "task"} - {None})
     context["plan_counted"] = sum(1 for row in rows if row["kind"] == "task")
+    context["plan_has_groups"] = any(row["kind"] == "group" for row in rows)
+    if project is None:
+        # Across the workspace, how much of the plan several projects
+        # share. The design put a strip of project chips here too; this
+        # page already has a project facet in the filter dock, and a
+        # second list of every project is a wall, not a header.
+        context.update(_plan_shared_count(request))
     if render_mode == "timeline":
         # The Gantt, with the cut's own rows in place of a flat task list:
         # a group draws as a marker (a milestone's date) or a thin span
@@ -281,6 +291,32 @@ def _plan_context(request, tasks, today) -> dict:
         context.update(_timeline_context(tasks, today))
         context["timeline_rows"] = rows
     return context
+
+
+def _plan_shared_count(request) -> dict:
+    """Count the milestones that several projects aim at.
+
+    The one thing the workspace-wide plan knows that a project's own
+    plan cannot: how much of the plan is shared. Everything else about
+    "which projects" is the filter dock's job.
+
+    Args:
+        request: The active request.
+
+    Returns:
+        ``{"plan_shared_count": n}``, or empty without a workspace.
+    """
+    from apps.milestones.models import Milestone
+
+    workspace = resolve_active_workspace(request)
+    if workspace is None:
+        return {}
+    shared = sum(
+        1
+        for milestone in Milestone.objects.filter(workspace=workspace).prefetch_related("projects")
+        if milestone.projects.count() > 1
+    )
+    return {"plan_shared_count": shared}
 
 
 def _resolve_list_axis(request, *, default, options):
@@ -3169,7 +3205,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             ctx.update(_timeline_context(table_tasks, today))
             return ctx
         if panel == "plan":
-            ctx.update(_plan_context(self.request, table_tasks, today))
+            ctx.update(_plan_context(self.request, table_tasks, today, project=project))
             return ctx
         if panel == "graph":
             ctx.update(self._graph_ctx(project))
@@ -3204,7 +3240,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             elif view_mode == "timeline":
                 ctx.update(_timeline_context(table_tasks, today))
             elif view_mode == "plan":
-                ctx.update(_plan_context(self.request, table_tasks, today))
+                ctx.update(_plan_context(self.request, table_tasks, today, project=project))
             elif view_mode == "graph":
                 ctx.update(self._graph_ctx(project))
             elif view_mode == "backlog":

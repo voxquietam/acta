@@ -376,17 +376,25 @@ because grid items' containing block was just the 56px header row.
     <div data-tl="left-body">
       {% for row in timeline_rows %}
       {% if row.kind == "fold" or row.kind == "note" %}
-      <div class="flex items-center gap-1.5 h-7 px-3 border-b border-border text-[11px] italic text-placeholder-foreground">
+      <div {% if row.ancestors %}x-show="{% for key in row.ancestors %}isOpen('{{ key }}'){% if not forloop.last %} && {% endif %}{% endfor %}"{% endif %}
+           class="flex items-center gap-1.5 h-7 px-3 border-b border-border text-[11px] italic text-placeholder-foreground">
         <span style="width: {{ row.indent }}px"></span>{{ row.label }}
       </div>
       {% elif row.kind == "group" %}
       {% comment %}
       A group's label on the Plan tab: the same row height as a task so
       the two columns keep their lockstep, with the tree's indent.
+      Clicking it folds the lane in both columns at once — the two loops
+      run the same rows, so one expression keeps them in step.
       {% endcomment %}
-      <div class="flex flex-col justify-center h-10 px-3 border-b border-border bg-subtle/40 cursor-default">
+      <div @click="toggle('{{ row.key }}')"
+           data-plan-group="{{ row.key }}"
+           {% if row.ancestors %}x-show="{% for key in row.ancestors %}isOpen('{{ key }}'){% if not forloop.last %} && {% endif %}{% endfor %}"{% endif %}
+           class="flex flex-col justify-center h-10 px-3 border-b border-border bg-subtle/40 cursor-pointer select-none">
         <span class="flex items-center gap-1.5 min-w-0 text-xs">
           <span style="width: {{ row.indent }}px"></span>
+          <span x-show="isOpen('{{ row.key }}')">{% lucide "chevron-down" "w-3 h-3 text-placeholder-foreground shrink-0" %}</span>
+          <span x-show="!isOpen('{{ row.key }}')" x-cloak>{% lucide "chevron-right" "w-3 h-3 text-placeholder-foreground shrink-0" %}</span>
           {% if row.milestone %}
           {% comment %}
           Same state palette the milestone pages use: rose when the date
@@ -414,6 +422,7 @@ because grid items' containing block was just the 56px header row.
       {% else %}
       {% with task=row.task %}
       <div class="flex items-center h-10 px-3 gap-1.5 border-b border-border hover:bg-muted/40 transition-colors cursor-default group/tlr"
+           {% if row.ancestors %}x-show="{% for key in row.ancestors %}isOpen('{{ key }}'){% if not forloop.last %} && {% endif %}{% endfor %}"{% endif %}
            data-task-id="{{ task.id }}"
            style="padding-left: {{ row.indent|add:12 }}px"
            {% task_filter_attrs task %}>
@@ -556,7 +565,8 @@ because grid items' containing block was just the 56px header row.
         <div data-tl="ms-strip" class="relative border-b border-border bg-subtle/40" style="height:0"></div>
         {% for row in timeline_rows %}
         {% if row.kind == "fold" or row.kind == "note" %}
-        <div class="tl-note border-b border-border" style="height:28px;"></div>
+        <div class="tl-note border-b border-border" style="height:28px;"
+             {% if row.ancestors %}x-show="{% for key in row.ancestors %}isOpen('{{ key }}'){% if not forloop.last %} && {% endif %}{% endfor %}"{% endif %}></div>
         {% elif row.kind == "group" %}
         {% comment %}
         A group's own row in the chart: a milestone draws as the diamond
@@ -571,7 +581,9 @@ because grid items' containing block was just the 56px header row.
         work, not commitments, and a band would claim a duration the
         model does not have (ADR 0037, and the design draws them empty).
         {% endcomment %}
-        <div class="tl-lane relative border-b border-border bg-subtle/40" style="height:40px;"
+        <div @click="toggle('{{ row.key }}')"
+             class="tl-lane relative border-b border-border bg-subtle/40 cursor-pointer" style="height:40px;"
+             {% if row.ancestors %}x-show="{% for key in row.ancestors %}isOpen('{{ key }}'){% if not forloop.last %} && {% endif %}{% endfor %}"{% endif %}
              data-lane-date="{{ row.milestone.target_date|date:'Y-m-d'|default:'' }}"
              data-lane-state="{{ row.state|default:'' }}"
              data-lane-label="{{ row.label }}"></div>
@@ -585,6 +597,7 @@ because grid items' containing block was just the 56px header row.
         colour in the timeline JS.
         {% endcomment %}
         <div class="tl-row relative border-b border-border" style="height:40px;"
+             {% if row.ancestors %}x-show="{% for key in row.ancestors %}isOpen('{{ key }}'){% if not forloop.last %} && {% endif %}{% endfor %}"{% endif %}
              data-task-id="{{ task.id }}"
              {% task_filter_attrs task %}
              data-slug="{{ task.slug }}"
