@@ -136,14 +136,12 @@ that inside another scroller leaves the chart unable to scroll at all.
   <div class="bg-card border border-border rounded-lg overflow-hidden">
     <div class="hidden lg:grid items-center gap-3 px-4 h-8 acta-plan-grid text-[10px] uppercase tracking-wider text-placeholder-foreground bg-subtle/95 border-b border-border">
       <span>{{ plan_heading }}</span>
-      <span>{% trans "Target date" %}</span>
-      {% if plan_in_project %}
-      <span>{% trans "Progress · here / overall" %}</span>
-      {% else %}
-      <span>{% trans "Progress" %}</span>
-      {% endif %}
-      <span>{% trans "Past its date" %}</span>
-      <span class="hidden xl:block">{% trans "Scope" %}</span>
+      <span data-col="plan-date">{% trans "Target date" %}</span>
+      <span data-col="plan-progress">
+        {% if plan_in_project %}{% trans "Progress · here / overall" %}{% else %}{% trans "Progress" %}{% endif %}
+      </span>
+      <span data-col="plan-risk">{% trans "Past its date" %}</span>
+      <span data-col="plan-scope" class="hidden xl:block">{% trans "Scope" %}</span>
     </div>
 
     {% for row in plan_rows %}
@@ -236,7 +234,7 @@ that inside another scroller leaves the chart unable to scroll at all.
         {% endif %}
       </div>
 
-      <div class="hidden lg:flex flex-col min-w-0 text-xs">
+      <div data-col="plan-date" class="hidden lg:flex flex-col min-w-0 text-xs">
         {% if row.milestone %}
         {% comment %}
         The second line is the reading of the date, not the word "target":
@@ -256,7 +254,7 @@ that inside another scroller leaves the chart unable to scroll at all.
         {% endif %}
       </div>
 
-      <div class="hidden lg:flex flex-col gap-0.5 min-w-0 text-xs">
+      <div data-col="plan-progress" class="hidden lg:flex flex-col gap-0.5 min-w-0 text-xs">
         {% if row.total %}
         <span class="flex items-center gap-2">
           <span class="font-mono text-[11px] w-10 tabular-nums">{{ row.done }}/{{ row.total }}</span>
@@ -277,7 +275,7 @@ that inside another scroller leaves the chart unable to scroll at all.
         {% endif %}
       </div>
 
-      <div class="hidden lg:block text-xs">
+      <div data-col="plan-risk" class="hidden lg:block text-xs">
         {% if row.risk %}
         <span class="inline-flex items-center gap-1 text-rose-400">{% lucide "calendar-x" "w-3 h-3" %}{{ row.risk }}</span>
         {% else %}
@@ -285,7 +283,7 @@ that inside another scroller leaves the chart unable to scroll at all.
         {% endif %}
       </div>
 
-      <div class="hidden xl:block text-[11px] text-subtle-foreground truncate">{{ row.scope }}</div>
+      <div data-col="plan-scope" class="hidden xl:block text-[11px] text-subtle-foreground truncate">{{ row.scope }}</div>
     </div>
 
     {% else %}
@@ -310,17 +308,17 @@ that inside another scroller leaves the chart unable to scroll at all.
         </span>
         {% endif %}
       </div>
-      <div class="hidden lg:block text-xs">
+      <div data-col="plan-date" class="hidden lg:block text-xs">
         {% if row.task.due_date %}
         <span class="font-mono {% if row.late %}text-rose-400{% else %}text-subtle-foreground{% endif %}">{{ row.task.due_date|date:"M j" }}</span>
         {% else %}
         <span class="text-placeholder-foreground">—</span>
         {% endif %}
       </div>
-      <div class="hidden lg:block text-xs text-subtle-foreground truncate">
+      <div data-col="plan-progress" class="hidden lg:block text-xs text-subtle-foreground truncate">
         {{ row.task.status|status_label }}
       </div>
-      <div class="hidden lg:block text-xs">
+      <div data-col="plan-risk" class="hidden lg:block text-xs">
         {% if row.late %}
         <span class="font-mono text-rose-400">+{{ row.late }}d</span>
         {% else %}
@@ -331,7 +329,7 @@ that inside another scroller leaves the chart unable to scroll at all.
       A group says what it is made of; a task says who is carrying it.
       Same column, because both answer "whose part of the plan is this".
       {% endcomment %}
-      <div class="hidden xl:block text-[11px] truncate">
+      <div data-col="plan-scope" class="hidden xl:block text-[11px] truncate">
         {% if row.task.assignee %}
         <span class="text-subtle-foreground">{{ row.task.assignee.display_name }}</span>
         {% else %}

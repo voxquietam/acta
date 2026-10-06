@@ -20,6 +20,7 @@ from apps.milestones.tests.factories import MilestoneFactory
 from apps.projects.tests.factories import ProjectFactory
 from apps.tasks.models import Task
 from apps.tasks.tests.factories import TaskFactory
+from apps.workspaces.tests.factories import WorkspaceFactory
 
 pytestmark = pytest.mark.django_db
 
@@ -577,3 +578,98 @@ class TestMembershipReports:
         done.blocks.add(inside)
 
         assert services.membership_reports(milestone)["blocks"] == []
+
+
+@pytest.mark.django_db
+class TestWhereAnEpicsWorkSits:
+    """An epic derives its dates from its tasks; it derives this too.
+
+    The row has to carry two different readings and not confuse them:
+    this epic's share of a date, and the state of the milestone itself.
+    An epic finishing its three tasks does not make the milestone
+    complete, and a row that said so would be lying.
+    """
+
+    def _epic_with_work(self):
+        """An epic whose work sits in two dates and partly in none.
+
+        Returns:
+            ``(epic, soon, later, counted)``.
+        """
+        workspace = WorkspaceFactory(epics_enabled=True)
+        project = ProjectFactory(workspace=workspace)
+        soon = MilestoneFactory(
+            workspace=workspace,
+            name="Beta",
+            target_date=timezone.localdate() + datetime.timedelta(days=10),
+            projects=[project],
+        )
+        later = MilestoneFactory(
+            workspace=workspace,
+            name="GA",
+            target_date=timezone.localdate() + datetime.timedelta(days=40),
+            projects=[project],
+        )
+        epic = TaskFactory(project=project, kind=Task.KIND_EPIC, title="Search rework")
+        TaskFactory(project=project, epic=epic, milestone=later, status=Task.STATUS_TODO)
+        TaskFactory(project=project, epic=epic, milestone=soon, status=Task.STATUS_DONE)
+        TaskFactory(
+            project=project,
+            epic=epic,
+            milestone=soon,
+            status=Task.STATUS_TODO,
+            due_date=soon.target_date + datetime.timedelta(days=3),
+        )
+        TaskFactory(project=project, epic=epic, status=Task.STATUS_TODO)
+        counted = list(Task.objects.filter(epic=epic).select_related("milestone"))
+        return epic, soon, later, counted
+
+    def test_rows_run_soonest_first_with_the_unattached_last(self):
+        _, soon, later, counted = self._epic_with_work()
+
+        rows = services.epic_milestone_rows(counted)
+
+        assert [row["milestone"] for row in rows] == [soon, later, None]
+
+    def test_a_row_counts_this_epics_share(self):
+        _, soon, _, counted = self._epic_with_work()
+
+        row = next(r for r in services.epic_milestone_rows(counted) if r["milestone"] == soon)
+
+        assert (row["done"], row["count"], row["percent"]) == (1, 2, 50)
+
+    def test_a_row_counts_what_runs_past_the_date(self):
+        _, soon, later, counted = self._epic_with_work()
+        rows = services.epic_milestone_rows(counted)
+
+        assert next(r for r in rows if r["milestone"] == soon)["late"] == 1
+        assert next(r for r in rows if r["milestone"] == later)["late"] == 0
+
+    def test_the_state_is_the_milestones_own_not_the_epics_share(self):
+        """This epic's whole share of Beta is done; Beta itself is not."""
+        workspace = WorkspaceFactory(epics_enabled=True)
+        project = ProjectFactory(workspace=workspace)
+        soon = MilestoneFactory(
+            workspace=workspace,
+            name="Beta",
+            target_date=timezone.localdate() + datetime.timedelta(days=10),
+            projects=[project],
+        )
+        epic = TaskFactory(project=project, kind=Task.KIND_EPIC, title="Search rework")
+        TaskFactory(project=project, epic=epic, milestone=soon, status=Task.STATUS_DONE)
+        # Someone else's work, same date, still open.
+        TaskFactory(project=project, milestone=soon, status=Task.STATUS_TODO)
+
+        rows = services.epic_milestone_rows(list(Task.objects.filter(epic=epic).select_related("milestone")))
+        row = next(r for r in rows if r["milestone"] == soon)
+
+        assert (row["done"], row["count"]) == (1, 1)
+        assert row["state"] != "complete"
+
+    def test_the_unattached_row_carries_no_state(self):
+        _, _, _, counted = self._epic_with_work()
+
+        row = next(r for r in services.epic_milestone_rows(counted) if r["milestone"] is None)
+
+        assert "state" not in row
+        assert row["count"] == 1

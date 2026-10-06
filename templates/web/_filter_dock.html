@@ -83,6 +83,14 @@ someone twice.
       <input type="hidden" name="show_milestone" value="0">
       <input type="checkbox" name="show_milestone" value="1" :checked="toggles.show_milestone">
       {% endif %}
+      {% comment %}
+      The Plan tree's columns ride as one repeated name, because they are
+      one decision taken in one menu; ``acta.js`` reads the checked ones
+      back as a list and stores that list in a single cookie.
+      {% endcomment %}
+      {% for key, label in plan_column_labels.items %}
+      <input type="checkbox" name="plan_col" value="{{ key }}" :checked="toggles.plan_columns.{{ key }}">
+      {% endfor %}
       {% if show_my_projects_toggle %}
       <input type="hidden" name="show_my_projects" value="0">
       <input type="checkbox" name="show_my_projects" value="1" :checked="toggles.show_my_projects">
@@ -239,6 +247,12 @@ just written — the same trap the links panel documents.
       {% trans "Milestone on rows" %}
     </button>
     {% endif %}
+    {% for key, label in plan_column_labels.items %}
+    <button type="button" class="acta-dock-pop-row" @click="togglePlanColumn('{{ key }}')">
+      <span class="acta-dock-tick" :class="{ 'is-on': toggles.plan_columns.{{ key }} }"></span>
+      {% blocktrans %}Column: {{ label }}{% endblocktrans %}
+    </button>
+    {% endfor %}
   </div>
 
   {% comment %} ---- popover: which values ---- {% endcomment %}

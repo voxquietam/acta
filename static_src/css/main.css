@@ -4055,8 +4055,18 @@ html.dark .acta-dock-chip.is-ex {
   .acta-plan-grid {
     /* Proportional, not fixed: the tree column is the one that must not
        collapse, and fixed widths added up to more than a panel beside a
-       sidebar has to give. */
-    grid-template-columns: minmax(0, 2.4fr) 104px minmax(0, 1.1fr) 86px;
+       sidebar has to give.
+
+       Each optional track is a custom property so the Display menu can
+       collapse one to nothing without the template having to name every
+       combination — four independent switches, not sixteen rules. The
+       cells stay in the row either way: the tracks are positional, and a
+       dropped cell would shift every later one onto the wrong width. */
+    grid-template-columns:
+      minmax(0, 2.4fr)
+      var(--plan-date, 104px)
+      var(--plan-progress, minmax(0, 1.1fr))
+      var(--plan-risk, 86px);
   }
 }
 @media (min-width: 1280px) {
@@ -4064,8 +4074,24 @@ html.dark .acta-dock-chip.is-ex {
      waits for the width the design drew it at. Until then the same line
      rides beside the name, where it has always been. */
   .acta-plan-grid {
-    grid-template-columns: minmax(0, 2.4fr) 104px minmax(0, 1.1fr) 86px minmax(0, 1fr);
+    grid-template-columns:
+      minmax(0, 2.4fr)
+      var(--plan-date, 104px)
+      var(--plan-progress, minmax(0, 1.1fr))
+      var(--plan-risk, 86px)
+      var(--plan-scope, minmax(0, 1fr));
   }
+}
+[data-plan-scope].is-hide-plan-date { --plan-date: 0px; }
+[data-plan-scope].is-hide-plan-progress { --plan-progress: 0px; }
+[data-plan-scope].is-hide-plan-risk { --plan-risk: 0px; }
+[data-plan-scope].is-hide-plan-scope { --plan-scope: 0px; }
+[data-plan-scope].is-hide-plan-date [data-col="plan-date"],
+[data-plan-scope].is-hide-plan-progress [data-col="plan-progress"],
+[data-plan-scope].is-hide-plan-risk [data-col="plan-risk"],
+[data-plan-scope].is-hide-plan-scope [data-col="plan-scope"] {
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 /* ---- Milestone list ---------------------------------------------------

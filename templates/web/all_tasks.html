@@ -37,7 +37,7 @@
     <div id="task-list-wrapper"
          data-task-list-root
          data-plan-scope
-         class="flex-1 min-w-0 min-h-0 flex flex-col {% if hide_epic %}is-hide-epic{% endif %} {% if hide_milestone %}is-hide-milestone{% endif %}"
+         class="flex-1 min-w-0 min-h-0 flex flex-col {% if hide_epic %}is-hide-epic{% endif %} {% if hide_milestone %}is-hide-milestone{% endif %}{% for key, shown in plan_columns.items %}{% if not shown %} is-hide-plan-{{ key }}{% endif %}{% endfor %}"
          hx-get="{{ request.path }}"
          hx-trigger="acta:task-moved from:body, acta:task-changed from:body, acta:bulk-changed from:body"
          hx-target="this"

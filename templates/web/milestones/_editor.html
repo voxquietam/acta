@@ -57,10 +57,16 @@ x-data="{
       class="flex flex-col flex-1 min-h-0">
   {% csrf_token %}
 
-  <div class="grid min-h-0 flex-1 overflow-y-auto sm:grid-cols-[minmax(0,1fr)_280px]">
+  {% comment %}
+  ``sm:grid-rows-[minmax(0,1fr)]`` so the single row takes the dialog's
+  whole remaining height instead of only as much as its content needs —
+  without it the left column stops where its fields stop and the
+  description cannot grow into the space below.
+  {% endcomment %}
+  <div class="grid min-h-0 flex-1 overflow-y-auto sm:grid-cols-[minmax(0,1fr)_280px] sm:grid-rows-[minmax(0,1fr)]">
 
     {# ---------- What gets reached ---------- #}
-    <div class="p-4 space-y-3 min-w-0">
+    <div class="flex flex-col gap-3 p-4 min-w-0 min-h-0">
       <input type="text" name="name" value="{{ form.name }}" x-ref="name" maxlength="120"
              placeholder="{% trans 'What gets reached?' %}"
              class="w-full bg-transparent border-0 p-0 text-lg font-medium text-foreground placeholder-placeholder-foreground outline-none focus:ring-0">
@@ -70,10 +76,14 @@ x-data="{
              placeholder="{% trans 'Goal — what must be true on this date?' %}"
              class="w-full bg-transparent border-0 p-0 text-sm text-muted-foreground placeholder-placeholder-foreground outline-none focus:ring-0">
 
-      <div class="rounded-lg border border-border bg-subtle/40 p-3">
+      {% comment %}
+      The description takes whatever height is left. ``rows`` stays as the
+      floor for the narrow layout, where the column is not stretched.
+      {% endcomment %}
+      <div class="flex flex-1 min-h-0 rounded-lg border border-border bg-subtle/40 p-3">
         <textarea name="description" rows="4"
                   placeholder="{% trans 'Optional details — context, links, the go/no-go call…' %}"
-                  class="w-full bg-transparent border-0 p-0 text-sm text-muted-foreground placeholder-placeholder-foreground outline-none resize-none focus:ring-0">{{ form.description }}</textarea>
+                  class="w-full flex-1 min-h-0 bg-transparent border-0 p-0 text-sm text-muted-foreground placeholder-placeholder-foreground outline-none resize-none focus:ring-0">{{ form.description }}</textarea>
       </div>
 
       {% if errors.projects %}

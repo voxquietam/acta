@@ -478,3 +478,55 @@ class TestTheTreeSaysWhereTheDateStands:
         row = self._row(project, soon)
 
         assert row["countdown"] == milestone_services.countdown(soon, row["state"])
+
+
+@pytest.mark.django_db
+class TestTheColumnsAreTheReadersChoice:
+    """Four switches in one decision, carried as one cookie.
+
+    They collapse the grid track rather than dropping the cell: the
+    tracks are positional, and a missing cell shifts every later one onto
+    the wrong width — the lesson the table taught an hour earlier.
+    """
+
+    def test_every_column_is_on_by_default(self, rf):
+        request = rf.get("/")
+
+        assert plan.resolve_columns(request) == {key: True for key in plan.COLUMNS}
+
+    def test_the_querystring_names_the_ones_kept(self, rf):
+        request = rf.get("/?plan_col=date&plan_col=scope")
+
+        shown = plan.resolve_columns(request)
+
+        assert shown["date"] is True
+        assert shown["scope"] is True
+        assert shown["progress"] is False
+        assert shown["risk"] is False
+
+    def test_an_empty_querystring_means_none_kept_not_all(self, rf):
+        """ "Clear every box" has to survive the round trip, not reset."""
+        request = rf.get("/?plan_col=")
+
+        assert plan.resolve_columns(request) == {key: False for key in plan.COLUMNS}
+
+    def test_the_cookie_carries_the_choice(self, rf):
+        request = rf.get("/")
+        request.COOKIES["acta_plan_cols"] = "progress,risk"
+
+        shown = plan.resolve_columns(request)
+
+        assert [key for key, on in shown.items() if on] == ["progress", "risk"]
+
+    def test_the_panel_marks_the_hidden_ones(self, client, setup):
+        workspace, user, project, soon, _, _ = setup
+        TaskFactory(project=project, milestone=soon, status=Task.STATUS_TODO)
+        client.force_login(user)
+
+        resp = client.get(f"/{workspace.slug}/projects/{project.slug_prefix}/?view=plan&plan_col=date")
+        body = resp.content.decode()
+
+        assert "is-hide-plan-risk" in body
+        assert "is-hide-plan-date" not in body
+        # The cell is still rendered — only its track collapses.
+        assert 'data-col="plan-risk"' in body

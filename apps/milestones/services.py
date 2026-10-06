@@ -1266,9 +1266,20 @@ def epic_milestone_rows(tasks) -> list[dict]:
     Args:
         tasks: The epic's counted tasks, with ``milestone`` loaded.
 
+    Each row carries what the epic's own share of that date looks like —
+    how much of it is done, how much already runs past the date — and the
+    milestone's state, which is read from its WHOLE scope rather than
+    from this epic's slice: an epic finishing its three tasks does not
+    make the milestone complete.
+
+    Args:
+        tasks: The epic's counted tasks, with ``milestone`` loaded.
+
     Returns:
         Row dicts with ``milestone`` (``None`` for the unattached
-        remainder) and ``count``, biggest first, unattached last.
+        remainder), ``count``, ``done``, ``percent``, ``late``, and for a
+        real milestone ``state`` / ``state_label`` / ``countdown``.
+        Soonest date first, unattached last.
     """
     buckets: dict[int | None, dict] = {}
     for task in tasks:
@@ -1277,11 +1288,35 @@ def epic_milestone_rows(tasks) -> list[dict]:
             {
                 "milestone": task.milestone,
                 "count": 0,
+                "done": 0,
+                "late": 0,
             },
         )
         row["count"] += 1
+        if task.status == Task.STATUS_DONE:
+            row["done"] += 1
+        elif task.milestone_id and task.due_date and task.due_date > task.milestone.target_date:
+            row["late"] += 1
     rows = list(buckets.values())
-    rows.sort(key=lambda row: (row["milestone"] is None, -row["count"]))
+    # One batch for the page: a row's badge needs the milestone's own
+    # state, and an epic can sit in a dozen of them.
+    progress = progress_by_milestone([row["milestone"].id for row in rows if row["milestone"] is not None])
+    for row in rows:
+        row["percent"] = round(row["done"] / row["count"] * 100) if row["count"] else 0
+        milestone = row["milestone"]
+        if milestone is None:
+            continue
+        state = milestone.state(counts=progress.get(milestone.id, (0, 0)))
+        row["state"] = state
+        row["state_label"] = STATE_LABELS[state]
+        row["countdown"] = countdown(milestone, state)
+    rows.sort(
+        key=lambda row: (
+            row["milestone"] is None,
+            row["milestone"].target_date if row["milestone"] else datetime.date.max,
+            row["milestone"].id if row["milestone"] else 0,
+        ),
+    )
     return rows
 
 

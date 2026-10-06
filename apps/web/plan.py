@@ -62,6 +62,35 @@ RENDERS = {
 DEFAULT_RENDER = "tree"
 
 
+#: The Plan tree's optional columns, in the order they stand. The tree
+#: column itself is not here — a tree with no names is not a view.
+COLUMNS = {
+    "date": _("Target date"),
+    "progress": _("Progress"),
+    "risk": _("Past its date"),
+    "scope": _("Scope"),
+}
+
+
+def resolve_columns(request) -> dict[str, bool]:
+    """Resolve which of the Plan tree's columns the reader wants.
+
+    Shown unless switched off, and carried as one cookie rather than four
+    — they are one decision ("what is this view for"), taken in one menu.
+
+    Args:
+        request: The active request.
+
+    Returns:
+        ``{key: shown}`` for every key of :data:`COLUMNS`.
+    """
+    raw = request.GET.getlist("plan_col")
+    if not raw and "plan_col" not in request.GET:
+        stored = request.COOKIES.get("acta_plan_cols")
+        raw = stored.split(",") if stored is not None else list(COLUMNS)
+    return {key: key in raw for key in COLUMNS}
+
+
 def resolve_cut(request) -> str:
     """Resolve the Plan cut: querystring → cookie → default.
 

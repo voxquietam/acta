@@ -87,8 +87,79 @@ all until a reload.
     </div>
 
     {% else %}
+    {% comment %}
+    What the page says before you read a single row. An epic is the one
+    thing that spans projects and dates, so the counts that matter are
+    the ones no single row can show: how many are moving, how many have
+    gone quiet, how many are spread over several dates or several teams,
+    and how much of all of it already runs past the date it was promised
+    for. "Paused" is the same reading the Last done column sorts by.
+    {% endcomment %}
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 pb-3 border-b border-border text-xs text-subtle-foreground">
+      <span class="text-sm text-foreground">{% blocktrans count counter=epic_stats.count %}{{ counter }} epic{% plural %}{{ counter }} epics{% endblocktrans %}</span>
+      {% if epic_stats.span_start and epic_stats.span_end %}
+      <span>{% trans "span" %} <span class="text-foreground font-mono">{{ epic_stats.span_start|date:"M j" }} → {{ epic_stats.span_end|date:"M j" }}</span></span>
+      {% endif %}
+      {% if epic_stats.moving %}
+      <span class="inline-flex items-center gap-1.5 text-brand-400">
+        <span class="w-1.5 h-1.5 rounded-full bg-brand-500"></span>{% blocktrans with counter=epic_stats.moving %}{{ counter }} moving{% endblocktrans %}
+      </span>
+      {% endif %}
+      {% if epic_stats.paused %}
+      <span class="inline-flex items-center gap-1.5 text-amber-400"
+            title="{% blocktrans with days=paused_after_days %}Nothing closed inside them for {{ days }} days{% endblocktrans %}">
+        <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>{% blocktrans with counter=epic_stats.paused %}{{ counter }} paused{% endblocktrans %}
+      </span>
+      {% endif %}
+      {% if epic_stats.done %}
+      <span class="inline-flex items-center gap-1.5 text-emerald-400">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>{% blocktrans with counter=epic_stats.done %}{{ counter }} done{% endblocktrans %}
+      </span>
+      {% endif %}
+      {% if epic_stats.split %}
+      <span class="inline-flex items-center gap-1">
+        {% lucide "git-fork" "w-3 h-3" %}{% blocktrans with counter=epic_stats.split %}{{ counter }} across several milestones{% endblocktrans %}
+      </span>
+      {% endif %}
+      {% if epic_stats.cross %}
+      <span>{% blocktrans with counter=epic_stats.cross %}{{ counter }} reach other projects{% endblocktrans %}</span>
+      {% endif %}
+      {% if epic_stats.late %}
+      <span class="inline-flex items-center gap-1 text-rose-400">
+        {% lucide "calendar-x" "w-3 h-3" %}{% blocktrans count counter=epic_stats.late %}{{ counter }} task past milestone{% plural %}{{ counter }} tasks past milestone{% endblocktrans %}
+      </span>
+      {% endif %}
+      {% if epic_stats.blocked %}
+      <span class="inline-flex items-center gap-1 text-rose-400">
+        {% lucide "octagon-alert" "w-3 h-3" %}{% blocktrans count counter=epic_stats.blocked %}{{ counter }} blocked{% plural %}{{ counter }} blocked{% endblocktrans %}
+      </span>
+      {% endif %}
+
+      {% comment %}
+      The ribbon: one thin bar per epic over the window they all share,
+      filled by how far along it is, with today marked. A table sorted by
+      one column cannot show overlap, and overlap is the question a page
+      of efforts raises — what runs at the same time as what. Hidden on
+      narrow screens, where it would be a smear.
+      {% endcomment %}
+      {% if epic_stats.ribbon %}
+      <span class="hidden xl:block relative shrink-0 ml-auto"
+            style="width: 340px; height: {% widthratio epic_stats.ribbon|length 1 7 %}px;">
+        {% for bar in epic_stats.ribbon %}
+        <span title="{{ bar.title }}" class="absolute rounded-sm bg-muted overflow-hidden"
+              style="top: {% widthratio forloop.counter0 1 7 %}px; left: {{ bar.left }}%; width: {{ bar.width }}%; height: 5px;">
+          <span class="block h-full bg-emerald-500" style="width: {{ bar.percent }}%;"></span>
+        </span>
+        {% endfor %}
+        {% if epic_stats.ribbon_today is not None %}
+        <span class="absolute w-0.5 bg-brand-400"
+              style="top: -2px; bottom: -2px; left: {{ epic_stats.ribbon_today }}%;"></span>
+        {% endif %}
+      </span>
+      {% endif %}
+    </div>
+
     <div class="flex items-center gap-2 text-xs text-subtle-foreground">
-      <span>{% blocktrans count counter=epics|length %}{{ counter }} epic{% plural %}{{ counter }} epics{% endblocktrans %}</span>
       <span class="flex-1"></span>
       <span class="inline-flex items-center gap-1.5 text-placeholder-foreground">
         {% lucide "arrow-down-up" "w-3 h-3" %}{% trans "Last done · quietest first" %}

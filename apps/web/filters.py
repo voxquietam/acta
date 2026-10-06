@@ -16,6 +16,8 @@ from apps.labels.services import grouped_labels
 from apps.projects.models import Project
 from apps.tasks.models import Task
 from apps.web.nav import resolve_active_workspace
+from apps.web.plan import COLUMNS as PLAN_COLUMNS
+from apps.web.plan import resolve_columns as resolve_plan_columns
 
 
 def apply_task_filters(qs, params, *, request_user, default_show_done=True, default_show_backlog=True):
@@ -1080,6 +1082,12 @@ def filter_sidebar_context(
         "epics_enabled": bool(active and active.epics_enabled),
         "show_epic": bool(active and active.epics_enabled) and resolve_show_epic(request) == "1",
         "milestones_enabled": milestones_enabled,
+        # The Plan tree's own columns. Resolved here rather than handed in
+        # by the view, because the dock's payload is assembled in this
+        # function and a view that adds them afterwards is a menu of
+        # unticked boxes.
+        "plan_columns": resolve_plan_columns(request),
+        "plan_column_labels": PLAN_COLUMNS,
         "show_milestone": milestones_enabled and resolve_show_milestone(request) == "1",
         # Only pages that actually expose a Backlog view-mode tab (All Tasks,
         # project detail) should let the ``acta_view_mode`` cookie hide the
@@ -1356,6 +1364,10 @@ def build_filter_dock_data(ctx, *, request=None):
             "epic_toggle": bool(ctx.get("epics_enabled")),
             "show_milestone": bool(ctx.get("show_milestone")),
             "milestone_toggle": bool(ctx.get("milestones_enabled")),
+            # The Plan tree's own columns, offered only where a plan is
+            # on screen — the menu is per view, and these mean nothing on
+            # a board.
+            "plan_columns": dict(ctx.get("plan_columns") or {}),
             "backlog_toggle": bool(ctx.get("show_backlog_toggle")),
             "my_projects_toggle": bool(ctx.get("show_my_projects_toggle")),
         },

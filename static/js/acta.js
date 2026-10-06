@@ -674,6 +674,9 @@
     const showBacklog = fd.getAll("show_backlog").includes("1");
     const showEpic = fd.getAll("show_epic").includes("1");
     const showMilestone = fd.getAll("show_milestone").includes("1");
+    // The Plan tree's own columns: one repeated input, read back as the
+    // list of the ones still wanted.
+    const planColumns = fd.getAll("plan_col");
     // "Show my projects" — client-side hide of rows whose project the
     // user isn't a member of (or doesn't lead). ``my-project-ids`` is
     // stamped on the form as a CSV by the server. Default ON: when the
@@ -704,6 +707,7 @@
       showBacklog,
       showEpic,
       showMilestone,
+      planColumns,
       showMyProjects,
       myProjectIds,
     };
@@ -888,6 +892,9 @@
   // Pass it from every path that injected rows on its own — an SSE push has
   // no server response on the way, so deferring to one hides nothing and a
   // peer's row stays on a filtered board.
+  //: The Plan tree's optional columns, mirroring ``apps.web.plan.COLUMNS``.
+  const PLAN_COLUMNS = ["date", "progress", "risk", "scope"];
+
   function applyClientFilters(opts) {
     const force = !!(opts && opts.force);
     const form = document.getElementById("filter-form");
@@ -903,6 +910,9 @@
     document.querySelectorAll("[data-plan-scope]").forEach((scope) => {
       scope.classList.toggle("is-hide-epic", !state.showEpic);
       scope.classList.toggle("is-hide-milestone", !state.showMilestone);
+      PLAN_COLUMNS.forEach((key) => {
+        scope.classList.toggle(`is-hide-plan-${key}`, !state.planColumns.includes(key));
+      });
     });
     // A chip-filter change round-trips to the server, which replaces the
     // active panel with the correctly-filtered rows. Pre-hiding the
@@ -1043,6 +1053,11 @@
       document.querySelector('#filter-form input[name="show_milestone"][type="checkbox"]') !== null;
     if (hasMilestoneToggle) {
       document.cookie = `acta_show_milestone=${state.showMilestone ? "1" : "0"}; path=/; max-age=${oneYear}; samesite=Lax`;
+    }
+    // One cookie for the four Plan columns: they are one decision, taken
+    // in one menu, and four cookies would be four chances to half-apply.
+    if (document.querySelector('#filter-form input[name="plan_col"]')) {
+      document.cookie = `acta_plan_cols=${state.planColumns.join(",")}; path=/; max-age=${oneYear}; samesite=Lax`;
     }
     const hasMyToggle = document.querySelector('#filter-form input[name="show_my_projects"][type="checkbox"]') !== null;
     if (hasMyToggle) {
@@ -5251,6 +5266,13 @@ window.actaFilterDock = function actaFilterDock() {
 
     toggleScope(key) {
       this.toggles[key] = !this.toggles[key];
+      this.submit();
+    },
+
+    // The Plan tree's columns live under one key, so they get their own
+    // toggle rather than a second meaning for ``toggleScope``.
+    togglePlanColumn(key) {
+      this.toggles.plan_columns[key] = !this.toggles.plan_columns[key];
       this.submit();
     },
 

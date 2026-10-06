@@ -7,7 +7,7 @@ both sources point at.
 {# OOB filter-count badges — see _all_tasks_inner.html. #}
 <div id="project-view-panel"
      data-plan-scope
-     class="{% if hide_epic %}is-hide-epic{% endif %} {% if hide_milestone %}is-hide-milestone{% endif %}">
+     class="{% if hide_epic %}is-hide-epic{% endif %} {% if hide_milestone %}is-hide-milestone{% endif %}{% for key, shown in plan_columns.items %}{% if not shown %} is-hide-plan-{{ key }}{% endif %}{% endfor %}">
   {% comment %}
   Pass ``allow_overview=True`` so HTMX swaps re-render the Overview
   pane along with kanban/table/list. Without the flag the Overview

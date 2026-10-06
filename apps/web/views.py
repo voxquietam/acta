@@ -93,6 +93,7 @@ from apps.web.filters import (
 )
 from apps.web.grouping import compute_list_section_keys, group_tasks
 from apps.web.nav import resolve_active_workspace, set_active_workspace
+from apps.web.plan import late_days
 from apps.web.url_scoping import project_path, request_workspace_slug, section_path, task_path
 from apps.workspaces.models import Workspace, WorkspaceMember, reserved_workspace_slugs
 
@@ -272,6 +273,9 @@ def _plan_context(request, tasks, today, project=None) -> dict:
         # Inside a project the Progress column carries two numbers, and the
         # header has to say which is which.
         "plan_in_project": project is not None,
+        # ``plan_columns`` itself comes from ``filter_sidebar_context``,
+        # which resolves it for the Display menu — one source, so the menu
+        # and the grid cannot disagree.
         "plan_render": render_mode,
         "plan_renders": [{"key": key, "label": label} for key, label in plan.RENDERS.items()],
     }
@@ -6852,7 +6856,7 @@ def _epic_rows(workspace, params=None, *, user=None):
         .filter(epic__in=epics)
         .filter(Q(archived_at__isnull=True) | Q(status=Task.STATUS_DONE))
         .exclude(status=Task.STATUS_CANCELLED)
-        .select_related("project")
+        .select_related("project", "milestone")
         .prefetch_related("blocked_by"),
     )
     by_epic: dict[int, list] = {}
@@ -6880,7 +6884,90 @@ def _epic_rows(workspace, params=None, *, user=None):
         epic.last_done = max(closed) if closed else None
         epic.quiet_days = (today - timezone.localtime(epic.last_done).date()).days if epic.last_done else None
         epic.paused = epic.quiet_days is not None and epic.quiet_days > EPIC_PAUSED_AFTER_DAYS
+        # What the header counts across the page: how many dates this one
+        # effort is spread over, and how much of it already runs past the
+        # date it was committed to (ADR 0037).
+        epic.milestone_ids = {t.milestone_id for t in tasks if t.milestone_id}
+        epic.late = sum(1 for t in tasks if late_days(t) > 0)
     return _sort_epic_rows(epics, (params or {}).get("order") or "")
+
+
+def _epic_stats(epics) -> dict:
+    """Summarise the whole Epics tab in one line of counts.
+
+    Read off the rows already built, so it costs nothing. "Moving" and
+    "paused" split the unfinished ones by whether anything inside closed
+    recently — the same reading the Last done column sorts by, because an
+    epic that has not moved in three weeks is the page's actual news.
+
+    Args:
+        epics: The rows from :func:`_epic_rows`.
+
+    Returns:
+        A dict of counts plus the span every epic together covers.
+    """
+    starts = [epic.span_start for epic in epics if epic.span_start]
+    ends = [epic.span_end for epic in epics if epic.span_end]
+    finished = [epic for epic in epics if epic.member_total and epic.member_done == epic.member_total]
+    unfinished = [epic for epic in epics if epic not in finished]
+    span_start = min(starts) if starts else None
+    span_end = max(ends) if ends else None
+    return {
+        "count": len(epics),
+        "span_start": span_start,
+        "span_end": span_end,
+        "done": len(finished),
+        "paused": sum(1 for epic in unfinished if epic.paused),
+        "moving": sum(1 for epic in unfinished if not epic.paused),
+        "split": sum(1 for epic in epics if len(epic.milestone_ids) > 1),
+        "cross": sum(1 for epic in epics if len(epic.projects) > 1),
+        "late": sum(epic.late for epic in epics),
+        "blocked": sum(epic.blocked for epic in epics),
+        **_epic_ribbon(epics, span_start, span_end),
+    }
+
+
+def _epic_ribbon(epics, span_start, span_end) -> dict:
+    """Place every epic's span on one shared strip.
+
+    A table sorted by one column cannot show overlap, and overlap is the
+    question a page of efforts raises: what runs at the same time as
+    what. One thin bar each, over the window they all share, filled by
+    how far along it is.
+
+    Args:
+        epics: The rows from :func:`_epic_rows`.
+        span_start: First day any epic covers, or ``None``.
+        span_end: Last day any epic covers, or ``None``.
+
+    Returns:
+        ``ribbon`` rows with ``left`` / ``width`` / ``percent`` /
+        ``title``, and ``ribbon_today`` as a percentage or ``None`` when
+        today falls outside the window.
+    """
+    if span_start is None or span_end is None:
+        return {"ribbon": [], "ribbon_today": None}
+    total = max((span_end - span_start).days, 1)
+    rows = []
+    for epic in epics:
+        if not epic.span_start or not epic.span_end:
+            continue
+        left = (epic.span_start - span_start).days / total * 100
+        width = max((epic.span_end - epic.span_start).days / total * 100, 1)
+        rows.append(
+            {
+                "left": round(left, 2),
+                "width": round(min(width, 100 - left), 2),
+                "percent": epic.done_pct or 0,
+                "title": f"{epic.title} · {epic.member_done}/{epic.member_total}",
+            },
+        )
+    today = timezone.localdate()
+    inside = span_start <= today <= span_end
+    return {
+        "ribbon": rows,
+        "ribbon_today": round((today - span_start).days / total * 100, 2) if inside else None,
+    }
 
 
 #: Sort keys the Epics tab offers, mirroring the ``data-sort-*`` the rows
@@ -6920,11 +7007,11 @@ def _sort_epic_rows(epics, order):
 def epic_panel(request, slug_prefix, number):
     """Render an epic's details for the drawer on the Epics tab.
 
-    The same four blocks the epic's own page shows in its right-hand
-    aside — description, properties, files, activity — so the tab can
-    answer "what is this epic" without leaving the list. Built from the
-    same helpers the detail view uses rather than a second assembly of
-    the same context.
+    The same blocks the epic's own page shows in its right-hand aside —
+    description, where the work sits, properties, files, activity — so
+    the tab can answer "what is this epic" without leaving the list.
+    Built from the same helpers the detail view uses rather than a second
+    assembly of the same context.
 
     Returns:
         The panel fragment, or ``404`` when the task is not an epic —
@@ -6938,11 +7025,19 @@ def epic_panel(request, slug_prefix, number):
         ids=[task.id],
         user_id=request.user.id,
     ).get(task.id, [])
+    # Where its work sits, off the same helper the epic's page uses. The
+    # members ride in counted — done work counts wherever it is filed,
+    # shelved work counts nowhere (``Task.epic_counted``).
+    members = list(
+        _user_task_qs(request.user).filter(epic=task).select_related("milestone", "project"),
+    )
+    counted = [member for member in members if member.archived_at is None or member.status == Task.STATUS_DONE]
     return HttpResponse(
         render_to_string(
             "web/_epic_panel.html",
             {
                 "task": task,
+                "epic_milestones": milestone_services.epic_milestone_rows(counted),
                 "activity": _task_activity(task),
                 "status_labels": Task.STATUS_LABELS,
                 "priority_labels": dict(Task.PRIORITY_CHOICES),
@@ -6968,13 +7063,15 @@ def epics_overview(request):
     """
     workspace = resolve_active_workspace(request)
     enabled = workspace is not None and workspace.epics_enabled
+    epic_rows = _epic_rows(workspace, request.GET, user=request.user) if enabled else []
     return render(
         request,
         "web/epics.html",
         {
             "workspace": workspace,
             "epics_enabled": enabled,
-            "epics": _epic_rows(workspace, request.GET, user=request.user) if enabled else [],
+            "epics": epic_rows,
+            "epic_stats": _epic_stats(epic_rows),
             "paused_after_days": EPIC_PAUSED_AFTER_DAYS,
             # The dock, minus the axes an epic does not have one of: its
             # status is derived from its tasks, and size, cycle and
