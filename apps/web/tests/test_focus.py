@@ -14,6 +14,9 @@ from django.utils import timezone
 import pytest
 
 from apps.accounts.tests.factories import UserFactory
+from apps.activity.models import ActivityLog
+from apps.cycles.tests.factories import CycleFactory
+from apps.meetings.tests.factories import MeetingFactory
 from apps.milestones.tests.factories import MilestoneFactory
 from apps.projects.tests.factories import ProjectFactory
 from apps.tasks.models import Task
@@ -409,6 +412,165 @@ class TestCommitments:
         mine(project, me, milestone=milestone)
 
         assert focus.commitments(me, focus.focus_tasks(me)) == {"hot": [], "steady": []}
+
+
+class TestTheFourNumbers:
+    """Load, throughput, reliability, commitment."""
+
+    def test_in_progress_is_measured_against_the_workspace_limit(self, desk):
+        workspace, me, _them, project = desk
+        workspace.wip_limits = {"mode": workspace.WIP_PERSONAL, "limits": {Task.STATUS_IN_PROGRESS: 2}}
+        workspace.save(update_fields=["wip_limits"])
+        for _ in range(3):
+            mine(project, me, status=Task.STATUS_IN_PROGRESS)
+
+        card = focus.kpi(me, workspace, focus.focus_tasks(me))[0]
+
+        assert card["value"] == "3/2"
+        assert card["tone"] == "text-rose-400"
+        assert card["sub"] == "1 over — finish one before starting another"
+
+    def test_under_the_limit_it_says_how_much_room_is_left(self, desk):
+        workspace, me, _them, project = desk
+        mine(project, me, status=Task.STATUS_IN_PROGRESS)
+
+        card = focus.kpi(me, workspace, focus.focus_tasks(me))[0]
+
+        assert (card["value"], card["sub"]) == ("1/3", "room for 2 more")
+
+    def test_on_time_reads_the_day_the_work_was_closed(self, desk):
+        """Not ``updated_at`` — an edit afterwards must not move it."""
+        workspace, me, _them, project = desk
+        today = timezone.localdate()
+        late = mine(project, me, status=Task.STATUS_DONE, due_date=today - datetime.timedelta(days=4))
+        punctual = mine(project, me, status=Task.STATUS_DONE, due_date=today)
+        for task in (late, punctual):
+            ActivityLog.objects.create(
+                workspace=workspace,
+                actor=me,
+                event_type="task.status_changed",
+                target_type=ActivityLog.TARGET_TASK,
+                target_id=task.pk,
+            )
+
+        cards = {card["label"]: card for card in focus.kpi(me, workspace, focus.focus_tasks(me))}
+
+        assert cards["Closed, 7 days"]["value"] == "2"
+        assert cards["On time"]["value"] == "50%"
+        assert cards["On time"]["sub"] == "1 of 2 closed"
+
+    def test_nothing_closed_is_nothing_to_judge(self, desk):
+        workspace, me, _them, project = desk
+        mine(project, me)
+
+        card = next(c for c in focus.kpi(me, workspace, focus.focus_tasks(me)) if c["label"] == "On time")
+
+        assert card["value"] == "—"
+        assert card["tone"] == ""
+
+    def test_a_cycle_with_none_of_your_work_does_not_read_as_finished(self, desk):
+        workspace, me, _them, _project = desk
+        today = timezone.localdate()
+        CycleFactory(
+            workspace=workspace,
+            start_date=today - datetime.timedelta(days=2),
+            end_date=today + datetime.timedelta(days=5),
+        )
+
+        card = focus.kpi(me, workspace, focus.focus_tasks(me))[-1]
+
+        assert card["value"] == "0/0"
+        assert "nothing of yours in it" in card["sub"]
+
+
+class TestAroundYou:
+    """People, days and calls — the things that act on the work."""
+
+    def test_a_person_is_listed_once_with_both_directions(self, desk):
+        _workspace, me, them, project = desk
+        theirs = TaskFactory(project=project, assignee=them, reporter=them, status=Task.STATUS_TODO)
+        blocker = mine(project, me, title="Mine blocks theirs")
+        blocker.blocks.add(theirs)
+        waiting = mine(project, me, title="Mine waits on theirs")
+        waiting.blocked_by.add(theirs)
+
+        rows = focus.people(me, None, focus.focus_tasks(me))
+
+        assert [row["person"] for row in rows] == [them]
+        assert [chip["text"] for chip in rows[0]["chips"]] == ["you block 1", "blocks you 1"]
+
+    def test_someone_with_nothing_pending_is_not_a_row(self, desk):
+        _workspace, me, _them, project = desk
+        mine(project, me)
+
+        assert focus.people(me, None, focus.focus_tasks(me)) == []
+
+    def test_holding_someone_up_outweighs_being_held_up(self, desk):
+        workspace, me, them, project = desk
+        third = UserFactory(username="third", first_name="Ada", last_name="Byrne")
+        WorkspaceMember.objects.create(user=third, workspace=workspace)
+        theirs = TaskFactory(project=project, assignee=them, reporter=them, status=Task.STATUS_TODO)
+        blocker = mine(project, me)
+        blocker.blocks.add(theirs)
+        thirds = TaskFactory(project=project, assignee=third, reporter=third, status=Task.STATUS_TODO)
+        waiting = mine(project, me)
+        waiting.blocked_by.add(thirds)
+
+        rows = focus.people(me, None, focus.focus_tasks(me))
+
+        assert [row["person"] for row in rows] == [them, third]
+
+    def test_the_week_skips_the_weekend(self, desk):
+        _workspace, me, _them, _project = desk
+
+        days = focus.week([], datetime.date(2026, 10, 9))
+
+        assert [day["date"].isoformat() for day in days] == [
+            "2026-10-09",
+            "2026-10-12",
+            "2026-10-13",
+            "2026-10-14",
+            "2026-10-15",
+        ]
+        assert days[0]["label"] == "Today"
+
+    def test_a_day_carries_what_is_due_on_it(self, desk):
+        _workspace, me, _them, project = desk
+        today = timezone.localdate()
+        task = mine(project, me, due_date=today)
+
+        days = focus.week(focus.focus_tasks(me), today)
+
+        assert days[0]["tasks"] == [task]
+        assert days[0]["is_today"] is True
+
+    def test_a_call_named_after_a_date_says_what_is_still_open(self, desk):
+        workspace, me, _them, project = desk
+        today = timezone.localdate()
+        milestone = MilestoneFactory(
+            workspace=workspace,
+            name="Beta",
+            target_date=today + datetime.timedelta(days=4),
+            projects=[project],
+        )
+        mine(project, me, milestone=milestone, due_date=today + datetime.timedelta(days=9))
+        meeting = MeetingFactory(project=project, title="Beta readiness", happened_at=timezone.now())
+
+        rows = focus.calls([meeting], focus.focus_tasks(me), today)
+
+        assert rows[0]["label"] == "Today"
+        assert rows[0]["prep"]["text"] == "Beta · 1 of yours open, 1 late"
+        assert rows[0]["prep"]["tone"] == "text-rose-400"
+
+    def test_a_call_beyond_the_window_is_not_listed(self, desk):
+        _workspace, me, _them, _project = desk
+        far = MeetingFactory(
+            project=_project,
+            title="Later",
+            happened_at=timezone.now() + datetime.timedelta(days=5),
+        )
+
+        assert focus.calls([far], focus.focus_tasks(me)) == []
 
 
 class TestTheCost:

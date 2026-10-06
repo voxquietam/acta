@@ -1821,18 +1821,20 @@ def _my_work_calls_context(user, active):
     }
 
 
-def _focus_context(user, workspace, today):
+def _focus_context(user, workspace, today, meetings):
     """Build the My Work focus strip in one read of the viewer's work.
 
     Args:
         user: The viewer.
         workspace: The active workspace, or ``None`` for all of them.
         today: Reference date.
+        meetings: Their upcoming calls, already loaded for the page.
 
     Returns:
-        ``rows`` (the ranked shortlist), ``ranked`` (how many tasks have
-        a reason at all), ``summary``, ``tidy``, ``pick`` and
-        ``commitments``.
+        Everything the strip draws — the ranked shortlist and its size,
+        the day's counts, the tidy-up chips, the commitments, what is
+        free to pick up, the four KPI cards, and the right-hand column
+        of people, days, calls and what others did.
     """
     tasks = focus.focus_tasks(user, workspace)
     ranked = focus.do_first(tasks, today)
@@ -1847,6 +1849,11 @@ def _focus_context(user, workspace, today):
         # Do first" listing a 119-day-overdue row reads as a bug.
         "pick": focus.pick_next(tasks, ranked, today),
         "commitments": focus.commitments(user, tasks, today),
+        "kpi": focus.kpi(user, workspace, tasks, today),
+        "people": focus.people(user, workspace, tasks),
+        "week": focus.week(tasks, today),
+        "calls": focus.calls(meetings, tasks, today),
+        "feed": focus.feed(user, workspace),
     }
     # One flag the template can branch on. Without it the strip's outer
     # gate has to list every block, and the block added next is the one
@@ -1859,6 +1866,10 @@ def _focus_context(user, workspace, today):
             built["pick"],
             built["commitments"]["hot"],
             built["commitments"]["steady"],
+            built["kpi"],
+            built["people"],
+            built["calls"],
+            built["feed"],
         ),
     )
     return built
@@ -1923,7 +1934,10 @@ class MyWorkView(LoginRequiredMixin, TemplateView):
         ctx["today"] = timezone.localdate()
         ctx["status_labels"] = Task.STATUS_LABELS
         ctx["priority_labels"] = dict(Task.PRIORITY_CHOICES)
-        ctx["focus"] = SimpleLazyObject(lambda: _focus_context(self.request.user, active, ctx["today"]))
+        ctx.update(_my_work_calls_context(self.request.user, active))
+        ctx["focus"] = SimpleLazyObject(
+            lambda: _focus_context(self.request.user, active, ctx["today"], ctx["upcoming_calls"]),
+        )
         list_axis_keys = _optional_axes(("deadline", "status", "priority", "project"), active)
         list_axis = _resolve_list_axis(self.request, default="deadline", options=list_axis_keys)
         ctx["list_axis"] = list_axis
@@ -2012,7 +2026,7 @@ class MyWorkView(LoginRequiredMixin, TemplateView):
                 effective_params=sidebar_params,
             )
         )
-        ctx.update(_my_work_calls_context(self.request.user, active))
+
         return ctx
 
 

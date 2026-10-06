@@ -18,6 +18,20 @@ Expects ``focus`` — ``rows`` / ``ranked`` / ``summary`` / ``tidy``.
 {% if focus.any %}
 <div class="flex flex-col gap-4 mb-6">
 
+  <div class="text-xs text-subtle-foreground">{{ today|date:"l, j F Y" }}</div>
+
+  {% if focus.kpi %}
+  <div class="grid gap-3 grid-cols-2 md:grid-cols-4">
+    {% for card in focus.kpi %}
+    <div class="bg-card border border-border rounded-lg p-3 flex flex-col">
+      <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{{ card.label }}</span>
+      <span class="text-xl font-semibold {{ card.tone }}">{{ card.value }}</span>
+      <span class="text-[11px] text-placeholder-foreground truncate">{{ card.sub }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
   {% if focus.summary %}
   <div class="flex items-center gap-x-4 gap-y-1 flex-wrap text-sm">
     {% for row in focus.summary %}
@@ -70,8 +84,8 @@ Expects ``focus`` — ``rows`` / ``ranked`` / ``summary`` / ``tidy``.
     {% for row in focus.rows %}
     <a href="{% task_url row.task %}"
        {% open_task_modal_attrs row.task %}
-       class="grid items-center gap-x-2 md:gap-x-3 px-4 min-h-[44px] py-1.5 border-b border-border last:border-b-0 hover:bg-muted/60 transition text-xs
-              grid-cols-[16px_64px_minmax(0,1fr)_0_0_90px] md:grid-cols-[16px_70px_minmax(0,1fr)_230px_90px_96px]">
+       class="grid items-center gap-x-2 xl:gap-x-3 px-4 min-h-[44px] py-1.5 border-b border-border last:border-b-0 hover:bg-muted/60 transition text-xs
+              grid-cols-[16px_64px_minmax(0,1fr)_0_0_90px] xl:grid-cols-[16px_70px_minmax(0,1fr)_230px_90px_96px]">
       <span class="font-mono text-[11px] text-placeholder-foreground">{{ forloop.counter }}</span>
 
       <span class="flex items-center gap-1.5 min-w-0 overflow-hidden">
@@ -85,7 +99,7 @@ Expects ``focus`` — ``rows`` / ``ranked`` / ``summary`` / ``tidy``.
           {{ row.task.project.name }} · {{ status_labels|get_item:row.task.status|lower }}{% if row.task.milestone %} · {{ row.task.milestone.name }}{% endif %}
         </span>
         {# Narrow only: the two cells that collapse are said here instead. #}
-        <span class="md:hidden text-[11px] truncate {{ row.reasons.0.tone }}">
+        <span class="xl:hidden text-[11px] truncate {{ row.reasons.0.tone }}">
           {{ row.reasons.0.text }}{% if row.due_label %} · {{ row.due_label }}{% endif %}
         </span>
       </span>
@@ -104,6 +118,14 @@ Expects ``focus`` — ``rows`` / ``ranked`` / ``summary`` / ``tidy``.
     {% endfor %}
   </div>
   {% endif %}
+
+  {% comment %}
+  Three fifths against two: the viewer's own work carries the detail,
+  the column beside it is context. Below ``lg`` they stack, because at
+  that width two columns of rows is two columns of truncation.
+  {% endcomment %}
+  <div class="grid gap-4 items-start grid-cols-1 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+  <div class="flex flex-col gap-4 min-w-0">
 
   {% if focus.commitments.hot %}
   {% comment %}
@@ -126,7 +148,7 @@ Expects ``focus`` — ``rows`` / ``ranked`` / ``summary`` / ``tidy``.
       {# Three positional tracks; the bars collapse to zero on narrow. #}
       <a href="{% wurl 'milestone_detail' pk=card.milestone.id %}"
          class="grid items-center gap-x-3 px-4 py-3 border-b border-border hover:bg-muted/60 transition
-                grid-cols-[minmax(0,1fr)_110px_0] md:grid-cols-[minmax(0,1fr)_130px_180px]">
+                grid-cols-[minmax(0,1fr)_110px_0] lg:grid-cols-[minmax(0,1fr)_130px_180px]">
         <span class="flex flex-col min-w-0">
           <span class="flex items-center gap-2 min-w-0">
             {% if card.hot %}{% lucide "diamond" "w-4 h-4 shrink-0 text-rose-400" %}
@@ -233,6 +255,10 @@ Expects ``focus`` — ``rows`` / ``ranked`` / ``summary`` / ``tidy``.
     {% endfor %}
   </div>
   {% endif %}
+
+  </div>
+  {% include "web/_my_work_around.html" %}
+  </div>
 
 </div>
 {% endif %}

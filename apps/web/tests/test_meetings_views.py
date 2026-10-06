@@ -112,13 +112,25 @@ def test_edit_call_notifies_only_new_participants(client, ws_project):
 
 
 @pytest.mark.django_db
-def test_my_work_shows_upcoming_and_recent_calls(client, ws_project):
+def test_my_work_shows_the_calls_just_ahead(client, ws_project):
+    """My Work looks forward: the next three days, and nothing behind.
+
+    The old strip also carried a "Recent calls" lenta. A call that has
+    happened changes nothing about what to do today, so it moved off
+    this page — it still lives on the Calls page and the call's own.
+    """
     ws, project = ws_project
-    upcoming = MeetingFactory(
+    soon = MeetingFactory(
         workspace=ws,
         project=project,
         title="Future planning",
         happened_at=timezone.now() + datetime.timedelta(days=2),
+    )
+    far = MeetingFactory(
+        workspace=ws,
+        project=project,
+        title="Next week sync",
+        happened_at=timezone.now() + datetime.timedelta(days=6),
     )
     past = MeetingFactory(
         workspace=ws,
@@ -126,15 +138,16 @@ def test_my_work_shows_upcoming_and_recent_calls(client, ws_project):
         title="Past retro",
         happened_at=timezone.now() - datetime.timedelta(days=2),
     )
-    upcoming.participants.add(ws.owner)
-    past.participants.add(ws.owner)
+    for meeting in (soon, far, past):
+        meeting.participants.add(ws.owner)
     client.force_login(ws.owner)
+
     resp = client.get(reverse("web:my_work"))
+
     assert resp.status_code == 200
-    assert b"Upcoming calls" in resp.content
     assert b"Future planning" in resp.content
-    assert b"Recent calls" in resp.content
-    assert b"Past retro" in resp.content
+    assert b"Next week sync" not in resp.content
+    assert b"Past retro" not in resp.content
 
 
 @pytest.mark.django_db

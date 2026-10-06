@@ -794,3 +794,490 @@ def _countdown(milestone, passed, today) -> str:
     if not days:
         return str(_("due today"))
     return ngettext("due in %(count)d day", "due in %(count)d days", days) % {"count": days}
+
+
+#: WIP limit used when the workspace has not set a personal one. Three
+#: is the number the design settled on and the one most people can hold.
+DEFAULT_WIP_LIMIT = 3
+
+#: How far back "closed this week" reaches, and the window it is
+#: compared against.
+WEEK_DAYS = 7
+
+#: Weekdays "This week" lays out, and how far ahead it may look to find
+#: them — a Friday afternoon should still show the next working week.
+WEEK_COLUMNS = 5
+WEEK_LOOKAHEAD = 9
+
+#: How far ahead the Calls card looks.
+CALLS_DAYS = 3
+
+
+def kpi(user, workspace, tasks, today=None) -> list[dict]:
+    """Return the four numbers the page opens with.
+
+    Load, throughput, reliability, commitment — in that order, because
+    that is the order someone asks them in: how much am I carrying, how
+    much did I finish, did it land when I said, and where does the cycle
+    stand.
+
+    Args:
+        user: The viewer.
+        workspace: The active workspace, or ``None``.
+        tasks: Their open tasks, from :func:`focus_tasks`.
+        today: Reference date; defaults to the local current date.
+
+    Returns:
+        Card dicts with ``label``, ``value``, ``sub`` and ``tone``.
+    """
+    today = today or timezone.localdate()
+    cards = [_wip_card(workspace, tasks)]
+    closed, on_time = _closed_cards(user, workspace, today)
+    cards.append(closed)
+    cards.append(on_time)
+    cycle = _cycle_card(user, workspace, today)
+    if cycle:
+        cards.append(cycle)
+    return cards
+
+
+def _wip_card(workspace, tasks) -> dict:
+    """Return the "in progress against the limit" card.
+
+    The limit is the workspace's own personal WIP limit where it has set
+    one, because a number the team agreed on reads very differently from
+    a number this page invented.
+
+    Args:
+        workspace: The active workspace, or ``None``.
+        tasks: The viewer's open tasks.
+
+    Returns:
+        A card dict.
+    """
+    limit = DEFAULT_WIP_LIMIT
+    if workspace is not None:
+        mode, limits = workspace.wip_config()
+        if mode == workspace.WIP_PERSONAL and limits.get(Task.STATUS_IN_PROGRESS):
+            limit = limits[Task.STATUS_IN_PROGRESS]
+    moving = sum(1 for task in tasks if task.status == Task.STATUS_IN_PROGRESS)
+    over = moving - limit
+    return {
+        "label": _("In progress"),
+        "value": f"{moving}/{limit}",
+        "tone": "text-rose-400" if over > 0 else "",
+        "sub": (
+            _("%(count)d over — finish one before starting another") % {"count": over}
+            if over > 0
+            else ngettext("room for %(count)d more", "room for %(count)d more", -over) % {"count": -over}
+        ),
+    }
+
+
+def _closed_cards(user, workspace, today) -> tuple[dict, dict]:
+    """Return the throughput and reliability cards.
+
+    Both read the same one query: the viewer's work closed in the last
+    fortnight, with the moment it was closed taken from the activity log
+    rather than from ``updated_at`` — an edit after the fact would
+    otherwise move the closing date, and "on time" would drift with it.
+
+    Args:
+        user: The viewer.
+        workspace: The active workspace, or ``None``.
+        today: Reference date.
+
+    Returns:
+        A ``(closed, on_time)`` pair of card dicts.
+    """
+    since = today - datetime.timedelta(days=WEEK_DAYS * 2)
+    last_status_change = (
+        ActivityLog.objects.filter(
+            target_type=ActivityLog.TARGET_TASK,
+            target_id=OuterRef("pk"),
+            event_type="task.status_changed",
+        )
+        .order_by("-created_at", "-id")
+        .values("created_at")[:1]
+    )
+    queryset = Task.objects.work().filter(assignee=user, status=Task.STATUS_DONE)
+    if workspace is not None:
+        queryset = queryset.filter(project__workspace=workspace)
+    rows = queryset.annotate(closed_at=Subquery(last_status_change)).values("closed_at", "due_date", "updated_at")
+    this_week, before, on_time = 0, 0, 0
+    for row in rows:
+        closed = row["closed_at"] or row["updated_at"]
+        if closed is None:
+            continue
+        closed = timezone.localtime(closed).date() if timezone.is_aware(closed) else closed.date()
+        if closed < since:
+            continue
+        if (today - closed).days <= WEEK_DAYS:
+            this_week += 1
+            if row["due_date"] and closed <= row["due_date"]:
+                on_time += 1
+        else:
+            before += 1
+    share = round(on_time / this_week * 100) if this_week else None
+    return (
+        {
+            "label": _("Closed, 7 days"),
+            "value": str(this_week),
+            "tone": "",
+            "sub": ngettext(
+                "%(count)d the week before",
+                "%(count)d the week before",
+                before,
+            )
+            % {"count": before},
+        },
+        {
+            "label": _("On time"),
+            "value": f"{share}%" if share is not None else "—",
+            # Nothing closed is nothing to judge, so the dash stays
+            # neutral: a green em-dash reads as a pass nobody earned.
+            "tone": "" if share is None else "text-rose-400" if share < 60 else "text-emerald-400",
+            "sub": _("%(on_time)d of %(closed)d closed") % {"on_time": on_time, "closed": this_week},
+        },
+    )
+
+
+def _cycle_card(user, workspace, today) -> dict | None:
+    """Return the running cycle's card, or ``None`` when none is running.
+
+    "At this pace" is the only honest projection available from one
+    number: how much the viewer has closed per day so far, against how
+    much is left and how many days remain.
+
+    Args:
+        user: The viewer.
+        workspace: The active workspace, or ``None``.
+        today: Reference date.
+
+    Returns:
+        A card dict, or ``None``.
+    """
+    from apps.cycles.models import Cycle
+
+    if workspace is None:
+        return None
+    cycle = (
+        Cycle.objects.filter(workspace=workspace, start_date__lte=today, end_date__gte=today)
+        .order_by("start_date")
+        .first()
+    )
+    if cycle is None:
+        return None
+    counts = (
+        Task.objects.work()
+        .filter(counted_q(), assignee=user, cycle=cycle)
+        .aggregate(
+            total=Count("id"),
+            done=Count("id", filter=Q(status=Task.STATUS_DONE)),
+        )
+    )
+    total, done = counts["total"], counts["done"]
+    left = max(0, (cycle.end_date - today).days)
+    remaining = total - done
+    elapsed = max(1, (today - cycle.start_date).days)
+    if not total:
+        # No work of theirs in it is not the same as having finished it,
+        # and "all yours done" over 0/0 is the kind of green that teaches
+        # people to stop reading the card.
+        pace = _("nothing of yours in it")
+    elif remaining <= 0:
+        pace = _("all yours done")
+    elif done / elapsed * left >= remaining:
+        pace = _("on pace to close %(count)d") % {"count": remaining}
+    else:
+        carried = max(0, round(remaining - done / elapsed * left))
+        pace = _("at this pace %(count)d carry over") % {"count": carried}
+    return {
+        "label": cycle.display_name,
+        "value": f"{done}/{total}",
+        "tone": "",
+        "sub": "%s · %s" % (ngettext("%(count)d day left", "%(count)d days left", left) % {"count": left}, pace),
+    }
+
+
+#: How many unread notifications one person's card lists before it stops.
+PERSON_ROWS = 3
+
+#: How many entries "Since yesterday" shows.
+FEED_LIMIT = 8
+
+
+def people(user, workspace, tasks) -> list[dict]:
+    """Return the people this work actually runs through.
+
+    Not a team list — only the people something is pending with, in the
+    order of how much is pending: someone held up by the viewer first,
+    then someone the viewer is held up by, then someone who wrote and
+    has not been answered.
+
+    Args:
+        user: The viewer.
+        workspace: The active workspace, or ``None``.
+        tasks: Their open tasks, from :func:`focus_tasks`.
+
+    Returns:
+        Row dicts with ``person``, ``rows``, ``chips``, ``weight``.
+    """
+    holding: dict = {}
+    for task in tasks:
+        for blocked in task.focus_blocks:
+            _add_person(holding, blocked.assignee, "waits", task, blocked)
+        for blocker in task.focus_blocked_by:
+            _add_person(holding, blocker.assignee, "waited", task, blocker)
+    for notification in _unread(user, workspace):
+        _add_person(holding, notification.actor, "wrote", None, notification)
+    rows = [row for row in holding.values() if row["rows"]]
+    for row in rows:
+        row["weight"] = row["waits"] * 3 + row["waited"] * 2 + row["wrote"]
+        row["chips"] = _person_chips(row)
+        row["rows"] = row["rows"][: PERSON_ROWS * 2]
+    rows.sort(key=lambda row: (-row["weight"], row["person"].display_name))
+    return rows
+
+
+def _unread(user, workspace):
+    """Return the viewer's unread notifications that name a person.
+
+    Args:
+        user: The viewer.
+        workspace: The active workspace, or ``None``.
+
+    Returns:
+        A list of :class:`~apps.notifications.models.Notification`.
+    """
+    from apps.notifications.models import Notification
+
+    queryset = Notification.objects.filter(
+        recipient=user,
+        is_read=False,
+        archived_at__isnull=True,
+        actor__isnull=False,
+    ).select_related("actor", "task__project")
+    if workspace is not None:
+        queryset = queryset.filter(workspace=workspace)
+    return list(queryset.order_by("-created_at")[:20])
+
+
+def _add_person(holding: dict, person, kind: str, task, other) -> None:
+    """File one pending thing under the person it is pending with.
+
+    Args:
+        holding: The accumulator, keyed by user id.
+        person: The other person, or ``None`` for unassigned work.
+        kind: ``waits`` / ``waited`` / ``wrote``.
+        task: The viewer's task, where there is one.
+        other: The task or notification on the other side.
+    """
+    if person is None:
+        return
+    row = holding.setdefault(
+        person.id,
+        {
+            "person": person,
+            "rows": [],
+            "waits": 0,
+            "waited": 0,
+            "wrote": 0,
+        },
+    )
+    row[kind] += 1
+    row["rows"].append(
+        {
+            "kind": kind,
+            "task": task,
+            "other": other,
+        },
+    )
+
+
+def _person_chips(row) -> list[dict]:
+    """Return the chips summarising what is pending with one person.
+
+    Args:
+        row: The accumulated person row.
+
+    Returns:
+        Chip dicts with ``text`` and ``tone``, zeros left out.
+    """
+    chips = []
+    if row["waits"]:
+        chips.append(
+            {
+                "text": _("you block %(count)d") % {"count": row["waits"]},
+                "tone": "bg-rose-500/15 text-rose-300",
+            },
+        )
+    if row["waited"]:
+        chips.append(
+            {
+                "text": _("blocks you %(count)d") % {"count": row["waited"]},
+                "tone": "bg-amber-500/10 text-amber-300",
+            },
+        )
+    if row["wrote"]:
+        chips.append(
+            {
+                "text": ngettext("%(count)d unread", "%(count)d unread", row["wrote"]) % {"count": row["wrote"]},
+                "tone": "bg-brand-500/15 text-brand-300",
+            },
+        )
+    return chips
+
+
+def week(tasks, today=None) -> list[dict]:
+    """Return the next five working days and what lands on each.
+
+    Weekends are skipped rather than drawn empty: a column that is
+    always blank teaches the reader to skip the row it is in.
+
+    Args:
+        tasks: The viewer's open tasks, from :func:`focus_tasks`.
+        today: Reference date; defaults to the local current date.
+
+    Returns:
+        Day dicts with ``date``, ``is_today``, ``tasks`` and
+        ``milestones``.
+    """
+    today = today or timezone.localdate()
+    days = []
+    for offset in range(WEEK_LOOKAHEAD):
+        if len(days) == WEEK_COLUMNS:
+            break
+        day = today + datetime.timedelta(days=offset)
+        if day.weekday() >= 5:
+            continue
+        landing = [task for task in tasks if task.due_date == day]
+        milestones = {
+            task.milestone.id: task.milestone
+            for task in tasks
+            if task.milestone and not task.milestone.is_closed and task.milestone.target_date == day
+        }
+        days.append(
+            {
+                "date": day,
+                "offset": offset,
+                "is_today": offset == 0,
+                "label": _day_label(day, offset),
+                "tasks": landing,
+                "milestones": sorted(milestones.values(), key=lambda milestone: milestone.name),
+                "heavy": len(landing) >= 3,
+            },
+        )
+    return days
+
+
+def _day_label(day, offset) -> str:
+    """Name a day the way a person would say it.
+
+    Args:
+        day: The date.
+        offset: Days from today.
+
+    Returns:
+        ``Today`` / ``Tomorrow`` / ``Mon 14``.
+    """
+    if not offset:
+        return str(_("Today"))
+    if offset == 1:
+        return str(_("Tomorrow"))
+    return f"{day:%a} {day.day}"
+
+
+def calls(meetings, tasks, today=None) -> list[dict]:
+    """Return the viewer's next calls, each with what to bring to it.
+
+    A call whose title names a milestone the viewer owes work to is the
+    one they most need to prepare for, so the card says how much of that
+    work is still open rather than making them go and look.
+
+    Args:
+        meetings: Their upcoming meetings, soonest first.
+        tasks: Their open tasks, from :func:`focus_tasks`.
+        today: Reference date; defaults to the local current date.
+
+    Returns:
+        Row dicts with ``meeting``, ``label`` and ``prep``.
+    """
+    today = today or timezone.localdate()
+    rows = []
+    for meeting in meetings:
+        day = timezone.localtime(meeting.happened_at).date()
+        offset = (day - today).days
+        if offset < 0 or offset > CALLS_DAYS - 1:
+            continue
+        rows.append(
+            {
+                "meeting": meeting,
+                "offset": offset,
+                "label": _day_label(day, offset),
+                "prep": _call_prep(meeting, tasks, today),
+            },
+        )
+    return rows
+
+
+def _call_prep(meeting, tasks, today) -> dict:
+    """Return what the viewer owes the date this call is about.
+
+    Args:
+        meeting: The call.
+        tasks: The viewer's open tasks.
+        today: Reference date.
+
+    Returns:
+        ``text`` and ``tone``.
+    """
+    title = meeting.title.lower()
+    for task in tasks:
+        milestone = task.milestone
+        if milestone is None or milestone.is_closed or milestone.name.lower() not in title:
+            continue
+        theirs = [other for other in tasks if other.milestone_id == milestone.id]
+        behind = [
+            other
+            for other in theirs
+            if other.due_date and (other.due_date > milestone.target_date or other.due_date < today)
+        ]
+        text = ngettext(
+            "%(name)s · %(count)d of yours open",
+            "%(name)s · %(count)d of yours open",
+            len(theirs),
+        ) % {"name": milestone.name, "count": len(theirs)}
+        if behind:
+            text += str(_(", %(count)d late") % {"count": len(behind)})
+        return {
+            "text": text,
+            "tone": "text-rose-400" if behind else "text-placeholder-foreground",
+        }
+    return {
+        "text": _("no milestone linked"),
+        "tone": "text-placeholder-foreground",
+    }
+
+
+def feed(user, workspace):
+    """Return what other people did on the viewer's work lately.
+
+    Args:
+        user: The viewer.
+        workspace: The active workspace, or ``None``.
+
+    Returns:
+        A list of :class:`~apps.notifications.models.Notification`,
+        newest first.
+    """
+    from apps.notifications.models import Notification
+
+    queryset = Notification.objects.filter(
+        recipient=user,
+        archived_at__isnull=True,
+        actor__isnull=False,
+    ).select_related("actor", "task__project")
+    if workspace is not None:
+        queryset = queryset.filter(workspace=workspace)
+    return list(queryset.order_by("-created_at")[:FEED_LIMIT])

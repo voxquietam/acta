@@ -14,7 +14,6 @@ HTMX filter swaps.
 {% if request.META.HTTP_HX_REQUEST %}
 {% endif %}
 {% include "web/_my_work_focus.html" %}
-{% include "web/meetings/_my_work_calls.html" %}
 {% if not has_any_tasks %}
 <div class="text-center py-20">
   <div class="w-12 h-12 rounded-full border border-dashed border-border-strong grid place-items-center text-placeholder-foreground mx-auto mb-3">
