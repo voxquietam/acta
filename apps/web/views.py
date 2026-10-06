@@ -192,6 +192,10 @@ def _timeline_context(table_tasks, today):
     chart_end = max(raw_max + datetime.timedelta(days=14), chart_start + datetime.timedelta(days=90))
     return {
         "timeline_tasks": timeline_tasks,
+        # The chart draws rows, and a row is a task or — on the Plan tab —
+        # a group it belongs to. Both columns iterate this one list so the
+        # left labels and the bars stay in lockstep.
+        "timeline_rows": [{"kind": "task", "task": task, "indent": 0} for task in timeline_tasks],
         "chart_start_iso": chart_start.isoformat(),
         "chart_end_iso": chart_end.isoformat(),
         "today_iso": today.isoformat(),
@@ -255,13 +259,28 @@ def _plan_context(request, tasks, today) -> dict:
         the knob's options.
     """
     cut = plan.resolve_cut(request)
-    return {
+    render_mode = plan.resolve_render(request)
+    context = {
         "plan_cut": cut,
         "plan_cut_label": plan.CUT_LABELS[cut],
         "plan_heading": plan.CUT_HEADINGS[cut],
         "plan_cuts": [{"key": key, "label": label} for key, label in plan.CUT_LABELS.items()],
-        "plan_rows": plan.build_plan_rows(tasks, cut, today),
+        "plan_render": render_mode,
+        "plan_renders": [{"key": key, "label": label} for key, label in plan.RENDERS.items()],
     }
+    rows = plan.build_plan_rows(tasks, cut, today)
+    context["plan_rows"] = rows
+    # The header's count line, in the design's words: how many dates this
+    # plan is about, and how much work counts towards them.
+    context["plan_milestone_count"] = len({row["milestone"].pk for row in rows if row.get("milestone")})
+    context["plan_counted"] = sum(1 for row in rows if row["kind"] == "task")
+    if render_mode == "timeline":
+        # The Gantt, with the cut's own rows in place of a flat task list:
+        # a group draws as a marker (a milestone's date) or a thin span
+        # (an epic's window), a task draws as the bar it draws everywhere.
+        context.update(_timeline_context(tasks, today))
+        context["timeline_rows"] = rows
+    return context
 
 
 def _resolve_list_axis(request, *, default, options):
@@ -3232,8 +3251,11 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         ctx["show_epic"] = _show_epic_column(self.request, project.workspace)
         ctx["table_colspan"] = _table_colspan(ctx)
 
-        # Timeline context — shared derivation with AllTasksView.
-        ctx.update(_timeline_context(table_tasks, today))
+        # Timeline context — shared derivation with AllTasksView. Not on
+        # the Plan tab: the chart there draws the plan's own rows, and
+        # this would put the flat task list back over them.
+        if view_mode != "plan":
+            ctx.update(_timeline_context(table_tasks, today))
 
         return ctx
 

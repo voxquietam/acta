@@ -1451,9 +1451,15 @@
   // it idempotent: a fresh swap clears it (re-init), an unrelated swap that
   // leaves the same gantt in place skips. i18n strings can't use template
   // tags here — they ride in on ``#tl-gantt`` ``data-i18n-*`` attributes.
-  function initTimeline() {
-    const gantt = document.getElementById("tl-gantt");
+  // ``root`` is the element carrying ``data-tl="gantt"``. Everything the
+  // chart needs hangs under its ``[data-timeline]`` wrapper and is found
+  // by ``data-tl`` marker, never by id: the Plan tab draws a second
+  // timeline on the same page, and two elements cannot share an id.
+  function initTimeline(gantt) {
     if (!gantt) return;
+    const scope = gantt.closest("[data-timeline]") || document;
+    const q = (name) => scope.querySelector(`[data-tl="${name}"]`);
+    const qa = (selector) => scope.querySelectorAll(selector);
     if (gantt.dataset.tlInit === "1") return; // already bound on this element
     gantt.dataset.tlInit = "1";
 
@@ -1470,20 +1476,16 @@
       overdue: gantt.dataset.i18nOverdue || "overdue",
       startAfterEnd: gantt.dataset.i18nStartAfterEnd || "start after end",
       endAfterDue: gantt.dataset.i18nEndAfterDue || "ends after deadline",
+      pastMilestone: gantt.dataset.i18nPastMilestone || "past milestone",
+      milestones: gantt.dataset.i18nMilestones || "milestones",
+      sharedDate: gantt.dataset.i18nSharedDate || "shared date",
+      sharedDates: gantt.dataset.i18nSharedDates || "shared dates",
     };
 
     const MONTHS = ["January", "February", "March", "April", "May", "June",
       "July", "August", "September", "October", "November", "December"];
     const DAY_W = { day: 44, week: 20, month: 9 };
     const LS_KEY = "acta_timeline_zoom";
-    const BAR_CLASS = {
-      "planned": "tl-c-planned",
-      "ready": "tl-c-ready",
-      "to-do": "tl-c-todo",
-      "in-progress": "tl-c-inprogress",
-      "in-review": "tl-c-inreview",
-      "done": "tl-c-done",
-    };
     const STATUS_COLOR = {
       "planned": "rgb(82 82 91)",
       "ready": "rgb(6 182 212)",
@@ -1540,8 +1542,8 @@
     );
 
     function renderHeader(dayW) {
-      const monthsEl = document.getElementById("tl-months");
-      const unitsEl = document.getElementById("tl-units");
+      const monthsEl = q("months");
+      const unitsEl = q("units");
       monthsEl.innerHTML = "";
       unitsEl.innerHTML = "";
 
@@ -1610,16 +1612,52 @@
 
       const fullW = (renderDays * dayW) + "px";
       gantt.style.minWidth = fullW;
-      document.getElementById("tl-body").style.minWidth = fullW;
+      q("body").style.minWidth = fullW;
     }
 
+    // How much of the bar is filled, by status: the design's reading of
+    // "how far along is this one piece of work" — done is the whole bar,
+    // in review most of it, in progress not yet half.
+    const BAR_FILL = {
+      "done": "100%",
+      "in-review": "75%",
+      "in-progress": "45%",
+    };
     function barClass(status, overdue) {
-      return overdue ? "tl-c-overdue" : (BAR_CLASS[status] || "tl-c-planned");
+      return overdue ? "tl-overdue" : "";
+    }
+
+    // The part of a bar that runs past the date it was committed to.
+    // Rose from the line on, with the overrun spelled out after the bar:
+    // a plan that contradicts itself should say so where it happens, not
+    // only in a column at the far right.
+    function renderOverrun(row, dayW) {
+      const msDate = parseDate(row.dataset.msDate);
+      // Measured against the deadline, not the work bar: "late" here is
+      // the milestone rule the rest of the product states — unfinished
+      // and due after the date it was committed to (ADR 0037). An open
+      // task usually has no end date at all.
+      const limit = parseDate(row.dataset.due) || parseDate(row.dataset.end);
+      if (!msDate || !limit || limit <= msDate) return;
+      if (row.dataset.status === "done") return;
+      const left = (diffDays(chartStart, msDate) + 1) * dayW;
+      const width = Math.max(dayW, diffDays(msDate, limit) * dayW);
+      const over = document.createElement("div");
+      over.className = "tl-gwrap tl-overrun";
+      over.style.cssText = `left:${left}px;width:${width}px;pointer-events:none;`;
+      over.innerHTML =
+        '<div style="width:100%;height:100%;border-radius:0 5px 5px 0;' +
+        'background:rgb(244 63 94 / .15);border:1px solid rgb(244 63 94 / .5);border-left:0;"></div>' +
+        `<span style="position:absolute;left:100%;top:0;height:100%;display:flex;align-items:center;` +
+        `margin-left:8px;font-family:ui-monospace,monospace;font-size:10px;white-space:nowrap;` +
+        `color:rgb(251 113 133);">+${diffDays(msDate, limit)}d ${L.pastMilestone}</span>`;
+      row.appendChild(over);
     }
 
     function renderBars(dayW) {
-      document.querySelectorAll(".tl-row").forEach((row) => {
-        row.querySelectorAll(".tl-gwrap,.tl-nodate,.tl-deadline").forEach((el) => el.remove());
+      qa(".tl-row").forEach((row) => {
+        row.querySelectorAll(".tl-gwrap,.tl-nodate,.tl-deadline,.tl-overrun").forEach((el) => el.remove());
+        renderOverrun(row, dayW);
 
         const start = parseDate(row.dataset.start);
         const end = parseDate(row.dataset.end);
@@ -1651,7 +1689,10 @@
           wrap.className = "tl-gwrap";
           wrap.style.left = left + "px";
           wrap.style.width = width + "px";
-          wrap.innerHTML = `<div class="tl-gbar ${cls}"><span class="tl-label">${tlEsc(title)}</span></div>`;
+          wrap.innerHTML =
+            `<div class="tl-gbar ${cls}">` +
+            `<span class="tl-gfill" style="width:${BAR_FILL[status] || "0%"}"></span>` +
+            "</div>";
           wrap.addEventListener("mouseenter", (e) => showTip(e, row));
           wrap.addEventListener("mousemove", moveTip);
           wrap.addEventListener("mouseleave", hideTip);
@@ -1715,18 +1756,18 @@
     function updateMissingCount() {
       // Flag tasks with no deadline — the one date you plan ahead here.
       let missing = 0;
-      document.querySelectorAll("#tl-body .tl-row:not([hidden])").forEach((row) => {
+      qa(".tl-row:not([hidden])").forEach((row) => {
         if (!row.dataset.due) missing++;
       });
-      const badge = document.getElementById("tl-missing");
+      const badge = q("missing");
       badge.textContent = missing > 0 ? `${missing} ${L.withoutDeadline}` : "";
     }
 
-    const tip = document.getElementById("tl-tip");
-    const tipTitle = document.getElementById("tl-tip-title");
-    const tipStart = document.getElementById("tl-tip-start");
-    const tipEnd = document.getElementById("tl-tip-end");
-    const tipDue = document.getElementById("tl-tip-due");
+    const tip = q("tip");
+    const tipTitle = q("tip-title");
+    const tipStart = q("tip-start");
+    const tipEnd = q("tip-end");
+    const tipDue = q("tip-due");
     const ICO_CLOCK = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
     const ICO_FLAG = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>';
     const ICO_CAL = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>';
@@ -1805,7 +1846,7 @@
         if (Math.abs(dx) > 3) { moved = true; _tlDragging = true; }
         const snapDx = Math.round(dx / dayW) * dayW;
         mark.style.left = Math.max(0, origL + snapDx) + "px";
-        const snap = document.getElementById("tl-snap");
+        const snap = q("snap");
         snap.style.display = "block";
         snap.style.left = (parseInt(mark.style.left, 10) + 6) + "px";
       });
@@ -1814,7 +1855,7 @@
         if (!dragging) return;
         dragging = false;
         mark.classList.remove("tl-deadline-active");
-        document.getElementById("tl-snap").style.display = "none";
+        q("snap").style.display = "none";
         setTimeout(() => { _tlDragging = false; }, 0);
         if (!moved) {
           openModal(e, row);
@@ -1857,57 +1898,84 @@
     // Chips that would overlap drop to a second lane and keep their line;
     // the strip grows to fit, and collapses to nothing when there is
     // nothing to mark.
-    const MS_LANE_H = 20;
+    const MS_LANE_H = 22;
     const MS_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const shortDate = (d) => MS_MONTHS[d.getMonth()] + " " + d.getDate();
     const escapeHtml = (text) => String(text).replace(/[&<>"']/g, (ch) => ({
       "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
     })[ch]);
+
+    // Milestones as markers, the way MS Project, Linear and Asana draw
+    // them: a line down the chart and a chip in the lane at the top,
+    // never a band — a milestone is a point and has no duration to fill
+    // (ADR 0037). Dates that fall on the same day merge into one chip
+    // that says how many, because two chips on one line cannot both be
+    // read. Chips that would still overlap drop to a second row and keep
+    // their line; the lane grows to fit and collapses to nothing when
+    // there is nothing to mark.
     function renderMilestones(dayW) {
-      const strip = document.getElementById("tl-ms-strip");
-      const lines = document.getElementById("tl-ms-lines");
-      const data = document.getElementById("tl-ms-data");
+      const strip = q("ms-strip");
+      const lines = q("ms-lines");
+      const data = q("ms-data");
+      const leftCell = q("ms-left");
+      const note = q("ms-note");
       if (!strip || !lines || !data) return;
       strip.innerHTML = "";
       lines.innerHTML = "";
-      const marks = [...data.children];
-      if (!marks.length) {
+      const hide = () => {
         strip.style.height = "0px";
-        return;
-      }
-      const rows = document.querySelectorAll("#tl-body .tl-row:not([hidden])").length;
-      const height = rows * 40;
+        if (leftCell) leftCell.style.display = "none";
+      };
+      const marks = [...data.children];
+      if (!marks.length) return hide();
+
+      // One entry per date, however many milestones share it.
+      const byDate = new Map();
+      marks.forEach((mark) => {
+        const key = mark.dataset.msDate;
+        if (!key) return;
+        if (!byDate.has(key)) byDate.set(key, []);
+        byDate.get(key).push(mark);
+      });
+      if (!byDate.size) return hide();
+
+      const body = q("body");
+      const height = body ? body.scrollHeight : 0;
       const sprite = gantt.dataset.sprite || "";
       const lanes = [];
-      marks.forEach((mark) => {
-        const date = parseDate(mark.dataset.msDate);
+      let shared = 0;
+      [...byDate.entries()].sort().forEach(([iso, group]) => {
+        const date = parseDate(iso);
         if (!date) return;
         const x = diffDays(chartStart, date) * dayW;
-        const closed = mark.dataset.msClosed === "1";
+        const closed = group.every((m) => m.dataset.msClosed === "1");
         const overdue = !closed && date < today;
         const colour = closed ? CSS_PFGD : overdue ? "rgb(251 113 133)" : CSS_BRAND_A;
+        if (group.length > 1) shared += 1;
 
         const line = document.createElement("div");
         line.style.cssText = "position:absolute;top:0;width:0;pointer-events:none;" +
           `height:${height}px;left:${x}px;border-left:1px ${closed ? "dotted" : "dashed"} ${colour};`;
         lines.appendChild(line);
 
-        const chip = document.createElement("a");
-        chip.href = mark.dataset.msUrl;
-        chip.title = mark.dataset.msName + " · " + mark.dataset.msDate;
+        const label = group.length > 1
+          ? `${group.length} ${L.milestones}`
+          : group[0].dataset.msName;
+        const chip = document.createElement(group.length > 1 ? "span" : "a");
+        if (group.length === 1) chip.href = group[0].dataset.msUrl;
+        chip.title = group.map((m) => `${m.dataset.msName} · ${m.dataset.msDate}`).join("\n");
         chip.innerHTML =
           `<svg width="10" height="10" viewBox="0 0 24 24" style="flex:none;color:${colour}">` +
           `<use href="${sprite}#lu-diamond"/></svg>` +
-          `<span style="overflow:hidden;text-overflow:ellipsis">${escapeHtml(mark.dataset.msName)}</span>` +
+          `<span style="overflow:hidden;text-overflow:ellipsis">${escapeHtml(label)}</span>` +
           `<span style="font-family:ui-monospace,monospace;color:${CSS_PFGD}">${shortDate(date)}</span>`;
         chip.style.cssText = "position:absolute;display:inline-flex;align-items:center;gap:4px;" +
-          "height:16px;padding:0 6px;border-radius:5px;font-size:10px;white-space:nowrap;" +
+          "height:18px;padding:0 6px;border-radius:5px;font-size:10px;white-space:nowrap;z-index:10;" +
           `background:rgb(var(--card));border:1px solid ${colour};color:rgb(var(--foreground));` +
-          "max-width:200px;overflow:hidden;";
-        // Width is only knowable once it is in the DOM, and the lane it
-        // lands in depends on that width — so measure, then place.
+          "max-width:220px;overflow:hidden;";
         strip.appendChild(chip);
-        const w = chip.getBoundingClientRect().width || 80;
+
+        const w = chip.getBoundingClientRect().width || 90;
         // Near the right edge the chip hangs off the chart, so it flips
         // to the other side of its own line rather than being cut.
         const flip = x + w > strip.scrollWidth - 8;
@@ -1919,19 +1987,59 @@
         }
         lanes[lane] = left + w;
         chip.style.left = left + "px";
-        chip.style.top = (lane * MS_LANE_H + 2) + "px";
+        chip.style.top = (lane * MS_LANE_H + 3) + "px";
       });
-      strip.style.height = lanes.length ? (lanes.length * MS_LANE_H + 4) + "px" : "0px";
+
+      const stripH = lanes.length ? lanes.length * MS_LANE_H + 6 : 0;
+      strip.style.height = stripH + "px";
+      if (leftCell) {
+        leftCell.style.display = stripH ? "flex" : "none";
+        leftCell.style.height = stripH + "px";
+      }
+      if (note) {
+        note.textContent = shared
+          ? `${shared} ${shared === 1 ? L.sharedDate : L.sharedDates}`
+          : "";
+      }
+    }
+
+    // A group row on the Plan tab. A milestone is a point, so it draws
+    // as a diamond on its date and nothing else — no band, no duration
+    // (ADR 0037). An epic or a status row draws nothing at all: those
+    // are readings of the work, not commitments, and the design leaves
+    // their track empty for exactly that reason.
+    const MS_STATE_COLOUR = {
+      overdue: "rgb(251 113 133)",
+      complete: "rgb(16 185 129)",
+      closed: CSS_PFGD,
+    };
+    function renderLanes(dayW) {
+      qa(".tl-lane").forEach((lane) => {
+        lane.querySelectorAll(".tl-lane-mark").forEach((el) => el.remove());
+        const date = parseDate(lane.dataset.laneDate);
+        if (!date) return;
+        const mark = document.createElement("span");
+        mark.className = "tl-lane-mark";
+        mark.title = lane.dataset.laneLabel || "";
+        mark.style.cssText = "position:absolute;top:50%;width:10px;height:10px;border-radius:2px;" +
+          `left:${diffDays(chartStart, date) * dayW}px;transform:translate(-50%,-50%) rotate(45deg);` +
+          `background:${MS_STATE_COLOUR[lane.dataset.laneState] || CSS_BRAND_A};`;
+        lane.appendChild(mark);
+      });
     }
 
     function renderTodayLine(dayW) {
-      const line = document.getElementById("tl-today-line");
-      const snap = document.getElementById("tl-snap");
-      const rows = document.querySelectorAll("#tl-body .tl-row:not([hidden])").length;
+      const line = q("today-line");
+      const snap = q("snap");
+      // The body's own height, not a row count: the Plan's rows are not
+      // all 40px (its note lines are shorter), and a counted height left
+      // the lines short by one note each.
+      const body = q("body");
+      const height = body ? body.scrollHeight : 0;
       line.style.left = (diffDays(chartStart, today) * dayW) + "px";
-      line.style.height = (rows * 40) + "px";
+      line.style.height = height + "px";
       line.style.display = "block";
-      snap.style.height = (rows * 40 + 56) + "px";
+      snap.style.height = (height + 56) + "px";
     }
 
     // Re-run by acta.js applyClientFilters after a client-side filter pass.
@@ -1944,14 +2052,14 @@
     // Single scroller (#tl-scroll) handles both axes; sticky left column +
     // sticky date header are CSS-only. No JS scroll sync — eliminates the
     // trackpad lag the previous two-pane setup couldn't dodge.
-    const scrollContainer = document.getElementById("tl-scroll");
+    const scrollContainer = q("scroll");
     const STICKY_LEFT_W = 260;
     const todayScrollLeft = (dayW, frac) => {
       const visibleGanttW = Math.max(0, scrollContainer.clientWidth - STICKY_LEFT_W);
       return Math.max(0, diffDays(chartStart, today) * dayW - visibleGanttW * frac);
     };
 
-    document.getElementById("tl-today-btn").addEventListener("click", () => {
+    q("today-btn").addEventListener("click", () => {
       scrollContainer.scrollTo({ left: todayScrollLeft(DAY_W[zoom], 0.35), behavior: "smooth" });
     });
 
@@ -1960,6 +2068,7 @@
       renderHeader(dayW);
       renderBars(dayW);
       renderTodayLine(dayW);
+      renderLanes(dayW);
       renderMilestones(dayW);
       requestAnimationFrame(() => {
         scrollContainer.scrollLeft = todayScrollLeft(dayW, 0.4);
@@ -1987,11 +2096,15 @@
     }
   }
 
-  document.body.addEventListener("htmx:afterSettle", initTimeline);
+  function initTimelines() {
+    document.querySelectorAll('[data-tl="gantt"]').forEach(initTimeline);
+  }
+
+  document.body.addEventListener("htmx:afterSettle", initTimelines);
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initTimeline);
+    document.addEventListener("DOMContentLoaded", initTimelines);
   } else {
-    initTimeline();
+    initTimelines();
   }
 
   // Walk every kanban column, look at the *visible* cards inside,

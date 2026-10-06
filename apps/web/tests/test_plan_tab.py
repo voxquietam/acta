@@ -226,3 +226,26 @@ class TestThePage:
         group = next(row for row in resp.context["plan_rows"] if row["kind"] == "group")
 
         assert project.slug_prefix not in str(group["scope"])
+
+
+@pytest.mark.django_db
+class TestTheNoteRow:
+    """Work attached straight to a date is not an oversight."""
+
+    def test_direct_work_under_a_milestone_says_what_it_is(self, setup):
+        _, _, project, soon, _, epic = setup
+        TaskFactory(project=project, milestone=soon, epic=epic, status=Task.STATUS_TODO)
+        TaskFactory(project=project, milestone=soon, status=Task.STATUS_TODO)
+        tasks = Task.objects.filter(project=project, kind=Task.KIND_TASK).select_related("milestone", "epic")
+
+        notes = [str(row["label"]) for row in rows_for(tasks, "me") if row["kind"] == "note"]
+
+        assert notes == ["1 task without an epic — attached directly"]
+
+    def test_the_other_cut_needs_no_note(self, setup):
+        _, _, project, soon, _, epic = setup
+        TaskFactory(project=project, milestone=soon, epic=epic, status=Task.STATUS_TODO)
+        TaskFactory(project=project, milestone=soon, status=Task.STATUS_TODO)
+        tasks = Task.objects.filter(project=project, kind=Task.KIND_TASK).select_related("milestone", "epic")
+
+        assert [row for row in rows_for(tasks, "em") if row["kind"] == "note"] == []

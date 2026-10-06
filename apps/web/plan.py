@@ -18,9 +18,11 @@ date falls after the date it is committed to.
 
 import datetime
 
+from django.utils.formats import date_format
 from django.utils.translation import gettext_lazy as _
 from django.utils.translation import ngettext
 
+from apps.milestones import services as milestone_services
 from apps.tasks.models import Task
 
 #: The cuts the knob offers: ``key -> (first level, second level)``.
@@ -49,6 +51,15 @@ CUT_HEADINGS = {
 
 DEFAULT_CUT = "me"
 
+#: How the cut is drawn. The tree answers "what is in what"; the
+#: timeline answers "when", with the same rows against a calendar.
+RENDERS = {
+    "tree": _("Tree"),
+    "timeline": _("Timeline"),
+}
+
+DEFAULT_RENDER = "tree"
+
 
 def resolve_cut(request) -> str:
     """Resolve the Plan cut: querystring → cookie → default.
@@ -64,6 +75,22 @@ def resolve_cut(request) -> str:
         return raw
     cookie = request.COOKIES.get("acta_plan_cut")
     return cookie if cookie in CUTS else DEFAULT_CUT
+
+
+def resolve_render(request) -> str:
+    """Resolve how the Plan is drawn: querystring → cookie → default.
+
+    Args:
+        request: The active request.
+
+    Returns:
+        A key of :data:`RENDERS`.
+    """
+    raw = request.GET.get("render")
+    if raw in RENDERS:
+        return raw
+    cookie = request.COOKIES.get("acta_plan_render")
+    return cookie if cookie in RENDERS else DEFAULT_RENDER
 
 
 def _counts(task) -> bool:
@@ -244,17 +271,93 @@ def build_plan_rows(tasks: list, cut: str, today=None) -> list[dict]:
     first, second = CUTS.get(cut, CUTS[DEFAULT_CUT])
     rows: list[dict] = []
     if first is None:
-        rows.extend(_task_row(task, depth=0) for task in _sorted(counted))
+        rows.extend(_leaves(counted, "flat", 0))
         return rows
     for group in _GROUPERS[first](counted):
         rows.append(_group_row(group, depth=0))
         if second is None:
-            rows.extend(_task_row(task, depth=1, parent=group["key"]) for task in _sorted(group["tasks"]))
+            rows.extend(_leaves(group["tasks"], group["key"], 1))
             continue
         for inner in _GROUPERS[second](group["tasks"]):
             inner_key = f"{group['key']}:{inner['key']}"
             rows.append(_group_row(inner, depth=1, key=inner_key, parent=group["key"]))
-            rows.extend(_task_row(task, depth=2, parent=inner_key) for task in _sorted(inner["tasks"]))
+            note = _direct_note(first, second, inner)
+            if note:
+                rows.append(
+                    {
+                        "kind": "note",
+                        "depth": 2,
+                        "indent": 44,
+                        "ancestors": _ancestors(inner_key),
+                        "key": f"{inner_key}:note",
+                        "parent": inner_key,
+                        "label": note,
+                    },
+                )
+            rows.extend(_leaves(inner["tasks"], inner_key, 2))
+    return rows
+
+
+def _direct_note(first: str, second: str, group: dict) -> str:
+    """Say what a bucket of leftovers actually is, in the tree.
+
+    Under a milestone, the tasks with no epic are not "unsorted" — they
+    are attached to the date directly, which is a normal thing to be and
+    reads as an omission unless the row says so.
+
+    Args:
+        first: The outer level of the cut.
+        second: The inner level.
+        group: The inner bucket.
+
+    Returns:
+        A translated line, or empty when the bucket needs no explaining.
+    """
+    if first != "milestone" or second != "epic" or group["epic"] is not None:
+        return ""
+    count = len(group["tasks"])
+    return ngettext(
+        "%(count)d task without an epic — attached directly",
+        "%(count)d tasks without an epic — attached directly",
+        count,
+    ) % {"count": count}
+
+
+def _leaves(tasks: list, parent: str, depth: int) -> list[dict]:
+    """Return a bucket's task rows, with the finished work folded away.
+
+    Done work is the bulk of a long-running milestone and the part
+    nobody is looking for; it collapses behind a line that says how much
+    there is, and expands in place. Unfinished work is never folded —
+    that is the work the page is about.
+
+    Args:
+        tasks: The bucket's tasks.
+        parent: The collapse key the rows sit under.
+        depth: Indent level for the rows.
+
+    Returns:
+        Task rows, plus a fold line and the done rows behind it.
+    """
+    ordered = _sorted(tasks)
+    open_work = [task for task in ordered if task.status != Task.STATUS_DONE]
+    done = [task for task in ordered if task.status == Task.STATUS_DONE]
+    rows = [_task_row(task, depth=depth, parent=parent) for task in open_work]
+    if not done:
+        return rows
+    fold_key = f"{parent}:done"
+    rows.append(
+        {
+            "kind": "fold",
+            "depth": depth,
+            "indent": depth * 22,
+            "ancestors": _ancestors(parent),
+            "key": fold_key,
+            "parent": parent,
+            "label": ngettext("%(count)d done", "%(count)d done", len(done)) % {"count": len(done)},
+        },
+    )
+    rows.extend(_task_row(task, depth=depth, parent=fold_key) for task in done)
     return rows
 
 
@@ -294,6 +397,8 @@ def _group_row(group: dict, *, depth: int, key: str | None = None, parent: str |
         "kind": "group",
         "depth": depth,
         "indent": depth * 22,
+        "state": None,
+        "sub": "",
         # Every ancestor this row hides behind, so one ``x-show`` can ask
         # about the whole chain: a task under an open epic inside a
         # collapsed milestone is still collapsed.
@@ -308,6 +413,20 @@ def _group_row(group: dict, *, depth: int, key: str | None = None, parent: str |
     }
     row.update(_aggregate(group["tasks"]))
     row["scope"] = _group_scope(group)
+    # The second line under the name. A milestone says where its date
+    # stands, because that is the whole of what it is; anything else says
+    # how much work it holds, because that is the whole of what it is.
+    milestone = group["milestone"]
+    if milestone is not None:
+        state = milestone.state()
+        row["state"] = state
+        row["sub"] = f"{date_format(milestone.target_date, 'M j')} · {milestone_services.countdown(milestone, state)}"
+    else:
+        row["sub"] = ngettext(
+            "%(count)d task",
+            "%(count)d tasks",
+            len(group["tasks"]),
+        ) % {"count": len(group["tasks"])}
     return row
 
 
@@ -388,4 +507,8 @@ def _task_row(task, *, depth: int, parent: str | None = None) -> dict:
         "parent": parent,
         "task": task,
         "late": _late_days(task),
+        # The date the bar turns rose at, for the chart: everything past
+        # the milestone this task is committed to is overrun, and the
+        # line it crosses is the point it was committed to.
+        "milestone_date": task.milestone.target_date if task.milestone_id else None,
     }
