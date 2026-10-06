@@ -19,6 +19,7 @@ class ActivityLog(models.Model):
     TARGET_MEMBER = "member"
     TARGET_ATTACHMENT = "attachment"
     TARGET_MEETING = "meeting"
+    TARGET_MILESTONE = "milestone"
 
     workspace = models.ForeignKey(
         "workspaces.Workspace",
@@ -38,7 +39,8 @@ class ActivityLog(models.Model):
     target_type = models.CharField(
         max_length=20,
         help_text=(
-            "Kind of object the event is about: task, comment, project, " "workspace, member, attachment, or meeting"
+            "Kind of object the event is about: task, comment, project, workspace, member, "
+            "attachment, meeting, or milestone"
         ),
     )
     target_id = models.PositiveBigIntegerField(
