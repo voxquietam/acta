@@ -19,11 +19,13 @@ belongs in the list below, not at the top of the page.
 
 import datetime
 
+from django.db.models import Count, OuterRef, Prefetch, Q, Subquery
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.utils.translation import ngettext
 
-from apps.tasks.models import Task
+from apps.activity.models import ActivityLog
+from apps.tasks.models import Task, counted_q
 
 #: How many ranked rows "Do first" shows. Six is what fits above the
 #: fold; a seventh would be read as a backlog rather than as a shortlist.
@@ -302,10 +304,6 @@ def focus_tasks(user, workspace=None):
     Returns:
         A list of :class:`~apps.tasks.models.Task`.
     """
-    from django.db.models import OuterRef, Prefetch, Subquery
-
-    from apps.activity.models import ActivityLog
-
     last_status_change = (
         ActivityLog.objects.filter(
             target_type=ActivityLog.TARGET_TASK,
@@ -329,7 +327,7 @@ def focus_tasks(user, workspace=None):
         # ``project__workspace`` because every row links to the task and
         # the canonical URL names the workspace — without the hop that is
         # one query per ranked row (``task_path`` says so in as many words).
-        .select_related("project__workspace", "milestone")
+        .select_related("project__workspace", "milestone", "epic")
         .prefetch_related(
             Prefetch("blocks", queryset=related),
             Prefetch("blocked_by", queryset=related),
@@ -475,3 +473,324 @@ def tidy_up(tasks, today=None) -> list[dict]:
         for kind, count, label, icon in rows
         if count
     ]
+
+
+#: How many rows "Pick next" offers. Five is a choice; a longer list is
+#: the backlog again, which is the thing this block exists to replace.
+PICK_NEXT_LIMIT = 5
+
+#: Statuses something can be picked up from.
+PICKABLE_STATUSES = [
+    Task.STATUS_READY,
+    Task.STATUS_TODO,
+    Task.STATUS_PLANNED,
+]
+
+
+def pick_next(tasks, ranked, today=None) -> list[dict]:
+    """Return work that is free to start, once the urgent is dealt with.
+
+    The complement of :func:`do_first`, and deliberately not a second
+    ranking: nothing here is pressing, so the order is the plain one a
+    person would use themselves — priority first, then the nearer date.
+
+    Anything ranked at all is left out, not merely what fits on the
+    shortlist: a task that missed the cut is still pressing, and
+    offering it here as something to pick up reads as a bug. So is
+    anything waiting on an unfinished blocker, whoever owns it —
+    "ready" that cannot be started is not ready.
+
+    Args:
+        tasks: The viewer's open tasks, from :func:`focus_tasks`.
+        ranked: The rows :func:`do_first` returned.
+        today: Reference date; defaults to the local current date.
+
+    Returns:
+        Row dicts with ``task``, ``due_label`` and ``due_tone``.
+    """
+    today = today or timezone.localdate()
+    urgent = {row["task"].id for row in ranked}
+    free = [
+        task
+        for task in tasks
+        if task.status in PICKABLE_STATUSES and task.id not in urgent and not _has_open_blocker(task)
+    ]
+    free.sort(key=_pick_order)
+    return [
+        {
+            "task": task,
+            "due_label": due_label(task, today),
+            "due_tone": due_tone(task, today),
+        }
+        for task in free[:PICK_NEXT_LIMIT]
+    ]
+
+
+def _has_open_blocker(task) -> bool:
+    """Whether anything unfinished stands in this task's way.
+
+    Unlike ``focus_blocked_by`` this counts the viewer's own tasks too:
+    for "waiting on you" the owner matters, for "can I start this" it
+    does not.
+
+    Args:
+        task: The task, with ``blocked_by`` prefetched.
+
+    Returns:
+        ``True`` when a blocker is still open.
+    """
+    return any(
+        blocker.status not in (Task.STATUS_DONE, Task.STATUS_CANCELLED) and blocker.archived_at is None
+        for blocker in task.blocked_by.all()
+    )
+
+
+def _pick_order(task):
+    """Sort key for Pick next: priority, then the nearer date.
+
+    ``NO_PRIORITY`` is stored as ``0`` but means "least", so it sorts
+    last rather than first. A task with no date sorts after every dated
+    one instead of ahead of them.
+
+    Args:
+        task: The task being ordered.
+
+    Returns:
+        A tuple ``(priority, due_date, id)``.
+    """
+    return (
+        task.priority if task.priority != Task.NO_PRIORITY else Task.LOW + 1,
+        task.due_date or datetime.date.max,
+        task.id,
+    )
+
+
+#: How many of the viewer's tasks each epic group lists before it stops.
+COMMITMENT_ROWS = 4
+
+
+def commitments(user, tasks, today=None) -> dict:
+    """Return the dates the viewer has promised, hottest first.
+
+    Two numbers per date, and keeping them apart is the point: what the
+    viewer owes it, and what the whole scope owes it. A person who has
+    finished their three tasks has not delivered a milestone, and a bar
+    that showed only their share would say they had.
+
+    Under each date the viewer's own open work, grouped by epic, so the
+    answer to "what do I still owe this date" is on the same card as
+    the date itself.
+
+    Args:
+        user: The viewer.
+        tasks: Their open tasks, from :func:`focus_tasks`.
+        today: Reference date; defaults to the local current date.
+
+    Returns:
+        ``hot`` (the dates in trouble) and ``steady`` (the rest, which
+        the page reduces to a strip of chips).
+    """
+    today = today or timezone.localdate()
+    by_milestone = {}
+    for task in tasks:
+        if task.milestone_id and not task.milestone.is_closed:
+            by_milestone.setdefault(task.milestone_id, []).append(task)
+    if not by_milestone:
+        return {
+            "hot": [],
+            "steady": [],
+        }
+    ids = list(by_milestone)
+    team = _counts_by_epic(Task.objects.work().filter(counted_q(), milestone_id__in=ids))
+    ours = _counts_by_epic(Task.objects.work().filter(counted_q(), milestone_id__in=ids, assignee=user))
+    rows = [_commitment(by_milestone[milestone_id], team, ours, today) for milestone_id in ids]
+    rows.sort(key=lambda row: (row["milestone"].target_date, row["milestone"].id))
+    return {
+        "hot": [row for row in rows if row["hot"]],
+        "steady": [row for row in rows if not row["hot"]],
+    }
+
+
+def _counts_by_epic(queryset) -> dict:
+    """Return ``{(milestone_id, epic_id): (done, total)}`` in one query.
+
+    Args:
+        queryset: Counted work of the milestones in view.
+
+    Returns:
+        Done and total per milestone-and-epic cell.
+    """
+    rows = queryset.values("milestone_id", "epic_id").annotate(
+        total=Count("id"),
+        done=Count("id", filter=Q(status=Task.STATUS_DONE)),
+    )
+    return {(row["milestone_id"], row["epic_id"]): (row["done"], row["total"]) for row in rows}
+
+
+def _commitment(open_tasks, team, ours, today) -> dict:
+    """Build one commitment card from the viewer's open work under a date.
+
+    Args:
+        open_tasks: The viewer's open tasks attached to this milestone.
+        team: Per-epic counts across the whole scope.
+        ours: Per-epic counts of the viewer's own work.
+        today: Reference date.
+
+    Returns:
+        The card dict the template renders.
+    """
+    milestone = open_tasks[0].milestone
+    passed = milestone.target_date < today
+    late = [task for task in open_tasks if task.due_date and task.due_date > milestone.target_date]
+    overdue = [task for task in open_tasks if task.due_date and task.due_date < today]
+    mine_done, mine_total = _total(ours, milestone.id)
+    team_done, team_total = _total(team, milestone.id)
+    return {
+        "milestone": milestone,
+        "date_label": _date_label(milestone.target_date),
+        "countdown": _countdown(milestone, passed, today),
+        "passed": passed,
+        "hot": bool(passed or late or overdue),
+        "line": _commitment_line(open_tasks, late, overdue, passed),
+        "mine_done": mine_done,
+        "mine_total": mine_total,
+        "mine_percent": round(mine_done / mine_total * 100) if mine_total else 0,
+        "team_done": team_done,
+        "team_total": team_total,
+        "team_percent": round(team_done / team_total * 100) if team_total else 0,
+        "groups": _commitment_groups(open_tasks, team, milestone, today),
+    }
+
+
+def _total(cells: dict, milestone_id: int) -> tuple[int, int]:
+    """Sum a per-epic count map down to one milestone's totals.
+
+    Args:
+        cells: ``{(milestone_id, epic_id): (done, total)}``.
+        milestone_id: The milestone to sum.
+
+    Returns:
+        A ``(done, total)`` pair.
+    """
+    done = total = 0
+    for (other, _epic_id), (cell_done, cell_total) in cells.items():
+        if other == milestone_id:
+            done += cell_done
+            total += cell_total
+    return done, total
+
+
+def _commitment_line(open_tasks, late, overdue, passed) -> dict:
+    """Return the one line that says how the viewer stands against a date.
+
+    Args:
+        open_tasks: Their open work under it.
+        late: The part of it due after the date.
+        overdue: The part of it already overdue.
+        passed: Whether the date itself has gone.
+
+    Returns:
+        ``text`` and ``tone``.
+    """
+    if passed:
+        text = ngettext(
+            "date passed — %(count)d of yours still open",
+            "date passed — %(count)d of yours still open",
+            len(open_tasks),
+        ) % {"count": len(open_tasks)}
+    elif late:
+        text = ngettext(
+            "%(count)d of yours ends after this date",
+            "%(count)d of yours end after this date",
+            len(late),
+        ) % {"count": len(late)}
+    elif overdue:
+        text = ngettext(
+            "%(count)d of yours overdue inside it",
+            "%(count)d of yours overdue inside it",
+            len(overdue),
+        ) % {"count": len(overdue)}
+    else:
+        return {
+            "text": _("your part fits the date"),
+            "tone": "text-emerald-400",
+        }
+    return {
+        "text": text,
+        "tone": "text-rose-400",
+    }
+
+
+def _commitment_groups(open_tasks, team, milestone, today) -> list[dict]:
+    """Group the viewer's open work under a date by the epic it belongs to.
+
+    Args:
+        open_tasks: Their open work under the milestone.
+        team: Per-epic counts across the whole scope.
+        milestone: The milestone.
+        today: Reference date.
+
+    Returns:
+        Group dicts, named epics first and the unattached remainder last.
+    """
+    buckets: dict = {}
+    for task in open_tasks:
+        buckets.setdefault(task.epic_id, []).append(task)
+    groups = []
+    for epic_id, rows in buckets.items():
+        rows.sort(key=lambda task: (task.due_date or datetime.date.max, task.id))
+        behind = [
+            task for task in rows if task.due_date and (task.due_date > milestone.target_date or task.due_date < today)
+        ]
+        team_done, team_total = team.get((milestone.id, epic_id), (0, 0))
+        groups.append(
+            {
+                "epic": rows[0].epic if epic_id else None,
+                "open": len(rows),
+                "late": len(behind),
+                "team_done": team_done,
+                "team_total": team_total,
+                "rows": [
+                    {
+                        "task": task,
+                        "due_label": due_label(task, today),
+                        "due_tone": due_tone(task, today),
+                        "behind": task in behind,
+                    }
+                    for task in rows[:COMMITMENT_ROWS]
+                ],
+            },
+        )
+    groups.sort(key=lambda group: (group["epic"] is None, group["epic"].title if group["epic"] else ""))
+    return groups
+
+
+def _date_label(value) -> str:
+    """Format a date the short way every milestone surface uses.
+
+    Args:
+        value: A ``date``.
+
+    Returns:
+        The date as ``Mon D``.
+    """
+    return f"{value:%b} {value.day}"
+
+
+def _countdown(milestone, passed, today) -> str:
+    """Say where a date stands, in the words the milestone pages use.
+
+    Args:
+        milestone: The milestone.
+        passed: Whether its date has gone.
+        today: Reference date.
+
+    Returns:
+        A translated one-liner.
+    """
+    days = abs((milestone.target_date - today).days)
+    if passed:
+        return ngettext("overdue by %(count)d day", "overdue by %(count)d days", days) % {"count": days}
+    if not days:
+        return str(_("due today"))
+    return ngettext("due in %(count)d day", "due in %(count)d days", days) % {"count": days}

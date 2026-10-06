@@ -256,30 +256,195 @@ class TestTidyUp:
         assert "sitting" not in rows
 
 
+class TestPickNext:
+    """What is free to start, once the urgent is dealt with."""
+
+    def test_ranked_work_is_not_offered_twice(self, desk):
+        """Ranked at all, not merely ranked onto the visible shortlist."""
+        _workspace, me, _them, project = desk
+        today = timezone.localdate()
+        spare = mine(project, me, title="Spare")
+        pressing = [mine(project, me, due_date=today - datetime.timedelta(days=i + 1)) for i in range(8)]
+        tasks = focus.focus_tasks(me)
+        ranked = focus.do_first(tasks)
+
+        rows = focus.pick_next(tasks, ranked)
+
+        assert len(ranked) == len(pressing)
+        assert [row["task"] for row in rows] == [spare]
+
+    def test_ready_behind_an_unfinished_blocker_is_not_ready(self, desk):
+        """Including a blocker of one's own — the question is can it start."""
+        _workspace, me, _them, project = desk
+        blocker = mine(project, me, title="First")
+        blocked = mine(project, me, title="Second")
+        blocked.blocked_by.add(blocker)
+
+        rows = focus.pick_next(focus.focus_tasks(me), [])
+
+        assert [row["task"] for row in rows] == [blocker]
+
+    def test_a_finished_blocker_lets_it_through(self, desk):
+        _workspace, me, _them, project = desk
+        blocker = mine(project, me, title="First", status=Task.STATUS_DONE)
+        blocked = mine(project, me, title="Second")
+        blocked.blocked_by.add(blocker)
+
+        assert [row["task"] for row in focus.pick_next(focus.focus_tasks(me), [])] == [blocked]
+
+    def test_priority_leads_and_no_priority_sorts_last(self, desk):
+        _workspace, me, _them, project = desk
+        none = mine(project, me, title="None", priority=Task.NO_PRIORITY)
+        low = mine(project, me, title="Low", priority=Task.LOW)
+        high = mine(project, me, title="High", priority=Task.HIGH)
+
+        rows = focus.pick_next(focus.focus_tasks(me), [])
+
+        assert [row["task"] for row in rows] == [high, low, none]
+
+    def test_work_already_moving_is_not_something_to_pick(self, desk):
+        _workspace, me, _them, project = desk
+        mine(project, me, status=Task.STATUS_IN_PROGRESS)
+
+        assert focus.pick_next(focus.focus_tasks(me), []) == []
+
+
+class TestCommitments:
+    """Two numbers per date, and never one standing in for the other."""
+
+    @pytest.fixture
+    def promised(self, desk):
+        """A shared date the viewer owes two tasks to, one of them late."""
+        workspace, me, them, project = desk
+        today = timezone.localdate()
+        milestone = MilestoneFactory(
+            workspace=workspace,
+            name="Beta",
+            target_date=today + datetime.timedelta(days=10),
+            projects=[project],
+        )
+        mine(project, me, title="Done bit", milestone=milestone, status=Task.STATUS_DONE)
+        mine(project, me, title="On time", milestone=milestone, due_date=today + datetime.timedelta(days=2))
+        mine(
+            project,
+            me,
+            title="Spills over",
+            milestone=milestone,
+            due_date=today + datetime.timedelta(days=20),
+        )
+        TaskFactory(project=project, assignee=them, reporter=them, milestone=milestone, status=Task.STATUS_TODO)
+        return workspace, me, project, milestone
+
+    def test_yours_and_the_teams_are_different_numbers(self, promised):
+        _workspace, me, _project, _milestone = promised
+
+        card = focus.commitments(me, focus.focus_tasks(me))["hot"][0]
+
+        assert (card["mine_done"], card["mine_total"]) == (1, 3)
+        assert (card["team_done"], card["team_total"]) == (1, 4)
+
+    def test_work_that_runs_past_the_date_makes_it_hot(self, promised):
+        _workspace, me, _project, _milestone = promised
+
+        card = focus.commitments(me, focus.focus_tasks(me))["hot"][0]
+
+        assert card["hot"] is True
+        assert card["line"]["text"] == "1 of yours ends after this date"
+
+    def test_a_date_ones_own_part_fits_is_steady(self, desk):
+        workspace, me, _them, project = desk
+        today = timezone.localdate()
+        milestone = MilestoneFactory(
+            workspace=workspace,
+            name="Calm",
+            target_date=today + datetime.timedelta(days=10),
+            projects=[project],
+        )
+        mine(project, me, milestone=milestone, due_date=today + datetime.timedelta(days=3))
+
+        reading = focus.commitments(me, focus.focus_tasks(me))
+
+        assert reading["hot"] == []
+        assert reading["steady"][0]["line"]["text"] == "your part fits the date"
+
+    def test_a_date_that_has_gone_says_what_is_still_open(self, desk):
+        workspace, me, _them, project = desk
+        today = timezone.localdate()
+        milestone = MilestoneFactory(
+            workspace=workspace,
+            name="Gone",
+            target_date=today - datetime.timedelta(days=2),
+            projects=[project],
+        )
+        mine(project, me, milestone=milestone)
+        mine(project, me, milestone=milestone)
+
+        card = focus.commitments(me, focus.focus_tasks(me))["hot"][0]
+
+        assert card["line"]["text"] == "date passed — 2 of yours still open"
+        assert card["countdown"] == "overdue by 2 days"
+
+    def test_the_work_is_grouped_by_epic_with_the_rest_last(self, promised):
+        workspace, me, project, milestone = promised
+        workspace.epics_enabled = True
+        workspace.save(update_fields=["epics_enabled"])
+        epic = TaskFactory(project=project, kind=Task.KIND_EPIC, title="Search")
+        inside = mine(project, me, title="Inside", milestone=milestone, epic=epic)
+
+        card = focus.commitments(me, focus.focus_tasks(me))["hot"][0]
+        groups = card["groups"]
+
+        assert [group["epic"] for group in groups] == [epic, None]
+        assert [row["task"] for row in groups[0]["rows"]] == [inside]
+        assert (groups[0]["team_done"], groups[0]["team_total"]) == (0, 1)
+
+    def test_a_closed_date_is_no_longer_a_commitment(self, desk):
+        workspace, me, _them, project = desk
+        milestone = MilestoneFactory(
+            workspace=workspace,
+            target_date=timezone.localdate() - datetime.timedelta(days=5),
+            projects=[project],
+            closed_at=timezone.now(),
+        )
+        mine(project, me, milestone=milestone)
+
+        assert focus.commitments(me, focus.focus_tasks(me)) == {"hot": [], "steady": []}
+
+
 class TestTheCost:
     """One read of the viewer's work answers every block."""
 
     def test_the_query_count_does_not_follow_the_task_count(self, desk):
         _workspace, me, them, project = desk
         today = timezone.localdate()
+        milestone = MilestoneFactory(
+            workspace=_workspace,
+            target_date=today + datetime.timedelta(days=5),
+            projects=[project],
+        )
         theirs = TaskFactory(project=project, assignee=them, reporter=them, status=Task.STATUS_TODO)
-        first = mine(project, me, due_date=today - datetime.timedelta(days=1))
+        first = mine(project, me, due_date=today - datetime.timedelta(days=1), milestone=milestone)
         first.blocks.add(theirs)
         with CaptureQueriesContext(connection) as few:
             _read(me)
         for offset in range(40):
-            task = mine(project, me, due_date=today - datetime.timedelta(days=offset + 1))
+            task = mine(project, me, due_date=today - datetime.timedelta(days=offset + 1), milestone=milestone)
             task.blocks.add(theirs)
 
         with CaptureQueriesContext(connection) as many:
             _read(me)
 
-        assert len(many.captured_queries) == len(few.captured_queries) == 3
+        # Three for the load, two more for the commitment cards: the
+        # team's numbers and the viewer's own, each one grouped query
+        # over every date in view rather than one per date.
+        assert len(many.captured_queries) == len(few.captured_queries) == 5
 
 
 def _read(user):
     """Run every focus reading off one load, the way the view does."""
     tasks = focus.focus_tasks(user)
-    focus.do_first(tasks)
+    ranked = focus.do_first(tasks)
     focus.summary(tasks)
     focus.tidy_up(tasks)
+    focus.pick_next(tasks, ranked)
+    focus.commitments(user, tasks)

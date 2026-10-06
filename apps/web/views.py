@@ -1831,16 +1831,37 @@ def _focus_context(user, workspace, today):
 
     Returns:
         ``rows`` (the ranked shortlist), ``ranked`` (how many tasks have
-        a reason at all), ``summary`` and ``tidy``.
+        a reason at all), ``summary``, ``tidy``, ``pick`` and
+        ``commitments``.
     """
     tasks = focus.focus_tasks(user, workspace)
     ranked = focus.do_first(tasks, today)
-    return {
-        "rows": ranked[: focus.DO_FIRST_LIMIT],
+    rows = ranked[: focus.DO_FIRST_LIMIT]
+    built = {
+        "rows": rows,
         "ranked": len(ranked),
         "summary": focus.summary(tasks, today),
         "tidy": focus.tidy_up(tasks, today),
+        # Every ranked task, not just the six on screen: a task that
+        # missed the cut is still pressing, and "ready, unblocked, not in
+        # Do first" listing a 119-day-overdue row reads as a bug.
+        "pick": focus.pick_next(tasks, ranked, today),
+        "commitments": focus.commitments(user, tasks, today),
     }
+    # One flag the template can branch on. Without it the strip's outer
+    # gate has to list every block, and the block added next is the one
+    # nobody remembers to add to the list.
+    built["any"] = any(
+        (
+            built["rows"],
+            built["summary"],
+            built["tidy"],
+            built["pick"],
+            built["commitments"]["hot"],
+            built["commitments"]["steady"],
+        ),
+    )
+    return built
 
 
 class MyWorkView(LoginRequiredMixin, TemplateView):
@@ -1900,6 +1921,8 @@ class MyWorkView(LoginRequiredMixin, TemplateView):
         # the tidy-up chips. Lazy so the ``?axis_only=`` fragment, which
         # renders a list group and nothing else, does not pay for it.
         ctx["today"] = timezone.localdate()
+        ctx["status_labels"] = Task.STATUS_LABELS
+        ctx["priority_labels"] = dict(Task.PRIORITY_CHOICES)
         ctx["focus"] = SimpleLazyObject(lambda: _focus_context(self.request.user, active, ctx["today"]))
         list_axis_keys = _optional_axes(("deadline", "status", "priority", "project"), active)
         list_axis = _resolve_list_axis(self.request, default="deadline", options=list_axis_keys)
