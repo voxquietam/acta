@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Acta 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-02 17:04+0000\n"
+"POT-Creation-Date: 2026-10-06 18:55+0000\n"
 "PO-Revision-Date: 2026-05-16 15:30+0000\n"
 "Last-Translator: Acta team\n"
 "Language-Team: Ukrainian\n"
@@ -20,113 +20,113 @@ msgstr ""
 "100 > 14) ? 1 : n % 1 == 0 && (n % 10 ==0 || (n % 10 >=5 && n % 10 <=9) || "
 "(n % 100 >=11 && n % 100 <=14 )) ? 2: 3);\n"
 
-#: acta/settings/base.py:419
+#: acta/settings/base.py:420
 msgid "English"
 msgstr "Англійська"
 
-#: acta/settings/base.py:420
+#: acta/settings/base.py:421
 msgid "Ukrainian"
 msgstr "Українська"
 
-#: acta/settings/base.py:580 apps/workspaces/models.py:279
+#: acta/settings/base.py:581 apps/workspaces/models.py:279
 #: templates/web/_create_project_modal.html:71
 #: templates/web/projects/_assignee_cell.html:141
 msgid "Workspace"
 msgstr "Робочий простір"
 
-#: acta/settings/base.py:584 apps/workspaces/models.py:280
-#: templates/base_app.html:241
+#: acta/settings/base.py:585 apps/workspaces/models.py:280
+#: templates/base_app.html:253
 msgid "Workspaces"
 msgstr "Робочі простори"
 
-#: acta/settings/base.py:589 templates/web/projects/_overview_panel.html:399
+#: acta/settings/base.py:590 templates/web/projects/_overview_panel.html:403
 #: templates/web/workspaces/settings.html:91
 msgid "Members"
 msgstr "Учасники"
 
-#: acta/settings/base.py:594
+#: acta/settings/base.py:595
 msgid "Invites"
 msgstr "Запрошення"
 
-#: acta/settings/base.py:601 acta/settings/base.py:605
-#: apps/projects/models.py:114 apps/web/views.py:9656 apps/web/views.py:9704
+#: acta/settings/base.py:602 acta/settings/base.py:606
+#: apps/projects/models.py:114 apps/web/views.py:10693 apps/web/views.py:10741
 #: templates/base_app.html:165 templates/base_app.html:166
 #: templates/web/_command_palette.html:416
-#: templates/web/_command_palette.html:422 templates/web/epics.html:84
+#: templates/web/_command_palette.html:422 templates/web/epics.html:187
 #: templates/web/projects/detail.html:10 templates/web/projects/list.html:5
 #: templates/web/projects/list.html:8
 msgid "Projects"
 msgstr "Проєкти"
 
-#: acta/settings/base.py:610 apps/projects/models.py:263
+#: acta/settings/base.py:611 apps/projects/models.py:263
 msgid "Project updates"
 msgstr "Оновлення проєктів"
 
-#: acta/settings/base.py:617 acta/settings/base.py:621 apps/web/views.py:9702
+#: acta/settings/base.py:618 acta/settings/base.py:622 apps/web/views.py:10739
 #: templates/web/_command_palette.html:418
 #: templates/web/_command_palette.html:421
 #: templates/web/cycles/overview.html:185
 msgid "Tasks"
 msgstr "Задачі"
 
-#: acta/settings/base.py:626 apps/comments/models.py:71 apps/web/views.py:2185
+#: acta/settings/base.py:627 apps/comments/models.py:71 apps/web/views.py:2618
 #: templates/web/_inbox_list.html:44 templates/web/_my_activity_inner.html:14
 #: templates/web/meetings/_comments.html:14
 #: templates/web/projects/_update_comments.html:14
 msgid "Comments"
 msgstr "Коментарі"
 
-#: acta/settings/base.py:631 apps/labels/models.py:110
-#: apps/web/create_dialog.py:416 apps/web/views.py:2184
-#: templates/web/projects/_bulk_context_menu.html:227
-#: templates/web/projects/_table.html:71
-#: templates/web/projects/_task_context_menu.html:349
-#: templates/web/projects/_task_meta.html:223
+#: acta/settings/base.py:632 apps/labels/models.py:110
+#: apps/web/create_dialog.py:456 apps/web/views.py:2617
+#: templates/web/projects/_bulk_context_menu.html:325
+#: templates/web/projects/_table.html:78
+#: templates/web/projects/_task_context_menu.html:440
+#: templates/web/projects/_task_meta.html:230
 #: templates/web/recurring/_recurring_editor.html:130
 #: templates/web/workspaces/_settings_labels.html:37
 msgid "Labels"
 msgstr "Мітки"
 
-#: acta/settings/base.py:636 apps/labels/models.py:49
+#: acta/settings/base.py:637 apps/labels/models.py:49
 msgid "Label groups"
 msgstr "Групи міток"
 
-#: acta/settings/base.py:643 templates/web/_my_activity_inner.html:19
+#: acta/settings/base.py:644 templates/web/_my_activity_inner.html:19
 #: templates/web/projects/_task_detail_body.html:83
 #: templates/web/projects/_task_detail_body.html:124
 #: templates/web/projects/_task_detail_modal_body.html:82
 msgid "Activity"
 msgstr "Активність"
 
-#: acta/settings/base.py:647 apps/activity/models.py:83
+#: acta/settings/base.py:648 apps/activity/models.py:85
 msgid "Activity log"
 msgstr "Журнал активності"
 
-#: acta/settings/base.py:654 apps/notifications/models.py:33
+#: acta/settings/base.py:655 apps/notifications/models.py:33
 msgid "System"
 msgstr "Система"
 
-#: acta/settings/base.py:659 apps/accounts/models.py:90
+#: acta/settings/base.py:660 apps/accounts/models.py:90
 msgid "Users"
 msgstr "Користувачі"
 
-#: acta/settings/base.py:664
+#: acta/settings/base.py:665
 msgid "Groups"
 msgstr "Групи"
 
-#: acta/settings/base.py:670
+#: acta/settings/base.py:671
 msgid "Sites"
 msgstr "Сайти"
 
-#: acta/settings/base.py:676
+#: acta/settings/base.py:677
 msgid "Email addresses"
 msgstr "Електронні адреси"
 
-#: acta/settings/base.py:682
+#: acta/settings/base.py:683
 msgid "Social apps"
 msgstr "Соціальні застосунки"
 
-#: acta/settings/base.py:688
+#: acta/settings/base.py:689
 msgid "Social accounts"
 msgstr "Соціальні акаунти"
 
@@ -236,7 +236,7 @@ msgstr "Аватар оновлено."
 msgid "Avatar removed."
 msgstr "Аватар видалено."
 
-#: apps/activity/models.py:82
+#: apps/activity/models.py:84
 msgid "Activity log entry"
 msgstr "Запис журналу активності"
 
@@ -305,18 +305,18 @@ msgstr "Вбудовувати можна лише зображення PNG, JPG
 msgid "Comment"
 msgstr "Коментар"
 
-#: apps/comments/models.py:102
+#: apps/comments/models.py:108
 #, fuzzy
 #| msgid "A comment must target exactly one of a task or a project update."
 msgid ""
 "A comment must target exactly one of a task, a project update, or a meeting."
 msgstr "Коментар має стосуватися рівно одного: задачі або апдейту проєкту."
 
-#: apps/comments/models.py:105
+#: apps/comments/models.py:111
 msgid "Replies cannot have their own replies (depth limit 1)."
 msgstr "Відповіді не можуть мати власних відповідей (обмеження глибини — 1)."
 
-#: apps/comments/models.py:111
+#: apps/comments/models.py:117
 msgid "A reply must belong to the same target as its parent."
 msgstr ""
 "Відповідь має належати до того самого об'єкта, що й батьківський коментар."
@@ -339,16 +339,16 @@ msgid "Completed"
 msgstr "Завершено"
 
 #: apps/cycles/models.py:77 apps/notifications/models.py:31
-#: apps/web/create_dialog.py:439 templates/web/_task_row.html:100
-#: templates/web/projects/_bulk_context_menu.html:209
-#: templates/web/projects/_table_row.html:72
-#: templates/web/projects/_task_context_menu.html:303
-#: templates/web/projects/_task_meta.html:54
+#: apps/web/create_dialog.py:479 templates/web/_task_row.html:102
+#: templates/web/projects/_bulk_context_menu.html:247
+#: templates/web/projects/_table_row.html:78
+#: templates/web/projects/_task_context_menu.html:394
+#: templates/web/projects/_task_meta.html:61
 msgid "Cycle"
 msgstr "Цикл"
 
-#: apps/cycles/models.py:78 apps/web/views.py:9660 templates/base_app.html:180
-#: templates/base_app.html:181 templates/web/_inbox_preview.html:48
+#: apps/cycles/models.py:78 apps/web/views.py:10697 templates/base_app.html:192
+#: templates/base_app.html:193 templates/web/_inbox_preview.html:48
 #: templates/web/cycles/overview.html:15 templates/web/cycles/overview.html:19
 #: templates/web/workspaces/_settings_cycles.html:16
 msgid "Cycles"
@@ -450,7 +450,7 @@ msgid "OAuth refresh tokens"
 msgstr ""
 
 #: apps/meetings/models.py:84 apps/notifications/models.py:30
-#: apps/web/create_dialog.py:503
+#: apps/web/create_dialog.py:557
 msgid "Meeting"
 msgstr "Зустріч"
 
@@ -475,6 +475,313 @@ msgstr "%(h)sг"
 #, python-format
 msgid "%(m)sm"
 msgstr "%(m)sхв"
+
+#: apps/milestones/models.py:109 apps/web/create_dialog.py:493
+#: apps/web/kanban.py:28 templates/web/milestones/overview.html:76
+#: templates/web/projects/_bulk_context_menu.html:276
+#: templates/web/projects/_plan_chip.html:26
+#: templates/web/projects/_table.html:115
+#: templates/web/projects/_task_meta.html:54
+msgid "Milestone"
+msgstr ""
+
+#: apps/milestones/models.py:110 templates/base_app.html:185
+#: templates/base_app.html:186 templates/web/milestones/detail.html:23
+#: templates/web/milestones/detail.html:27
+#: templates/web/milestones/overview.html:21
+#: templates/web/milestones/overview.html:25
+#: templates/web/projects/_timeline.html:417
+msgid "Milestones"
+msgstr ""
+
+#: apps/milestones/services.py:44 apps/milestones/services.py:45
+#: apps/milestones/services.py:46 templates/web/_command_palette.html:212
+#: templates/web/_dashboard_inner.html:19
+#: templates/web/_dashboard_inner.html:89
+#: templates/web/_dashboard_inner.html:228
+#: templates/web/projects/_activity_event.html:94
+msgid "open"
+msgstr "відкрити"
+
+#: apps/milestones/services.py:47
+#, fuzzy
+#| msgid "moved to cycle"
+msgid "ready to close"
+msgstr "перенесено в цикл"
+
+#: apps/milestones/services.py:48 templates/web/projects/list.html:226
+msgid "closed"
+msgstr "закрито"
+
+#: apps/milestones/services.py:78
+msgid "due after the milestone"
+msgstr ""
+
+#: apps/milestones/services.py:80 apps/milestones/services.py:470
+#: apps/milestones/services.py:682
+#, fuzzy
+#| msgid "all open"
+msgid "still open"
+msgstr "усі відкриті"
+
+#: apps/milestones/services.py:103
+#, fuzzy, python-format
+#| msgid "%(base)s on %(days)s"
+msgid "closed on %(date)s"
+msgstr "%(base)s, %(days)s"
+
+#: apps/milestones/services.py:105
+msgid "all done · ready to close"
+msgstr ""
+
+#: apps/milestones/services.py:109 apps/web/focus.py:153 apps/web/focus.py:793
+#, fuzzy, python-format
+#| msgid "Every %(n)s days"
+msgid "overdue by %(count)d day"
+msgid_plural "overdue by %(count)d days"
+msgstr[0] "Кожні %(n)s днів"
+msgstr[1] "Кожні %(n)s днів"
+msgstr[2] "Кожні %(n)s днів"
+msgstr[3] "Кожні %(n)s днів"
+
+#: apps/milestones/services.py:114 apps/web/focus.py:180 apps/web/focus.py:795
+#, fuzzy
+#| msgid "ends today"
+msgid "due today"
+msgstr "завершується сьогодні"
+
+#: apps/milestones/services.py:116 apps/web/focus.py:180
+#, fuzzy
+#| msgid "ends tomorrow"
+msgid "due tomorrow"
+msgstr "завершується завтра"
+
+#: apps/milestones/services.py:118 apps/web/focus.py:796
+#, python-format
+msgid "due in %(count)d day"
+msgid_plural "due in %(count)d days"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+msgstr[3] ""
+
+#: apps/milestones/services.py:360
+msgid "Past"
+msgstr ""
+
+#: apps/milestones/services.py:387
+#, fuzzy, python-format
+#| msgid "%(counter)s task"
+#| msgid_plural "%(counter)s tasks"
+msgid "%(count)d at risk"
+msgid_plural "%(count)d at risk"
+msgstr[0] "%(counter)s задача"
+msgstr[1] "%(counter)s задачі"
+msgstr[2] "%(counter)s задач"
+msgstr[3] "%(counter)s задачі"
+
+#: apps/milestones/services.py:409
+#, python-format
+msgid "%(name)s %(countdown)s, %(open)d open"
+msgstr ""
+
+#: apps/milestones/services.py:421
+#, python-format
+msgid "%(name)s all done, not closed"
+msgstr ""
+
+#: apps/milestones/services.py:428
+#, fuzzy
+#| msgid "closed"
+msgid "all closed"
+msgstr "закрито"
+
+#: apps/milestones/services.py:468
+#, fuzzy, python-format
+#| msgid "📅 due %(date)s"
+msgid "due %(date)s"
+msgstr "📅 до %(date)s"
+
+#: apps/milestones/services.py:589 apps/web/grouping.py:368
+#: apps/web/kanban.py:81 apps/web/plan.py:238
+#: templates/web/_my_work_focus.html:195
+#: templates/web/projects/_bulk_context_menu.html:304
+#: templates/web/projects/_epic_cell.html:69
+#: templates/web/projects/_task_context_menu.html:368
+msgid "No epic"
+msgstr "Без епіка"
+
+#: apps/milestones/services.py:652
+msgid "Not counted or archived"
+msgstr ""
+
+#: apps/milestones/services.py:655
+msgid "shown so the numbers add up"
+msgstr ""
+
+#: apps/milestones/services.py:678
+msgid "cancelled · not counted"
+msgstr ""
+
+#: apps/milestones/services.py:680
+msgid "archived done · counted"
+msgstr ""
+
+#: apps/milestones/services.py:680
+msgid "archived unfinished · dropped"
+msgstr ""
+
+#: apps/milestones/services.py:710
+#, fuzzy, python-format
+#| msgid "%(n)s archived task"
+#| msgid_plural "%(n)s archived tasks"
+msgid "%(count)d archived done counted"
+msgstr "%(n)s архівна задача"
+
+#: apps/milestones/services.py:712
+#, python-format
+msgid "%(count)d archived unfinished dropped"
+msgstr ""
+
+#: apps/milestones/services.py:714
+#, python-format
+msgid "%(count)d cancelled not counted"
+msgstr ""
+
+#: apps/milestones/services.py:918
+#, python-format
+msgid "scope moved on %(count)d day"
+msgid_plural "scope moved on %(count)d days"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+msgstr[3] ""
+
+#: apps/milestones/services.py:924
+msgid "no work joined or left"
+msgstr ""
+
+#: apps/milestones/services.py:971
+#, fuzzy
+#| msgid "all open"
+msgid "all done"
+msgstr "усі відкриті"
+
+#: apps/milestones/services.py:974
+#, python-format
+msgid "Behind · at this pace done %(date)s, %(count)d day after the date"
+msgid_plural ""
+"Behind · at this pace done %(date)s, %(count)d days after the date"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+msgstr[3] ""
+
+#: apps/milestones/services.py:983
+#, python-format
+msgid "On track · at this pace done %(date)s, %(count)d day early"
+msgid_plural "On track · at this pace done %(date)s, %(count)d days early"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+msgstr[3] ""
+
+#: apps/milestones/services.py:990
+#, python-format
+msgid "On track · at this pace done %(date)s"
+msgstr ""
+
+#: apps/milestones/services.py:1242
+#, python-format
+msgid ""
+"%(project)s is outside this milestone's scope — widen it or drop the "
+"dependency."
+msgstr ""
+
+#: apps/milestones/services.py:1246
+msgid "In no milestone at all."
+msgstr ""
+
+#: apps/milestones/services.py:1250
+#, python-format
+msgid ""
+"Sits in %(name)s, %(count)d day after this date — the blocker is scheduled "
+"after the work it blocks."
+msgid_plural ""
+"Sits in %(name)s, %(count)d days after this date — the blocker is scheduled "
+"after the work it blocks."
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+msgstr[3] ""
+
+#: apps/milestones/services.py:1257
+#, python-format
+msgid "Sits in %(name)s, %(date)s."
+msgstr ""
+
+#: apps/milestones/services.py:1499
+#, python-format
+msgid "%(name)s — all done, not closed"
+msgstr ""
+
+#: apps/milestones/services.py:1500 templates/base_app.html:606
+#: templates/web/_epic_panel.html:24 templates/web/_modal_shell.html:42
+#: templates/web/_modal_shell.html:43 templates/web/inbox.html:173
+#: templates/web/milestones/_close_button.html:16
+#: templates/web/milestones/_close_dialog.html:33
+#: templates/web/milestones/_editor.html:51
+#: templates/web/milestones/_fill_panel.html:36
+#: templates/web/milestones/detail.html:77
+#: templates/web/recurring/_recurring_editor.html:56
+msgid "Close"
+msgstr "Закрити"
+
+#: apps/milestones/services.py:1509
+#, python-format
+msgid "%(name)s — %(countdown)s, %(open)s"
+msgstr ""
+
+#: apps/milestones/services.py:1514
+#, fuzzy, python-format
+#| msgid "%(counter)s overdue"
+#| msgid_plural "%(counter)s overdue"
+msgid "%(count)d open here"
+msgid_plural "%(count)d open here"
+msgstr[0] "%(counter)s прострочено"
+msgstr[1] "%(counter)s прострочено"
+msgstr[2] "%(counter)s прострочено"
+msgstr[3] "%(counter)s прострочено"
+
+#: apps/milestones/services.py:1520
+msgid "Close or move"
+msgstr ""
+
+#: apps/milestones/services.py:1529
+#, python-format
+msgid "%(name)s — nothing attached yet"
+msgstr ""
+
+#: apps/milestones/services.py:1530
+#, fuzzy
+#| msgid "Add link"
+msgid "Add work"
+msgstr "Додати зв’язок"
+
+#: apps/milestones/services.py:1539
+#, python-format
+msgid "%(count)d open task in no milestone"
+msgid_plural "%(count)d open tasks in no milestone"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+msgstr[3] ""
+
+#: apps/milestones/services.py:1544
+#, fuzzy
+#| msgid "Open"
+msgid "Open plan"
+msgstr "Відкрити"
 
 #: apps/notifications/models.py:23
 msgid "Mention"
@@ -512,7 +819,7 @@ msgstr "Сповіщення"
 msgid "Notifications"
 msgstr "Сповіщення"
 
-#: apps/projects/models.py:11 apps/web/views.py:8982
+#: apps/projects/models.py:11 apps/web/views.py:10019
 msgid "Slug prefix must be 2–6 uppercase Latin letters."
 msgstr "Префікс slug має містити 2–6 великих латинських літер."
 
@@ -521,21 +828,22 @@ msgstr "Префікс slug має містити 2–6 великих лати�
 #: templates/web/_project_strip.html:10
 #: templates/web/meetings/_meeting_editor.html:126
 #: templates/web/projects/_assignee_cell.html:137
-#: templates/web/projects/_table.html:81
+#: templates/web/projects/_table.html:88
 #: templates/web/projects/_task_meta.html:16
 #: templates/web/recurring/_recurring_editor.html:69
 msgid "Project"
 msgstr "Проєкт"
 
-#: apps/projects/models.py:140 apps/web/views.py:9000
+#: apps/projects/models.py:140 apps/web/views.py:10037
 msgid "Lead must be a member of the project's workspace."
 msgstr "Лід повинен бути учасником робочого простору проєкту."
 
-#: apps/projects/models.py:214
+#: apps/projects/models.py:214 templates/web/_my_work_focus.html:228
 msgid "On track"
 msgstr "За планом"
 
-#: apps/projects/models.py:215
+#: apps/projects/models.py:215 templates/web/milestones/_slice_table.html:16
+#: templates/web/milestones/overview.html:80
 msgid "At risk"
 msgstr "Під загрозою"
 
@@ -645,125 +953,175 @@ msgstr "Кожні %(every)sмісяців"
 msgid "%(base)s on day %(dom)s"
 msgstr "%(base)s, число %(dom)s"
 
-#: apps/tasks/bulk.py:99
+#: apps/tasks/bulk.py:108
 #, python-format
 msgid "Unknown update fields: %(fields)s"
 msgstr "Невідомі поля оновлення: %(fields)s"
 
-#: apps/tasks/bulk.py:104
+#: apps/tasks/bulk.py:113
 #, python-format
 msgid "Unknown status: %(value)s. Allowed: %(allowed)s"
 msgstr "Невідомий статус: %(value)s. Дозволено: %(allowed)s"
 
-#: apps/tasks/bulk.py:111
+#: apps/tasks/bulk.py:120
 #, python-format
 msgid "Invalid size: %(value)s. Allowed: %(allowed)s or null"
 msgstr "Некоректний розмір: %(value)s. Дозволено: %(allowed)s або null"
 
-#: apps/tasks/bulk.py:116
+#: apps/tasks/bulk.py:125
 msgid "Must be 0..4"
 msgstr "Має бути від 0 до 4"
 
-#: apps/tasks/bulk.py:119
+#: apps/tasks/bulk.py:128
 msgid "Must be a list of label IDs"
 msgstr "Має бути списком ID міток"
 
-#: apps/tasks/bulk.py:121
+#: apps/tasks/bulk.py:130
 msgid "Must be a project ID (int)"
 msgstr "Має бути ID проєкту (число)"
 
-#: apps/tasks/bulk.py:123
+#: apps/tasks/bulk.py:132
 msgid "Must be a cycle ID (int) or null"
 msgstr "Має бути ID циклу (ціле число) або null"
 
-#: apps/tasks/bulk.py:126
+#: apps/tasks/bulk.py:134
+#, fuzzy
+#| msgid "Must be a cycle ID (int) or null"
+msgid "Must be a milestone ID (int) or null"
+msgstr "Має бути ID циклу (ціле число) або null"
+
+#: apps/tasks/bulk.py:137
 msgid "Must be a boolean (true to archive, false to unarchive)"
 msgstr "Має бути булевим (true — архівувати, false — розархівувати)"
 
-#: apps/tasks/bulk.py:193
+#: apps/tasks/bulk.py:204
 #, python-format
 msgid "Labels not found: %(ids)s"
 msgstr "Мітки не знайдено: %(ids)s"
 
-#: apps/tasks/bulk.py:198
+#: apps/tasks/bulk.py:209
 #, python-format
 msgid "Labels not in affected workspaces: %(ids)s"
 msgstr "Мітки не належать задіяним робочим просторам: %(ids)s"
 
-#: apps/tasks/bulk.py:280
+#: apps/tasks/bulk.py:295
+#, fuzzy, python-format
+#| msgid "Cycle %(id)s not found"
+msgid "Milestone %(id)s not found."
+msgstr "Цикл %(id)s не знайдено"
+
+#: apps/tasks/bulk.py:321
+#, fuzzy, python-format
+#| msgid "Cycle %(id)s not found"
+msgid "Epic %(id)s not found."
+msgstr "Цикл %(id)s не знайдено"
+
+#: apps/tasks/bulk.py:323 apps/tasks/serializers.py:157 apps/web/views.py:4972
+msgid "Epics are turned off for this workspace."
+msgstr "Епіки вимкнені для цього воркспейсу."
+
+#: apps/tasks/bulk.py:346
 #, python-format
 msgid "Project %(id)s not found"
 msgstr "Проєкт %(id)s не знайдено"
 
-#: apps/tasks/bulk.py:308
+#: apps/tasks/bulk.py:374
 #, python-format
 msgid "Cycle %(id)s not found"
 msgstr "Цикл %(id)s не знайдено"
 
-#: apps/tasks/bulk.py:520
+#: apps/tasks/bulk.py:586
 #, python-format
 msgid "Only the assignee can change the start/end date — tasks: %(ids)s"
 msgstr ""
 "Лише виконавець може змінювати дати початку/завершення — задачі: %(ids)s"
 
-#: apps/tasks/bulk.py:540
+#: apps/tasks/bulk.py:606
 #, python-format
 msgid "Required fields missing on %(n)d task(s); first: #%(id)s — %(msg)s"
 msgstr ""
 "Не заповнені обов'язкові поля у %(n)d задач(і); перша: #%(id)s — %(msg)s"
 
-#: apps/tasks/bulk.py:553
+#: apps/tasks/bulk.py:619
 #, python-format
 msgid "Cross-workspace bulk move not allowed for tasks: %(ids)s"
 msgstr ""
 "Масове переміщення задач між робочими просторами не дозволено: %(ids)sМасове "
 "переміщення між робочими просторами заборонене для задач: %(ids)s"
 
-#: apps/tasks/bulk.py:563
+#: apps/tasks/bulk.py:628
+#, fuzzy, python-format
+#| msgid "Cycle not in the affected workspace for tasks: %(ids)s"
+msgid "Epic is in another workspace; tasks: %(ids)s"
+msgstr "Цикл не з відповідного воркспейсу для задач: %(ids)s"
+
+#: apps/tasks/bulk.py:634
+#, fuzzy, python-format
+#| msgid "An epic cannot belong to another epic."
+msgid "An epic cannot belong to another epic: %(ids)s"
+msgstr "Епік не може належати іншому епіку."
+
+#: apps/tasks/bulk.py:644
+#, fuzzy, python-format
+#| msgid "Cycle not in the affected workspace for tasks: %(ids)s"
+msgid "Milestone does not cover the project of tasks: %(ids)s"
+msgstr "Цикл не з відповідного воркспейсу для задач: %(ids)s"
+
+#: apps/tasks/bulk.py:653
+#, fuzzy, python-format
+#| msgid "An epic takes its dates from its tasks."
+msgid "An epic takes its milestones from its tasks: %(ids)s"
+msgstr "Епік бере дати зі своїх задач."
+
+#: apps/tasks/bulk.py:663
 #, python-format
 msgid "Cycle not in the affected workspace for tasks: %(ids)s"
 msgstr "Цикл не з відповідного воркспейсу для задач: %(ids)s"
 
-#: apps/tasks/bulk.py:719 apps/tasks/bulk.py:745
+#: apps/tasks/bulk.py:819 apps/tasks/bulk.py:845
 msgid "Permission denied for one or more tasks in the batch."
 msgstr "Доступ заборонено для однієї або кількох задач у пакеті."
 
-#: apps/tasks/models.py:131
+#: apps/tasks/models.py:154
 msgid "Planned"
 msgstr "Заплановано"
 
-#: apps/tasks/models.py:132
+#: apps/tasks/models.py:155
 msgid "Ready"
 msgstr "Готово до роботи"
 
-#: apps/tasks/models.py:133
+#: apps/tasks/models.py:156
 msgid "To do"
 msgstr "До виконання"
 
-#: apps/tasks/models.py:134
+#: apps/tasks/models.py:157 apps/web/focus.py:866
 msgid "In progress"
 msgstr "У роботі"
 
-#: apps/tasks/models.py:135
+#: apps/tasks/models.py:158
 msgid "In review"
 msgstr "На рев'ю"
 
-#: apps/tasks/models.py:136 templates/web/cycles/overview.html:60
-#: templates/web/epics.html:85
+#: apps/tasks/models.py:159 templates/web/cycles/overview.html:60
+#: templates/web/epics.html:189 templates/web/milestones/_slice_table.html:15
 msgid "Done"
 msgstr "Готово"
 
-#: apps/tasks/models.py:137
+#: apps/tasks/models.py:160
 msgid "Cancelled"
 msgstr "Скасовано"
 
-#: apps/tasks/models.py:152
+#: apps/tasks/models.py:175 apps/web/plan.py:50
 msgid "Task"
 msgstr "Задача"
 
-#: apps/tasks/models.py:153 apps/web/create_dialog.py:473
-#: templates/web/epics.html:83 templates/web/projects/_table.html:95
-#: templates/web/projects/_task_meta.html:72
+#: apps/tasks/models.py:176 apps/web/create_dialog.py:527 apps/web/kanban.py:29
+#: templates/web/epics.html:182
+#: templates/web/projects/_bulk_context_menu.html:301
+#: templates/web/projects/_plan_chip.html:20
+#: templates/web/projects/_table.html:102
+#: templates/web/projects/_task_context_menu.html:355
+#: templates/web/projects/_task_meta.html:79
 msgid "Epic"
 msgstr "Епік"
 
@@ -789,10 +1147,6 @@ msgstr ""
 #, python-format
 msgid "Unknown kind: %(value)s."
 msgstr "Невідомий тип: %(value)s."
-
-#: apps/tasks/serializers.py:157
-msgid "Epics are turned off for this workspace."
-msgstr "Епіки вимкнені для цього воркспейсу."
 
 #: apps/tasks/serializers.py:162
 msgid "An epic cannot belong to another epic."
@@ -996,7 +1350,7 @@ msgstr "Тихі години оновлено."
 msgid "Quiet hours turned off."
 msgstr "Тихі години вимкнено."
 
-#: apps/web/create_dialog.py:37
+#: apps/web/create_dialog.py:37 templates/web/milestones/_editor.html:147
 msgid "Properties"
 msgstr "Властивості"
 
@@ -1014,563 +1368,1106 @@ msgid "Context"
 msgstr "Контекст"
 
 #: apps/web/create_dialog.py:112
-#: templates/web/projects/_bulk_context_menu.html:179
+#: templates/web/projects/_bulk_context_menu.html:217
 #: templates/web/projects/_size_cell.html:60
-#: templates/web/projects/_task_context_menu.html:283
+#: templates/web/projects/_task_context_menu.html:328
 msgid "No size"
 msgstr "Без розміру"
 
-#: apps/web/create_dialog.py:147 apps/web/grouping.py:235
+#: apps/web/create_dialog.py:147 apps/web/grouping.py:239
 #: templates/web/_assignee_avatar.html:70
 #: templates/web/_assignee_avatar.html:74
 #: templates/web/_assignee_chips.html:107
 #: templates/web/projects/_assignee_cell.html:61
-#: templates/web/projects/_table_row.html:160
-#: templates/web/projects/_table_row.html:161
+#: templates/web/projects/_plan_panel.html:348
+#: templates/web/projects/_table_row.html:164
+#: templates/web/projects/_table_row.html:165
 #: templates/web/recurring/_recurring_inner.html:44
 msgid "Unassigned"
 msgstr "Без виконавця"
 
 #: apps/web/create_dialog.py:211
-#: templates/web/projects/_bulk_context_menu.html:212
+#: templates/web/projects/_bulk_context_menu.html:250
 #: templates/web/projects/_cycle_cell.html:73
-#: templates/web/projects/_task_context_menu.html:308
+#: templates/web/projects/_task_context_menu.html:399
 msgid "Backlog (no cycle)"
 msgstr "Беклог (без циклу)"
 
-#: apps/web/create_dialog.py:244
+#: apps/web/create_dialog.py:246 apps/web/focus.py:458 apps/web/grouping.py:324
+#: apps/web/kanban.py:79 apps/web/plan.py:204
+#: templates/web/projects/_bulk_context_menu.html:279
+#: templates/web/projects/_epic_milestone_split.html:30
+#: templates/web/projects/_epic_milestone_split.html:63
+#: templates/web/projects/_milestone_cell.html:69
+#, fuzzy
+#| msgid "No files yet."
+msgid "No milestone"
+msgstr "Ще немає файлів."
+
+#: apps/web/create_dialog.py:279
 msgid "Does not repeat"
 msgstr "Не повторюється"
 
-#: apps/web/create_dialog.py:245
+#: apps/web/create_dialog.py:280
 msgid "Every day"
 msgstr "Щодня"
 
-#: apps/web/create_dialog.py:246
+#: apps/web/create_dialog.py:281
 msgid "Every week"
 msgstr "Щотижня"
 
-#: apps/web/create_dialog.py:247
+#: apps/web/create_dialog.py:282
 msgid "Every 2 weeks"
 msgstr "Що 2 тижні"
 
-#: apps/web/create_dialog.py:248
+#: apps/web/create_dialog.py:283
 msgid "Every month"
 msgstr "Щомісяця"
 
-#: apps/web/create_dialog.py:278
+#: apps/web/create_dialog.py:313
 msgid "No meeting"
 msgstr "Без зустрічі"
 
-#: apps/web/create_dialog.py:381 apps/web/views.py:2180
-#: templates/web/projects/_bulk_context_menu.html:121
-#: templates/web/projects/_table.html:62
-#: templates/web/projects/_task_context_menu.html:206
+#: apps/web/create_dialog.py:421 apps/web/views.py:2613
+#: templates/web/projects/_bulk_context_menu.html:159
+#: templates/web/projects/_table.html:69
+#: templates/web/projects/_task_context_menu.html:251
 #: templates/web/projects/_task_meta.html:28
+#: templates/web/projects/_turn_into_task_modal.html:54
 msgid "Status"
 msgstr "Статус"
 
-#: apps/web/create_dialog.py:391 apps/web/views.py:2181
-#: templates/web/projects/_bulk_context_menu.html:135
-#: templates/web/projects/_task_context_menu.html:225
+#: apps/web/create_dialog.py:431 apps/web/views.py:2614
+#: templates/web/epics.html:185
+#: templates/web/projects/_bulk_context_menu.html:173
+#: templates/web/projects/_task_context_menu.html:270
 #: templates/web/projects/_task_meta.html:41
 #: templates/web/recurring/_recurring_editor.html:96
 #: templates/web/workspaces/_settings_required.html:59
 msgid "Priority"
 msgstr "Пріоритет"
 
-#: apps/web/create_dialog.py:399
-#: templates/web/projects/_bulk_context_menu.html:176
-#: templates/web/projects/_table.html:67
-#: templates/web/projects/_task_context_menu.html:278
+#: apps/web/create_dialog.py:439
+#: templates/web/projects/_bulk_context_menu.html:214
+#: templates/web/projects/_table.html:74
+#: templates/web/projects/_task_context_menu.html:323
 #: templates/web/projects/_task_meta.html:47
 #: templates/web/recurring/_recurring_editor.html:104
 msgid "Size"
 msgstr "Розмір"
 
-#: apps/web/create_dialog.py:407 apps/web/views.py:2182
-#: templates/web/_assignee_strip.html:15 templates/web/projects/_table.html:75
-#: templates/web/projects/_task_meta.html:60
+#: apps/web/create_dialog.py:447 apps/web/views.py:2615
+#: templates/web/_assignee_strip.html:15 templates/web/projects/_table.html:82
+#: templates/web/projects/_task_meta.html:67
 #: templates/web/recurring/_recurring_editor.html:113
 #: templates/web/workspaces/_settings_required.html:53
 msgid "Assignee"
 msgstr "Виконавець"
 
-#: apps/web/create_dialog.py:426 apps/web/views.py:2183
-#: templates/web/_inbox_list.html:40 templates/web/projects/_table.html:101
-#: templates/web/projects/_task_card.html:138
+#: apps/web/create_dialog.py:466 apps/web/views.py:2616
+#: templates/web/_inbox_list.html:40 templates/web/projects/_table.html:121
+#: templates/web/projects/_task_card.html:149
 msgid "Due"
 msgstr "Дедлайн"
 
-#: apps/web/create_dialog.py:450
+#: apps/web/create_dialog.py:504
 msgid "Repeat"
 msgstr "Повторення"
 
-#: apps/web/create_dialog.py:460
+#: apps/web/create_dialog.py:514
 msgid "Parent"
 msgstr "Батьківська задача"
 
-#: apps/web/create_dialog.py:485 apps/web/views.py:2186
+#: apps/web/create_dialog.py:539 apps/web/views.py:2619
 #: templates/web/projects/_links_panel.html:70
 msgid "Links"
 msgstr "Зв'язки"
 
-#: apps/web/create_dialog.py:496 templates/web/projects/_links_panel.html:262
+#: apps/web/create_dialog.py:550 templates/web/projects/_links_panel.html:262
 msgid "Related"
 msgstr "Пов'язані"
 
-#: apps/web/create_dialog.py:497 templates/web/projects/_links_panel.html:88
+#: apps/web/create_dialog.py:551 templates/web/projects/_links_panel.html:88
 #: templates/web/projects/_links_panel.html:212
 msgid "Blocked by"
 msgstr "Заблоковано"
 
-#: apps/web/create_dialog.py:498 templates/web/projects/_links_panel.html:89
+#: apps/web/create_dialog.py:552 templates/web/projects/_links_panel.html:89
 #: templates/web/projects/_links_panel.html:237
 msgid "Blocks"
 msgstr "Блокує"
 
-#: apps/web/create_dialog.py:546 templates/web/_filter_dock.html:143
+#: apps/web/create_dialog.py:600 templates/web/_filter_dock.html:157
+#: templates/web/milestones/_reports.html:19
 #: templates/web/projects/_overview_members.html:35
 msgid "Add"
 msgstr "Додати"
 
-#: apps/web/create_dialog.py:547
+#: apps/web/create_dialog.py:601
 msgid "On leaving backlog"
 msgstr "Коли вийде з беклогу"
 
-#: apps/web/create_dialog.py:548
+#: apps/web/create_dialog.py:602
 msgid "Pick a project"
 msgstr "Оберіть проєкт"
 
-#: apps/web/create_dialog.py:549
+#: apps/web/create_dialog.py:603
 msgid "Nothing found."
 msgstr "Нічого не знайдено."
 
-#: apps/web/grouping.py:158
-msgid "Overdue"
-msgstr "Прострочено"
+#: apps/web/focus.py:99
+#, fuzzy, python-format
+#| msgid "%(counter)s overdue"
+#| msgid_plural "%(counter)s overdue"
+msgid "%(count)dd overdue"
+msgid_plural "%(count)dd overdue"
+msgstr[0] "%(counter)s прострочено"
+msgstr[1] "%(counter)s прострочено"
+msgstr[2] "%(counter)s прострочено"
+msgstr[3] "%(counter)s прострочено"
 
-#: apps/web/grouping.py:159 templates/web/projects/_timeline.html:310
+#: apps/web/focus.py:101
+#, fuzzy
+#| msgid "Today"
+msgid "today"
+msgstr "Сьогодні"
+
+#: apps/web/focus.py:103
+#, fuzzy
+#| msgctxt "deadline preset"
+#| msgid "Tomorrow"
+msgid "tomorrow"
+msgstr "Завтра"
+
+#: apps/web/focus.py:160
+#, fuzzy
+#| msgid "Someone"
+msgid "someone"
+msgstr "Хтось"
+
+#: apps/web/focus.py:167
+#, python-format
+msgid "blocks %(who)s · %(what)s"
+msgstr ""
+
+#: apps/web/focus.py:180 apps/web/focus.py:387
+msgid "due in 2 days"
+msgstr ""
+
+#: apps/web/focus.py:189
+#, fuzzy
+#| msgid "Urgent"
+msgid "urgent"
+msgstr "Терміновий"
+
+#: apps/web/focus.py:199
+#, python-format
+msgid "%(count)dd past %(milestone)s"
+msgstr ""
+
+#: apps/web/focus.py:213
+#, fuzzy, python-format
+#| msgid "%(base)s on %(days)s"
+msgid "%(status)s for %(count)d days"
+msgstr "%(base)s, %(days)s"
+
+#: apps/web/focus.py:278 templates/web/_epic_panel.html:21
+#: templates/web/_inbox_preview.html:18 templates/web/_inbox_preview.html:38
+msgid "Open"
+msgstr "Відкрити"
+
+#: apps/web/focus.py:280
+#, fuzzy
+#| msgid "Preview"
+msgid "Review"
+msgstr "Попередній перегляд"
+
+#: apps/web/focus.py:282
+#, fuzzy
+#| msgid "Context"
+msgid "Continue"
+msgstr "Контекст"
+
+#: apps/web/focus.py:283
+msgid "Start"
+msgstr "Початок"
+
+#: apps/web/focus.py:385 templates/web/_dashboard_inner.html:275
+#: templates/web/projects/_overview_panel.html:204
+#: templates/web/projects/_timeline.html:546
+msgid "overdue"
+msgstr "прострочено"
+
+#: apps/web/focus.py:386
+#, fuzzy
+#| msgid "to you"
+msgid "waiting on you"
+msgstr "вам"
+
+#: apps/web/focus.py:388
+#, fuzzy
+#| msgid "Blocked"
+msgid "blocked"
+msgstr "Заблоковано"
+
+#: apps/web/focus.py:392
+msgid "milestone at risk"
+msgid_plural "milestones at risk"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+msgstr[3] ""
+
+#: apps/web/focus.py:457
+#, fuzzy
+#| msgid "In progress"
+msgid "In progress 14+ days"
+msgstr "У роботі"
+
+#: apps/web/focus.py:462 templates/web/epics.html:236
+#: templates/web/projects/_table_row.html:54
+msgid "No priority"
+msgstr "Без пріоритету"
+
+#: apps/web/focus.py:697
+#, python-format
+msgid "date passed — %(count)d of yours still open"
+msgid_plural "date passed — %(count)d of yours still open"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+msgstr[3] ""
+
+#: apps/web/focus.py:703
+#, python-format
+msgid "%(count)d of yours ends after this date"
+msgid_plural "%(count)d of yours end after this date"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+msgstr[3] ""
+
+#: apps/web/focus.py:709
+#, fuzzy, python-format
+#| msgid "%(counter)s overdue"
+#| msgid_plural "%(counter)s overdue"
+msgid "%(count)d of yours overdue inside it"
+msgid_plural "%(count)d of yours overdue inside it"
+msgstr[0] "%(counter)s прострочено"
+msgstr[1] "%(counter)s прострочено"
+msgstr[2] "%(counter)s прострочено"
+msgstr[3] "%(counter)s прострочено"
+
+#: apps/web/focus.py:715
+msgid "your part fits the date"
+msgstr ""
+
+#: apps/web/focus.py:870
+#, python-format
+msgid "%(count)d over — finish one before starting another"
+msgstr ""
+
+#: apps/web/focus.py:872
+#, fuzzy, python-format
+#| msgid "Show %(counter)s more"
+#| msgid_plural "Show %(counter)s more"
+msgid "room for %(count)d more"
+msgid_plural "room for %(count)d more"
+msgstr[0] "Показати ще %(counter)s"
+msgstr[1] "Показати ще %(counter)s"
+msgstr[2] "Показати ще %(counter)s"
+msgstr[3] "Показати ще %(counter)s"
+
+#: apps/web/focus.py:924
+msgid "Closed, 7 days"
+msgstr ""
+
+#: apps/web/focus.py:928
+#, fuzzy, python-format
+#| msgid "%(counter)s member"
+#| msgid_plural "%(counter)s members"
+msgid "%(count)d the week before"
+msgid_plural "%(count)d the week before"
+msgstr[0] "%(counter)s учасник"
+msgstr[1] "%(counter)s учасники"
+msgstr[2] "%(counter)s учасників"
+msgstr[3] "%(counter)s учасника"
+
+#: apps/web/focus.py:935
+msgid "On time"
+msgstr ""
+
+#: apps/web/focus.py:940
+#, python-format
+msgid "%(on_time)d of %(closed)d closed"
+msgstr ""
+
+#: apps/web/focus.py:987
+#, fuzzy
+#| msgid "Nothing found."
+msgid "nothing of yours in it"
+msgstr "Нічого не знайдено."
+
+#: apps/web/focus.py:989
+#, fuzzy
+#| msgid "Last done"
+msgid "all yours done"
+msgstr "Останнє закриття"
+
+#: apps/web/focus.py:991
+#, python-format
+msgid "on pace to close %(count)d"
+msgstr ""
+
+#: apps/web/focus.py:994
+#, python-format
+msgid "at this pace %(count)d carry over"
+msgstr ""
+
+#: apps/web/focus.py:999
+#, fuzzy, python-format
+#| msgid "%(days)s day left"
+#| msgid_plural "%(days)s days left"
+msgid "%(count)d day left"
+msgid_plural "%(count)d days left"
+msgstr[0] "залишився %(days)s день"
+msgstr[1] "залишилось %(days)s дні"
+msgstr[2] "залишилось %(days)s днів"
+msgstr[3] "залишилось %(days)s днів"
+
+#: apps/web/focus.py:1111
+#, python-format
+msgid "you block %(count)d"
+msgstr ""
+
+#: apps/web/focus.py:1118
+#, python-format
+msgid "blocks you %(count)d"
+msgstr ""
+
+#: apps/web/focus.py:1125
+#, fuzzy, python-format
+#| msgid "%(n)s ready"
+#| msgid_plural "%(n)s ready"
+msgid "%(count)d unread"
+msgid_plural "%(count)d unread"
+msgstr[0] "%(n)s готова"
+msgstr[1] "%(n)s готові"
+msgstr[2] "%(n)s готових"
+msgstr[3] "%(n)s готової"
+
+#: apps/web/focus.py:1185 apps/web/grouping.py:163
+#: templates/web/projects/_timeline.html:348
 msgid "Today"
 msgstr "Сьогодні"
 
-#: apps/web/grouping.py:160
+#: apps/web/focus.py:1187
+#, fuzzy
+#| msgctxt "deadline preset"
+#| msgid "Tomorrow"
+msgid "Tomorrow"
+msgstr "Завтра"
+
+#: apps/web/focus.py:1247
+#, python-format
+msgid "%(name)s · %(count)d of yours open"
+msgid_plural "%(name)s · %(count)d of yours open"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+msgstr[3] ""
+
+#: apps/web/focus.py:1252
+#, fuzzy, python-format
+#| msgid "%(counter)s label"
+#| msgid_plural "%(counter)s labels"
+msgid ", %(count)d late"
+msgstr "%(counter)s мітка"
+
+#: apps/web/focus.py:1258
+msgid "no milestone linked"
+msgstr ""
+
+#: apps/web/grouping.py:162
+msgid "Overdue"
+msgstr "Прострочено"
+
+#: apps/web/grouping.py:164 templates/web/_my_work_around.html:82
 msgid "This week"
 msgstr "Цього тижня"
 
-#: apps/web/grouping.py:161
+#: apps/web/grouping.py:165
 msgid "Later"
 msgstr "Пізніше"
 
-#: apps/web/grouping.py:162
+#: apps/web/grouping.py:166
 msgid "No deadline"
 msgstr "Без дедлайну"
 
-#: apps/web/grouping.py:165
+#: apps/web/grouping.py:169
 msgid "Recently done"
 msgstr "Нещодавно завершено"
 
-#: apps/web/grouping.py:269 templates/web/projects/_cycle_cell.html:18
+#: apps/web/grouping.py:273 templates/web/projects/_cycle_cell.html:18
 #: templates/web/projects/_view_tabs.html:55
 #: templates/web/projects/_view_tabs.html:75
-#: templates/web/projects/_view_tabs.html:132
-#: templates/web/projects/_view_tabs.html:134
+#: templates/web/projects/_view_tabs.html:139
+#: templates/web/projects/_view_tabs.html:141
 msgid "Backlog"
 msgstr "Беклог"
 
-#: apps/web/grouping.py:310 templates/web/projects/_epic_cell.html:69
-msgid "No epic"
-msgstr "Без епіка"
+#: apps/web/kanban.py:27
+msgid "None"
+msgstr ""
 
-#: apps/web/templatetags/web_extras.py:448
+#: apps/web/kanban.py:255 apps/web/plan.py:610
+#, fuzzy, python-format
+#| msgid "%(counter)s task"
+#| msgid_plural "%(counter)s tasks"
+msgid "%(count)d task"
+msgid_plural "%(count)d tasks"
+msgstr[0] "%(counter)s задача"
+msgstr[1] "%(counter)s задачі"
+msgstr[2] "%(counter)s задач"
+msgstr[3] "%(counter)s задачі"
+
+#: apps/web/plan.py:39
+msgid "Milestone › Epic"
+msgstr ""
+
+#: apps/web/plan.py:40
+msgid "Epic › Milestone"
+msgstr ""
+
+#: apps/web/plan.py:41
+#, fuzzy
+#| msgid "Status pipeline"
+msgid "Status › Milestone"
+msgstr "Конвеєр статусів"
+
+#: apps/web/plan.py:42
+msgid "Flat"
+msgstr ""
+
+#: apps/web/plan.py:47
+msgid "Milestone › epic › task"
+msgstr ""
+
+#: apps/web/plan.py:48
+msgid "Epic › milestone › task"
+msgstr ""
+
+#: apps/web/plan.py:49
+msgid "Status › milestone › task"
+msgstr ""
+
+#: apps/web/plan.py:58
+msgid "Tree"
+msgstr ""
+
+#: apps/web/plan.py:59
+msgid "Timeline"
+msgstr "Часова шкала"
+
+#: apps/web/plan.py:68 templates/web/milestones/overview.html:77
+#: templates/web/projects/_plan_panel.html:142
+#, fuzzy
+#| msgid "Start date"
+msgid "Target date"
+msgstr "Дата початку"
+
+#: apps/web/plan.py:69 templates/web/cycles/overview.html:68
+#: templates/web/milestones/detail.html:139
+#: templates/web/milestones/overview.html:78
+#: templates/web/projects/_plan_panel.html:144
+#: templates/web/projects/_task_meta.html:86
+msgid "Progress"
+msgstr "Прогрес"
+
+#: apps/web/plan.py:70 templates/web/projects/_plan_panel.html:146
+#, fuzzy
+#| msgid "Post update"
+msgid "Past its date"
+msgstr "Опублікувати апдейт"
+
+#: apps/web/plan.py:71 templates/web/milestones/_editor.html:175
+#: templates/web/milestones/detail.html:332
+#: templates/web/projects/_plan_panel.html:147
+msgid "Scope"
+msgstr ""
+
+#: apps/web/plan.py:393
+#, python-format
+msgid "%(count)d task without an epic — attached directly"
+msgid_plural "%(count)d tasks without an epic — attached directly"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+msgstr[3] ""
+
+#: apps/web/plan.py:436
+#, fuzzy, python-format
+#| msgid "Show %(counter)s more"
+#| msgid_plural "Show %(counter)s more"
+msgid "Show %(count)d more open"
+msgid_plural "Show %(count)d more open"
+msgstr[0] "Показати ще %(counter)s"
+msgstr[1] "Показати ще %(counter)s"
+msgstr[2] "Показати ще %(counter)s"
+msgstr[3] "Показати ще %(counter)s"
+
+#: apps/web/plan.py:454
+#, fuzzy, python-format
+#| msgid "%(counter)s epic"
+#| msgid_plural "%(counter)s epics"
+msgid "%(count)d done"
+msgid_plural "%(count)d done"
+msgstr[0] "%(counter)s епік"
+msgstr[1] "%(counter)s епіки"
+msgstr[2] "%(counter)s епіків"
+msgstr[3] "%(counter)s епіка"
+
+#: apps/web/plan.py:525
+msgid "shared with"
+msgstr ""
+
+#: apps/web/plan.py:539
+msgid "shared ·"
+msgstr ""
+
+#: apps/web/plan.py:539
+msgid "local ·"
+msgstr ""
+
+#: apps/web/plan.py:631
+#, fuzzy, python-format
+#| msgid "%(counter)s epic"
+#| msgid_plural "%(counter)s epics"
+msgid "%(count)d epic"
+msgid_plural "%(count)d epics"
+msgstr[0] "%(counter)s епік"
+msgstr[1] "%(counter)s епіки"
+msgstr[2] "%(counter)s епіків"
+msgstr[3] "%(counter)s епіка"
+
+#: apps/web/plan.py:633
+#, fuzzy, python-format
+#| msgid "%(counter)s epic"
+#| msgid_plural "%(counter)s epics"
+msgid "%(count)d direct"
+msgid_plural "%(count)d direct"
+msgstr[0] "%(counter)s епік"
+msgstr[1] "%(counter)s епіки"
+msgstr[2] "%(counter)s епіків"
+msgstr[3] "%(counter)s епіка"
+
+#: apps/web/plan.py:641
+#, fuzzy, python-format
+#| msgid "%(counter)s member"
+#| msgid_plural "%(counter)s members"
+msgid "%(count)d milestone"
+msgid_plural "%(count)d milestones"
+msgstr[0] "%(counter)s учасник"
+msgstr[1] "%(counter)s учасники"
+msgstr[2] "%(counter)s учасників"
+msgstr[3] "%(counter)s учасника"
+
+#: apps/web/plan.py:644
+#, fuzzy, python-format
+#| msgid "%(counter)s link"
+#| msgid_plural "%(counter)s links"
+msgid "%(count)d in none"
+msgid_plural "%(count)d in none"
+msgstr[0] "%(counter)s зв'язок"
+msgstr[1] "%(counter)s зв'язки"
+msgstr[2] "%(counter)s зв'язків"
+msgstr[3] "%(counter)s зв'язку"
+
+#: apps/web/plan.py:689
+msgid "no milestone"
+msgstr ""
+
+#: apps/web/templatetags/web_extras.py:454
 msgid "created the task"
 msgstr "створено задачу"
 
-#: apps/web/templatetags/web_extras.py:449
+#: apps/web/templatetags/web_extras.py:455
 #: templates/web/projects/_activity_event.html:18
 msgid "changed status"
 msgstr "змінено статус"
 
-#: apps/web/templatetags/web_extras.py:450
+#: apps/web/templatetags/web_extras.py:456
 #: templates/web/projects/_activity_event.html:45
 msgid "changed assignee"
 msgstr "змінено виконавця"
 
-#: apps/web/templatetags/web_extras.py:451
+#: apps/web/templatetags/web_extras.py:457
 #: templates/web/projects/_activity_event.html:35
 msgid "changed start date"
 msgstr "змінено дату початку"
 
-#: apps/web/templatetags/web_extras.py:452
+#: apps/web/templatetags/web_extras.py:458
 #: templates/web/projects/_activity_event.html:30
 msgid "changed due date"
 msgstr "змінено дедлайн"
 
-#: apps/web/templatetags/web_extras.py:453
+#: apps/web/templatetags/web_extras.py:459
 #: templates/web/projects/_activity_event.html:40
 msgid "changed end date"
 msgstr "змінено дату завершення"
 
-#: apps/web/templatetags/web_extras.py:454
+#: apps/web/templatetags/web_extras.py:460
 #: templates/web/projects/_activity_event.html:25
 msgid "changed priority"
 msgstr "змінено пріоритет"
 
-#: apps/web/templatetags/web_extras.py:455
-#: templates/web/projects/_activity_event.html:64
+#: apps/web/templatetags/web_extras.py:461
+#: templates/web/projects/_activity_event.html:71
 msgid "changed labels"
 msgstr "змінено мітки"
 
-#: apps/web/templatetags/web_extras.py:456
+#: apps/web/templatetags/web_extras.py:462
 msgid "changed parent"
 msgstr "змінено батьківську задачу"
 
-#: apps/web/templatetags/web_extras.py:457
+#: apps/web/templatetags/web_extras.py:463
 msgid "changed epic"
 msgstr "змінив епік"
 
-#: apps/web/templatetags/web_extras.py:458
+#: apps/web/templatetags/web_extras.py:464
+#, fuzzy
+#| msgid "Add to epic"
+msgid "turned into an epic"
+msgstr "Додати до епіка"
+
+#: apps/web/templatetags/web_extras.py:465
+msgid "turned back into a task"
+msgstr ""
+
+#: apps/web/templatetags/web_extras.py:466
 msgid "updated fields"
 msgstr "оновлено поля"
 
-#: apps/web/templatetags/web_extras.py:459
+#: apps/web/templatetags/web_extras.py:467
 msgid "archived the task"
 msgstr "архівував(ла) задачу"
 
-#: apps/web/templatetags/web_extras.py:460
+#: apps/web/templatetags/web_extras.py:468
 msgid "unarchived the task"
 msgstr "розархівував(ла) задачу"
 
-#: apps/web/templatetags/web_extras.py:461
+#: apps/web/templatetags/web_extras.py:469
 msgid "added a link"
 msgstr "додав(ла) зв'язок"
 
-#: apps/web/templatetags/web_extras.py:462
+#: apps/web/templatetags/web_extras.py:470
 msgid "removed a link"
 msgstr "прибрав(ла) зв'язок"
 
-#: apps/web/templatetags/web_extras.py:463
+#: apps/web/templatetags/web_extras.py:471
 msgid "deleted the task"
 msgstr "видалено задачу"
 
-#: apps/web/templatetags/web_extras.py:464
-#: templates/web/projects/_activity_event.html:79
+#: apps/web/templatetags/web_extras.py:472
+#: templates/web/projects/_activity_event.html:86
 msgid "added a comment"
 msgstr "додано коментар"
 
-#: apps/web/templatetags/web_extras.py:465
+#: apps/web/templatetags/web_extras.py:473
 msgid "edited a comment"
 msgstr "відредаговано коментар"
 
-#: apps/web/templatetags/web_extras.py:466
+#: apps/web/templatetags/web_extras.py:474
 msgid "deleted a comment"
 msgstr "видалено коментар"
 
-#: apps/web/templatetags/web_extras.py:467
+#: apps/web/templatetags/web_extras.py:475
 msgid "attached a file"
 msgstr "прикріпив файл"
 
-#: apps/web/templatetags/web_extras.py:468
+#: apps/web/templatetags/web_extras.py:476
 msgid "removed an attachment"
 msgstr "видалив вкладення"
 
-#: apps/web/templatetags/web_extras.py:469
+#: apps/web/templatetags/web_extras.py:477
 msgid "added a member"
 msgstr "додано учасника"
 
-#: apps/web/templatetags/web_extras.py:470
+#: apps/web/templatetags/web_extras.py:478
 msgid "removed a member"
 msgstr "учасника виключено з простору"
 
-#: apps/web/templatetags/web_extras.py:471
+#: apps/web/templatetags/web_extras.py:479
 msgid "changed a member role"
 msgstr "змінено роль учасника"
 
-#: apps/web/views.py:2187
+#: apps/web/views.py:2620
 msgid "Edits"
 msgstr "Правки"
 
-#: apps/web/views.py:4378
+#: apps/web/views.py:4970
+#, fuzzy
+#| msgid "That username is already taken."
+msgid "This is already an epic."
+msgstr "Це ім'я користувача вже зайняте."
+
+#: apps/web/views.py:4976
+msgid "It is a subtask — promote it to a top-level task first."
+msgstr ""
+
+#: apps/web/views.py:4998
+#, fuzzy
+#| msgid "This epic has no tasks yet."
+msgid "This is not an epic."
+msgstr "У цього епіка ще немає задач."
+
+#: apps/web/views.py:5005
+#, python-format
+msgid ""
+"It collects work from %(projects)s — a subtask lives in its parent's "
+"project, so that work would be orphaned."
+msgstr ""
+
+#: apps/web/views.py:5013
+#, python-format
+msgid "%(tasks)s have subtasks of their own, and a subtask cannot have one."
+msgstr ""
+
+#: apps/web/views.py:5138
 msgid "Project not available in this workspace"
 msgstr "Проєкт недоступний у цьому воркспейсі"
 
-#: apps/web/views.py:5700
+#: apps/web/views.py:6460
 #, python-format
 msgid "Project “%(name)s” archived."
 msgstr "Проєкт «%(name)s» заархівовано."
 
-#: apps/web/views.py:5702
+#: apps/web/views.py:6462
 #, python-format
 msgid "Project “%(name)s” restored."
 msgstr "Проєкт «%(name)s» відновлено."
 
-#: apps/web/views.py:5723
+#: apps/web/views.py:6483
 #, python-format
 msgid "Project “%(name)s” deleted."
 msgstr "Проєкт «%(name)s» видалено."
 
-#: apps/web/views.py:5762
+#: apps/web/views.py:6522
 #, python-format
 msgid "Ownership transferred to %(name)s — you are now an admin."
 msgstr "Право власності передано %(name)s — тепер ви адміністратор."
 
-#: apps/web/views.py:5785
+#: apps/web/views.py:6545
 #, python-format
 msgid "Workspace “%(name)s” deleted."
 msgstr "Простір «%(name)s» видалено."
 
-#: apps/web/views.py:5850
+#: apps/web/views.py:6610
 msgid "General settings saved."
 msgstr "Загальні налаштування збережено."
 
-#: apps/web/views.py:5889
+#: apps/web/views.py:6649
 msgid "WIP limits saved."
 msgstr "WIP-ліміти збережено."
 
-#: apps/web/views.py:5957
+#: apps/web/views.py:6717
 msgid "Member defaults saved."
 msgstr "Дефолти для нових учасників збережено."
 
-#: apps/web/views.py:5993
+#: apps/web/views.py:6753
 msgid "Required-on-transition saved."
 msgstr "Політику обов'язкових полів збережено."
 
-#: apps/web/views.py:6046 apps/web/views.py:6054
+#: apps/web/views.py:6806 apps/web/views.py:6814
 msgid "Cycles saved."
 msgstr "Цикли збережено."
 
-#: apps/web/views.py:8228
+#: apps/web/views.py:9265
 #, python-format
 msgid "Created %(slug)s"
 msgstr "Створено %(slug)s"
 
-#: apps/web/views.py:8511 apps/web/views.py:8555 apps/web/views.py:8582
-#: apps/web/views.py:8795 apps/web/views.py:8827 apps/web/views.py:8852
+#: apps/web/views.py:9548 apps/web/views.py:9592 apps/web/views.py:9619
+#: apps/web/views.py:9832 apps/web/views.py:9864 apps/web/views.py:9889
 msgid "Admin or owner only"
 msgstr "Тільки для адміна або власника"
 
-#: apps/web/views.py:8514
+#: apps/web/views.py:9551
 msgid "Email is required"
 msgstr "Email обов'язковий"
 
-#: apps/web/views.py:8523 apps/web/views.py:8802 apps/web/views.py:8835
+#: apps/web/views.py:9560 apps/web/views.py:9839 apps/web/views.py:9872
 msgid "Invalid role"
 msgstr "Неправильна роль"
 
-#: apps/web/views.py:8532
+#: apps/web/views.py:9569
 #, python-format
 msgid "Invite sent to %(email)s."
 msgstr "Запрошення надіслано на %(email)s."
 
-#: apps/web/views.py:8535
+#: apps/web/views.py:9572
 msgid "Invite created but email failed — copy the link from the list."
 msgstr ""
 "Запрошення створено, але лист не надіслався — скопіюйте посилання зі списку."
 
-#: apps/web/views.py:8558
+#: apps/web/views.py:9595
 msgid "Invite not found"
 msgstr "Запрошення не знайдено"
 
-#: apps/web/views.py:8564
+#: apps/web/views.py:9601
 #, python-format
 msgid "Invite to %(email)s revoked."
 msgstr "Запрошення для %(email)s відкликано."
 
-#: apps/web/views.py:8585
+#: apps/web/views.py:9622
 msgid "Invite not found or already accepted"
 msgstr "Запрошення не знайдено або вже прийнято"
 
-#: apps/web/views.py:8588
+#: apps/web/views.py:9625
 #, python-format
 msgid "Invite re-sent to %(email)s."
 msgstr "Запрошення повторно надіслано на %(email)s."
 
-#: apps/web/views.py:8590
+#: apps/web/views.py:9627
 msgid "Resend failed — try again later."
 msgstr "Не вдалося надіслати повторно — спробуйте пізніше."
 
-#: apps/web/views.py:8674 apps/workspaces/models.py:327
+#: apps/web/views.py:9711 apps/workspaces/models.py:327
 #: apps/workspaces/models.py:412 templates/web/_dashboard_inner.html:222
 #: templates/web/_dashboard_inner.html:269
 msgid "Member"
 msgstr "Учасник"
 
-#: apps/web/views.py:8675 apps/workspaces/models.py:326
-#: apps/workspaces/models.py:411 templates/base_app.html:451
+#: apps/web/views.py:9712 apps/workspaces/models.py:326
+#: apps/workspaces/models.py:411 templates/base_app.html:502
 msgid "Admin"
 msgstr "Адміністратор"
 
-#: apps/web/views.py:8799
+#: apps/web/views.py:9836
 msgid "Invalid user_id"
 msgstr "Неправильний user_id"
 
-#: apps/web/views.py:8807
+#: apps/web/views.py:9844
 msgid "Cannot add another owner"
 msgstr "Не можна додати ще одного власника"
 
-#: apps/web/views.py:8810
+#: apps/web/views.py:9847
 msgid "User not found"
 msgstr "Користувача не знайдено"
 
-#: apps/web/views.py:8812
+#: apps/web/views.py:9849
 msgid "User already a member"
 msgstr "Користувач вже є учасником"
 
-#: apps/web/views.py:8830 apps/web/views.py:8855
+#: apps/web/views.py:9867 apps/web/views.py:9892
 msgid "Not a member"
 msgstr "Не є учасником"
 
-#: apps/web/views.py:8832
+#: apps/web/views.py:9869
 msgid "Transfer ownership first"
 msgstr "Спочатку передай право власності"
 
-#: apps/web/views.py:8837
+#: apps/web/views.py:9874
 msgid "Ownership transfer not supported here"
 msgstr "Передача права власності тут не підтримується"
 
-#: apps/web/views.py:8857
+#: apps/web/views.py:9894
 msgid "Cannot remove owner"
 msgstr "Не можна видалити власника"
 
-#: apps/web/views.py:8966
+#: apps/web/views.py:10003
 msgid "Invalid workspace"
 msgstr "Неправильний робочий простір"
 
-#: apps/web/views.py:8972
+#: apps/web/views.py:10009
 msgid "Workspace not accessible"
 msgstr "Робочий простір недоступний"
 
-#: apps/web/views.py:8976 apps/web/views.py:9086
+#: apps/web/views.py:10013 apps/web/views.py:10123
 msgid "Name is required"
 msgstr "Ім'я обов'язкове"
 
-#: apps/web/views.py:8978 apps/web/views.py:9088
+#: apps/web/views.py:10015 apps/web/views.py:10125
 msgid "Name too long"
 msgstr "Назва задовга"
 
-#: apps/web/views.py:8984
+#: apps/web/views.py:10021
 msgid "Slug prefix already used in this workspace"
 msgstr "Префікс slug вже використовується в цьому робочому просторі"
 
-#: apps/web/views.py:8994
+#: apps/web/views.py:10031
 msgid "Invalid lead"
 msgstr "Неправильний лід"
 
-#: apps/web/views.py:9094
+#: apps/web/views.py:10131
 msgid "Invalid slug"
 msgstr "Неправильний slug"
 
-#: apps/web/views.py:9096 apps/workspaces/models.py:301
+#: apps/web/views.py:10133 apps/workspaces/models.py:301
 msgid "This name is reserved. Pick another."
 msgstr "Це імʼя зарезервоване. Оберіть інше."
 
-#: apps/web/views.py:9098
+#: apps/web/views.py:10135
 msgid "Slug already taken"
 msgstr "Slug вже зайнятий"
 
-#: apps/web/views.py:9110
+#: apps/web/views.py:10147
 msgid "Cannot generate unique slug"
 msgstr "Не вдалось згенерувати унікальний slug"
 
-#: apps/web/views.py:9364 apps/web/views.py:9367
+#: apps/web/views.py:10401 apps/web/views.py:10404
 msgid "Unknown label group."
 msgstr "Невідома група міток."
 
-#: apps/web/views.py:9384 apps/web/views.py:9410
+#: apps/web/views.py:10421 apps/web/views.py:10447
 msgid "Group name is required."
 msgstr "Потрібно вказати назву групи."
 
-#: apps/web/views.py:9388 apps/web/views.py:9415
+#: apps/web/views.py:10425 apps/web/views.py:10452
 msgid "A group with that name already exists."
 msgstr "Група з такою назвою вже існує."
 
-#: apps/web/views.py:9398
+#: apps/web/views.py:10435
 msgid "Group created."
 msgstr "Групу створено."
 
-#: apps/web/views.py:9433
+#: apps/web/views.py:10470
 msgid "Group deleted. Its labels moved to Ungrouped."
 msgstr "Групу видалено. Її мітки переміщено до «Без групи»."
 
-#: apps/web/views.py:9444 apps/web/views.py:9475
+#: apps/web/views.py:10481 apps/web/views.py:10512
 msgid "Label name is required."
 msgstr "Потрібно вказати назву мітки."
 
-#: apps/web/views.py:9447 apps/web/views.py:9478
+#: apps/web/views.py:10484 apps/web/views.py:10515
 msgid "Pick a colour from the palette."
 msgstr "Виберіть колір з палітри."
 
-#: apps/web/views.py:9452 apps/web/views.py:9484
+#: apps/web/views.py:10489 apps/web/views.py:10521
 msgid "A label with that name already exists in this workspace."
 msgstr "Мітка з такою назвою вже існує в цьому воркспейсі."
 
-#: apps/web/views.py:9463
+#: apps/web/views.py:10500
 msgid "Label created."
 msgstr "Мітку створено."
 
-#: apps/web/views.py:9509
+#: apps/web/views.py:10546
 msgid "Label deleted."
 msgstr "Мітку видалено."
 
-#: apps/web/views.py:9652 templates/base_app.html:122
+#: apps/web/views.py:10689 templates/base_app.html:122
 #: templates/base_app.html:123 templates/web/dashboard.html:4
 #: templates/web/dashboard.html:7
 msgid "Dashboard"
 msgstr "Панель"
 
-#: apps/web/views.py:9653 templates/base_app.html:128
+#: apps/web/views.py:10690 templates/base_app.html:128
 #: templates/base_app.html:129 templates/web/inbox.html:14
 msgid "Inbox"
 msgstr "Вхідні"
 
-#: apps/web/views.py:9654 templates/base_app.html:141
+#: apps/web/views.py:10691 templates/base_app.html:141
 #: templates/base_app.html:142 templates/web/my_work.html:6
 #: templates/web/my_work.html:9
 msgid "My Work"
 msgstr "Моя робота"
 
-#: apps/web/views.py:9655 templates/base_app.html:147
+#: apps/web/views.py:10692 templates/base_app.html:147
 #: templates/base_app.html:148 templates/web/all_tasks.html:6
 #: templates/web/all_tasks.html:9
 msgid "All Tasks"
 msgstr "Усі задачі"
 
-#: apps/web/views.py:9657 templates/base_app.html:135
+#: apps/web/views.py:10694 templates/base_app.html:135
 #: templates/base_app.html:136 templates/web/my_activity.html:11
 msgid "My activity"
 msgstr "Моя активність"
 
-#: apps/web/views.py:9661
+#: apps/web/views.py:10698
 msgid "Account settings"
 msgstr "Налаштування акаунта"
 
-#: apps/web/views.py:9666 templates/base_app.html:259
+#: apps/web/views.py:10703 templates/base_app.html:271
 #: templates/web/cycles/overview.html:38
 #: templates/web/workspaces/settings.html:20
 #: templates/web/workspaces/settings.html:59
 msgid "Workspace settings"
 msgstr "Налаштування робочого простору"
 
-#: apps/web/views.py:9685 templates/base_app.html:404
-#: templates/base_app.html:406 templates/web/_create_task_modal.html:52
-#: templates/web/projects/_kanban.html:89
+#: apps/web/views.py:10722 templates/base_app.html:416
+#: templates/base_app.html:418 templates/web/_create_task_modal.html:52
+#: templates/web/projects/_kanban.html:128
 msgid "New task"
 msgstr "Нова задача"
 
-#: apps/web/views.py:9690
+#: apps/web/views.py:10727
 #, python-format
 msgid "New task in %(name)s"
 msgstr "Нова задача в %(name)s"
 
-#: apps/web/views.py:9703 templates/web/_command_palette.html:415
+#: apps/web/views.py:10740 templates/web/_command_palette.html:415
 #: templates/web/_command_palette.html:423
 msgid "Quick actions"
 msgstr "Швидкі дії"
 
-#: apps/web/views.py:9705 templates/web/_command_palette.html:417
+#: apps/web/views.py:10742 templates/web/_command_palette.html:417
 #: templates/web/_command_palette.html:425
 msgid "Navigation"
 msgstr "Навігація"
+
+#: apps/web/views_milestones.py:200
+#, python-format
+msgid "%(count)d task attached to %(name)s"
+msgid_plural "%(count)d tasks attached to %(name)s"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+msgstr[3] ""
+
+#: apps/web/views_milestones.py:593
+msgid "A milestone needs a name."
+msgstr ""
+
+#: apps/web/views_milestones.py:598
+msgid "Pick the date this has to be true by."
+msgstr ""
+
+#: apps/web/views_milestones.py:600
+msgid "Pick at least one project. Scope is what lets tasks attach."
+msgstr ""
+
+#: apps/web/views_milestones.py:603
+msgid ""
+"A milestone is a date ahead. Recording one already reached? Create it, then "
+"close it."
+msgstr ""
+
+#: apps/web/views_milestones.py:811
+#, python-format
+msgid "%(count)d task taken out of its milestone"
+msgid_plural "%(count)d tasks taken out of their milestone"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+msgstr[3] ""
+
+#: apps/web/views_milestones.py:820
+#, python-format
+msgid "%(count)d task committed to %(name)s"
+msgid_plural "%(count)d tasks committed to %(name)s"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+msgstr[3] ""
+
+#: apps/web/views_milestones.py:830
+#, python-format
+msgid "%(count)d stays outside its scope"
+msgid_plural "%(count)d stay outside its scope"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+msgstr[3] ""
 
 #: apps/workspaces/models.py:121 templates/telegram/_settings.html:94
 msgid "Off"
@@ -1588,7 +2485,7 @@ msgstr "На колонку (команда)"
 msgid "A workspace slug cannot be changed once created."
 msgstr "Слаг воркспейсу не можна змінити після створення."
 
-#: apps/workspaces/models.py:325
+#: apps/workspaces/models.py:325 templates/web/milestones/_editor.html:163
 msgid "Owner"
 msgstr "Власник"
 
@@ -1759,12 +2656,16 @@ msgstr "Підтвердьте новий пароль"
 #: templates/web/_create_task_modal.html:277
 #: templates/web/_create_workspace_modal.html:100 templates/web/inbox.html:206
 #: templates/web/meetings/_meeting_editor.html:252
+#: templates/web/milestones/_close_dialog.html:110
+#: templates/web/milestones/_editor.html:219
 #: templates/web/projects/_comment_edit_form.html:40
 #: templates/web/projects/_editor_toolbar.html:152
 #: templates/web/projects/_editor_toolbar.html:153
-#: templates/web/projects/_overview_panel.html:121
-#: templates/web/projects/_overview_panel.html:341
-#: templates/web/projects/_task_meta.html:163
+#: templates/web/projects/_overview_panel.html:123
+#: templates/web/projects/_overview_panel.html:347
+#: templates/web/projects/_task_meta.html:170
+#: templates/web/projects/_turn_into_epic_modal.html:81
+#: templates/web/projects/_turn_into_task_modal.html:82
 #: templates/web/projects/_update_edit_form.html:54
 #: templates/web/recurring/_recurring_editor.html:324
 #: templates/web/workspaces/_label_form.html:62
@@ -1776,7 +2677,7 @@ msgid "Cancel"
 msgstr "Скасувати"
 
 #: templates/accounts/settings.html:5 templates/accounts/settings.html:8
-#: templates/base_app.html:446 templates/web/workspaces/settings.html:27
+#: templates/base_app.html:497 templates/web/workspaces/settings.html:27
 msgid "Settings"
 msgstr "Налаштування"
 
@@ -1832,7 +2733,7 @@ msgstr "Сесія"
 msgid "Sign out of this browser."
 msgstr "Вийти з цього браузера."
 
-#: templates/accounts/settings.html:143 templates/base_app.html:458
+#: templates/accounts/settings.html:143 templates/base_app.html:509
 msgid "Log out"
 msgstr "Вийти"
 
@@ -2002,6 +2903,7 @@ msgid "Recurring"
 msgstr "Повторювані"
 
 #: templates/base_app.html:159 templates/base_app.html:160
+#: templates/web/_my_work_around.html:119
 #: templates/web/meetings/call_detail.html:13
 #: templates/web/meetings/call_detail.html:16
 #: templates/web/meetings/meetings.html:5
@@ -2015,74 +2917,80 @@ msgstr "Дзвінки"
 msgid "Epics"
 msgstr "Епіки"
 
-#: templates/base_app.html:219
+#: templates/base_app.html:231
 msgid "Switch workspace"
 msgstr "Змінити воркспейс"
 
-#: templates/base_app.html:265 templates/web/_create_workspace_modal.html:104
+#: templates/base_app.html:277 templates/web/_create_workspace_modal.html:104
 msgid "Create workspace"
 msgstr "Створити робочий простір"
 
-#: templates/base_app.html:318
+#: templates/base_app.html:330
 msgid "Open navigation"
 msgstr "Відкрити навігацію"
 
-#: templates/base_app.html:332
+#: templates/base_app.html:344
 msgid "Hide sidebar"
 msgstr "Сховати бічну панель"
 
-#: templates/base_app.html:332
+#: templates/base_app.html:344
 msgid "Show sidebar"
 msgstr "Показати бічну панель"
 
-#: templates/base_app.html:391 templates/base_app.html:393
+#: templates/base_app.html:403 templates/base_app.html:405
 msgid "Search"
 msgstr "Пошук"
 
-#: templates/base_app.html:423
-msgid "Switch to dark mode"
-msgstr "Перейти на темну тему"
+#: templates/base_app.html:439 templates/base_app.html:441
+msgid "Theme"
+msgstr ""
 
-#: templates/base_app.html:425
-msgid "Switch to midnight mode"
-msgstr "Перейти на тему опівнічно-синю"
+#: templates/base_app.html:453
+#, fuzzy
+#| msgid "Insights"
+msgid "Light"
+msgstr "Аналітика"
 
-#: templates/base_app.html:426
-msgid "Switch to light mode"
-msgstr "Перейти на світлу тему"
+#: templates/base_app.html:461
+msgid "Paper"
+msgstr ""
 
-#: templates/base_app.html:506 templates/base_app.html:586
+#: templates/base_app.html:469
+msgid "Dark"
+msgstr ""
+
+#: templates/base_app.html:477
+#, fuzzy
+#| msgid "in-flight"
+msgid "Midnight"
+msgstr "в роботі"
+
+#: templates/base_app.html:557 templates/base_app.html:637
 msgid "Dismiss"
 msgstr "Закрити"
 
-#: templates/base_app.html:541
+#: templates/base_app.html:592
 msgid "Previous"
 msgstr "Назад"
 
-#: templates/base_app.html:547 templates/web/recurring/_recurring_row.html:47
+#: templates/base_app.html:598 templates/web/recurring/_recurring_row.html:47
 #: templates/web/workspaces/_settings_cycles.html:109
 msgid "Next"
 msgstr "Далі"
 
-#: templates/base_app.html:553
+#: templates/base_app.html:604
 msgid "Open original"
 msgstr "Відкрити оригінал"
 
-#: templates/base_app.html:555 templates/web/_modal_shell.html:42
-#: templates/web/_modal_shell.html:43 templates/web/inbox.html:173
-#: templates/web/recurring/_recurring_editor.html:56
-msgid "Close"
-msgstr "Закрити"
-
-#: templates/base_app.html:640 templates/web/_inbox_list.html:103
+#: templates/base_app.html:691 templates/web/_inbox_list.html:103
 msgid "selected"
 msgstr "виділено"
 
-#: templates/base_app.html:656
+#: templates/base_app.html:707
 msgid "Actions"
 msgstr "Дії"
 
-#: templates/base_app.html:663 templates/web/_inbox_list.html:121
+#: templates/base_app.html:714 templates/web/_inbox_list.html:121
 msgid "Clear selection"
 msgstr "Зняти вибір"
 
@@ -2182,6 +3090,7 @@ msgstr "До"
 
 #: templates/telegram/_settings.html:112
 #: templates/web/meetings/_meeting_editor.html:253
+#: templates/web/milestones/_editor.html:221
 #: templates/web/projects/_comment_edit_form.html:45
 #: templates/web/projects/_update_edit_form.html:59
 #: templates/web/recurring/_recurring_editor.html:325
@@ -2224,7 +3133,7 @@ msgstr ""
 "бота."
 
 #: templates/web/_all_tasks_inner.html:32
-#: templates/web/projects/_list_axis_section.html:61
+#: templates/web/projects/_list_axis_section.html:74
 msgid "No tasks match these filters"
 msgstr "Жодна задача не відповідає фільтрам"
 
@@ -2235,8 +3144,8 @@ msgstr "Спробуйте зняти частину фільтрів."
 #: templates/web/_assignee_avatar.html:50
 #: templates/web/_assignee_avatar.html:60
 #: templates/web/_assignee_avatar.html:70
-#: templates/web/projects/_table_row.html:153
-#: templates/web/projects/_table_row.html:160
+#: templates/web/projects/_table_row.html:157
+#: templates/web/projects/_table_row.html:164
 #: templates/web/recurring/_recurring_inner.html:42
 msgid "Filter by assignee"
 msgstr "Фільтрувати за виконавцем"
@@ -2265,13 +3174,13 @@ msgstr "колишній учасник — досі призначений ви
 #: templates/web/_bulk_archive_confirm.html:73
 #: templates/web/_bulk_archive_confirm.html:110
 #: templates/web/_inbox_list.html:116 templates/web/_notification_row.html:78
-#: templates/web/projects/_bulk_context_menu.html:99
-#: templates/web/projects/_task_context_menu.html:143
-#: templates/web/projects/_task_meta.html:182
+#: templates/web/projects/_bulk_context_menu.html:137
+#: templates/web/projects/_task_context_menu.html:188
+#: templates/web/projects/_task_meta.html:189
 #: templates/web/projects/_view_tabs.html:62
-#: templates/web/projects/_view_tabs.html:107
-#: templates/web/projects/_view_tabs.html:274
-#: templates/web/projects/_view_tabs.html:276
+#: templates/web/projects/_view_tabs.html:114
+#: templates/web/projects/_view_tabs.html:291
+#: templates/web/projects/_view_tabs.html:293
 msgid "Archive"
 msgstr "Архів"
 
@@ -2336,14 +3245,6 @@ msgstr "Перейти"
 #: templates/web/_command_palette.html:210
 msgid "navigate"
 msgstr "навігація"
-
-#: templates/web/_command_palette.html:212
-#: templates/web/_dashboard_inner.html:19
-#: templates/web/_dashboard_inner.html:89
-#: templates/web/_dashboard_inner.html:228
-#: templates/web/projects/_activity_event.html:87
-msgid "open"
-msgstr "відкрити"
 
 #: templates/web/_command_palette.html:216
 msgid "to toggle"
@@ -2424,7 +3325,6 @@ msgid "2–6 uppercase letters, e.g. HRW for HRW-49"
 msgstr "2-6 великих літер, наприклад HRW для HRW-49"
 
 #: templates/web/_create_project_modal.html:121
-#: templates/web/projects/_overview_panel.html:152
 msgid "Lead"
 msgstr "Лід"
 
@@ -2448,6 +3348,7 @@ msgid "Create a project first"
 msgstr "Спершу створіть проєкт"
 
 #: templates/web/_create_task_modal.html:52 templates/web/epics.html:37
+#: templates/web/projects/_plan_panel.html:110
 msgid "New epic"
 msgstr "Новий епік"
 
@@ -2504,7 +3405,7 @@ msgstr "Назва або префікс…"
 
 #: templates/web/_create_task_modal.html:317
 #: templates/web/_create_task_modal.html:364
-#: templates/web/_filter_dock.html:197 templates/web/_filter_dock.html:278
+#: templates/web/_filter_dock.html:211 templates/web/_filter_dock.html:305
 #, fuzzy
 #| msgid "No matches."
 msgid "Nothing matches."
@@ -2513,12 +3414,12 @@ msgstr "Нічого не знайдено."
 #: templates/web/_create_task_modal.html:329
 #: templates/web/_create_task_modal.html:384
 #: templates/web/_create_task_modal.html:436
-#: templates/web/_filter_dock.html:155 templates/web/_filter_dock.html:253
+#: templates/web/_filter_dock.html:169 templates/web/_filter_dock.html:280
 msgid "Clear"
 msgstr "Очистити"
 
 #: templates/web/_create_task_modal.html:333
-#: templates/web/_filter_dock.html:103 templates/web/_filter_dock.html:263
+#: templates/web/_filter_dock.html:117 templates/web/_filter_dock.html:290
 #, fuzzy
 #| msgid "Search"
 msgid "Search…"
@@ -2591,8 +3492,8 @@ msgstr "учасники"
 #: templates/web/_dashboard_inner.html:89
 #: templates/web/_dashboard_inner.html:104
 #: templates/web/_dashboard_inner.html:227
-#: templates/web/projects/_overview_panel.html:196
-#: templates/web/projects/_overview_panel.html:253
+#: templates/web/projects/_overview_panel.html:194
+#: templates/web/projects/_overview_panel.html:251
 #: templates/web/projects/list.html:184
 msgid "done"
 msgstr "виконано"
@@ -2706,6 +3607,7 @@ msgid "no labels in flight"
 msgstr "немає міток у роботі"
 
 #: templates/web/_dashboard_inner.html:209
+#: templates/web/_my_work_around.html:27
 msgid "People"
 msgstr "Люди"
 
@@ -2797,12 +3699,6 @@ msgstr "виконано 30д"
 msgid "done rate"
 msgstr "частка виконаних"
 
-#: templates/web/_dashboard_inner.html:275
-#: templates/web/projects/_overview_panel.html:206
-#: templates/web/projects/_timeline.html:411
-msgid "overdue"
-msgstr "прострочено"
-
 #: templates/web/_dashboard_inner.html:276
 msgid "urgent+high"
 msgstr "терміновий+високий"
@@ -2854,93 +3750,111 @@ msgstr "7д × 24г · кожна подія воркспейсу за годи�
 msgid "fewer"
 msgstr "менше"
 
-#: templates/web/_filter_dock.html:104
+#: templates/web/_epic_panel.html:20
+#, fuzzy
+#| msgid "On this task"
+msgid "Open the epic and its tasks"
+msgstr "Над цією задачею"
+
+#: templates/web/_filter_dock.html:118
 msgid "Search tasks by title or description"
 msgstr "Пошук задач за назвою або описом"
 
-#: templates/web/_filter_dock.html:120
+#: templates/web/_filter_dock.html:134
 #, fuzzy
 #| msgid "Reset filter"
 msgid "Remove filter"
 msgstr "Скинути фільтр"
 
-#: templates/web/_filter_dock.html:143
+#: templates/web/_filter_dock.html:157
 #, fuzzy
 #| msgid "Filters"
 msgid "Filter"
 msgstr "Фільтри"
 
-#: templates/web/_filter_dock.html:149
+#: templates/web/_filter_dock.html:163
 msgid "What this view shows"
 msgstr "Що показує цей вигляд"
 
-#: templates/web/_filter_dock.html:151
+#: templates/web/_filter_dock.html:165
 msgid "Display"
 msgstr "Вигляд"
 
-#: templates/web/_filter_dock.html:165
+#: templates/web/_filter_dock.html:179
 #, fuzzy
 #| msgid "unlinked"
 msgid "Unlinked"
 msgstr "відв'язано"
 
-#: templates/web/_filter_dock.html:187
+#: templates/web/_filter_dock.html:201
 #, fuzzy
 #| msgid "Filter by size"
 msgid "Filter by…"
 msgstr "Фільтрувати за розміром"
 
-#: templates/web/_filter_dock.html:208
+#: templates/web/_filter_dock.html:222
 #, fuzzy
 #| msgid "Show archived"
 msgid "Show in this view"
 msgstr "Показати архівні"
 
-#: templates/web/_filter_dock.html:212
+#: templates/web/_filter_dock.html:226
 #, fuzzy
 #| msgid "Backlog"
 msgid "Backlog tasks"
 msgstr "Беклог"
 
-#: templates/web/_filter_dock.html:217
+#: templates/web/_filter_dock.html:231
 #, fuzzy
 #| msgid "Unarchive task"
 msgid "Archived tasks"
 msgstr "Розархівувати задачу"
 
-#: templates/web/_filter_dock.html:222
+#: templates/web/_filter_dock.html:236
 #, fuzzy
 #| msgid "Show my projects"
 msgid "Only my projects"
 msgstr "Тільки мої проєкти"
 
-#: templates/web/_filter_dock.html:235
-msgid "Epic column"
+#: templates/web/_filter_dock.html:250
+#, fuzzy
+#| msgid "Epic column"
+msgid "Epic on rows"
 msgstr "Колонка «Епік»"
 
-#: templates/web/_filter_dock.html:246
+#: templates/web/_filter_dock.html:256
+msgid "Milestone on rows"
+msgstr ""
+
+#: templates/web/_filter_dock.html:262
+#, fuzzy, python-format
+#| msgid "Promote to %(label)s"
+msgid "Column: %(label)s"
+msgstr "Перевести в %(label)s"
+
+#: templates/web/_filter_dock.html:273
 #, fuzzy
 #| msgid "Backlog"
 msgid "Back"
 msgstr "Беклог"
 
-#: templates/web/_filter_dock.html:257
+#: templates/web/_filter_dock.html:284
 #, fuzzy
 #| msgid "List"
 msgid "is"
 msgstr "Список"
 
-#: templates/web/_filter_dock.html:258
+#: templates/web/_filter_dock.html:285
 msgid "is not"
 msgstr "не є"
 
-#: templates/web/_filter_dock.html:282
+#: templates/web/_filter_dock.html:309
 #, fuzzy
 #| msgid "click to edit"
 msgid "shift-click to exclude"
 msgstr "клікніть, щоб редагувати"
 
-#: templates/web/_filter_dock.html:284
+#: templates/web/_filter_dock.html:311
 #, fuzzy
 #| msgid "moved to cycle"
 msgid "esc to close"
@@ -2999,12 +3913,8 @@ msgstr "Позначити прочитаним"
 msgid "Mark unread"
 msgstr "Позначити непрочитаним"
 
-#: templates/web/_inbox_preview.html:18 templates/web/_inbox_preview.html:38
-msgid "Open"
-msgstr "Відкрити"
-
 #: templates/web/_inbox_preview.html:62
-#: templates/web/_inbox_update_preview.html:63 templates/web/epics.html:126
+#: templates/web/_inbox_update_preview.html:63 templates/web/epics.html:272
 msgid "ago"
 msgstr "тому"
 
@@ -3020,6 +3930,7 @@ msgstr "Виберіть щось ліворуч, щоб побачити дет
 #: templates/web/meetings/_comment_body.html:29
 #: templates/web/meetings/_meeting_row.html:69
 #: templates/web/meetings/call_detail.html:38
+#: templates/web/milestones/detail.html:63
 #: templates/web/projects/_comment_actions.html:34
 #: templates/web/projects/_update_actions.html:19
 #: templates/web/workspaces/_label_row.html:33
@@ -3033,11 +3944,11 @@ msgstr "Редагувати"
 #: templates/web/meetings/call_detail.html:111
 #: templates/web/meetings/call_detail.html:120
 #: templates/web/projects/_attachments_panel.html:70
-#: templates/web/projects/_bulk_context_menu.html:112
+#: templates/web/projects/_bulk_context_menu.html:150
 #: templates/web/projects/_comment_actions.html:39
-#: templates/web/projects/_task_context_menu.html:197
-#: templates/web/projects/_task_meta.html:212
-#: templates/web/projects/_task_meta_compact.html:99
+#: templates/web/projects/_task_context_menu.html:242
+#: templates/web/projects/_task_meta.html:219
+#: templates/web/projects/_task_meta_compact.html:100
 #: templates/web/projects/_update_actions.html:24
 #: templates/web/recurring/_recurring_row.html:76
 #: templates/web/workspaces/_label_row.html:46
@@ -3111,6 +4022,137 @@ msgstr "Ваші дії в задачах зʼявлятимуться тут."
 #: templates/web/_my_activity_items.html:63
 msgid "Load more"
 msgstr "Завантажити ще"
+
+#: templates/web/_my_work_around.html:18
+#, fuzzy
+#| msgid "to you"
+msgid "Around you"
+msgstr "вам"
+
+#: templates/web/_my_work_around.html:20
+msgid "people, days, calls"
+msgstr ""
+
+#: templates/web/_my_work_around.html:30
+msgid "who waits on you, who you wait on, who wrote"
+msgstr ""
+
+#: templates/web/_my_work_around.html:54
+#, fuzzy, python-format
+#| msgid "waits on %(slug)s"
+msgid "waits on your %(id)s"
+msgstr "чекає на %(slug)s"
+
+#: templates/web/_my_work_around.html:55
+#, fuzzy, python-format
+#| msgid "Links to %(slug)s · %(title)s"
+msgid "for %(id)s %(title)s"
+msgstr "Пов'яже з %(slug)s · %(title)s"
+
+#: templates/web/_my_work_around.html:62
+#, python-format
+msgid "you wait on their %(id)s"
+msgstr ""
+
+#: templates/web/_my_work_around.html:63
+#, python-format
+msgid "holds your %(id)s"
+msgstr ""
+
+#: templates/web/_my_work_around.html:69
+#, fuzzy
+#| msgid "Context"
+msgid "no text"
+msgstr "Контекст"
+
+#: templates/web/_my_work_around.html:84
+msgid "what lands on which day"
+msgstr ""
+
+#: templates/web/_my_work_around.html:122
+msgid "next 3 days, with what to bring"
+msgstr ""
+
+#: templates/web/_my_work_around.html:142
+msgid "No calls in the next three days."
+msgstr ""
+
+#: templates/web/_my_work_around.html:150
+#, fuzzy
+#| msgid "Since last update"
+msgid "Since yesterday"
+msgstr "З минулого апдейту"
+
+#: templates/web/_my_work_around.html:153
+msgid "others on your tasks"
+msgstr ""
+
+#: templates/web/_my_work_focus.html:53
+msgid "Tidy up"
+msgstr ""
+
+#: templates/web/_my_work_focus.html:69
+msgid "Do first"
+msgstr ""
+
+#: templates/web/_my_work_focus.html:73
+msgid "overdue › blocks someone › due in 2 days › urgent › past its milestone"
+msgstr ""
+
+#: templates/web/_my_work_focus.html:143
+msgid "Commitments on fire"
+msgstr ""
+
+#: templates/web/_my_work_focus.html:146
+msgid "your open work under each, by epic"
+msgstr ""
+
+#: templates/web/_my_work_focus.html:171
+msgid "yours"
+msgstr ""
+
+#: templates/web/_my_work_focus.html:178 templates/web/_my_work_focus.html:200
+msgid "team"
+msgstr ""
+
+#: templates/web/_my_work_focus.html:198
+#, fuzzy, python-format
+#| msgid "%(counter)s pending"
+#| msgid_plural "%(counter)s pending"
+msgid "%(counter)s open"
+msgid_plural "%(counter)s open"
+msgstr[0] "%(counter)s в очікуванні"
+msgstr[1] "%(counter)s в очікуванні"
+msgstr[2] "%(counter)s в очікуванні"
+msgstr[3] "%(counter)s в очікуванні"
+
+#: templates/web/_my_work_focus.html:198
+#: templates/web/projects/_epic_milestone_split.html:54
+#, fuzzy, python-format
+#| msgid "%(counter)s label"
+#| msgid_plural "%(counter)s labels"
+msgid "%(counter)s late"
+msgid_plural "%(counter)s late"
+msgstr[0] "%(counter)s мітка"
+msgstr[1] "%(counter)s мітки"
+msgstr[2] "%(counter)s міток"
+msgstr[3] "%(counter)s мітки"
+
+#: templates/web/_my_work_focus.html:214
+#, fuzzy
+#| msgid "Start date"
+msgid "after the date"
+msgstr "Дата початку"
+
+#: templates/web/_my_work_focus.html:243
+#, fuzzy
+#| msgid "Pick a project"
+msgid "Pick next"
+msgstr "Оберіть проєкт"
+
+#: templates/web/_my_work_focus.html:246
+msgid "ready, unblocked, not in Do first"
+msgstr ""
 
 #: templates/web/_my_work_inner.html:22
 msgid "Nothing assigned to you"
@@ -3193,7 +4235,7 @@ msgstr "Вже є в цьому воркспейсі"
 msgid "Suggested"
 msgstr "Підказки"
 
-#: templates/web/_task_row.html:33 templates/web/projects/_table_row.html:81
+#: templates/web/_task_row.html:33 templates/web/projects/_table_row.html:87
 msgid "Filter by status"
 msgstr "Фільтрувати за статусом"
 
@@ -3201,18 +4243,19 @@ msgstr "Фільтрувати за статусом"
 msgid "Select task"
 msgstr "Вибрати задачу"
 
-#: templates/web/_task_row.html:52 templates/web/projects/_table_row.html:55
+#: templates/web/_task_row.html:52 templates/web/projects/_table_row.html:61
 #: templates/web/projects/_task_card.html:83
-#: templates/web/projects/_task_meta.html:121
-#: templates/web/projects/_task_meta_compact.html:59
+#: templates/web/projects/_task_meta.html:128
+#: templates/web/projects/_task_meta_compact.html:60
 msgid "Archived"
 msgstr "Архівні"
 
-#: templates/web/_task_row.html:55 templates/web/projects/_table_row.html:58
+#: templates/web/_task_row.html:55 templates/web/projects/_table_row.html:64
 msgid "Recurring task"
 msgstr "Повторювана задача"
 
-#: templates/web/_task_row.html:59 templates/web/projects/_table_row.html:48
+#: templates/web/_task_row.html:59 templates/web/epics.html:236
+#: templates/web/projects/_table_row.html:54
 msgid "Filter by priority"
 msgstr "Фільтрувати за пріоритетом"
 
@@ -3221,13 +4264,13 @@ msgstr "Фільтрувати за пріоритетом"
 msgid "Promote to %(label)s"
 msgstr "Перевести в %(label)s"
 
-#: templates/web/_task_row.html:92 templates/web/projects/_table_row.html:89
+#: templates/web/_task_row.html:92 templates/web/projects/_table_row.html:95
 msgid "Filter by size"
 msgstr "Фільтрувати за розміром"
 
-#: templates/web/_task_row.html:143
+#: templates/web/_task_row.html:145
 #: templates/web/meetings/_meetings_inner.html:33
-#: templates/web/projects/_table_row.html:167
+#: templates/web/projects/_table_row.html:171
 #: templates/web/recurring/_recurring_inner.html:36
 msgid "Filter by project"
 msgstr "Фільтрувати за проєктом"
@@ -3265,11 +4308,6 @@ msgstr[3] "залишилось %(days)s днів"
 msgid "Points"
 msgstr "Бали"
 
-#: templates/web/cycles/overview.html:68
-#: templates/web/projects/_task_meta.html:79
-msgid "Progress"
-msgstr "Прогрес"
-
 #: templates/web/cycles/overview.html:73
 msgid "View tasks"
 msgstr "Переглянути задачі"
@@ -3299,34 +4337,36 @@ msgid "No cycles yet."
 msgstr "Ще немає циклів."
 
 #: templates/web/cycles/overview.html:149
+#: templates/web/milestones/detail.html:341
 msgid "Ideal"
 msgstr "Ідеал"
 
 #: templates/web/cycles/overview.html:158
+#: templates/web/milestones/detail.html:350
 msgid "Remaining"
 msgstr "Залишилось"
 
-#: templates/web/epics.html:52
+#: templates/web/epics.html:69
 msgid "Epics are off for this workspace."
 msgstr "Епіки вимкнені для цього воркспейсу."
 
-#: templates/web/epics.html:54
+#: templates/web/epics.html:71
 msgid ""
 "Turn them on in workspace settings to group tasks from several projects "
 "under one effort."
 msgstr ""
 
-#: templates/web/epics.html:65
+#: templates/web/epics.html:82
 msgid "No epics yet."
 msgstr "Епіків ще немає."
 
-#: templates/web/epics.html:67
+#: templates/web/epics.html:84
 msgid ""
 "An epic collects tasks from across the workspace — a migration, a release, "
 "an audit. Its progress and dates come from the tasks inside it."
 msgstr ""
 
-#: templates/web/epics.html:74
+#: templates/web/epics.html:100
 #, python-format
 msgid "%(counter)s epic"
 msgid_plural "%(counter)s epics"
@@ -3335,19 +4375,63 @@ msgstr[1] "%(counter)s епіки"
 msgstr[2] "%(counter)s епіків"
 msgstr[3] "%(counter)s епіка"
 
-#: templates/web/epics.html:77
-msgid "Last done · quietest first"
-msgstr "Останнє закриття · найтихіші згори"
+#: templates/web/epics.html:102
+msgid "span"
+msgstr ""
 
-#: templates/web/epics.html:86 templates/web/projects/_task_meta.html:86
-msgid "Dates"
-msgstr "Дати"
+#: templates/web/epics.html:106
+#, fuzzy, python-format
+#| msgid "%(counter)s link"
+#| msgid_plural "%(counter)s links"
+msgid "%(counter)s moving"
+msgstr "%(counter)s зв'язок"
 
-#: templates/web/epics.html:87
-msgid "Last done"
-msgstr "Останнє закриття"
+#: templates/web/epics.html:111
+#, python-format
+msgid "Nothing closed inside them for %(days)s days"
+msgstr ""
 
-#: templates/web/epics.html:99 templates/web/projects/epic_detail.html:72
+#: templates/web/epics.html:112
+#, fuzzy, python-format
+#| msgid "%(counter)s task"
+#| msgid_plural "%(counter)s tasks"
+msgid "%(counter)s paused"
+msgstr "%(counter)s задача"
+
+#: templates/web/epics.html:117
+#, fuzzy, python-format
+#| msgid "%(counter)s epic"
+#| msgid_plural "%(counter)s epics"
+msgid "%(counter)s done"
+msgstr "%(counter)s епік"
+
+#: templates/web/epics.html:122
+#, fuzzy, python-format
+#| msgid "%(counter)s overdue"
+#| msgid_plural "%(counter)s overdue"
+msgid "%(counter)s across several milestones"
+msgstr "%(counter)s прострочено"
+
+#: templates/web/epics.html:126
+#, fuzzy, python-format
+#| msgid "%(counter)s overdue"
+#| msgid_plural "%(counter)s overdue"
+msgid "%(counter)s reach other projects"
+msgstr "%(counter)s прострочено"
+
+#: templates/web/epics.html:130
+#, fuzzy, python-format
+#| msgid "%(counter)s task"
+#| msgid_plural "%(counter)s tasks"
+msgid "%(counter)s task past milestone"
+msgid_plural "%(counter)s tasks past milestone"
+msgstr[0] "%(counter)s задача"
+msgstr[1] "%(counter)s задачі"
+msgstr[2] "%(counter)s задач"
+msgstr[3] "%(counter)s задачі"
+
+#: templates/web/epics.html:135 templates/web/epics.html:223
+#: templates/web/projects/epic_detail.html:74
 #, python-format
 msgid "%(counter)s blocked"
 msgid_plural "%(counter)s blocked"
@@ -3356,14 +4440,34 @@ msgstr[1] "%(counter)s заблоковані"
 msgstr[2] "%(counter)s заблокованих"
 msgstr[3] "%(counter)s заблокованої"
 
-#: templates/web/epics.html:115
+#: templates/web/epics.html:167
+msgid "Last done · quietest first"
+msgstr "Останнє закриття · найтихіші згори"
+
+#: templates/web/epics.html:192 templates/web/projects/_task_meta.html:93
+msgid "Dates"
+msgstr "Дати"
+
+#: templates/web/epics.html:195
+msgid "Last done"
+msgstr "Останнє закриття"
+
+#: templates/web/epics.html:261
 msgid "no tasks yet"
 msgstr "ще немає задач"
 
-#: templates/web/epics.html:139
+#: templates/web/epics.html:293 templates/web/projects/epic_detail.html:43
+msgid "Details"
+msgstr "Деталі"
+
+#: templates/web/epics.html:301
 #, python-format
 msgid "Paused = no task closed in %(paused_after_days)s days."
 msgstr "Пауза = жодної закритої задачі за %(paused_after_days)s днів."
+
+#: templates/web/epics.html:325 templates/web/projects/_list_panel.html:67
+msgid "Loading…"
+msgstr "Завантаження…"
 
 #: templates/web/inbox.html:16
 msgid "live"
@@ -3461,14 +4565,14 @@ msgstr "Скопіювати посилання на задачу"
 
 #: templates/web/meetings/_meeting_editor.html:80
 #: templates/web/meetings/_meeting_editor.html:81
-#: templates/web/projects/_task_context_menu.html:167
+#: templates/web/projects/_task_context_menu.html:212
 #: templates/web/projects/task_detail_modal.html:55
 #: templates/web/projects/task_detail_modal.html:56
 msgid "Open full page"
 msgstr "Відкрити повну сторінку"
 
 #: templates/web/meetings/_meeting_editor.html:104
-#: templates/web/projects/_table.html:57
+#: templates/web/projects/_table.html:64
 #: templates/web/recurring/_recurring_editor.html:81
 msgid "Title"
 msgstr "Назва"
@@ -3529,10 +4633,10 @@ msgstr "Зафіксувати"
 
 #: templates/web/meetings/_meeting_row.html:83
 #: templates/web/meetings/call_detail.html:122
-#: templates/web/projects/_bulk_context_menu.html:113
-#: templates/web/projects/_task_context_menu.html:199
-#: templates/web/projects/_task_meta.html:216
-#: templates/web/projects/_task_meta_compact.html:103
+#: templates/web/projects/_bulk_context_menu.html:151
+#: templates/web/projects/_task_context_menu.html:244
+#: templates/web/projects/_task_meta.html:223
+#: templates/web/projects/_task_meta_compact.html:104
 msgid "No"
 msgstr "Ні"
 
@@ -3591,10 +4695,498 @@ msgid "Logged by"
 msgstr "Заблоковано"
 
 #: templates/web/meetings/call_detail.html:116
-#: templates/web/projects/_task_meta.html:206
-#: templates/web/projects/_task_meta_compact.html:93
+#: templates/web/projects/_task_meta.html:213
+#: templates/web/projects/_task_meta_compact.html:94
 msgid "Delete permanently?"
 msgstr "Видалити назавжди?"
+
+#: templates/web/milestones/_close_dialog.html:31
+#, fuzzy, python-format
+#| msgid "sent by %(name)s"
+msgid "Close %(name)s"
+msgstr "надіслав %(name)s"
+
+#: templates/web/milestones/_close_dialog.html:45
+#, python-format
+msgid ""
+"%(counter)s of %(total)s tasks is unfinished. Closing records this date as "
+"reached today."
+msgid_plural ""
+"%(counter)s of %(total)s tasks are unfinished. Closing records this date as "
+"reached today."
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+msgstr[3] ""
+
+#: templates/web/milestones/_close_dialog.html:48
+#, python-format
+msgid ""
+"The %(counter)s done task stays with %(name)s. Where should the rest go?"
+msgid_plural ""
+"The %(counter)s done tasks stay with %(name)s. Where should the rest go?"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+msgstr[3] ""
+
+#: templates/web/milestones/_close_dialog.html:60
+#, fuzzy
+#| msgid "Move to another project"
+msgid "Move them to another milestone"
+msgstr "Перемістити в інший проєкт"
+
+#: templates/web/milestones/_close_dialog.html:73
+#, fuzzy, python-format
+#| msgid "show all %(counter)s task"
+#| msgid_plural "show all %(counter)s tasks"
+msgid "all %(counter)s fit"
+msgstr "показати всі %(counter)s задачу"
+
+#: templates/web/milestones/_close_dialog.html:74
+#, fuzzy, python-format
+#| msgid "%(done)s / %(total)s done"
+msgid "%(counter)s of %(total)s fit"
+msgstr "%(done)s / %(total)s готово"
+
+#: templates/web/milestones/_close_dialog.html:75
+msgid "covers none of it"
+msgstr ""
+
+#: templates/web/milestones/_close_dialog.html:84
+#, python-format
+msgid "%(counter)s move to %(name)s (%(date)s)"
+msgstr ""
+
+#: templates/web/milestones/_close_dialog.html:84
+#, python-format
+msgid "%(counter)s is due after its date and will show as at risk there."
+msgid_plural ""
+"%(counter)s are due after its date and will show as at risk there."
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+msgstr[3] ""
+
+#: templates/web/milestones/_close_dialog.html:84
+msgid "all due on or before its date."
+msgstr ""
+
+#: templates/web/milestones/_close_dialog.html:99
+#: templates/web/milestones/_editor.html:136
+msgid "Leave them unattached"
+msgstr ""
+
+#: templates/web/milestones/_close_dialog.html:102
+msgid "They keep status, assignee and due date. The milestone chip clears."
+msgstr ""
+
+#: templates/web/milestones/_close_dialog.html:108
+msgid "Reopen undoes the close, not the move."
+msgstr ""
+
+#: templates/web/milestones/_close_dialog.html:112
+#, python-format
+msgid "Close and move %(counter)s"
+msgstr ""
+
+#: templates/web/milestones/_close_dialog.html:113
+#, python-format
+msgid "Close and detach %(counter)s"
+msgstr ""
+
+#: templates/web/milestones/_editor.html:38
+msgid "Edit milestone"
+msgstr ""
+
+#: templates/web/milestones/_editor.html:38
+#: templates/web/milestones/overview.html:36
+#: templates/web/projects/_plan_panel.html:102
+#, fuzzy
+#| msgid "New owner"
+msgid "New milestone"
+msgstr "Новий власник"
+
+#: templates/web/milestones/_editor.html:46
+msgid "A milestone needs at least one project in scope."
+msgstr ""
+
+#: templates/web/milestones/_editor.html:47
+#: templates/web/recurring/_recurring_editor.html:52
+msgid "This workspace has no projects yet — create one first."
+msgstr "У цьому воркспейсі ще немає проєктів — спершу створіть проєкт."
+
+#: templates/web/milestones/_editor.html:72
+#, fuzzy
+#| msgid "What needs doing each time?"
+msgid "What gets reached?"
+msgstr "Що потрібно робити щоразу?"
+
+#: templates/web/milestones/_editor.html:77
+msgid "Goal — what must be true on this date?"
+msgstr ""
+
+#: templates/web/milestones/_editor.html:87
+msgid "Optional details — context, links, the go/no-go call…"
+msgstr ""
+
+#: templates/web/milestones/_editor.html:113
+#, python-format
+msgid ""
+"%(name)s has %(counter)s tasks in %(milestone_name)s. A task can only sit in "
+"a milestone that covers its project, so dropping %(name)s means they leave."
+msgstr ""
+
+#: templates/web/milestones/_editor.html:122
+msgid "Move them to"
+msgstr ""
+
+#: templates/web/milestones/_editor.html:137
+msgid "they keep status and dates"
+msgstr ""
+
+#: templates/web/milestones/_editor.html:151
+msgid "Target"
+msgstr ""
+
+#: templates/web/milestones/_editor.html:165
+#: templates/web/milestones/detail.html:121
+#, fuzzy
+#| msgid "New owner"
+msgid "No owner"
+msgstr "Новий власник"
+
+#: templates/web/milestones/_editor.html:177
+#, python-format
+msgid "of %(total)s"
+msgstr ""
+
+#: templates/web/milestones/_editor.html:184
+#, fuzzy
+#| msgid "Search projects…"
+msgid "Search projects"
+msgstr "Пошук проєктів…"
+
+#: templates/web/milestones/_editor.html:202
+#, fuzzy, python-format
+#| msgid "%(counter)s task"
+#| msgid_plural "%(counter)s tasks"
+msgid "%(counter)s attached"
+msgid_plural "%(counter)s attached"
+msgstr[0] "%(counter)s задача"
+msgstr[1] "%(counter)s задачі"
+msgstr[2] "%(counter)s задач"
+msgstr[3] "%(counter)s задачі"
+
+#: templates/web/milestones/_editor.html:209
+msgid ""
+"One project is a local checkpoint only it shows. Several make a shared "
+"commitment every one of them shows."
+msgstr ""
+
+#: templates/web/milestones/_editor.html:216
+msgid ""
+"Membership is chosen, never inferred — attaching work is a separate step."
+msgstr ""
+
+#: templates/web/milestones/_editor.html:221
+#, fuzzy
+#| msgid "Create rule"
+msgid "Create milestone"
+msgstr "Створити правило"
+
+#: templates/web/milestones/_fill_panel.html:28
+#, fuzzy
+#| msgid "Delete this workspace"
+msgid "Search this workspace"
+msgstr "Видалити цей простір"
+
+#: templates/web/milestones/_fill_panel.html:50
+msgid "In scope"
+msgstr ""
+
+#: templates/web/milestones/_fill_panel.html:60
+#, python-format
+msgid "%(project)s · in %(name)s — attaching moves it here"
+msgstr ""
+
+#: templates/web/milestones/_fill_panel.html:62
+#, python-format
+msgid "%(project)s · no milestone"
+msgstr ""
+
+#: templates/web/milestones/_fill_panel.html:69
+#, fuzzy
+#| msgid "No matches."
+msgid "Nothing in scope matches."
+msgstr "Нічого не знайдено."
+
+#: templates/web/milestones/_fill_panel.html:69
+#, fuzzy
+#| msgid "Everyone in the workspace is already a member."
+msgid "Every task in scope is already here."
+msgstr "Усі учасники робочого простору вже додані."
+
+#: templates/web/milestones/_fill_panel.html:75
+msgid "Outside this milestone’s scope"
+msgstr ""
+
+#: templates/web/milestones/_fill_panel.html:84
+#, python-format
+msgid "%(project)s is not in this milestone’s scope"
+msgstr ""
+
+#: templates/web/milestones/_fill_panel.html:93
+#, fuzzy
+#| msgid "deleted the task"
+msgid "One milestone per task."
+msgstr "видалено задачу"
+
+#: templates/web/milestones/_fill_panel.html:96
+#, fuzzy
+#| msgid "Attachment"
+msgid "Attach"
+msgstr "Вкладення"
+
+#: templates/web/milestones/_project_chip.html:10
+#: templates/web/milestones/_slice_table.html:28
+#, fuzzy
+#| msgid "no tasks yet"
+msgid "no work yet"
+msgstr "ще немає задач"
+
+#: templates/web/milestones/_reports.html:20
+#, fuzzy
+#| msgid "Move"
+msgid "Move here"
+msgstr "Перемістити"
+
+#: templates/web/milestones/_reports.html:29
+#, python-format
+msgid "Due before the date, in no milestone · %(counter)s"
+msgid_plural "Due before the date, in no milestone · %(counter)s"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+msgstr[3] ""
+
+#: templates/web/milestones/_reports.html:33
+msgid "Forgotten, or deliberately out? Nothing joins until someone says so."
+msgstr ""
+
+#: templates/web/milestones/_reports.html:54
+#, python-format
+msgid "Blocks this work from outside · %(counter)s"
+msgid_plural "Blocks this work from outside · %(counter)s"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+msgstr[3] ""
+
+#: templates/web/milestones/_reports.html:58
+msgid ""
+"Up to two hops out. A blocker scheduled after the work it blocks is a plan "
+"contradicting itself."
+msgstr ""
+
+#: templates/web/milestones/_reports.html:74
+msgid "Outside scope"
+msgstr ""
+
+#: templates/web/milestones/_row.html:34
+#: templates/web/milestones/detail.html:106
+msgid "No goal yet — what must be true on this date?"
+msgstr ""
+
+#: templates/web/milestones/_row.html:46
+#, fuzzy, python-format
+#| msgid "sent by %(name)s"
+msgid "same day as %(names)s"
+msgstr "надіслав %(name)s"
+
+#: templates/web/milestones/_row.html:57 templates/web/milestones/_row.html:103
+#, fuzzy
+#| msgid "attached"
+msgid "no work attached"
+msgstr "прикріпив"
+
+#: templates/web/milestones/_slice_table.html:46
+#, fuzzy
+#| msgid "No matches."
+msgid "Nothing to slice yet."
+msgstr "Нічого не знайдено."
+
+#: templates/web/milestones/detail.html:69
+#: templates/web/projects/_task_context_menu.html:167
+#: templates/web/projects/_task_meta.html:165
+msgid "Reopen"
+msgstr "Відновити"
+
+#: templates/web/milestones/detail.html:84
+#, python-format
+msgid ""
+"Delete %(name)s? Its %(counter)s task keeps everything but the milestone."
+msgid_plural ""
+"Delete %(name)s? Its %(counter)s tasks keep everything but the milestone."
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+msgstr[3] ""
+
+#: templates/web/milestones/detail.html:93
+#, fuzzy
+#| msgid "Delete token"
+msgid "Delete milestone"
+msgstr "Видалити токен"
+
+#: templates/web/milestones/detail.html:125
+#: templates/web/milestones/overview.html:79
+#, fuzzy
+#| msgid "overdue"
+msgid "Covers"
+msgstr "прострочено"
+
+#: templates/web/milestones/detail.html:149
+msgid "Every attached task is counted."
+msgstr ""
+
+#: templates/web/milestones/detail.html:152
+#, python-format
+msgid ""
+"Nothing attached yet — no progress bar, no burndown: 0 of 0 is not 100%%."
+msgstr ""
+
+#: templates/web/milestones/detail.html:162
+msgid ""
+"Read off the activity log, never from due dates — a burndown drawn from "
+"plans cannot be wrong."
+msgstr ""
+
+#: templates/web/milestones/detail.html:170
+#, fuzzy, python-format
+#| msgid "%(counter)s wk"
+#| msgid_plural "%(counter)s wk"
+msgid "At risk · %(counter)s"
+msgstr "%(counter)s тижд."
+
+#: templates/web/milestones/detail.html:172
+msgid "days over the date"
+msgstr ""
+
+#: templates/web/milestones/detail.html:175
+#, python-format
+msgid "Unfinished and due after %(date)s, or still open once it passed."
+msgstr ""
+
+#: templates/web/milestones/detail.html:187
+#, fuzzy
+#| msgid "Nothing matches this filter"
+msgid "Nothing runs past this date."
+msgstr "Нічого не відповідає фільтру"
+
+#: templates/web/milestones/detail.html:191
+#, fuzzy, python-format
+#| msgid "Show %(counter)s more"
+#| msgid_plural "Show %(counter)s more"
+msgid "+ %(counter)s more at risk"
+msgstr "Показати ще %(counter)s"
+
+#: templates/web/milestones/detail.html:199
+#, fuzzy
+#| msgid "New project"
+msgid "By project"
+msgstr "Новий проєкт"
+
+#: templates/web/milestones/detail.html:200
+#, fuzzy
+#| msgid "No epic"
+msgid "By epic"
+msgstr "Без епіка"
+
+#: templates/web/milestones/detail.html:210
+#, python-format
+msgid ""
+"All %(counter)s task is done — ready to close. It stays open until someone "
+"closes it."
+msgid_plural ""
+"All %(counter)s tasks are done — ready to close. It stays open until someone "
+"closes it."
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+msgstr[3] ""
+
+#: templates/web/milestones/detail.html:223
+#, python-format
+msgid "Attached work · %(counted)s counted · %(attached)s attached"
+msgstr ""
+
+#: templates/web/milestones/detail.html:232
+#, fuzzy
+#| msgid "tasks"
+msgid "Add tasks"
+msgstr "задач"
+
+#: templates/web/milestones/detail.html:281
+msgid ""
+"Nothing attached yet — add work here, or commit a task from its rail or from "
+"a selection on any list."
+msgstr ""
+
+#: templates/web/milestones/detail.html:361
+#, fuzzy
+#| msgid "Delete this workspace"
+msgid "At this pace"
+msgstr "Видалити цей простір"
+
+#: templates/web/milestones/overview.html:56
+msgid "No milestones yet — pick a date something must be true by."
+msgstr ""
+
+#: templates/web/milestones/overview.html:58
+msgid ""
+"A milestone is one date, scoped to one project or several. One project is a "
+"local checkpoint; four is a shared commitment every one of them shows."
+msgstr ""
+
+#: templates/web/milestones/overview.html:65
+#, fuzzy, python-format
+#| msgid "%(counter)s member"
+#| msgid_plural "%(counter)s members"
+msgid "%(counter)s milestone"
+msgid_plural "%(counter)s milestones"
+msgstr[0] "%(counter)s учасник"
+msgstr[1] "%(counter)s учасники"
+msgstr[2] "%(counter)s учасників"
+msgstr[3] "%(counter)s учасника"
+
+#: templates/web/milestones/overview.html:67
+#, fuzzy, python-format
+#| msgid "%(counter)s pending"
+#| msgid_plural "%(counter)s pending"
+msgid "%(counter)s upcoming"
+msgid_plural "%(counter)s upcoming"
+msgstr[0] "%(counter)s в очікуванні"
+msgstr[1] "%(counter)s в очікуванні"
+msgstr[2] "%(counter)s в очікуванні"
+msgstr[3] "%(counter)s в очікуванні"
+
+#: templates/web/milestones/overview.html:70
+#, fuzzy, python-format
+#| msgid "%(actor)s posted a project update"
+msgid "%(counter)s shared across projects"
+msgid_plural "%(counter)s shared across projects"
+msgstr[0] "%(actor)s опублікував оновлення проєкту"
+msgstr[1] "%(actor)s опублікував оновлення проєкту"
+msgstr[2] "%(actor)s опублікував оновлення проєкту"
+msgstr[3] "%(actor)s опублікував оновлення проєкту"
+
+#: templates/web/milestones/overview.html:106
+msgid ""
+"Progress is done over attached work. Cancelled is not work; archived done "
+"still counts; archived unfinished drops out. At risk: unfinished and due "
+"after the target, or still open once the date has passed."
+msgstr ""
 
 #: templates/web/no_workspaces.html:4
 msgid "No workspace"
@@ -3625,7 +5217,7 @@ msgstr ""
 #: templates/web/projects/_activity_event.html:32
 #: templates/web/projects/_activity_event.html:37
 #: templates/web/projects/_activity_event.html:42
-#: templates/web/projects/_activity_event.html:93
+#: templates/web/projects/_activity_event.html:100
 msgid "cleared"
 msgstr "очищено"
 
@@ -3634,51 +5226,61 @@ msgid "unassigned"
 msgstr "знято виконавця"
 
 #: templates/web/projects/_activity_event.html:58
+#, fuzzy
+#| msgid "commented on"
+msgid "committed to"
+msgstr "прокоментував(ла)"
+
+#: templates/web/projects/_activity_event.html:61
+msgid "taken out of its milestone"
+msgstr ""
+
+#: templates/web/projects/_activity_event.html:65
 msgid "moved to cycle"
 msgstr "перенесено в цикл"
 
-#: templates/web/projects/_activity_event.html:59
+#: templates/web/projects/_activity_event.html:66
 #, python-format
 msgid "Cycle %(n)s"
 msgstr "Цикл %(n)s"
 
-#: templates/web/projects/_activity_event.html:61
+#: templates/web/projects/_activity_event.html:68
 msgid "removed from cycle"
 msgstr "прибрано з циклу"
 
-#: templates/web/projects/_activity_event.html:71
+#: templates/web/projects/_activity_event.html:78
 msgid "now blocks"
 msgstr "тепер блокує"
 
-#: templates/web/projects/_activity_event.html:71
+#: templates/web/projects/_activity_event.html:78
 msgid "now blocked by"
 msgstr "тепер заблоковано"
 
-#: templates/web/projects/_activity_event.html:71
+#: templates/web/projects/_activity_event.html:78
 msgid "linked"
 msgstr "пов’язано"
 
-#: templates/web/projects/_activity_event.html:75
+#: templates/web/projects/_activity_event.html:82
 msgid "unlinked"
 msgstr "відв'язано"
 
-#: templates/web/projects/_activity_event.html:91
+#: templates/web/projects/_activity_event.html:98
 msgid "changed size"
 msgstr "змінено розмір"
 
-#: templates/web/projects/_activity_event.html:96
+#: templates/web/projects/_activity_event.html:103
 msgid "renamed"
 msgstr "перейменував(ла)"
 
-#: templates/web/projects/_activity_event.html:98
+#: templates/web/projects/_activity_event.html:105
 msgid "edited description"
 msgstr "відредагував(ла) опис"
 
-#: templates/web/projects/_activity_event.html:103
+#: templates/web/projects/_activity_event.html:110
 msgid "attached"
 msgstr "прикріпив"
 
-#: templates/web/projects/_activity_event.html:106
+#: templates/web/projects/_activity_event.html:113
 msgid "removed attachment"
 msgstr "видалив вкладення"
 
@@ -3724,8 +5326,8 @@ msgstr "Розархівувати задачу"
 
 #: templates/web/projects/_archive_panel.html:50
 #: templates/web/projects/_archive_panel.html:51
-#: templates/web/projects/_task_context_menu.html:138
-#: templates/web/projects/_task_meta.html:177
+#: templates/web/projects/_task_context_menu.html:183
+#: templates/web/projects/_task_meta.html:184
 msgid "Unarchive"
 msgstr "Розархівувати"
 
@@ -3735,8 +5337,8 @@ msgstr "Архів порожній — жодна задача ще не бул
 
 #: templates/web/projects/_assignee_cell.html:76
 #: templates/web/projects/_assignee_cell.html:77
-#: templates/web/projects/_bulk_context_menu.html:169
-#: templates/web/projects/_task_context_menu.html:270
+#: templates/web/projects/_bulk_context_menu.html:207
+#: templates/web/projects/_task_context_menu.html:315
 msgid "Unassign"
 msgstr "Зняти призначення"
 
@@ -3778,102 +5380,126 @@ msgstr[3] "%(days)s дня у беклозі"
 msgid "Backlog is empty — no planned or ready tasks."
 msgstr "Беклог порожній — немає запланованих або готових задач."
 
-#: templates/web/projects/_bulk_context_menu.html:49
+#: templates/web/projects/_bulk_context_menu.html:40
+#, fuzzy
+#| msgid "overdue"
+msgid "covers"
+msgstr "прострочено"
+
+#: templates/web/projects/_bulk_context_menu.html:67
 msgid "tasks selected"
 msgstr "задач виділено"
 
-#: templates/web/projects/_bulk_context_menu.html:54
-#: templates/web/projects/_task_context_menu.html:67
+#: templates/web/projects/_bulk_context_menu.html:72
+#: templates/web/projects/_task_context_menu.html:68
 msgid "Set status"
 msgstr "Змінити статус"
 
-#: templates/web/projects/_bulk_context_menu.html:59
-#: templates/web/projects/_task_context_menu.html:72
+#: templates/web/projects/_bulk_context_menu.html:77
+#: templates/web/projects/_task_context_menu.html:73
 msgid "Set priority"
 msgstr "Змінити пріоритет"
 
-#: templates/web/projects/_bulk_context_menu.html:64
-#: templates/web/projects/_task_context_menu.html:77
+#: templates/web/projects/_bulk_context_menu.html:82
+#: templates/web/projects/_task_context_menu.html:78
 msgid "Assign to…"
 msgstr "Призначити…"
 
-#: templates/web/projects/_bulk_context_menu.html:69
+#: templates/web/projects/_bulk_context_menu.html:87
 #: templates/web/projects/_size_cell.html:37
-#: templates/web/projects/_task_context_menu.html:82
+#: templates/web/projects/_task_context_menu.html:83
 msgid "Set size"
 msgstr "Змінити розмір"
 
-#: templates/web/projects/_bulk_context_menu.html:74
-#: templates/web/projects/_task_context_menu.html:94
+#: templates/web/projects/_bulk_context_menu.html:92
+#: templates/web/projects/_task_context_menu.html:95
 msgid "Labels…"
 msgstr "Мітки…"
 
-#: templates/web/projects/_bulk_context_menu.html:79
-#: templates/web/projects/_task_context_menu.html:99
+#: templates/web/projects/_bulk_context_menu.html:97
+#: templates/web/projects/_task_context_menu.html:100
 msgid "Set due date…"
 msgstr "Вказати дедлайн…"
 
-#: templates/web/projects/_bulk_context_menu.html:84
-#: templates/web/projects/_task_context_menu.html:172
+#: templates/web/projects/_bulk_context_menu.html:102
+#: templates/web/projects/_task_context_menu.html:217
 msgid "Move to project…"
 msgstr "Перемістити в проєкт…"
 
-#: templates/web/projects/_bulk_context_menu.html:90
-#: templates/web/projects/_task_context_menu.html:88
+#: templates/web/projects/_bulk_context_menu.html:114
+msgid "Group into epic…"
+msgstr ""
+
+#: templates/web/projects/_bulk_context_menu.html:121
+#: templates/web/projects/_task_context_menu.html:89
 msgid "Set cycle…"
 msgstr "Призначити цикл…"
 
-#: templates/web/projects/_bulk_context_menu.html:105
-#: templates/web/projects/_task_context_menu.html:187
-#: templates/web/projects/_task_meta.html:201
+#: templates/web/projects/_bulk_context_menu.html:128
+#, fuzzy
+#| msgid "Set due date…"
+msgid "Set milestone…"
+msgstr "Вказати дедлайн…"
+
+#: templates/web/projects/_bulk_context_menu.html:143
+#: templates/web/projects/_task_context_menu.html:232
+#: templates/web/projects/_task_meta.html:208
 msgid "Delete…"
 msgstr "Видалити…"
 
-#: templates/web/projects/_bulk_context_menu.html:111
+#: templates/web/projects/_bulk_context_menu.html:149
 msgid "tasks — delete?"
 msgstr "задач — видалити?"
 
-#: templates/web/projects/_bulk_context_menu.html:121
-#: templates/web/projects/_bulk_context_menu.html:135
-#: templates/web/projects/_bulk_context_menu.html:151
-#: templates/web/projects/_bulk_context_menu.html:176
-#: templates/web/projects/_bulk_context_menu.html:193
-#: templates/web/projects/_bulk_context_menu.html:209
-#: templates/web/projects/_bulk_context_menu.html:227
-#: templates/web/projects/_bulk_context_menu.html:265
+#: templates/web/projects/_bulk_context_menu.html:159
+#: templates/web/projects/_bulk_context_menu.html:173
+#: templates/web/projects/_bulk_context_menu.html:189
+#: templates/web/projects/_bulk_context_menu.html:214
+#: templates/web/projects/_bulk_context_menu.html:231
+#: templates/web/projects/_bulk_context_menu.html:247
+#: templates/web/projects/_bulk_context_menu.html:276
+#: templates/web/projects/_bulk_context_menu.html:301
+#: templates/web/projects/_bulk_context_menu.html:325
+#: templates/web/projects/_bulk_context_menu.html:363
 msgid "tasks"
 msgstr "задач"
 
-#: templates/web/projects/_bulk_context_menu.html:151
-#: templates/web/projects/_task_context_menu.html:245
+#: templates/web/projects/_bulk_context_menu.html:189
+#: templates/web/projects/_task_context_menu.html:290
 msgid "Assign"
 msgstr "Призначити"
 
-#: templates/web/projects/_bulk_context_menu.html:155
-#: templates/web/projects/_task_context_menu.html:249
-#: templates/web/projects/_task_context_menu.html:353
+#: templates/web/projects/_bulk_context_menu.html:193
+#: templates/web/projects/_task_context_menu.html:294
+#: templates/web/projects/_task_context_menu.html:444
 msgid "Type to search…"
 msgstr "Введіть для пошуку…"
 
-#: templates/web/projects/_bulk_context_menu.html:193
-#: templates/web/projects/_task_context_menu.html:329
+#: templates/web/projects/_bulk_context_menu.html:231
+#: templates/web/projects/_task_context_menu.html:420
 msgid "Move"
 msgstr "Перемістити"
 
-#: templates/web/projects/_bulk_context_menu.html:256
-#: templates/web/projects/_task_context_menu.html:392
+#: templates/web/projects/_bulk_context_menu.html:316
+#: templates/web/projects/_epic_cell.html:96
+#: templates/web/projects/_task_context_menu.html:384
+msgid "No epics in this workspace yet."
+msgstr "У цьому воркспейсі ще немає епіків."
+
+#: templates/web/projects/_bulk_context_menu.html:354
+#: templates/web/projects/_task_context_menu.html:483
 msgid "No labels in this workspace"
 msgstr "Немає міток у цьому воркспейсі"
 
-#: templates/web/projects/_bulk_context_menu.html:265
-#: templates/web/projects/_task_context_menu.html:401
-#: templates/web/projects/_task_meta.html:107
+#: templates/web/projects/_bulk_context_menu.html:363
+#: templates/web/projects/_task_context_menu.html:492
+#: templates/web/projects/_task_meta.html:114
 #: templates/web/projects/_task_meta_compact.html:37
 msgid "Due date"
 msgstr "Дедлайн"
 
-#: templates/web/projects/_bulk_context_menu.html:270
-#: templates/web/projects/_task_context_menu.html:413
+#: templates/web/projects/_bulk_context_menu.html:368
+#: templates/web/projects/_task_context_menu.html:504
 msgid "Clear due date"
 msgstr "Прибрати дедлайн"
 
@@ -3915,7 +5541,7 @@ msgstr "Напишіть опис…"
 
 #: templates/web/projects/_description_cell.html:78
 #: templates/web/projects/_overview_description.html:56
-#: templates/web/projects/_overview_panel.html:328
+#: templates/web/projects/_overview_panel.html:334
 #: templates/web/projects/_update_edit_form.html:45
 msgid "Paste or drop an image to embed it · double-click an image to preview"
 msgstr ""
@@ -4041,9 +5667,9 @@ msgstr "Зібрати цю задачу під епіком"
 msgid "Add to epic"
 msgstr "Додати до епіка"
 
-#: templates/web/projects/_epic_cell.html:96
-msgid "No epics in this workspace yet."
-msgstr "У цьому воркспейсі ще немає епіків."
+#: templates/web/projects/_epic_milestone_split.html:23
+msgid "Where the work sits"
+msgstr ""
 
 #: templates/web/projects/_graph_panel.html:24
 #, python-format
@@ -4082,60 +5708,76 @@ msgstr ""
 msgid "Only matching"
 msgstr "Лише збіги"
 
-#: templates/web/projects/_graph_panel.html:60
+#: templates/web/projects/_graph_panel.html:66
+msgid ""
+"Lay each epic out as one block instead of letting its tasks scatter across "
+"islands"
+msgstr ""
+
+#: templates/web/projects/_graph_panel.html:67
+#, fuzzy
+#| msgid "Create epic"
+msgid "Gather epics"
+msgstr "Створити епік"
+
+#: templates/web/projects/_graph_panel.html:75
 #, python-format
 msgid "Card size — Auto follows the zoom: full cards above 75%%"
 msgstr "Розмір картки — Авто залежить від масштабу: повні картки понад 75%%"
 
-#: templates/web/projects/_graph_panel.html:62
+#: templates/web/projects/_graph_panel.html:77
 msgid "Auto"
 msgstr "Авто"
 
-#: templates/web/projects/_graph_panel.html:65
+#: templates/web/projects/_graph_panel.html:80
 msgid "Full"
 msgstr "Повні"
 
-#: templates/web/projects/_graph_panel.html:68
+#: templates/web/projects/_graph_panel.html:83
 msgid "Compact"
 msgstr "Компактні"
 
-#: templates/web/projects/_graph_panel.html:75
+#: templates/web/projects/_graph_panel.html:90
 msgid "Zoom out"
 msgstr "Зменшити"
 
-#: templates/web/projects/_graph_panel.html:79
+#: templates/web/projects/_graph_panel.html:94
 msgid "Zoom in"
 msgstr "Збільшити"
 
-#: templates/web/projects/_graph_panel.html:85
+#: templates/web/projects/_graph_panel.html:100
 msgid "Fit to screen"
 msgstr ""
 
-#: templates/web/projects/_graph_panel.html:97
+#: templates/web/projects/_graph_panel.html:112
 msgid "Nothing is linked in this project yet"
 msgstr "У цьому проєкті ще немає зв'язків"
 
-#: templates/web/projects/_graph_panel.html:99
+#: templates/web/projects/_graph_panel.html:114
 msgid "Open a task and add a link under Links — blocks, related or a subtask."
 msgstr ""
 "Відкрийте задачу й додайте зв'язок у розділі «Зв'язки» — блокує, пов'язана "
 "або підзадача."
 
-#: templates/web/projects/_kanban.html:62
+#: templates/web/projects/_kanban.html:31
+msgid "Lanes"
+msgstr ""
+
+#: templates/web/projects/_kanban.html:94
 msgid "Collapse column"
 msgstr "Згорнути колонку"
 
-#: templates/web/projects/_kanban.html:123
-#: templates/web/projects/_kanban.html:127
-#: templates/web/projects/_kanban.html:153
+#: templates/web/projects/_kanban.html:162
+#: templates/web/projects/_kanban.html:166
+#: templates/web/projects/_kanban.html:192
 msgid "over WIP limit"
 msgstr "перевищено ліміт WIP"
 
-#: templates/web/projects/_kanban.html:153
+#: templates/web/projects/_kanban.html:192
 msgid "at WIP limit"
 msgstr "досягнуто ліміт WIP"
 
-#: templates/web/projects/_kanban.html:167
+#: templates/web/projects/_kanban.html:206
 #, python-format
 msgid "%(n)s member over WIP"
 msgid_plural "%(n)s members over WIP"
@@ -4144,13 +5786,44 @@ msgstr[1] "%(n)s учасники перевищили WIP"
 msgstr[2] "%(n)s учасників перевищили WIP"
 msgstr[3] "%(n)s учасники перевищили WIP"
 
-#: templates/web/projects/_kanban.html:181
+#: templates/web/projects/_kanban.html:220
 msgid "Expand column"
 msgstr "Розгорнути колонку"
 
-#: templates/web/projects/_kanban.html:212
+#: templates/web/projects/_kanban.html:251
+#: templates/web/projects/_kanban_lanes.html:154
 msgid "empty"
 msgstr "порожньо"
+
+#: templates/web/projects/_kanban_lanes.html:117
+#: templates/web/projects/_list_axis_section.html:52
+#, fuzzy, python-format
+#| msgid "%(counter)s task"
+#| msgid_plural "%(counter)s tasks"
+msgid "%(counter)s past"
+msgid_plural "%(counter)s past"
+msgstr[0] "%(counter)s задача"
+msgstr[1] "%(counter)s задачі"
+msgstr[2] "%(counter)s задач"
+msgstr[3] "%(counter)s задачі"
+
+#: templates/web/projects/_kanban_lanes.html:130
+#, fuzzy
+#| msgid "Show archived"
+msgid "No work in this milestone."
+msgstr "Показати архівні"
+
+#: templates/web/projects/_kanban_lanes.html:130
+#, fuzzy
+#| msgid "No matches."
+msgid "Nothing here."
+msgstr "Нічого не знайдено."
+
+#: templates/web/projects/_kanban_lanes.html:167
+#, fuzzy
+#| msgid "Nothing is linked in this project yet"
+msgid "Nothing to slice here yet."
+msgstr "У цьому проєкті ще немає зв'язків"
 
 #: templates/web/projects/_labels_cell.html:84
 #: templates/web/recurring/_recurring_editor.html:202
@@ -4198,29 +5871,25 @@ msgstr "Пошук за кодом, назвою або виконавцем…"
 msgid "Looks related"
 msgstr "Схоже за змістом"
 
-#: templates/web/projects/_list_axis_section.html:30
+#: templates/web/projects/_list_axis_section.html:31
 msgid "Select all tasks in this section"
 msgstr "Вибрати всі задачі в цьому розділі"
 
-#: templates/web/projects/_list_axis_section.html:43
+#: templates/web/projects/_list_axis_section.html:56
 msgid "Over your WIP limit"
 msgstr "Перевищено ваш ліміт WIP"
 
-#: templates/web/projects/_list_axis_section.html:43
+#: templates/web/projects/_list_axis_section.html:56
 msgid "over WIP"
 msgstr "понад WIP"
 
-#: templates/web/projects/_list_axis_section.html:62
+#: templates/web/projects/_list_axis_section.html:75
 msgid "Try a different group axis or clear filters."
 msgstr "Спробуй іншу вісь групування або зніми фільтри."
 
 #: templates/web/projects/_list_panel.html:36
 msgid "Group by"
 msgstr "Групувати за"
-
-#: templates/web/projects/_list_panel.html:67
-msgid "Loading…"
-msgstr "Завантаження…"
 
 #: templates/web/projects/_meetings_panel_inner.html:15
 #, python-format
@@ -4236,6 +5905,15 @@ msgstr[3] ""
 #| msgid "No cycles yet."
 msgid "No calls yet."
 msgstr "Ще немає циклів."
+
+#: templates/web/projects/_milestone_cell.html:40
+msgid "Commit to a milestone"
+msgstr ""
+
+#: templates/web/projects/_milestone_cell.html:46
+#: templates/web/projects/epic_detail.html:97
+msgid "Set milestone"
+msgstr ""
 
 #: templates/web/projects/_overview_description.html:35
 msgid "click to edit"
@@ -4261,6 +5939,71 @@ msgstr "Більше немає учасників робочого просто
 msgid "Everyone in the workspace is already a member."
 msgstr "Усі учасники робочого простору вже додані."
 
+#: templates/web/projects/_overview_milestones.html:24
+msgid "Milestones ahead"
+msgstr ""
+
+#: templates/web/projects/_overview_milestones.html:27
+#, python-format
+msgid "%(open)s open · %(shared)s shared"
+msgstr ""
+
+#: templates/web/projects/_overview_milestones.html:44
+#: templates/web/projects/_view_tabs.html:60
+#: templates/web/projects/_view_tabs.html:100
+#: templates/web/projects/_view_tabs.html:246
+#: templates/web/projects/_view_tabs.html:248
+#, fuzzy
+#| msgid "Planned"
+msgid "Plan"
+msgstr "Заплановано"
+
+#: templates/web/projects/_overview_milestones.html:70
+msgid "here"
+msgstr ""
+
+#: templates/web/projects/_overview_milestones.html:72
+#: templates/web/projects/_plan_panel.html:275
+msgid "no work here"
+msgstr ""
+
+#: templates/web/projects/_overview_milestones.html:80
+#, fuzzy, python-format
+#| msgid "Created %(slug)s"
+msgid "shared · %(slugs)s"
+msgstr "Створено %(slug)s"
+
+#: templates/web/projects/_overview_milestones.html:82
+msgid "local checkpoint"
+msgstr ""
+
+#: templates/web/projects/_overview_milestones.html:87
+#, fuzzy, python-format
+#| msgid "%(counter)s task"
+#| msgid_plural "%(counter)s tasks"
+msgid "%(counter)s at risk"
+msgid_plural "%(counter)s at risk"
+msgstr[0] "%(counter)s задача"
+msgstr[1] "%(counter)s задачі"
+msgstr[2] "%(counter)s задач"
+msgstr[3] "%(counter)s задачі"
+
+#: templates/web/projects/_overview_milestones.html:91
+#, fuzzy
+#| msgid "On date"
+msgid "on its date"
+msgstr "У дату"
+
+#: templates/web/projects/_overview_milestones.html:99
+#, fuzzy
+#| msgid "Nothing is linked in this project yet"
+msgid "No open milestone includes this project."
+msgstr "У цьому проєкті ще немає зв'язків"
+
+#: templates/web/projects/_overview_milestones.html:105
+msgid "Needs a decision"
+msgstr ""
+
 #: templates/web/projects/_overview_notify_scope.html:21
 msgid "Notify only members about updates"
 msgstr "Сповіщати про апдейти лише учасників проєкту"
@@ -4283,7 +6026,8 @@ msgstr "створено %(d)s дн. тому"
 msgid "started %(d)s"
 msgstr "розпочато %(d)s"
 
-#: templates/web/projects/_overview_panel.html:38
+#: templates/web/projects/_overview_panel.html:40
+#: templates/web/projects/_turn_into_task_modal.html:45
 #: templates/web/workspaces/_label_row.html:26
 #, python-format
 msgid "%(counter)s task"
@@ -4293,32 +6037,32 @@ msgstr[1] "%(counter)s задачі"
 msgstr[2] "%(counter)s задач"
 msgstr[3] "%(counter)s задачі"
 
-#: templates/web/projects/_overview_panel.html:56
+#: templates/web/projects/_overview_panel.html:58
 msgid "no health"
 msgstr "немає статусу"
 
-#: templates/web/projects/_overview_panel.html:70
+#: templates/web/projects/_overview_panel.html:72
 msgid "Project actions"
 msgstr "Дії з проєктом"
 
-#: templates/web/projects/_overview_panel.html:80
+#: templates/web/projects/_overview_panel.html:82
 msgid "Unarchive project"
 msgstr "Розархівувати проєкт"
 
-#: templates/web/projects/_overview_panel.html:88
+#: templates/web/projects/_overview_panel.html:90
 msgid "Archive project"
 msgstr "Архівувати проєкт"
 
-#: templates/web/projects/_overview_panel.html:94
+#: templates/web/projects/_overview_panel.html:96
 msgid "Delete project…"
 msgstr "Видалити проєкт…"
 
-#: templates/web/projects/_overview_panel.html:107
-#: templates/web/projects/_overview_panel.html:124
+#: templates/web/projects/_overview_panel.html:109
+#: templates/web/projects/_overview_panel.html:126
 msgid "Delete project"
 msgstr "Видалити проєкт"
 
-#: templates/web/projects/_overview_panel.html:113
+#: templates/web/projects/_overview_panel.html:115
 #, python-format
 msgid ""
 "This permanently deletes <b>%(name)s</b> and every task, comment, and "
@@ -4327,21 +6071,21 @@ msgstr ""
 "Це назавжди видалить <b>%(name)s</b> і всі задачі, коментарі та вкладення в "
 "ньому. Скасувати неможливо."
 
-#: templates/web/projects/_overview_panel.html:116
+#: templates/web/projects/_overview_panel.html:118
 #: templates/web/workspaces/_settings_danger.html:72
 #, python-format
 msgid "Type <b class=\"font-mono text-foreground\">%(slug)s</b> to confirm"
 msgstr ""
 "Введіть <b class=\"font-mono text-foreground\">%(slug)s</b> для підтвердження"
 
-#: templates/web/projects/_overview_panel.html:139
+#: templates/web/projects/_overview_panel.html:141
 msgid ""
 "This project is archived — hidden from the sidebar and the active project "
 "list."
 msgstr ""
 "Проєкт заархівовано — прихований із сайдбара та активного списку проєктів."
 
-#: templates/web/projects/_overview_panel.html:159
+#: templates/web/projects/_overview_panel.html:163
 #: templates/web/workspaces/settings.html:65
 #: templates/web/workspaces/settings.html:195
 #, python-format
@@ -4352,97 +6096,88 @@ msgstr[1] "%(counter)s учасники"
 msgstr[2] "%(counter)s учасників"
 msgstr[3] "%(counter)s учасника"
 
-#: templates/web/projects/_overview_panel.html:164
-#, python-format
-msgid "%(counter)s overdue"
-msgid_plural "%(counter)s overdue"
-msgstr[0] "%(counter)s прострочено"
-msgstr[1] "%(counter)s прострочено"
-msgstr[2] "%(counter)s прострочено"
-msgstr[3] "%(counter)s прострочено"
-
-#: templates/web/projects/_overview_panel.html:170
+#: templates/web/projects/_overview_panel.html:168
 #: templates/web/projects/list.html:229 templates/web/projects/list.html:232
 #, python-format
 msgid "updated %(t)s ago"
 msgstr "оновлено %(t)s тому"
 
-#: templates/web/projects/_overview_panel.html:186
+#: templates/web/projects/_overview_panel.html:184
 msgid "Stats"
 msgstr "Статистика"
 
-#: templates/web/projects/_overview_panel.html:189
+#: templates/web/projects/_overview_panel.html:187
 #: templates/web/projects/insights.html:12
 #: templates/web/projects/insights.html:20
 msgid "Insights"
 msgstr "Аналітика"
 
-#: templates/web/projects/_overview_panel.html:200
+#: templates/web/projects/_overview_panel.html:198
 msgid "last 7d"
 msgstr "за 7 днів"
 
-#: templates/web/projects/_overview_panel.html:232
+#: templates/web/projects/_overview_panel.html:231
 #: templates/web/projects/list.html:149
 msgid "ready"
 msgstr "готово до роботи"
 
-#: templates/web/projects/_overview_panel.html:238
+#: templates/web/projects/_overview_panel.html:236
 #: templates/web/projects/list.html:156
 msgid "to do"
 msgstr "to-do"
 
-#: templates/web/projects/_overview_panel.html:243
+#: templates/web/projects/_overview_panel.html:241
 #: templates/web/projects/list.html:163
 msgid "in progress"
 msgstr "in-progress"
 
-#: templates/web/projects/_overview_panel.html:248
+#: templates/web/projects/_overview_panel.html:246
 #: templates/web/projects/list.html:170
 msgid "in review"
 msgstr "in-review"
 
-#: templates/web/projects/_overview_panel.html:259
+#: templates/web/projects/_overview_panel.html:256
 msgid "cancelled"
 msgstr "скасовано"
 
-#: templates/web/projects/_overview_panel.html:264
+#: templates/web/projects/_overview_panel.html:260
 msgid "No tasks yet — bring this project to life."
 msgstr "Поки що немає задач — оживіть цей проєкт."
 
-#: templates/web/projects/_overview_panel.html:285
+#: templates/web/projects/_overview_panel.html:291
 msgid "Latest update"
 msgstr "Останній апдейт"
 
-#: templates/web/projects/_overview_panel.html:296
+#: templates/web/projects/_overview_panel.html:302
 msgid "new"
 msgstr "новий"
 
-#: templates/web/projects/_overview_panel.html:322
+#: templates/web/projects/_overview_panel.html:328
 #: templates/web/projects/_update_edit_form.html:39
 msgid "Write an update…"
 msgstr "Напишіть апдейт…"
 
-#: templates/web/projects/_overview_panel.html:337
+#: templates/web/projects/_overview_panel.html:343
 msgid "Include stats since last update"
 msgstr "Додати статистику з минулого апдейту"
 
-#: templates/web/projects/_overview_panel.html:343
+#: templates/web/projects/_overview_panel.html:349
 msgid "Post update"
 msgstr "Опублікувати апдейт"
 
-#: templates/web/projects/_overview_panel.html:358
+#: templates/web/projects/_overview_panel.html:364
 msgid "View all updates"
 msgstr "Переглянути всі апдейти"
 
-#: templates/web/projects/_overview_panel.html:365
+#: templates/web/projects/_overview_panel.html:371
 msgid "No updates yet — post one to keep the team in sync."
 msgstr "Поки що немає апдейтів — опублікуйте перший, щоб команда була в курсі."
 
-#: templates/web/projects/_overview_panel.html:369
+#: templates/web/projects/_overview_panel.html:375
 msgid "Write first update"
 msgstr "Написати перший апдейт"
 
-#: templates/web/projects/_overview_panel.html:383
+#: templates/web/projects/_overview_panel.html:389
 #: templates/web/projects/_task_detail_body.html:118
 #: templates/web/recurring/_recurring_editor.html:88
 msgid "Description"
@@ -4452,6 +6187,71 @@ msgstr "Опис"
 #, python-format
 msgid "posted %(t)s ago"
 msgstr "опубліковано %(t)s тому"
+
+#: templates/web/projects/_plan_panel.html:55
+#, fuzzy
+#| msgid "Groups"
+msgid "Group"
+msgstr "Групи"
+
+#: templates/web/projects/_plan_panel.html:71
+msgid "Render"
+msgstr ""
+
+#: templates/web/projects/_plan_panel.html:89
+#, fuzzy, python-format
+#| msgid "%(counter)s epic · tasks per column"
+#| msgid_plural "%(counter)s epics · tasks per column"
+msgid "%(counter)s milestone · %(counted)s counted"
+msgid_plural "%(counter)s milestones · %(counted)s counted"
+msgstr[0] "%(counter)s епік · задачі по колонках"
+msgstr[1] "%(counter)s епіки · задачі по колонках"
+msgstr[2] "%(counter)s епіків · задачі по колонках"
+msgstr[3] "%(counter)s епіка · задачі по колонках"
+
+#: templates/web/projects/_plan_panel.html:89
+#, fuzzy, python-format
+#| msgid "%(counter)s label"
+#| msgid_plural "%(counter)s labels"
+msgid "%(counter)s shared"
+msgid_plural "%(counter)s shared"
+msgstr[0] "%(counter)s мітка"
+msgstr[1] "%(counter)s мітки"
+msgstr[2] "%(counter)s міток"
+msgstr[3] "%(counter)s мітки"
+
+#: templates/web/projects/_plan_panel.html:122
+#, fuzzy
+#| msgid "Collapse to rail"
+msgid "Collapse all"
+msgstr "Згорнути до панелі"
+
+#: templates/web/projects/_plan_panel.html:123
+#, fuzzy
+#| msgid "Expand column"
+msgid "Expand all"
+msgstr "Розгорнути колонку"
+
+#: templates/web/projects/_plan_panel.html:144
+msgid "Progress · here / overall"
+msgstr ""
+
+#: templates/web/projects/_plan_panel.html:284
+#, fuzzy, python-format
+#| msgid "%(done)s / %(total)s done"
+msgid "%(done)s/%(total)s overall"
+msgstr "%(done)s / %(total)s готово"
+
+#: templates/web/projects/_plan_panel.html:356
+msgid "No work to plan here yet."
+msgstr ""
+
+#: templates/web/projects/_plan_panel.html:363
+msgid ""
+"Counted the way everything else counts: cancelled is not work, archived done "
+"still counts, archived unfinished drops out. A task is past its date when it "
+"is unfinished and due after the milestone it is committed to."
+msgstr ""
 
 #: templates/web/projects/_project_cell.html:49
 msgid "Move to another project"
@@ -4522,30 +6322,26 @@ msgstr "Вказати дату початку"
 msgid "Clear start date"
 msgstr "Прибрати дату початку"
 
-#: templates/web/projects/_table.html:52
+#: templates/web/projects/_table.html:59
 msgid "ID"
 msgstr "ID"
 
-#: templates/web/projects/_table.html:106
-#: templates/web/projects/_task_meta.html:118
+#: templates/web/projects/_table.html:126
+#: templates/web/projects/_task_meta.html:125
 msgid "Updated"
 msgstr "Оновлено"
 
-#: templates/web/projects/_table.html:137
-#: templates/web/projects/_timeline.html:388
+#: templates/web/projects/_table.html:157
+#: templates/web/projects/_timeline.html:511
 msgid "No tasks."
 msgstr "Задач немає."
 
-#: templates/web/projects/_table_row.html:48
-msgid "No priority"
-msgstr "Без пріоритету"
-
-#: templates/web/projects/_table_row.html:64
+#: templates/web/projects/_table_row.html:70
 #: templates/web/projects/_task_link_badges.html:15
 msgid "Blocked by open tasks"
 msgstr "Заблоковано відкритими задачами"
 
-#: templates/web/projects/_table_row.html:64
+#: templates/web/projects/_table_row.html:70
 #: templates/web/projects/_task_link_badges.html:15
 msgid "Blocking other tasks"
 msgstr "Блокує інші задачі"
@@ -4563,34 +6359,43 @@ msgstr[3] "%(days)s дні у цій колонці"
 msgid "Size estimate"
 msgstr "Оцінка розміру"
 
-#: templates/web/projects/_task_context_menu.html:110
-#: templates/web/projects/_task_meta.html:143
-#: templates/web/projects/_task_meta_compact.html:81
+#: templates/web/projects/_task_context_menu.html:121
+#, fuzzy
+#| msgid "Move to project…"
+msgid "Move to epic…"
+msgstr "Перемістити в проєкт…"
+
+#: templates/web/projects/_task_context_menu.html:137
+msgid "Turn back into a task…"
+msgstr ""
+
+#: templates/web/projects/_task_context_menu.html:146
+msgid "Turn into epic…"
+msgstr ""
+
+#: templates/web/projects/_task_context_menu.html:155
+#: templates/web/projects/_task_meta.html:150
+#: templates/web/projects/_task_meta_compact.html:82
 msgid "Make recurring…"
 msgstr "Зробити повторюваною…"
 
-#: templates/web/projects/_task_context_menu.html:122
-#: templates/web/projects/_task_meta.html:158
-msgid "Reopen"
-msgstr "Відновити"
-
-#: templates/web/projects/_task_context_menu.html:127
+#: templates/web/projects/_task_context_menu.html:172
 msgid "Cancel task"
 msgstr "Скасувати задачу"
 
-#: templates/web/projects/_task_context_menu.html:152
+#: templates/web/projects/_task_context_menu.html:197
 msgid "Copy slug"
 msgstr "Скопіювати ідентифікатор"
 
-#: templates/web/projects/_task_context_menu.html:157
+#: templates/web/projects/_task_context_menu.html:202
 msgid "Copy URL"
 msgstr "Скопіювати URL"
 
-#: templates/web/projects/_task_context_menu.html:162
+#: templates/web/projects/_task_context_menu.html:207
 msgid "Open in modal"
 msgstr "Відкрити у вікні"
 
-#: templates/web/projects/_task_context_menu.html:191
+#: templates/web/projects/_task_context_menu.html:236
 msgid "Delete this task?"
 msgstr "Видалити цю задачу?"
 
@@ -4628,83 +6433,115 @@ msgstr "Зняти зірку із задачі"
 msgid "Star task"
 msgstr "Позначити задачу зіркою"
 
-#: templates/web/projects/_task_meta.html:90
+#: templates/web/projects/_task_meta.html:97
 msgid "from its tasks"
 msgstr "зі своїх задач"
 
-#: templates/web/projects/_task_meta.html:97
+#: templates/web/projects/_task_meta.html:104
 #: templates/web/recurring/_recurring_editor.html:290
 #: templates/web/workspaces/_settings_cycles.html:67
 msgid "Start date"
 msgstr "Дата початку"
 
-#: templates/web/projects/_task_meta.html:102
+#: templates/web/projects/_task_meta.html:109
 #: templates/web/recurring/_recurring_editor.html:310
 msgid "End date"
 msgstr "Дата завершення"
 
-#: templates/web/projects/_task_meta.html:114
+#: templates/web/projects/_task_meta.html:121
 msgid "Reporter"
 msgstr "Автор"
 
-#: templates/web/projects/_task_meta.html:117
+#: templates/web/projects/_task_meta.html:124
 msgid "Created"
 msgstr "Створено"
 
-#: templates/web/projects/_task_meta_compact.html:88
+#: templates/web/projects/_task_meta_compact.html:89
 msgid "Delete task"
 msgstr "Видалити задачу"
 
-#: templates/web/projects/_timeline.html:289
-msgid "Zoom"
-msgstr "Масштаб"
+#: templates/web/projects/_timeline.html:341
+#, fuzzy
+#| msgid "Previous"
+msgid "Previous window"
+msgstr "Назад"
 
-#: templates/web/projects/_timeline.html:293
+#: templates/web/projects/_timeline.html:350
+msgid "Next window"
+msgstr ""
+
+#: templates/web/projects/_timeline.html:359
 msgctxt "timeline zoom"
 msgid "D"
 msgstr "Д"
 
-#: templates/web/projects/_timeline.html:297
+#: templates/web/projects/_timeline.html:363
 msgctxt "timeline zoom"
 msgid "W"
 msgstr "Т"
 
-#: templates/web/projects/_timeline.html:301
+#: templates/web/projects/_timeline.html:367
 msgctxt "timeline zoom"
 msgid "M"
 msgstr "М"
 
-#: templates/web/projects/_timeline.html:348
+#: templates/web/projects/_timeline.html:408
 msgctxt "timeline"
 msgid "Task"
 msgstr "Задача"
 
-#: templates/web/projects/_timeline.html:407
+#: templates/web/projects/_timeline.html:542
 msgid "without deadline"
 msgstr "без дедлайну"
 
-#: templates/web/projects/_timeline.html:408
+#: templates/web/projects/_timeline.html:543
 msgctxt "timeline"
 msgid "Start"
 msgstr "Початок"
 
-#: templates/web/projects/_timeline.html:409
+#: templates/web/projects/_timeline.html:544
 msgctxt "timeline"
 msgid "End"
 msgstr "Кінець"
 
-#: templates/web/projects/_timeline.html:410
+#: templates/web/projects/_timeline.html:545
 msgctxt "timeline"
 msgid "Due"
 msgstr "Дедлайн"
 
-#: templates/web/projects/_timeline.html:412
+#: templates/web/projects/_timeline.html:547
 msgid "start after end"
 msgstr "початок після кінця"
 
-#: templates/web/projects/_timeline.html:413
+#: templates/web/projects/_timeline.html:548
 msgid "ends after deadline"
 msgstr "кінець після дедлайну"
+
+#: templates/web/projects/_timeline.html:549
+#, fuzzy
+#| msgid "Last done"
+msgid "past milestone"
+msgstr "Останнє закриття"
+
+#: templates/web/projects/_timeline.html:550
+msgid "milestones"
+msgstr ""
+
+#: templates/web/projects/_timeline.html:551
+#, fuzzy
+#| msgid "Clear end date"
+msgid "shared date"
+msgstr "Прибрати дату завершення"
+
+#: templates/web/projects/_timeline.html:552
+#, fuzzy
+#| msgid "Clear end date"
+msgid "shared dates"
+msgstr "Прибрати дату завершення"
+
+#: templates/web/projects/_timeline.html:553
+msgid "outside this window"
+msgstr ""
 
 #: templates/web/projects/_title_cell.html:63
 msgid "Repeats"
@@ -4717,6 +6554,118 @@ msgstr "Редагувати розклад"
 #: templates/web/projects/_title_cell.html:72
 msgid "Subtask of"
 msgstr "Підзадача в"
+
+#: templates/web/projects/_turn_into_epic_modal.html:26
+#, python-format
+msgid "Turn %(slug)s into an epic?"
+msgstr ""
+
+#: templates/web/projects/_turn_into_epic_modal.html:46
+msgid "Kept:"
+msgstr ""
+
+#: templates/web/projects/_turn_into_epic_modal.html:47
+msgid "description, links, owner and labels"
+msgstr ""
+
+#: templates/web/projects/_turn_into_epic_modal.html:47
+#, fuzzy, python-format
+#| msgid "%(counter)s member"
+#| msgid_plural "%(counter)s members"
+msgid "%(counter)s comment"
+msgid_plural "%(counter)s comments"
+msgstr[0] "%(counter)s учасник"
+msgstr[1] "%(counter)s учасники"
+msgstr[2] "%(counter)s учасників"
+msgstr[3] "%(counter)s учасника"
+
+#: templates/web/projects/_turn_into_epic_modal.html:47
+#, fuzzy, python-format
+#| msgid "%(counter)s label"
+#| msgid_plural "%(counter)s labels"
+msgid "%(counter)s file"
+msgid_plural "%(counter)s files"
+msgstr[0] "%(counter)s мітка"
+msgstr[1] "%(counter)s мітки"
+msgstr[2] "%(counter)s міток"
+msgstr[3] "%(counter)s мітки"
+
+#: templates/web/projects/_turn_into_epic_modal.html:55
+#, fuzzy, python-format
+#| msgid "%(counter)s task"
+#| msgid_plural "%(counter)s tasks"
+msgid "%(counter)s subtask"
+msgid_plural "%(counter)s subtasks"
+msgstr[0] "%(counter)s задача"
+msgstr[1] "%(counter)s задачі"
+msgstr[2] "%(counter)s задач"
+msgstr[3] "%(counter)s задачі"
+
+#: templates/web/projects/_turn_into_epic_modal.html:56
+msgid "become the epic's first tasks."
+msgstr ""
+
+#: templates/web/projects/_turn_into_epic_modal.html:64
+msgid "Dropped:"
+msgstr ""
+
+#: templates/web/projects/_turn_into_epic_modal.html:65
+msgid ""
+"deadline, size and cycle — an epic takes those from its tasks. Status starts "
+"as Planned and is computed from there on."
+msgstr ""
+
+#: templates/web/projects/_turn_into_epic_modal.html:66
+#, python-format
+msgid "It also leaves the epic %(title)s."
+msgstr ""
+
+#: templates/web/projects/_turn_into_epic_modal.html:73
+msgid "Hidden"
+msgstr ""
+
+#: templates/web/projects/_turn_into_epic_modal.html:74
+msgid "from the board, the table and the list — it moves to the Epics tab."
+msgstr ""
+
+#: templates/web/projects/_turn_into_epic_modal.html:90
+#, fuzzy
+#| msgid "Add to epic"
+msgid "Turn into epic"
+msgstr "Додати до епіка"
+
+#: templates/web/projects/_turn_into_task_modal.html:24
+#, python-format
+msgid "Turn %(slug)s back into a task?"
+msgstr ""
+
+#: templates/web/projects/_turn_into_task_modal.html:46
+msgid "go back to being its subtasks."
+msgstr ""
+
+#: templates/web/projects/_turn_into_task_modal.html:55
+#, python-format
+msgid "becomes %(status)s — what its work adds up to right now."
+msgstr ""
+
+#: templates/web/projects/_turn_into_task_modal.html:67
+msgid "Not restored:"
+msgstr ""
+
+#: templates/web/projects/_turn_into_task_modal.html:68
+msgid ""
+"the deadline, size and cycle it had before it became an epic — those were "
+"dropped then and not kept."
+msgstr ""
+
+#: templates/web/projects/_turn_into_task_modal.html:75
+msgid ""
+"It returns to the board, the table and the list, and leaves the Epics tab."
+msgstr ""
+
+#: templates/web/projects/_turn_into_task_modal.html:89
+msgid "Turn back into a task"
+msgstr ""
 
 #: templates/web/projects/_update_comment.html:22
 msgid "Leave a reply…"
@@ -4777,41 +6726,35 @@ msgstr[3] "%(n)s в планах"
 
 #: templates/web/projects/_view_tabs.html:56
 #: templates/web/projects/_view_tabs.html:82
-#: templates/web/projects/_view_tabs.html:152
-#: templates/web/projects/_view_tabs.html:154
-#: templates/web/projects/_view_tabs.html:167
+#: templates/web/projects/_view_tabs.html:159
+#: templates/web/projects/_view_tabs.html:161
+#: templates/web/projects/_view_tabs.html:174
 msgid "Overview"
 msgstr "Огляд"
 
 #: templates/web/projects/_view_tabs.html:57
-#: templates/web/projects/_view_tabs.html:182
-#: templates/web/projects/_view_tabs.html:184
+#: templates/web/projects/_view_tabs.html:189
+#: templates/web/projects/_view_tabs.html:191
 msgid "Kanban"
 msgstr "Канбан"
 
 #: templates/web/projects/_view_tabs.html:58
-#: templates/web/projects/_view_tabs.html:198
-#: templates/web/projects/_view_tabs.html:200
+#: templates/web/projects/_view_tabs.html:205
+#: templates/web/projects/_view_tabs.html:207
 msgid "Table"
 msgstr "Таблиця"
 
 #: templates/web/projects/_view_tabs.html:59
 #: templates/web/projects/_view_tabs.html:94
-#: templates/web/projects/_view_tabs.html:213
-#: templates/web/projects/_view_tabs.html:215
+#: templates/web/projects/_view_tabs.html:220
+#: templates/web/projects/_view_tabs.html:222
 msgid "List"
 msgstr "Список"
 
-#: templates/web/projects/_view_tabs.html:60
-#: templates/web/projects/_view_tabs.html:230
-#: templates/web/projects/_view_tabs.html:232
-msgid "Timeline"
-msgstr "Часова шкала"
-
 #: templates/web/projects/_view_tabs.html:61
-#: templates/web/projects/_view_tabs.html:100
-#: templates/web/projects/_view_tabs.html:248
-#: templates/web/projects/_view_tabs.html:250
+#: templates/web/projects/_view_tabs.html:107
+#: templates/web/projects/_view_tabs.html:265
+#: templates/web/projects/_view_tabs.html:267
 msgid "Graph"
 msgstr "Граф"
 
@@ -4819,7 +6762,7 @@ msgstr "Граф"
 msgid "View"
 msgstr "Перегляд"
 
-#: templates/web/projects/_view_tabs.html:165
+#: templates/web/projects/_view_tabs.html:172
 msgid "Coming soon"
 msgstr "Скоро з'явиться"
 
@@ -4827,25 +6770,45 @@ msgstr "Скоро з'явиться"
 msgid "Export overview as JSON"
 msgstr "Експортувати огляд у JSON"
 
-#: templates/web/projects/epic_detail.html:43
-msgid "Details"
-msgstr "Деталі"
-
-#: templates/web/projects/epic_detail.html:60
+#: templates/web/projects/epic_detail.html:62
 #, python-format
 msgid "%(epic_done)s of %(epic_total)s done"
 msgstr "%(epic_done)s з %(epic_total)s готово"
 
-#: templates/web/projects/epic_detail.html:60
+#: templates/web/projects/epic_detail.html:62
 #: templates/web/projects/list.html:190
 msgid "No tasks yet"
 msgstr "Задач ще немає"
 
-#: templates/web/projects/epic_detail.html:98
+#: templates/web/projects/epic_detail.html:102
+msgid "Writes onto this epic’s tasks"
+msgstr ""
+
+#: templates/web/projects/epic_detail.html:114
+#, fuzzy, python-format
+#| msgid "%(counter)s wk"
+#| msgid_plural "%(counter)s wk"
+msgid "all %(counter)s"
+msgstr "%(counter)s тижд."
+
+#: templates/web/projects/epic_detail.html:114
+#, fuzzy, python-format
+#| msgid "%(counter)s task"
+#| msgid_plural "%(counter)s tasks"
+msgid "%(counter)s of %(total)s"
+msgstr "%(counter)s задача"
+
+#: templates/web/projects/epic_detail.html:125
+#, fuzzy
+#| msgid "What was the call about?"
+msgid "Take them all out"
+msgstr "Про що був дзвінок?"
+
+#: templates/web/projects/epic_detail.html:156
 msgid "This epic has no tasks yet."
 msgstr "У цього епіка ще немає задач."
 
-#: templates/web/projects/epic_detail.html:100
+#: templates/web/projects/epic_detail.html:158
 msgid ""
 "Open a task and pick this epic in its rail, or add the Epic row while "
 "creating one."
@@ -4952,10 +6915,6 @@ msgstr "архівовано"
 msgid "No members"
 msgstr "Немає учасників"
 
-#: templates/web/projects/list.html:226
-msgid "closed"
-msgstr "закрито"
-
 #: templates/web/projects/list.html:278
 msgid "Create your first project"
 msgstr "Створи свій перший проєкт"
@@ -5000,10 +6959,6 @@ msgstr "Нова повторювана задача"
 #: templates/web/recurring/_recurring_editor.html:51
 msgid "Recurring tasks live inside projects."
 msgstr "Повторювані задачі живуть усередині проєктів."
-
-#: templates/web/recurring/_recurring_editor.html:52
-msgid "This workspace has no projects yet — create one first."
-msgstr "У цьому воркспейсі ще немає проєктів — спершу створіть проєкт."
 
 #: templates/web/recurring/_recurring_editor.html:84
 msgid "What needs doing each time?"
@@ -5683,20 +7638,20 @@ msgstr[3] "%(counter)s в очікуванні"
 msgid "Danger zone"
 msgstr "Небезпечна зона"
 
-#, python-format
-#~ msgid "%(counter)s epic · tasks per column"
-#~ msgid_plural "%(counter)s epics · tasks per column"
-#~ msgstr[0] "%(counter)s епік · задачі по колонках"
-#~ msgstr[1] "%(counter)s епіки · задачі по колонках"
-#~ msgstr[2] "%(counter)s епіків · задачі по колонках"
-#~ msgstr[3] "%(counter)s епіка · задачі по колонках"
+#~ msgid "Switch to dark mode"
+#~ msgstr "Перейти на темну тему"
+
+#~ msgid "Switch to midnight mode"
+#~ msgstr "Перейти на тему опівнічно-синю"
+
+#~ msgid "Switch to light mode"
+#~ msgstr "Перейти на світлу тему"
+
+#~ msgid "Zoom"
+#~ msgstr "Масштаб"
 
 #~ msgid "darker cell = work piles up"
 #~ msgstr "темніша клітинка — там накопичується робота"
-
-#, python-format
-#~ msgid "waits on %(slug)s"
-#~ msgstr "чекає на %(slug)s"
 
 #~ msgid "Show backlog"
 #~ msgstr "Показати беклог"
@@ -5719,9 +7674,6 @@ msgstr "Небезпечна зона"
 #~ msgid "Reset all"
 #~ msgstr "Скинути все"
 
-#~ msgid "Collapse to rail"
-#~ msgstr "Згорнути до панелі"
-
 #~ msgid "Close filters"
 #~ msgstr "Закрити фільтри"
 
@@ -5730,9 +7682,6 @@ msgstr "Небезпечна зона"
 
 #~ msgid "fibonacci"
 #~ msgstr "фібоначчі"
-
-#~ msgid "Start"
-#~ msgstr "Початок"
 
 #~ msgid "End"
 #~ msgstr "Кінець"
@@ -5754,14 +7703,6 @@ msgstr "Небезпечна зона"
 
 #~ msgid "Fit"
 #~ msgstr "Вмістити"
-
-#, python-format
-#~ msgid "show all %(counter)s task"
-#~ msgid_plural "show all %(counter)s tasks"
-#~ msgstr[0] "показати всі %(counter)s задачу"
-#~ msgstr[1] "показати всі %(counter)s задачі"
-#~ msgstr[2] "показати всі %(counter)s задач"
-#~ msgstr[3] "показати всі %(counter)s задачі"
 
 #~ msgid ""
 #~ "Link tasks to each other, or give one a subtask, and the map appears here."
