@@ -53,6 +53,10 @@ ALLOWED_UPDATE_FIELDS = {
     # Collect a selection under one epic (or take it out with null).
     # Scalar like the rest: the epic is a column on the task.
     "epic",
+    # Commit a selection to one milestone (or detach it with null). The
+    # milestone must cover each task's project — that scope is the whole
+    # reason a milestone can be shared. See docs/decisions/0037-milestones.md.
+    "milestone",
     "archived",
 }
 
@@ -66,6 +70,7 @@ SCALAR_UPDATE_KEYS = {
     "assignee",
     "cycle",
     "epic",
+    "milestone",
     "archived",
 }
 
@@ -125,6 +130,8 @@ class BulkUpdateSerializer(serializers.Serializer):
             raise serializers.ValidationError({"project": _("Must be a project ID (int)")})
         if "cycle" in updates and updates["cycle"] is not None and not isinstance(updates["cycle"], int):
             raise serializers.ValidationError({"cycle": _("Must be a cycle ID (int) or null")})
+        if "milestone" in updates and updates["milestone"] is not None and not isinstance(updates["milestone"], int):
+            raise serializers.ValidationError({"milestone": _("Must be a milestone ID (int) or null")})
         if "archived" in updates and not isinstance(updates["archived"], bool):
             raise serializers.ValidationError(
                 {"archived": _("Must be a boolean (true to archive, false to unarchive)")}
@@ -249,6 +256,8 @@ def _bulk_apply_scalars(ids: list[int], updates: dict[str, Any]) -> None:
         payload["assignee_id"] = updates["assignee"]
     if "epic" in updates:
         payload["epic_id"] = updates["epic"]
+    if "milestone" in updates:
+        payload["milestone_id"] = updates["milestone"]
     # ``cycle`` is intentionally NOT applied here — it's handled by
     # :func:`_bulk_apply_cycle` so an explicit assignment can skip planned
     # (backlog) tasks, which the cadence policy keeps cycle-free.
@@ -262,6 +271,29 @@ def _bulk_apply_scalars(ids: list[int], updates: dict[str, Any]) -> None:
         return
     payload["updated_at"] = now
     Task.objects.filter(id__in=ids).update(**payload)
+
+
+def _resolve_target_milestone(milestone_id):
+    """Resolve the milestone a bulk update commits tasks to.
+
+    Args:
+        milestone_id: Primary key of the target milestone.
+
+    Returns:
+        The :class:`~apps.milestones.models.Milestone` instance, with its
+        project scope prefetched for the per-task check the caller runs.
+
+    Raises:
+        serializers.ValidationError: If the milestone does not exist.
+    """
+    from apps.milestones.models import Milestone
+
+    try:
+        return Milestone.objects.prefetch_related("projects").get(pk=milestone_id)
+    except Milestone.DoesNotExist as exc:
+        raise serializers.ValidationError(
+            {"milestone": _("Milestone %(id)s not found.") % {"id": milestone_id}},
+        ) from exc
 
 
 def _resolve_target_epic(epic_id, user):
@@ -600,6 +632,26 @@ def _run_bulk_update(*, user, ids: list[int], updates: dict[str, Any]) -> tuple[
         if bad_kind:
             raise serializers.ValidationError(
                 {"epic": _("An epic cannot belong to another epic: %(ids)s") % {"ids": sorted(bad_kind)}},
+            )
+
+    if updates.get("milestone") is not None:
+        target_milestone = _resolve_target_milestone(updates["milestone"])
+        in_scope = {p.id for p in target_milestone.projects.all()}
+        outside = sorted(t.id for t in pre_requested if t.project_id not in in_scope)
+        if outside:
+            raise serializers.ValidationError(
+                {
+                    "milestone": _("Milestone does not cover the project of tasks: %(ids)s") % {"ids": outside},
+                },
+            )
+        # An epic derives its milestones from its tasks, the way it already
+        # derives its dates and its size. See docs/decisions/0036-epics.md.
+        epics = sorted(t.id for t in pre_requested if t.kind == Task.KIND_EPIC)
+        if epics:
+            raise serializers.ValidationError(
+                {
+                    "milestone": _("An epic takes its milestones from its tasks: %(ids)s") % {"ids": epics},
+                },
             )
 
     if updates.get("cycle") is not None:

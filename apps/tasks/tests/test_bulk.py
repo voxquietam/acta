@@ -430,3 +430,76 @@ class TestBulkEpicGrouping:
         ws.save(update_fields=["epics_enabled"])
         with pytest.raises(serializers.ValidationError):
             _run_bulk_update(user=user, ids=[tasks[0].id], updates={"epic": epic.id})
+
+
+@pytest.mark.django_db
+class TestBulkMilestone:
+    """Committing a selection to a milestone, and refusing to."""
+
+    def _seed(self):
+        """Seed a workspace, a project in a milestone's scope, and tasks."""
+        from apps.milestones.tests.factories import MilestoneFactory
+
+        ws, project, user, tasks = _seed_workspace_with_tasks(count=2)
+        milestone = MilestoneFactory(workspace=ws, projects=[project])
+        return ws, project, user, tasks, milestone
+
+    def test_commits_tasks_whose_project_is_in_scope(self):
+        """The ordinary case: every task's project is covered."""
+        _, _, user, tasks, milestone = self._seed()
+
+        _run_bulk_update(user=user, ids=[t.id for t in tasks], updates={"milestone": milestone.id})
+
+        for task in tasks:
+            task.refresh_from_db()
+            assert task.milestone_id == milestone.id
+
+    def test_detaches_on_null(self):
+        """Passing null takes the selection out of its milestone."""
+        _, _, user, tasks, milestone = self._seed()
+        _run_bulk_update(user=user, ids=[t.id for t in tasks], updates={"milestone": milestone.id})
+
+        _run_bulk_update(user=user, ids=[t.id for t in tasks], updates={"milestone": None})
+
+        for task in tasks:
+            task.refresh_from_db()
+            assert task.milestone_id is None
+
+    def test_refuses_a_task_whose_project_is_out_of_scope(self):
+        """Scope is the whole reason a milestone can be shared.
+
+        All-or-nothing: the in-scope tasks must not be committed either.
+        """
+        ws, _, user, tasks, milestone = self._seed()
+        elsewhere = ProjectFactory(workspace=ws)
+        outsider = TaskFactory(project=elsewhere, reporter=user)
+
+        with pytest.raises(serializers.ValidationError) as excinfo:
+            _run_bulk_update(
+                user=user,
+                ids=[tasks[0].id, outsider.id],
+                updates={"milestone": milestone.id},
+            )
+
+        assert "milestone" in excinfo.value.detail
+        tasks[0].refresh_from_db()
+        assert tasks[0].milestone_id is None
+
+    def test_refuses_an_epic(self):
+        """An epic takes its milestones from its tasks, like its dates."""
+        _, project, user, _, milestone = self._seed()
+        epic = TaskFactory(project=project, reporter=user, kind=Task.KIND_EPIC)
+
+        with pytest.raises(serializers.ValidationError) as excinfo:
+            _run_bulk_update(user=user, ids=[epic.id], updates={"milestone": milestone.id})
+
+        assert "milestone" in excinfo.value.detail
+
+    def test_unknown_milestone_is_rejected(self):
+        """A missing milestone is a validation error, not a silent no-op."""
+        _, _, user, tasks, _ = self._seed()
+
+        with pytest.raises(serializers.ValidationError) as excinfo:
+            _run_bulk_update(user=user, ids=[tasks[0].id], updates={"milestone": 10_000})
+
+        assert "milestone" in excinfo.value.detail
