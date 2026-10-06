@@ -1,0 +1,19 @@
+{% comment %}
+The status colour on its own, with no label and no picker.
+
+Rows that are mostly text — the focus strip, a feed line — want the
+status as a single mark rather than as a cell. The palette is the one
+in ``_status_cell.html``; keeping it in one include is what stops the
+two drifting into different blues.
+
+Expects ``status`` (a status key) and optionally ``dot_class`` for the
+size, defaulting to the 7px mark the focus rows use.
+{% endcomment %}
+<span class="rounded-full shrink-0 {{ dot_class|default:'w-[7px] h-[7px]' }}
+  {% if status == 'planned' %}bg-zinc-500
+  {% elif status == 'ready' %}bg-cyan-500
+  {% elif status == 'to-do' %}bg-blue-500
+  {% elif status == 'in-progress' %}bg-violet-500
+  {% elif status == 'in-review' %}bg-amber-500
+  {% elif status == 'done' %}bg-emerald-500
+  {% else %}bg-zinc-600{% endif %}"></span>

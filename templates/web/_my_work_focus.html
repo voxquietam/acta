@@ -1,0 +1,109 @@
+{% load i18n %}
+{% load lucide %}
+{% load web_extras %}
+{% comment %}
+The head of My Work: what the day looks like, and what to do first.
+
+A list answers "what is mine". It does not answer "which of these
+first", which is the question people open this page with — so the
+ranking leads, and the list stays below it.
+
+Every ranked row says why it is where it is. The order comes from
+weights in ``apps/web/focus.py``; the sentence next to the row is the
+same fact in words, because an order nobody can check is an order
+nobody trusts.
+
+Expects ``focus`` — ``rows`` / ``ranked`` / ``summary`` / ``tidy``.
+{% endcomment %}
+{% if focus.rows or focus.summary or focus.tidy %}
+<div class="flex flex-col gap-4 mb-6">
+
+  {% if focus.summary %}
+  <div class="flex items-center gap-x-4 gap-y-1 flex-wrap text-sm">
+    {% for row in focus.summary %}
+    <span class="inline-flex items-center gap-1.5">
+      {% if row.kind == "overdue" %}{% lucide "calendar-x" "w-3.5 h-3.5 text-rose-400" %}
+      {% elif row.kind == "waiting" %}{% lucide "at-sign" "w-3.5 h-3.5 text-rose-400" %}
+      {% elif row.kind == "soon" %}{% lucide "clock" "w-3.5 h-3.5 text-amber-400" %}
+      {% elif row.kind == "blocked" %}{% lucide "hourglass" "w-3.5 h-3.5 text-amber-400" %}
+      {% else %}{% lucide "diamond" "w-3.5 h-3.5 text-rose-400" %}{% endif %}
+      <span class="font-medium {{ row.tone }}">{{ row.count }}</span>
+      <span class="text-muted-foreground">{{ row.label }}</span>
+    </span>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if focus.tidy %}
+  <div class="flex items-center gap-2 flex-wrap text-xs">
+    <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground font-medium">{% trans "Tidy up" %}</span>
+    {% for row in focus.tidy %}
+    <span class="inline-flex items-center gap-1.5 h-6 px-2 rounded-md border border-border text-muted-foreground">
+      {% if row.kind == "sitting" %}{% lucide "clock-alert" "w-3 h-3" %}
+      {% elif row.kind == "no-milestone" %}{% lucide "circle-dashed" "w-3 h-3" %}
+      {% else %}{% lucide "minus" "w-3 h-3" %}{% endif %}
+      {{ row.label }}
+      <span class="font-mono text-placeholder-foreground">{{ row.count }}</span>
+    </span>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if focus.rows %}
+  <div class="bg-card border border-border rounded-lg">
+    <div class="flex items-center gap-2 px-4 h-11 border-b border-border">
+      <span class="text-xs font-medium">{% trans "Do first" %}</span>
+      <span class="font-mono text-[11px] text-placeholder-foreground">{{ focus.ranked }}</span>
+      <span class="flex-1"></span>
+      <span class="hidden sm:block text-[11px] text-placeholder-foreground truncate">
+        {% trans "overdue › blocks someone › due in 2 days › urgent › past its milestone" %}
+      </span>
+    </div>
+
+    {% comment %}
+    Six positional tracks, the same six at every width. Below ``md`` the
+    three the row cannot fit collapse to zero rather than being dropped:
+    a cell removed with ``display:none`` is not placed at all, and every
+    cell after it slides one track to the left into a width meant for
+    something else.
+    {% endcomment %}
+    {% for row in focus.rows %}
+    <a href="{% task_url row.task %}"
+       {% open_task_modal_attrs row.task %}
+       class="grid items-center gap-x-2 md:gap-x-3 px-4 min-h-[44px] py-1.5 border-b border-border last:border-b-0 hover:bg-muted/60 transition text-xs
+              grid-cols-[16px_64px_minmax(0,1fr)_0_0_90px] md:grid-cols-[16px_70px_minmax(0,1fr)_230px_90px_96px]">
+      <span class="font-mono text-[11px] text-placeholder-foreground">{{ forloop.counter }}</span>
+
+      <span class="flex items-center gap-1.5 min-w-0 overflow-hidden">
+        {% include "web/projects/_status_dot.html" with status=row.task.status %}
+        <span class="font-mono text-[11px] text-placeholder-foreground truncate">{{ row.task.slug }}</span>
+      </span>
+
+      <span class="flex flex-col min-w-0">
+        <span class="truncate text-sm">{{ row.task.title }}</span>
+        <span class="text-[11px] text-placeholder-foreground truncate">
+          {{ row.task.project.name }} · {{ status_labels|get_item:row.task.status|lower }}{% if row.task.milestone %} · {{ row.task.milestone.name }}{% endif %}
+        </span>
+        {# Narrow only: the two cells that collapse are said here instead. #}
+        <span class="md:hidden text-[11px] truncate {{ row.reasons.0.tone }}">
+          {{ row.reasons.0.text }}{% if row.due_label %} · {{ row.due_label }}{% endif %}
+        </span>
+      </span>
+
+      <span class="flex flex-col min-w-0 overflow-hidden">
+        <span class="truncate {{ row.reasons.0.tone }}">{{ row.reasons.0.text }}</span>
+        <span class="text-[11px] text-placeholder-foreground truncate">
+          {% for reason in row.reasons|slice:"1:" %}{{ reason.text }}{% if not forloop.last %} · {% endif %}{% endfor %}
+        </span>
+      </span>
+
+      <span class="font-mono text-[11px] whitespace-nowrap text-right overflow-hidden {{ row.due_tone }}">{{ row.due_label }}</span>
+
+      <span class="acta-btn-ghost border border-border-strong justify-center whitespace-nowrap w-full">{{ row.action }}</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+</div>
+{% endif %}

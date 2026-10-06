@@ -67,6 +67,7 @@ from apps.tasks.metrics import compute_bottlenecks, compute_cfd, compute_flow_me
 from apps.tasks.models import Task
 from apps.tasks.search import search_tasks
 from apps.tasks.services import turn_epic_into_task, turn_task_into_epic
+from apps.web import focus
 from apps.web import kanban as kanban_lanes
 from apps.web import plan
 from apps.web.create_dialog import build_create_task_data
@@ -1820,6 +1821,28 @@ def _my_work_calls_context(user, active):
     }
 
 
+def _focus_context(user, workspace, today):
+    """Build the My Work focus strip in one read of the viewer's work.
+
+    Args:
+        user: The viewer.
+        workspace: The active workspace, or ``None`` for all of them.
+        today: Reference date.
+
+    Returns:
+        ``rows`` (the ranked shortlist), ``ranked`` (how many tasks have
+        a reason at all), ``summary`` and ``tidy``.
+    """
+    tasks = focus.focus_tasks(user, workspace)
+    ranked = focus.do_first(tasks, today)
+    return {
+        "rows": ranked[: focus.DO_FIRST_LIMIT],
+        "ranked": len(ranked),
+        "summary": focus.summary(tasks, today),
+        "tidy": focus.tidy_up(tasks, today),
+    }
+
+
 class MyWorkView(LoginRequiredMixin, TemplateView):
     """The user's personal task inbox at ``/my-work/``.
 
@@ -1872,6 +1895,12 @@ class MyWorkView(LoginRequiredMixin, TemplateView):
         # the user — the toggle hides foreign-project rows in the DOM.
         tasks = _my_work_tasks(self.request.user, params, active)
         ctx["has_any_tasks"] = bool(tasks)
+        # The focus strip reads the viewer's open work once and answers
+        # every block off that one list — the ranking, the five counts and
+        # the tidy-up chips. Lazy so the ``?axis_only=`` fragment, which
+        # renders a list group and nothing else, does not pay for it.
+        ctx["today"] = timezone.localdate()
+        ctx["focus"] = SimpleLazyObject(lambda: _focus_context(self.request.user, active, ctx["today"]))
         list_axis_keys = _optional_axes(("deadline", "status", "priority", "project"), active)
         list_axis = _resolve_list_axis(self.request, default="deadline", options=list_axis_keys)
         ctx["list_axis"] = list_axis

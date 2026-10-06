@@ -319,28 +319,44 @@ class TestMyWorkEmpty:
 class TestMyWorkQueryCount:
     """Page query count must stay bounded — independent of task count."""
 
-    def test_no_n_plus_one(self, client, setup):
-        user, project = setup
-        # 15 tasks split across the buckets via varying due dates.
+    def _seed(self, user, project, count):
+        """Assign ``count`` tasks to the user, spread across the buckets."""
         today = timezone.localdate()
-        for i in range(15):
+        for i in range(count):
             TaskFactory(
                 project=project,
                 reporter=user,
                 assignee=user,
                 title=f"task{i}",
-                due_date=today + datetime.timedelta(days=i - 7),
+                due_date=today + datetime.timedelta(days=i % 15 - 7),
                 status=Task.STATUS_TODO,
             )
+
+    def test_no_n_plus_one(self, client, setup):
+        """The count is the same for fifteen tasks and for sixty.
+
+        Measured rather than capped: an absolute ceiling has to be
+        nudged every time a block is added to the page, and a ceiling
+        that gets nudged stops guarding anything. What must never
+        change is the SHAPE — flat in the number of tasks.
+        """
+        user, project = setup
+        self._seed(user, project, 15)
         client.force_login(user)
-        with CaptureQueriesContext(connection) as ctx:
-            resp = client.get(reverse("web:my_work"))
-            assert resp.status_code == 200
-        # Hard ceiling: well under "one query per task". The exact
-        # count fluctuates with middleware (session, auth, i18n) but
-        # 30 is a generous safe margin and catches accidental
-        # serializer / template N+1 regressions.
-        assert len(ctx.captured_queries) < 30, f"Got {len(ctx.captured_queries)} queries for 15 tasks — N+1 regression."
+        with CaptureQueriesContext(connection) as few:
+            assert client.get(reverse("web:my_work")).status_code == 200
+        self._seed(user, project, 45)
+
+        with CaptureQueriesContext(connection) as many:
+            assert client.get(reverse("web:my_work")).status_code == 200
+
+        assert len(many.captured_queries) == len(few.captured_queries), (
+            f"{len(few.captured_queries)} queries for 15 tasks, "
+            f"{len(many.captured_queries)} for 60 — N+1 regression."
+        )
+        # Still a ceiling, loose enough to survive a new block and tight
+        # enough that a per-row query on a short list would trip it.
+        assert len(many.captured_queries) < 45, f"Got {len(many.captured_queries)} queries — the page got heavy."
 
 
 @pytest.mark.django_db
