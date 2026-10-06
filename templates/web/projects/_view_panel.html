@@ -83,6 +83,21 @@ no extra HTTP requests fire on tab change. Tabs themselves live in
   </div>
 
   {% comment %}
+  Plan (project detail only — gated on ``allow_plan``). Lazy like the
+  list and the timeline: a two-level cut over every task in the project
+  is the same shape of cost, and the tab is not the one most people land
+  on. The cut knob refetches this slot rather than re-grouping client
+  side — the rollups are counted server-side, once.
+  {% endcomment %}
+  {% if allow_plan %}
+  <div x-show="$store.viewMode.current === 'plan'"
+       {% if view_mode != 'plan' %}style="display:none"{% endif %}
+       data-panel-slot="plan" class="flex-1 min-h-0 flex flex-col">
+    {% if view_mode == "plan" %}{% include "web/projects/_plan_panel.html" %}{% endif %}
+  </div>
+  {% endif %}
+
+  {% comment %}
   Relationship graph (project detail only — gated on ``allow_graph``).
   Lazy-loaded via ``?panel=graph``; the canvas library it needs is itself
   only fetched once the panel's ``[data-task-graph]`` marker exists.

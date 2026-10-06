@@ -3990,6 +3990,22 @@ html.dark .acta-dock-chip.is-ex {
   background: rgb(var(--card));
 }
 
+/* ---- Plan tree --------------------------------------------------------
+   The project's Plan tab: the cut's first column carries the tree, then
+   the window, the rollup and what runs past its date. Below ``lg`` the
+   three right-hand columns are hidden and the grid is a single column. */
+.acta-plan-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 1024px) {
+  .acta-plan-grid {
+    /* Proportional, not fixed: the tree column is the one that must not
+       collapse, and fixed widths added up to more than a panel beside a
+       sidebar has to give. */
+    grid-template-columns: minmax(0, 2.4fr) 104px minmax(0, 1.1fr) 86px;
+  }
+}
+
 /* ---- Milestone list ---------------------------------------------------
    Five columns on the workspace Milestones tab: the name carries the
    goal line under it, then the date with its countdown, progress, the

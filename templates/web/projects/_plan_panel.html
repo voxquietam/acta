@@ -1,0 +1,160 @@
+{% load i18n %}
+{% load lucide %}
+{% load web_extras %}
+{% comment %}
+Plan view body — this project's work cut two levels deep (design
+"AppPlan", the tree render).
+
+The boards answer "where is the work"; this answers "how does the work
+sit inside what we committed to". That is two dimensions at once — a
+milestone holds epics, an epic spans milestones — so which one leads is
+the knob, and both readings stay one click apart.
+
+Rows arrive flat from ``apps.web.plan`` with a depth and a collapse key,
+so the whole tree is one loop and one Alpine flag per key. Changing the
+cut refetches this panel rather than re-grouping in the browser: the
+rollups are counted server-side, and a second implementation of the
+counting rule is exactly what ADR 0037 set out to avoid.
+
+Expects ``plan_rows`` / ``plan_cut`` / ``plan_cuts`` / ``plan_heading``.
+{% endcomment %}
+<div data-scroll-wrap class="relative flex-1 min-h-0"
+     x-data="{
+       closed: {},
+       isOpen(key) { return !this.closed[key]; },
+       toggle(key) { this.closed[key] = !this.closed[key]; }
+     }">
+<div data-scroll-target class="h-full overflow-y-auto scrollbar-none pb-4">
+
+  <div class="flex items-center gap-3 mb-3 text-xs flex-wrap">
+    <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground font-medium">{% trans "Group" %}</span>
+    <nav class="flex items-center gap-1 flex-wrap">
+      {% for cut in plan_cuts %}
+      <a href="?view=plan&cut={{ cut.key }}"
+         hx-get="{{ request.path }}?panel=plan&cut={{ cut.key }}"
+         hx-target="closest [data-panel-slot]"
+         hx-swap="innerHTML"
+         @click="document.cookie = `acta_plan_cut={{ cut.key }}; path=/; max-age=${60*60*24*365}; samesite=Lax`"
+         class="px-2 py-0.5 rounded-md transition
+           {% if cut.key == plan_cut %}bg-muted text-foreground{% else %}text-subtle-foreground hover:text-foreground hover:bg-muted/60{% endif %}">
+        {{ cut.label }}
+      </a>
+      {% endfor %}
+    </nav>
+    <span class="flex-1"></span>
+    <span class="text-placeholder-foreground">{% blocktrans count counter=plan_rows|length %}{{ counter }} row{% plural %}{{ counter }} rows{% endblocktrans %}</span>
+  </div>
+
+  <div class="bg-card border border-border rounded-lg overflow-hidden">
+    <div class="hidden lg:grid items-center gap-3 px-4 h-8 acta-plan-grid text-[10px] uppercase tracking-wider text-placeholder-foreground bg-subtle/95 border-b border-border">
+      <span>{{ plan_heading }}</span>
+      <span>{% trans "Window" %}</span>
+      <span>{% trans "Progress" %}</span>
+      <span>{% trans "Past its date" %}</span>
+    </div>
+
+    {% for row in plan_rows %}
+    {% if row.kind == "group" %}
+    <div @click="toggle('{{ row.key }}')"
+         {% if row.ancestors %}x-show="{% for key in row.ancestors %}isOpen('{{ key }}'){% if not forloop.last %} && {% endif %}{% endfor %}" x-cloak{% endif %}
+         class="grid items-center gap-3 px-4 py-1.5 border-b border-border cursor-pointer select-none acta-plan-grid
+           {% if row.depth == 0 %}bg-subtle/60{% endif %}">
+      <div class="min-w-0" style="padding-left: {{ row.indent }}px;">
+        <div class="flex items-center gap-2 min-w-0">
+          <span x-show="isOpen('{{ row.key }}')">{% lucide "chevron-down" "w-3 h-3 text-placeholder-foreground shrink-0" %}</span>
+          <span x-show="!isOpen('{{ row.key }}')" x-cloak>{% lucide "chevron-right" "w-3 h-3 text-placeholder-foreground shrink-0" %}</span>
+          {% if row.milestone %}
+          {% lucide "diamond" "w-3.5 h-3.5 text-brand-400 shrink-0" %}
+          {% elif row.epic %}
+          {% lucide "square-kanban" "w-3.5 h-3.5 text-subtle-foreground shrink-0" %}
+          {% elif row.status %}
+          <span class="w-[7px] h-[7px] rounded-full shrink-0 {{ row.status|status_dot_classes }}"></span>
+          {% else %}
+          {% lucide "circle-dashed" "w-3.5 h-3.5 text-placeholder-foreground shrink-0" %}
+          {% endif %}
+          <span class="truncate {% if row.milestone or row.epic or row.status %}text-foreground font-medium{% else %}text-subtle-foreground font-medium{% endif %}">{{ row.label }}</span>
+          <span class="font-mono text-[11px] text-placeholder-foreground shrink-0">{{ row.count }}</span>
+          {% if row.scope %}<span class="text-[11px] text-placeholder-foreground truncate hidden md:inline">{{ row.scope }}</span>{% endif %}
+        </div>
+        {% if row.milestone and row.milestone.goal %}
+        <div class="mt-0.5 text-[11px] text-placeholder-foreground truncate" style="padding-left: 24px;">{{ row.milestone.goal }}</div>
+        {% endif %}
+      </div>
+
+      <div class="hidden lg:flex flex-col min-w-0 text-xs">
+        {% if row.milestone %}
+        <span class="font-mono">{{ row.milestone.target_date|date:"M j" }}</span>
+        <span class="text-[11px] text-placeholder-foreground">{% trans "target" %}</span>
+        {% elif row.window_start or row.window_end %}
+        <span class="font-mono text-subtle-foreground">{{ row.window_start|date:"M j"|default:"—" }} → {{ row.window_end|date:"M j"|default:"—" }}</span>
+        {% else %}
+        <span class="text-placeholder-foreground">—</span>
+        {% endif %}
+      </div>
+
+      <div class="hidden lg:flex items-center gap-2 min-w-0 text-xs">
+        {% if row.total %}
+        <span class="font-mono text-[11px] w-10 tabular-nums">{{ row.done }}/{{ row.total }}</span>
+        <span class="w-[90px] h-1 rounded-full bg-muted overflow-hidden shrink-0">
+          <span class="block h-full bg-emerald-500" style="width: {{ row.percent }}%;"></span>
+        </span>
+        {% else %}
+        <span class="text-[11px] italic text-placeholder-foreground">{% trans "no work here" %}</span>
+        {% endif %}
+      </div>
+
+      <div class="hidden lg:block text-xs">
+        {% if row.risk %}
+        <span class="inline-flex items-center gap-1 text-rose-400">{% lucide "calendar-x" "w-3 h-3" %}{{ row.risk }}</span>
+        {% else %}
+        <span class="text-placeholder-foreground">—</span>
+        {% endif %}
+      </div>
+    </div>
+
+    {% else %}
+    {# Opens the task over the plan, the way a row does everywhere else: #}
+    {# the tree is the place you were reading, and a full page nav loses  #}
+    {# it. Modifier-clicks still follow the href into a new tab.          #}
+    <a href="{% task_url row.task %}"
+       {% open_task_modal_attrs row.task %}
+       {% if row.ancestors %}x-show="{% for key in row.ancestors %}isOpen('{{ key }}'){% if not forloop.last %} && {% endif %}{% endfor %}" x-cloak{% endif %}
+       {% task_filter_attrs row.task %}
+       class="grid items-center gap-3 px-4 py-1.5 border-b border-border hover:bg-muted/60 transition acta-plan-grid">
+      <div class="flex items-center gap-2 min-w-0" style="padding-left: {{ row.indent }}px;">
+        <span class="w-[7px] h-[7px] rounded-full shrink-0 {{ row.task.status|status_dot_classes }}"></span>
+        <span class="font-mono text-[11px] text-placeholder-foreground w-16 shrink-0">{{ row.task.slug }}</span>
+        <span class="truncate text-xs {% if row.task.status == 'done' %}text-subtle-foreground{% endif %}">{{ row.task.title }}</span>
+      </div>
+      <div class="hidden lg:block text-xs">
+        {% if row.task.due_date %}
+        <span class="font-mono {% if row.late %}text-rose-400{% else %}text-subtle-foreground{% endif %}">{{ row.task.due_date|date:"M j" }}</span>
+        {% else %}
+        <span class="text-placeholder-foreground">—</span>
+        {% endif %}
+      </div>
+      <div class="hidden lg:block text-xs text-subtle-foreground truncate">
+        {{ row.task.status|status_label }}
+      </div>
+      <div class="hidden lg:block text-xs">
+        {% if row.late %}
+        <span class="font-mono text-rose-400">+{{ row.late }}d</span>
+        {% else %}
+        <span class="text-placeholder-foreground">—</span>
+        {% endif %}
+      </div>
+    </a>
+    {% endif %}
+
+    {% empty %}
+    <p class="px-4 py-10 text-center text-sm italic text-placeholder-foreground">
+      {% trans "No work to plan here yet." %}
+    </p>
+    {% endfor %}
+  </div>
+
+  <p class="text-[11px] text-placeholder-foreground mt-2">
+    {% trans "Counted the way everything else counts: cancelled is not work, archived done still counts, archived unfinished drops out. A task is past its date when it is unfinished and due after the milestone it is committed to." %}
+  </p>
+</div>
+</div>

@@ -67,6 +67,7 @@ from apps.tasks.metrics import compute_bottlenecks, compute_cfd, compute_flow_me
 from apps.tasks.models import Task
 from apps.tasks.search import search_tasks
 from apps.tasks.services import turn_epic_into_task, turn_task_into_epic
+from apps.web import plan
 from apps.web.create_dialog import build_create_task_data
 from apps.web.dashboard import DEFAULT_RANGE, build_dashboard_context
 from apps.web.exports import serialize_project_overview, serialize_tasks
@@ -119,7 +120,7 @@ _MY_WORK_BACKLOG_STATUSES = [
 ]
 
 
-_VIEW_MODES = {"overview", "kanban", "table", "list", "timeline", "graph", "backlog", "archive"}
+_VIEW_MODES = {"overview", "kanban", "table", "list", "timeline", "plan", "graph", "backlog", "archive"}
 
 
 def _is_htmx_partial(request):
@@ -234,6 +235,33 @@ def _timeline_milestones(tasks, chart_start, chart_end):
             "id",
         )[:30],
     )
+
+
+def _plan_context(request, tasks, today) -> dict:
+    """Build the Plan tab's two-level cut of a project's work.
+
+    One question the boards cannot answer: how this project's work sits
+    inside what it has committed to. A milestone holds epics and an epic
+    spans milestones, so which dimension leads is the knob, and the rows
+    come back flat for one template loop (see :mod:`apps.web.plan`).
+
+    Args:
+        request: The active request, for the chosen cut.
+        tasks: The project's filtered tasks.
+        today: Reference date.
+
+    Returns:
+        A context dict with ``plan_rows``, the chosen ``plan_cut`` and
+        the knob's options.
+    """
+    cut = plan.resolve_cut(request)
+    return {
+        "plan_cut": cut,
+        "plan_cut_label": plan.CUT_LABELS[cut],
+        "plan_heading": plan.CUT_HEADINGS[cut],
+        "plan_cuts": [{"key": key, "label": label} for key, label in plan.CUT_LABELS.items()],
+        "plan_rows": plan.build_plan_rows(tasks, cut, today),
+    }
 
 
 def _resolve_list_axis(request, *, default, options):
@@ -763,6 +791,7 @@ def _resolve_view_mode(
     allow_backlog=False,
     allow_archive=False,
     allow_graph=False,
+    allow_plan=False,
 ):
     """Resolve view_mode in the canonical order.
 
@@ -785,6 +814,9 @@ def _resolve_view_mode(
         allow_graph: When True ``"graph"`` is a valid value (the
             relationship map) — scoped to the project on project detail
             and to the active workspace on All Tasks.
+        allow_plan: When True ``"plan"`` is a valid value — the
+            two-level cut of a project's work against what it has
+            committed to.
 
     Returns:
         One of ``"overview"`` / ``"kanban"`` / ``"table"`` / ``"list"`` /
@@ -799,6 +831,8 @@ def _resolve_view_mode(
         allowed.add("archive")
     if allow_graph:
         allowed.add("graph")
+    if allow_plan:
+        allowed.add("plan")
     view_mode = request.GET.get("view")
     if view_mode in allowed:
         return view_mode
@@ -1411,9 +1445,11 @@ class AllTasksView(LoginRequiredMixin, ListView):
             allow_backlog=True,
             allow_archive=True,
             allow_graph=True,
+            allow_plan=True,
         )
         ctx["view_mode"] = view_mode
         ctx["allow_graph"] = True
+        ctx["allow_plan"] = True
         ctx["view_panel_target"] = "#task-list-wrapper"
         ctx["show_project"] = True
         ctx["show_labels"] = True
@@ -1453,6 +1489,13 @@ class AllTasksView(LoginRequiredMixin, ListView):
         # body — return now with only the timeline context, skipping the
         # kanban sort + five list-axis groupings + filter sidebar build.
         if self.request.GET.get("panel") == "timeline":
+            return ctx
+
+        # ``?panel=plan`` — lazy fetch of just the Plan tree. Across the
+        # workspace the cut reads the same way it does in one project;
+        # a milestone belongs to the workspace, so nothing has to change.
+        if self.request.GET.get("panel") == "plan":
+            ctx.update(_plan_context(self.request, table_tasks, ctx["today"]))
             return ctx
 
         # ``?panel=graph`` — lazy fetch of just the relationship board.
@@ -1497,6 +1540,8 @@ class AllTasksView(LoginRequiredMixin, ListView):
             ctx.update(self._kanban_columns_ctx(table_tasks))
         elif view_mode == "list":
             ctx.update(self._list_axes_ctx(table_tasks))
+        elif view_mode == "plan":
+            ctx.update(_plan_context(self.request, table_tasks, ctx["today"]))
         elif view_mode == "graph":
             ctx.update(self._graph_ctx())
         elif view_mode == "backlog":
@@ -2919,9 +2964,11 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             allow_backlog=True,
             allow_archive=True,
             allow_graph=True,
+            allow_plan=True,
         )
         ctx["view_mode"] = view_mode
         ctx["allow_graph"] = True
+        ctx["allow_plan"] = True
         # Common per-task display dicts — needed by both the full page
         # and the lazy ``?panel=list`` fragment (``_task_row.html`` uses
         # them via ``status_labels|get_item:...``).
@@ -3102,6 +3149,9 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         if panel == "timeline":
             ctx.update(_timeline_context(table_tasks, today))
             return ctx
+        if panel == "plan":
+            ctx.update(_plan_context(self.request, table_tasks, today))
+            return ctx
         if panel == "graph":
             ctx.update(self._graph_ctx(project))
             return ctx
@@ -3134,6 +3184,8 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
                 ctx.update(self._list_axes_ctx(table_tasks=table_tasks, project=project))
             elif view_mode == "timeline":
                 ctx.update(_timeline_context(table_tasks, today))
+            elif view_mode == "plan":
+                ctx.update(_plan_context(self.request, table_tasks, today))
             elif view_mode == "graph":
                 ctx.update(self._graph_ctx(project))
             elif view_mode == "backlog":
