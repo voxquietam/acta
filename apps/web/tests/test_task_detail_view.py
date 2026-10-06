@@ -204,11 +204,14 @@ class TestTaskDetailQueryCount:
         The epic picker costs exactly one more: a single aggregate over
         the workspace's epics, flat in the number of tasks, and lazy so
         the surfaces that share this bundle without drawing the picker
-        (context menu, archive / cancel swaps) still pay nothing.
+        (context menu, archive / cancel swaps) still pay nothing. The
+        milestone picker costs one more again, on the same terms: one
+        query for the open milestones covering this project, lazy for
+        the surfaces that never draw it.
         """
         user, project, task = task_setup
         client.force_login(user)
-        with django_assert_max_num_queries(18):
+        with django_assert_max_num_queries(19):
             client.get(
                 reverse(
                     "web:task_meta_fragment",

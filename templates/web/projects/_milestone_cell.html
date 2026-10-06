@@ -1,0 +1,93 @@
+{% load i18n %}
+{% comment %}
+Milestone cell — commits the task to a milestone, or takes it out of
+one. Same click-to-edit + teleported dropdown pattern as the cycle /
+size cells. Expects ``task`` and ``project_milestones``.
+
+The picker only offers milestones whose scope covers this task's
+project: a milestone can be shared across projects, and that scope is
+what makes the sharing mean something. Closed milestones are left out —
+see docs/decisions/0037-milestones.md.
+
+An epic has no cell at all. It derives its milestones from the tasks it
+collects, the way it already derives its dates and its size, so the rail
+hides the row rather than offering a control that would be refused.
+{% endcomment %}
+<div id="milestone-cell"
+     x-data="{
+       open: false,
+       rect: { top: 0, left: 0, bottom: 0, right: 0 },
+       measure() {
+         const r = this.$refs.trigger.getBoundingClientRect();
+         this.rect = { top: r.top, left: r.left, bottom: r.bottom, right: r.right };
+       },
+       toggle() { if (!this.open) this.measure(); this.open = !this.open; }
+     }"
+     x-init="
+       const onScroll = (e) => {
+         if (!$el.isConnected) { document.removeEventListener('scroll', onScroll, true); return; }
+         if (open && !($refs.panel && $refs.panel.contains(e.target))) open = false;
+       };
+       document.addEventListener('scroll', onScroll, true);
+     "
+     @resize.window="if (open) open = false"
+     class="inline-block">
+  <button type="button"
+          x-ref="trigger"
+          @click="toggle()"
+          class="text-xs cursor-pointer inline-flex items-center gap-1.5 hover:text-foreground
+            {% if task.milestone_id %}text-subtle-foreground{% else %}text-placeholder-foreground{% endif %}"
+          data-tooltip="{% trans 'Commit to a milestone' %}">
+    {% if task.milestone_id %}
+    <span class="w-1.5 h-1.5 rounded-full {% if task.milestone.is_closed %}bg-zinc-600{% else %}bg-brand-500{% endif %}"></span>
+    <span class="truncate">{{ task.milestone.name }}</span>
+    <span class="text-[10px] text-placeholder-foreground whitespace-nowrap">{{ task.milestone.target_date|date:"M j" }}</span>
+    {% else %}
+    <span class="italic">{% trans "Set milestone" %}</span>
+    {% endif %}
+  </button>
+  <template x-teleport="body">
+  {# Self-event opt-in — see _status_cell + project_todo_inline_cells_propagation. #}
+  <div x-ref="panel"
+       x-show="open"
+       @click.outside="open = false"
+       @htmx:before-request="window.actaForceApplySelfEvent && window.actaForceApplySelfEvent({{ task.id }})"
+       x-init="$nextTick(() => window.htmx && window.htmx.process($el))"
+       x-cloak
+       :style="`position:fixed; top:${rect.bottom + 4}px; left:${Math.min(rect.left, window.innerWidth - 272)}px; width:16rem;`"
+       class="bg-card border border-border rounded-lg shadow-lg overflow-hidden z-50">
+    <form method="post"
+          hx-post="{% url 'web:set_task_milestone' slug_prefix=task.project.slug_prefix number=task.number %}"
+          hx-target="#milestone-cell"
+          hx-swap="outerHTML"
+          @htmx:after-request="open = false">
+      {% csrf_token %}
+      <input type="hidden" name="milestone_id" value="">
+      <button type="submit"
+              class="w-full text-left px-3 py-1.5 text-xs hover:bg-muted flex items-center gap-1.5
+                {% if not task.milestone_id %}text-brand-500{% else %}text-muted-foreground{% endif %}">
+        <span class="flex-1">{% trans "No milestone" %}</span>
+      </button>
+    </form>
+    {% for milestone in project_milestones %}
+    <form method="post"
+          hx-post="{% url 'web:set_task_milestone' slug_prefix=task.project.slug_prefix number=task.number %}"
+          hx-target="#milestone-cell"
+          hx-swap="outerHTML"
+          @htmx:after-request="open = false">
+      {% csrf_token %}
+      <input type="hidden" name="milestone_id" value="{{ milestone.id }}">
+      <button type="submit"
+              class="w-full text-left px-3 py-1.5 text-xs hover:bg-muted flex items-center gap-2
+                {% if milestone.id == task.milestone_id %}text-brand-500{% else %}text-muted-foreground{% endif %}">
+        <span class="w-1.5 h-1.5 rounded-full bg-brand-500 shrink-0"></span>
+        <span class="flex-1 truncate">{{ milestone.name }}</span>
+        {# The date is the milestone — a name without it says nothing about #}
+        {# what you are committing to.                                      #}
+        <span class="text-[10px] text-placeholder-foreground whitespace-nowrap">{{ milestone.target_date|date:"M j" }}</span>
+      </button>
+    </form>
+    {% endfor %}
+  </div>
+  </template>
+</div>

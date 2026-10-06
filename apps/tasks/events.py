@@ -36,6 +36,7 @@ WATCHED_EVENT_FIELDS = (
     "labels",
     "project",
     "cycle",
+    "milestone",
 )
 
 
@@ -76,6 +77,11 @@ def snapshot_task(task: Task) -> dict[str, Any]:
         # tasks pay one unless the source queryset select_relates cycle.
         "cycle_number": task.cycle.number if task.cycle_id else None,
         "cycle_name": task.cycle.name if task.cycle_id else None,
+        "milestone_id": task.milestone_id,
+        # Captured for the human-readable milestone_changed event, and
+        # read only when the task is in one — unattached tasks cost no
+        # extra query.
+        "milestone_name": task.milestone.name if task.milestone_id else None,
         "number": task.number,
         # User-facing slug before the mutation. Captured so a project move
         # can emit a human-readable ``moved AUD-167 → HRW-89`` event; reads
@@ -239,6 +245,20 @@ def build_diff_events(
                     "to_project_id": task.project_id,
                     "from_slug": old_state.get("slug"),
                     "to_slug": task.slug,
+                },
+                **common,
+            ),
+        )
+
+    if old_state.get("milestone_id") != task.milestone_id:
+        events.append(
+            ActivityLog(
+                event_type="task.milestone_changed",
+                payload={
+                    "from_milestone_id": old_state.get("milestone_id"),
+                    "to_milestone_id": task.milestone_id,
+                    "from_milestone_name": old_state.get("milestone_name"),
+                    "to_milestone_name": task.milestone.name if task.milestone_id else None,
                 },
                 **common,
             ),

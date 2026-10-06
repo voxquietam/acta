@@ -3841,6 +3841,11 @@ def task_picker_context(task):
         "workspace_label_groups": _workspace_label_groups(task),
         "workspace_projects": _workspace_projects(task),
         "workspace_cycles": _workspace_cycles(workspace),
+        # Lazy for the same reason ``workspace_epics`` is: this bundle also
+        # feeds the context menu and the archive / cancel swaps, which never
+        # draw the milestone picker, and a query for a list nobody renders
+        # is a query nobody should pay for.
+        "project_milestones": SimpleLazyObject(lambda: _project_milestones(task.project)),
         "epics_enabled": workspace.epics_enabled,
         # Lazy on purpose: this bundle also feeds the context menu and the
         # archive / cancel swaps, which never render the epic picker, and
@@ -4406,6 +4411,73 @@ def set_task_cycle(request, slug_prefix, number):
         {
             "task": task,
             "workspace_cycles": _workspace_cycles(task.project.workspace),
+        },
+    )
+
+
+def _project_milestones(project):
+    """Return the open milestones a task in this project may join.
+
+    Scope is the whole reason a milestone can be shared, so the picker
+    only offers the ones that cover this task's project. Closed ones are
+    left out: joining a milestone someone has already closed is almost
+    always a mistake, and the one time it is not, reopening says so out
+    loud. See docs/decisions/0037-milestones.md.
+
+    Args:
+        project: The task's project.
+
+    Returns:
+        A list of :class:`~apps.milestones.models.Milestone`, soonest
+        date first.
+    """
+    from apps.milestones.models import Milestone
+
+    return list(
+        Milestone.objects.filter(projects=project, closed_at__isnull=True).order_by("target_date", "id")[:50],
+    )
+
+
+@require_POST
+def set_task_milestone(request, slug_prefix, number):
+    """Commit the task to a milestone, or take it out of one.
+
+    Reads ``milestone_id``; empty detaches. A non-empty value must be a
+    milestone whose scope covers this task's project — that scope is the
+    whole point of a shared milestone — and an epic may not join at all,
+    since it derives its milestones from the tasks it collects. Routed
+    through the diff path so the change logs ``task.milestone_changed``
+    and refreshes peer rows over SSE.
+
+    Returns:
+        Rendered ``_milestone_cell.html``, or ``400`` on an epic or a
+        milestone that does not cover the project.
+    """
+    from apps.milestones.models import Milestone
+
+    task = _get_user_task_or_404(request.user, slug_prefix, number)
+    raw = (request.POST.get("milestone_id") or "").strip()
+    if raw == "":
+        milestone = None
+    else:
+        if task.kind == Task.KIND_EPIC:
+            return HttpResponseBadRequest("an epic takes its milestones from its tasks")
+        try:
+            milestone_pk = int(raw)
+        except (TypeError, ValueError):
+            return HttpResponseBadRequest("invalid milestone")
+        milestone = get_object_or_404(
+            Milestone.objects.filter(projects=task.project),
+            pk=milestone_pk,
+        )
+    _apply_task_field_change(task, "milestone", milestone, request.user)
+    return _inline_edit_response(
+        request,
+        task,
+        "web/projects/_milestone_cell.html",
+        {
+            "task": task,
+            "project_milestones": _project_milestones(task.project),
         },
     )
 

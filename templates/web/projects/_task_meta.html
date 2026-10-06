@@ -48,6 +48,13 @@ Re-included by ``task_detail.html`` and rendered standalone by
   </div>
   {% endif %}
 
+  {% if task.kind != 'epic' and project_milestones or task.milestone_id %}
+  <div class="flex items-center justify-between gap-3">
+    <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Milestone" %}</div>
+    <div class="min-w-0">{% include "web/projects/_milestone_cell.html" %}</div>
+  </div>
+  {% endif %}
+
   {% if task.kind != 'epic' and workspace_cycles or task.cycle_id %}
   <div class="flex items-center justify-between gap-3">
     <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Cycle" %}</div>

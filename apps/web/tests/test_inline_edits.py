@@ -1637,3 +1637,81 @@ class TestInlineCellPropagationOptIn:
         assert resp.status_code in (200, 204, 302)
         if resp.status_code == 200:
             self._assert_opt_in(resp.content.decode(), task.id)
+
+
+@pytest.mark.django_db
+class TestMilestoneCell:
+    """Committing a task to a milestone from the rail, and refusing to."""
+
+    def _url(self, project, task):
+        return reverse(
+            "web:set_task_milestone",
+            kwargs={"slug_prefix": project.slug_prefix, "number": task.number},
+        )
+
+    def _seed(self):
+        """A member, a project, a task, and a milestone covering it."""
+        from apps.milestones.tests.factories import MilestoneFactory
+
+        ws = WorkspaceFactory()
+        project = ProjectFactory(workspace=ws)
+        task = TaskFactory(project=project, reporter=ws.owner)
+        milestone = MilestoneFactory(workspace=ws, projects=[project])
+        return ws.owner, project, task, milestone
+
+    def test_commits_the_task_and_logs_it(self, client):
+        """The rail write goes through the diff path, so the feed hears it."""
+        user, project, task, milestone = self._seed()
+        client.force_login(user)
+
+        resp = client.post(self._url(project, task), {"milestone_id": milestone.id})
+
+        assert resp.status_code == 200
+        task.refresh_from_db()
+        assert task.milestone_id == milestone.id
+        event = ActivityLog.objects.filter(event_type="task.milestone_changed").latest("id")
+        assert event.payload["to_milestone_name"] == milestone.name
+        assert event.actor_id == user.id
+
+    def test_clears_the_milestone_on_an_empty_value(self):
+        """Detaching is the same endpoint with nothing in the field."""
+        from django.test import Client
+
+        user, project, task, milestone = self._seed()
+        task.milestone = milestone
+        task.save(update_fields=["milestone"])
+        client = Client()
+        client.force_login(user)
+
+        resp = client.post(self._url(project, task), {"milestone_id": ""})
+
+        assert resp.status_code == 200
+        task.refresh_from_db()
+        assert task.milestone_id is None
+
+    def test_refuses_an_epic(self, client):
+        """An epic derives its milestones from the tasks it collects."""
+        user, project, _, milestone = self._seed()
+        epic = TaskFactory(project=project, reporter=user, kind=Task.KIND_EPIC)
+        client.force_login(user)
+
+        resp = client.post(self._url(project, epic), {"milestone_id": milestone.id})
+
+        assert resp.status_code == 400
+        epic.refresh_from_db()
+        assert epic.milestone_id is None
+
+    def test_refuses_a_milestone_that_does_not_cover_the_project(self, client):
+        """Out of scope is not findable, not merely rejected."""
+        user, project, task, _ = self._seed()
+        from apps.milestones.tests.factories import MilestoneFactory
+
+        elsewhere = ProjectFactory(workspace=project.workspace)
+        foreign = MilestoneFactory(workspace=project.workspace, projects=[elsewhere])
+        client.force_login(user)
+
+        resp = client.post(self._url(project, task), {"milestone_id": foreign.id})
+
+        assert resp.status_code == 404
+        task.refresh_from_db()
+        assert task.milestone_id is None
