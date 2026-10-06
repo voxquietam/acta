@@ -213,6 +213,7 @@ _LIST_AXIS_LABELS = {
     "project": "Project",
     "cycle": "Cycle",
     "epic": "Epic",
+    "milestone": "Milestone",
 }
 
 
@@ -655,6 +656,11 @@ def _optional_axes(base_keys, workspace):
         keys = (*keys, "cycle")
     if workspace.epics_enabled:
         keys = (*keys, "epic")
+    # No switch for milestones: having one is the switch. A workspace
+    # that has never planned a date gets no axis, and the first milestone
+    # someone creates brings it along. One EXISTS per render.
+    if workspace.milestones.exists():
+        keys = (*keys, "milestone")
     return keys
 
 

@@ -121,6 +121,8 @@ def group_tasks(tasks, axis, *, request_user=None, keep_empty=()):
         sections = _group_by_cycle(tasks)
     elif axis == "epic":
         sections = _group_by_epic(tasks)
+    elif axis == "milestone":
+        sections = _group_by_milestone(tasks)
     else:
         sections = []
     return [s for s in sections if s["tasks"] or s["key"] in keep_empty]
@@ -267,6 +269,55 @@ def _group_by_cycle(tasks):
     ]
     sections.append(
         {"key": "backlog", "label": _("Backlog"), "tone": "zinc", "tasks": backlog},
+    )
+    return sections
+
+
+def _group_by_milestone(tasks):
+    """Bucket by milestone, soonest date first, no-milestone last.
+
+    A milestone is a date, so the sections run in date order rather than
+    alphabetically: the question this axis answers is "what is due
+    next", and a name tells you nothing about that. Overdue milestones
+    therefore lead, which is where attention belongs. Work committed to
+    nothing collects in one trailing bucket instead of vanishing — on
+    most boards it is the majority.
+
+    Args:
+        tasks: Iterable of :class:`Task`.
+
+    Returns:
+        Ordered section dicts.
+    """
+    by_milestone = {}
+    loose = []
+    for task in tasks:
+        if task.milestone_id is None:
+            loose.append(task)
+            continue
+        by_milestone.setdefault(task.milestone_id, {"milestone": task.milestone, "tasks": []})
+        by_milestone[task.milestone_id]["tasks"].append(task)
+    ordered = sorted(
+        by_milestone.values(),
+        key=lambda entry: (entry["milestone"].target_date, entry["milestone"].id),
+    )
+    sections = [
+        {
+            "key": str(entry["milestone"].id),
+            "label": entry["milestone"].name,
+            # Closed is settled; the rest is still a promise.
+            "tone": "zinc" if entry["milestone"].is_closed else "violet",
+            "tasks": entry["tasks"],
+        }
+        for entry in ordered
+    ]
+    sections.append(
+        {
+            "key": "none",
+            "label": str(_("No milestone")),
+            "tone": "zinc",
+            "tasks": loose,
+        },
     )
     return sections
 

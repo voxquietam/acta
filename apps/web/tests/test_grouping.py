@@ -135,3 +135,66 @@ class TestGroupByProject:
         sections = group_tasks(list(Task.objects.all()), "project")
         names = [s["label"] for s in sections]
         assert names == ["Aardvark", "Beaver"]
+
+
+@pytest.mark.django_db
+class TestGroupByMilestone:
+    """A milestone is a date, so the sections run in date order."""
+
+    def _milestone(self, project, name, days):
+        from apps.milestones.tests.factories import MilestoneFactory
+
+        return MilestoneFactory(
+            workspace=project.workspace,
+            projects=[project],
+            name=name,
+            target_date=timezone.localdate() + datetime.timedelta(days=days),
+        )
+
+    def test_soonest_first_and_unassigned_last(self, project):
+        later = self._milestone(project, "Later", 30)
+        sooner = self._milestone(project, "Sooner", 3)
+        TaskFactory(project=project, milestone=later, title="far")
+        TaskFactory(project=project, milestone=sooner, title="near")
+        TaskFactory(project=project, title="loose")
+
+        sections = group_tasks(Task.objects.all(), "milestone", request_user=None)
+
+        assert [s["label"] for s in sections] == ["Sooner", "Later", "No milestone"]
+
+    def test_overdue_milestones_lead(self, project):
+        """Date order puts a missed date at the top, where attention goes."""
+        past = self._milestone(project, "Missed", -5)
+        ahead = self._milestone(project, "Ahead", 10)
+        TaskFactory(project=project, milestone=ahead)
+        TaskFactory(project=project, milestone=past)
+
+        sections = group_tasks(Task.objects.all(), "milestone", request_user=None)
+
+        assert sections[0]["label"] == "Missed"
+
+
+@pytest.mark.django_db
+def test_every_axis_the_picker_offers_can_be_grouped():
+    """The picker and the grouping must never drift apart.
+
+    They did once: My Work built its sections from a hand-written list
+    of four axes while the picker was built from ``_optional_axes``, so
+    choosing "Group by: Epic" rendered an empty page. This asserts the
+    two agree for every optional axis a workspace can switch on.
+    """
+    from apps.milestones.tests.factories import MilestoneFactory
+    from apps.web.views import _optional_axes
+
+    ws = WorkspaceFactory(epics_enabled=True)
+    project = ProjectFactory(workspace=ws)
+    MilestoneFactory(workspace=ws, projects=[project])
+    user = UserFactory()
+    TaskFactory(project=project, assignee=user)
+
+    keys = _optional_axes(("deadline", "status", "priority", "assignee", "project"), ws)
+
+    assert "milestone" in keys
+    for key in keys:
+        sections = group_tasks(Task.objects.all(), key, request_user=user)
+        assert sections, f"axis {key!r} is offered by the picker but groups into nothing"
