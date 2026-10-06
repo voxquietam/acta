@@ -9,6 +9,8 @@ prevent.
 
 import datetime
 
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 import pytest
@@ -673,3 +675,218 @@ class TestWhereAnEpicsWorkSits:
 
         assert "state" not in row
         assert row["count"] == 1
+
+
+class TestTheProjectOverview:
+    """The milestone block of a project's Overview tab.
+
+    Two readings of one set, and the tests keep them apart: a card
+    reports this project's slice of a date while its state comes from
+    the date's whole scope, and the decision list reports the dates
+    waiting on a person rather than on work.
+    """
+
+    def _board(self):
+        """A project aiming at five dates, one of each kind.
+
+        Returns:
+            ``(project, other, milestones)`` where ``milestones`` is a
+            dict keyed by the kind each one stands for.
+        """
+        today = timezone.localdate()
+        project = ProjectFactory(slug_prefix="BCK")
+        other = ProjectFactory(workspace=project.workspace, slug_prefix="INF")
+        missed = MilestoneFactory(
+            workspace=project.workspace,
+            name="Beta",
+            target_date=today - datetime.timedelta(days=3),
+            projects=[project],
+        )
+        soon = MilestoneFactory(
+            workspace=project.workspace,
+            name="RC",
+            target_date=today + datetime.timedelta(days=5),
+            projects=[
+                project,
+                other,
+            ],
+        )
+        later = MilestoneFactory(
+            workspace=project.workspace,
+            name="GA",
+            target_date=today + datetime.timedelta(days=30),
+            projects=[project],
+        )
+        empty = MilestoneFactory(
+            workspace=project.workspace,
+            name="Audit",
+            target_date=today + datetime.timedelta(days=40),
+            projects=[project],
+        )
+        closeable = MilestoneFactory(
+            workspace=project.workspace,
+            name="Docs",
+            target_date=today + datetime.timedelta(days=50),
+            projects=[project],
+        )
+        TaskFactory(project=project, milestone=missed, status=Task.STATUS_TODO)
+        TaskFactory(project=project, milestone=soon, status=Task.STATUS_DONE)
+        TaskFactory(
+            project=project,
+            milestone=soon,
+            status=Task.STATUS_TODO,
+            due_date=soon.target_date + datetime.timedelta(days=2),
+        )
+        TaskFactory(project=other, milestone=soon, status=Task.STATUS_TODO)
+        TaskFactory(project=project, milestone=later, status=Task.STATUS_TODO)
+        TaskFactory(project=project, milestone=closeable, status=Task.STATUS_DONE)
+        return (
+            project,
+            other,
+            {
+                "missed": missed,
+                "soon": soon,
+                "later": later,
+                "empty": empty,
+                "closeable": closeable,
+            },
+        )
+
+    def test_the_missed_date_comes_first_and_the_finished_one_not_at_all(self):
+        """A card is something still to aim at; a finished date is a decision."""
+        project, _other, ms = self._board()
+
+        cards = services.project_overview(project)["cards"]
+
+        assert [card["milestone"] for card in cards] == [
+            ms["missed"],
+            ms["soon"],
+            ms["later"],
+            ms["empty"],
+        ]
+
+    def test_the_card_count_stops_at_the_limit(self):
+        project, _other, _ms = self._board()
+        today = timezone.localdate()
+        for offset in (60, 70, 80):
+            MilestoneFactory(
+                workspace=project.workspace,
+                name=f"Extra {offset}",
+                target_date=today + datetime.timedelta(days=offset),
+                projects=[project],
+            )
+
+        cards = services.project_overview(project)["cards"]
+
+        assert len(cards) == services.OVERVIEW_CARD_LIMIT
+
+    def test_a_card_counts_this_projects_slice_not_the_whole_scope(self):
+        """``RC`` holds three tasks; two of them are this project's."""
+        project, _other, ms = self._board()
+
+        card = next(c for c in services.project_overview(project)["cards"] if c["milestone"] == ms["soon"])
+
+        assert (card["done"], card["total"], card["open"], card["percent"]) == (1, 2, 1, 50)
+        assert card["scope_total"] == 3
+
+    def test_a_shared_date_names_every_project_aiming_at_it(self):
+        project, _other, ms = self._board()
+        overview = services.project_overview(project)
+
+        shared = next(c for c in overview["cards"] if c["milestone"] == ms["soon"])
+        local = next(c for c in overview["cards"] if c["milestone"] == ms["later"])
+
+        assert shared["shared"] is True
+        assert shared["scope"] == [
+            "BCK",
+            "INF",
+        ]
+        assert local["shared"] is False
+        assert overview["shared_count"] == 1
+
+    def test_risk_is_read_off_this_projects_slice(self):
+        """The task due after ``RC`` is ours; ``INF``'s open one is not."""
+        project, _other, ms = self._board()
+
+        card = next(c for c in services.project_overview(project)["cards"] if c["milestone"] == ms["soon"])
+
+        assert card["risk"] == 1
+
+    def test_a_date_this_project_has_no_work_in_still_shows(self):
+        project, _other, ms = self._board()
+
+        card = next(c for c in services.project_overview(project)["cards"] if c["milestone"] == ms["empty"])
+
+        assert (card["total"], card["percent"]) == (0, 0)
+
+    def test_the_decisions_run_closeable_then_missed_then_empty_then_the_rest(self):
+        project, _other, ms = self._board()
+        TaskFactory(project=project, status=Task.STATUS_TODO)
+
+        decisions = services.project_overview(project)["decisions"]
+
+        assert [row["kind"] for row in decisions] == [
+            "closeable",
+            "missed",
+            "empty",
+            "unattached",
+        ]
+        assert [row["milestone"] for row in decisions[:3]] == [
+            ms["closeable"],
+            ms["missed"],
+            ms["empty"],
+        ]
+        assert decisions[-1]["milestone"] is None
+
+    def test_the_missed_decision_says_how_late_and_how_much_is_open_here(self):
+        project, _other, _ms = self._board()
+
+        row = next(r for r in services.project_overview(project)["decisions"] if r["kind"] == "missed")
+
+        assert row["text"] == "Beta — overdue by 3 days, 1 open here"
+
+    def test_the_remainder_counts_only_this_projects_open_work(self):
+        """Done, cancelled, shelved and epics are not open work in no date."""
+        project, other, _ms = self._board()
+        workspace = project.workspace
+        workspace.epics_enabled = True
+        workspace.save(update_fields=["epics_enabled"])
+        TaskFactory(project=project, status=Task.STATUS_TODO)
+        TaskFactory(project=project, status=Task.STATUS_DONE)
+        TaskFactory(project=project, status=Task.STATUS_CANCELLED)
+        TaskFactory(project=project, status=Task.STATUS_TODO, archived_at=timezone.now())
+        TaskFactory(project=project, kind=Task.KIND_EPIC)
+        TaskFactory(project=other, status=Task.STATUS_TODO)
+
+        assert services.project_overview(project)["unattached"] == 1
+
+    def test_a_closed_date_leaves_both_readings(self):
+        project, _other, ms = self._board()
+        ms["later"].closed_at = timezone.now()
+        ms["later"].save(update_fields=["closed_at"])
+
+        overview = services.project_overview(project)
+
+        assert ms["later"] not in [card["milestone"] for card in overview["cards"]]
+        assert ms["later"] not in [row["milestone"] for row in overview["decisions"]]
+        assert overview["open_count"] == 4
+
+    def test_the_query_count_does_not_follow_the_number_of_dates(self):
+        """Four queries for the block, however many dates it reads."""
+        project, _other, _ms = self._board()
+        today = timezone.localdate()
+        with CaptureQueriesContext(connection) as small:
+            services.project_overview(project)
+        for offset in range(60, 90):
+            milestone = MilestoneFactory(
+                workspace=project.workspace,
+                name=f"Extra {offset}",
+                target_date=today + datetime.timedelta(days=offset),
+                projects=[project],
+            )
+            TaskFactory(project=project, milestone=milestone, status=Task.STATUS_TODO)
+
+        with CaptureQueriesContext(connection) as large:
+            services.project_overview(project)
+
+        assert len(large.captured_queries) == len(small.captured_queries) == 4

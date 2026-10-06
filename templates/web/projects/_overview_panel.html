@@ -11,7 +11,7 @@ a 5-segment progress bar + status chips, Description, Latest update,
 Members with role badges.
 {% endcomment %}
 <div class="flex-1 min-h-0 overflow-y-auto">
-  <div class="max-w-3xl mx-auto w-full pb-8">
+  <div class="max-w-5xl mx-auto w-full pb-16">
 
     {% comment %}
     Project header — icon-tile + slug/age + bold project name + health pill.
@@ -171,7 +171,7 @@ Members with role badges.
       </div>
     </header>
 
-    <div class="space-y-6 pt-6">
+    <div class="space-y-8 pt-6">
 
       {% comment %}
       Stats block — design: big bold "done" count, ``done / total``
@@ -262,6 +262,15 @@ Members with role badges.
           {% endif %}
         </div>
       </section>
+
+      {% comment %}
+      The dates this project aims at. Rendered only for a workspace that
+      has planned one — ``overview_milestones`` is ``None`` otherwise, and
+      milestones have no on/off switch beyond that.
+      {% endcomment %}
+      {% if overview_milestones %}
+      {% include "web/projects/_overview_milestones.html" %}
+      {% endif %}
 
       {% comment %}
       Latest project update(s). Linear-style cards: avatar + author +

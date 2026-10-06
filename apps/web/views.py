@@ -3253,6 +3253,18 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         ctx["overview_project_age_days"] = (today - project.created_at.date()).days
         ctx["health_labels"] = dict(ProjectUpdate.HEALTH_CHOICES)
         ctx["latest_health"] = ctx["overview_latest_updates"][0].health if ctx["overview_latest_updates"] else None
+        # Milestones the project aims at — cards plus the dates waiting on
+        # a person. Lazy because the Overview body is rendered on every
+        # project load (tab switching is client-side), so a workspace that
+        # plans no dates must not pay for the four queries, and a lazy
+        # ``?panel=`` fetch that renders another tab must not either.
+        ctx["overview_milestones"] = SimpleLazyObject(
+            lambda: (
+                milestone_services.project_overview(project, today)
+                if workspace_plans_dates(project.workspace)
+                else None
+            ),
+        )
 
         # Aging WIP: the timestamp the task last changed status (its
         # ``task.status_changed`` activity row), so the board can show how
@@ -3271,7 +3283,21 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         base = (
             Task.objects.work()
             .filter(project=project)
-            .select_related("assignee", "reporter", "parent", "project__workspace")
+            # ``epic__project__workspace`` + ``milestone`` for the same
+            # reason ``_user_task_qs`` carries them: the plan chip and the
+            # Epic / Milestone columns read the epic's title and the
+            # milestone's name off every row, and they render on every row
+            # now — the Display switches hide them with a class rather than
+            # dropping them from the markup. Without the joins each row was
+            # one query, and a column nobody turns on was hiding its cost.
+            .select_related(
+                "assignee",
+                "reporter",
+                "parent",
+                "project__workspace",
+                "epic__project__workspace",
+                "milestone",
+            )
             .prefetch_related("labels", "blocks", "blocked_by")
             .annotate(status_since=Subquery(last_status_change))
         )

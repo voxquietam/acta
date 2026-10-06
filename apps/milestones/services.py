@@ -31,6 +31,11 @@ ATTACHED_STATUS_ORDER = [
     Task.STATUS_PLANNED,
 ]
 
+#: How many milestone cards the project Overview draws before it stops.
+#: The grid fits four across the panel; a fifth would wrap into a second
+#: row that says nothing the Plan tab does not say better.
+OVERVIEW_CARD_LIMIT = 4
+
 #: How far past the target date a projection is still drawn. Beyond this
 #: the line says "much later" more honestly than a date does.
 PROJECTION_HORIZON_DAYS = 40
@@ -1362,3 +1367,181 @@ def epic_milestone_targets(workspace, tasks) -> list[dict]:
             },
         )
     return rows
+
+
+def project_overview(project, today=None) -> dict:
+    """Return the milestone block the project's Overview tab draws.
+
+    Two readings of the same set, because they answer different
+    questions. The cards say where the next dates stand and how much of
+    each one this project owns — on a shared date the local slice is not
+    the commitment, so both numbers are kept. The decisions say which of
+    those dates waits on a person rather than on work: finished work
+    stays open until someone closes it, a missed date has to be closed
+    or moved, an empty one has nothing attached yet, and work in no
+    milestone belongs to no date at all.
+
+    A milestone's state is read from its whole scope while its progress
+    bar is read from this project's slice. The two are different numbers
+    on purpose: a project finishing its three tasks does not make a
+    shared date complete.
+
+    Closed milestones are left out of both readings — a closed date is
+    history, and history reads better on the Plan tab.
+
+    Args:
+        project: The project whose Overview is being rendered.
+        today: Reference date; defaults to the local current date.
+
+    Returns:
+        ``cards`` (at most :data:`OVERVIEW_CARD_LIMIT`, the most overdue
+        first), ``decisions``, ``open_count``, ``shared_count`` and
+        ``unattached``.
+    """
+    today = today or timezone.localdate()
+    milestones = list(
+        Milestone.objects.filter(
+            projects=project,
+            closed_at__isnull=True,
+        )
+        .prefetch_related("projects")
+        .order_by(
+            "target_date",
+            "id",
+        ),
+    )
+    by_milestone: dict[int, list[tuple]] = defaultdict(list)
+    for milestone_id, project_id, status, due_date in _counted_cells([m.id for m in milestones]):
+        by_milestone[milestone_id].append((project_id, status, due_date))
+    rows = [_overview_row(milestone, by_milestone[milestone.id], project, today) for milestone in milestones]
+    unattached = (
+        Task.objects.work()
+        .filter(counted_q(), project=project, milestone__isnull=True)
+        .exclude(status=Task.STATUS_DONE)
+        .count()
+    )
+    overdue = [row for row in rows if row["state"] == Milestone.STATE_OVERDUE]
+    ahead = [row for row in rows if row["state"] not in (Milestone.STATE_OVERDUE, Milestone.STATE_COMPLETE)]
+    return {
+        "cards": (overdue + ahead)[:OVERVIEW_CARD_LIMIT],
+        "decisions": _overview_decisions(rows, unattached),
+        "open_count": len(rows),
+        "shared_count": sum(1 for row in rows if row["shared"]),
+        "unattached": unattached,
+    }
+
+
+def _overview_row(milestone, cells: list[tuple], project, today) -> dict:
+    """Build one Overview card from a milestone's counted work.
+
+    Args:
+        milestone: The milestone, with ``projects`` prefetched.
+        cells: Its ``(project_id, status, due_date)`` tuples.
+        project: The project whose slice the card reports.
+        today: Reference date.
+
+    Returns:
+        The card dict the Overview template renders.
+    """
+    scope_done = sum(1 for _project_id, status, _due in cells if status == Task.STATUS_DONE)
+    scope_total = len(cells)
+    state = _state_from_cells(milestone, scope_done, scope_total, today)
+    past = milestone.target_date < today
+    mine = [(status, due_date) for project_id, status, due_date in cells if project_id == project.id]
+    done = sum(1 for status, _due in mine if status == Task.STATUS_DONE)
+    scope = sorted(other.slug_prefix for other in milestone.projects.all())
+    return {
+        "milestone": milestone,
+        "state": state,
+        "state_label": STATE_LABELS[state],
+        "countdown": countdown(milestone, state, today),
+        "date_label": date_label(milestone.target_date),
+        "done": done,
+        "total": len(mine),
+        "open": len(mine) - done,
+        "percent": round(done / len(mine) * 100) if mine else 0,
+        "risk": sum(
+            1 for status, due_date in mine if status != Task.STATUS_DONE and _is_at_risk(milestone, due_date, past)
+        ),
+        "scope_total": scope_total,
+        "shared": len(scope) > 1,
+        "scope": scope,
+    }
+
+
+def _overview_decisions(rows: list[dict], unattached: int) -> list[dict]:
+    """Collect the milestones of a project that wait on a person.
+
+    Grouped by kind rather than by date, because the kind is what the
+    reader acts on: everything closeable first, then everything missed,
+    then the dates nobody has attached work to.
+
+    Args:
+        rows: Every open milestone of the project, from
+            :func:`_overview_row`, soonest date first.
+        unattached: Open counted work of the project in no milestone.
+
+    Returns:
+        Row dicts with ``kind`` (``closeable`` / ``missed`` / ``empty``
+        / ``unattached``), ``text``, ``action`` and the ``milestone`` to
+        open — ``None`` on the unattached remainder, which opens the
+        Plan instead. The icon and the colour are the template's to
+        pick: a Lucide name reaching the tag through a variable is
+        invisible to the sprite builder.
+    """
+    decisions = []
+    for row in rows:
+        if row["state"] == Milestone.STATE_COMPLETE:
+            decisions.append(
+                {
+                    "kind": "closeable",
+                    "milestone": row["milestone"],
+                    "text": _("%(name)s — all done, not closed") % {"name": row["milestone"].name},
+                    "action": _("Close"),
+                },
+            )
+    for row in rows:
+        if row["state"] == Milestone.STATE_OVERDUE:
+            decisions.append(
+                {
+                    "kind": "missed",
+                    "milestone": row["milestone"],
+                    "text": _("%(name)s — %(countdown)s, %(open)s")
+                    % {
+                        "name": row["milestone"].name,
+                        "countdown": row["countdown"],
+                        "open": ngettext(
+                            "%(count)d open here",
+                            "%(count)d open here",
+                            row["open"],
+                        )
+                        % {"count": row["open"]},
+                    },
+                    "action": _("Close or move"),
+                },
+            )
+    for row in rows:
+        if row["state"] == Milestone.STATE_OPEN and not row["scope_total"]:
+            decisions.append(
+                {
+                    "kind": "empty",
+                    "milestone": row["milestone"],
+                    "text": _("%(name)s — nothing attached yet") % {"name": row["milestone"].name},
+                    "action": _("Add work"),
+                },
+            )
+    if unattached:
+        decisions.append(
+            {
+                "kind": "unattached",
+                "milestone": None,
+                "text": ngettext(
+                    "%(count)d open task in no milestone",
+                    "%(count)d open tasks in no milestone",
+                    unattached,
+                )
+                % {"count": unattached},
+                "action": _("Open plan"),
+            },
+        )
+    return decisions

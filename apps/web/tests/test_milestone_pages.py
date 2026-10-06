@@ -10,6 +10,8 @@ the work that aimed at it.
 import datetime
 import json
 
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 import pytest
@@ -715,3 +717,105 @@ class TestOnTheTimeline:
         resp = client.get(f"/{workspace.slug}/tasks/?view=timeline")
 
         assert resp.context["timeline_milestones"] == []
+
+
+@pytest.mark.django_db
+class TestOnTheProjectOverview:
+    """A project's Overview opens on the dates it aims at.
+
+    The tab renders on every project load — switching tabs is a
+    client-side toggle — so these assert on the rendered body rather
+    than on the context: a correct context behind an unrendered
+    section is the one failure a context assertion cannot see.
+    """
+
+    def test_the_card_reports_the_local_slice_of_a_shared_date(self, client, setup):
+        workspace, user, backend, infra, milestone = setup
+        TaskFactory(project=backend, milestone=milestone, status=Task.STATUS_DONE)
+        TaskFactory(project=backend, milestone=milestone, status=Task.STATUS_TODO)
+        TaskFactory(project=infra, milestone=milestone, status=Task.STATUS_TODO)
+        client.force_login(user)
+
+        resp = client.get(f"/{workspace.slug}/projects/{backend.slug_prefix}/")
+        body = resp.content.decode()
+
+        assert resp.status_code == 200
+        assert "Milestones ahead" in body
+        assert "Search beta" in body
+        assert "1/2" in body
+        assert "shared · MBK MIN" in body
+
+    def test_a_missed_date_asks_to_be_closed_or_moved(self, client, setup):
+        workspace, user, backend, _, milestone = setup
+        milestone.target_date = timezone.localdate() - datetime.timedelta(days=2)
+        milestone.save(update_fields=["target_date"])
+        TaskFactory(project=backend, milestone=milestone, status=Task.STATUS_TODO)
+        client.force_login(user)
+
+        resp = client.get(f"/{workspace.slug}/projects/{backend.slug_prefix}/")
+        body = resp.content.decode()
+
+        assert "Needs a decision" in body
+        assert "Search beta — overdue by 2 days, 1 open here" in body
+        assert "Close or move" in body
+
+    def test_work_in_no_date_points_at_the_plan(self, client, setup):
+        workspace, user, backend, _, _milestone = setup
+        TaskFactory(project=backend, status=Task.STATUS_TODO)
+        client.force_login(user)
+
+        resp = client.get(f"/{workspace.slug}/projects/{backend.slug_prefix}/")
+        body = resp.content.decode()
+
+        assert "1 open task in no milestone" in body
+        assert "Open plan" in body
+
+    def test_a_workspace_that_plans_no_dates_gets_no_section(self, client):
+        """Milestones have no on/off switch — having one is the switch."""
+        workspace = WorkspaceFactory()
+        user = UserFactory()
+        WorkspaceMember.objects.create(user=user, workspace=workspace)
+        project = ProjectFactory(workspace=workspace, slug_prefix="MNO")
+        TaskFactory(project=project, status=Task.STATUS_TODO)
+        client.force_login(user)
+
+        resp = client.get(f"/{workspace.slug}/projects/{project.slug_prefix}/")
+        body = resp.content.decode()
+
+        assert not resp.context["overview_milestones"]
+        assert "Milestones ahead" not in body
+
+    def test_a_project_outside_every_open_date_says_so(self, client, setup):
+        workspace, user, backend, infra, milestone = setup
+        milestone.projects.set([infra])
+        client.force_login(user)
+
+        resp = client.get(f"/{workspace.slug}/projects/{backend.slug_prefix}/")
+        body = resp.content.decode()
+
+        assert "No open milestone includes this project." in body
+
+    def test_the_page_does_not_pay_per_date(self, client, setup):
+        """The block is four queries whether the project aims at two dates or thirty."""
+        workspace, user, backend, _, milestone = setup
+        TaskFactory(project=backend, milestone=milestone, status=Task.STATUS_TODO)
+        client.force_login(user)
+        url = f"/{workspace.slug}/projects/{backend.slug_prefix}/"
+        with CaptureQueriesContext(connection) as few:
+            assert client.get(url).status_code == 200
+        for offset in range(1, 30):
+            extra = MilestoneFactory(
+                workspace=workspace,
+                name=f"Date {offset}",
+                target_date=timezone.localdate() + datetime.timedelta(days=offset),
+                projects=[backend],
+            )
+            TaskFactory(project=backend, milestone=extra, status=Task.STATUS_TODO)
+
+        with CaptureQueriesContext(connection) as many:
+            assert client.get(url).status_code == 200
+
+        assert len(many.captured_queries) <= len(few.captured_queries), (
+            f"{len(few.captured_queries)} queries for 1 date, "
+            f"{len(many.captured_queries)} for 30 — the page pays per date."
+        )
