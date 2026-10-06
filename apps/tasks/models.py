@@ -5,6 +5,31 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 
+def counted_q(prefix: str = "") -> models.Q:
+    """Build the "this task counts as work" predicate.
+
+    One rule in one place, because epics and milestones both read it and
+    two near-identical copies is how a container once went ``1/3 → 0/2``.
+    Finished work keeps counting after the auto-archive job files it
+    away; dropping it would walk progress backwards with nothing having
+    happened, and leave a finished container reading ``0/0``. Unfinished
+    work that was archived is shelved, not done, and stays out. Cancelled
+    work is not work at all.
+
+    Args:
+        prefix: Relation to reach the task through, e.g. ``"epic_tasks"``
+            or ``"tasks"``. Empty when filtering tasks directly.
+
+    Returns:
+        A :class:`~django.db.models.Q` selecting the tasks that count.
+    """
+    field = f"{prefix}__" if prefix else ""
+    live = models.Q(**{f"{field}archived_at__isnull": True}) | models.Q(
+        **{f"{field}status": Task.STATUS_DONE},
+    )
+    return live & ~models.Q(**{f"{field}status": Task.STATUS_CANCELLED})
+
+
 class TaskQuerySet(models.QuerySet):
     """Queryset helpers that know about epics.
 
@@ -49,15 +74,7 @@ class TaskQuerySet(models.QuerySet):
             The queryset with ``member_total`` and ``member_done``
             annotations.
         """
-        # Finished work keeps counting after the auto-archive job files
-        # it away: dropping it would walk progress backwards with nothing
-        # having happened (1/3 → 0/2), and leave a finished epic reading
-        # 0/0. Unfinished work that was archived is shelved, not done, and
-        # stays out — that is the case the exclusion was written for.
-        live = models.Q(epic_tasks__archived_at__isnull=True) | models.Q(
-            epic_tasks__status=Task.STATUS_DONE,
-        )
-        counted = live & ~models.Q(epic_tasks__status=Task.STATUS_CANCELLED)
+        counted = counted_q("epic_tasks")
         return self.annotate(
             member_total=models.Count("epic_tasks", filter=counted, distinct=True),
             member_done=models.Count(
@@ -272,6 +289,17 @@ class Task(models.Model):
         on_delete=models.SET_NULL,
         related_name="tasks",
         help_text="Workspace cycle (time-box) this task is committed to; null means backlog",
+    )
+    milestone = models.ForeignKey(
+        "milestones.Milestone",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="tasks",
+        help_text=(
+            "Milestone this task is committed to. At most one, and only one whose scope "
+            "includes this task's project — membership is chosen, never inferred from dates"
+        ),
     )
     labels = models.ManyToManyField(
         "labels.Label",
@@ -682,6 +710,17 @@ class Task(models.Model):
                 raise ValidationError({"size": "An epic takes its size from its tasks."})
             if self.cycle_id is not None:
                 raise ValidationError({"cycle": "An epic does not join a cycle."})
+            if self.milestone_id is not None:
+                raise ValidationError(
+                    {"milestone": "An epic takes its milestones from its tasks."},
+                )
+        if self.milestone_id is not None and self.project_id is not None:
+            # Scope is the whole reason a milestone can be shared: a task
+            # joins one its own project aims at, or none. See ADR 0037.
+            if not self.milestone.projects.filter(pk=self.project_id).exists():
+                raise ValidationError(
+                    {"milestone": "This milestone does not cover the task's project."},
+                )
         if self.size is not None and self.size not in self.SIZE_VALUES:
             raise ValidationError({"size": "Size must be one of 1, 2, 3, 5, 8, 13."})
         if self.status not in self.STATUS_VALUES:
