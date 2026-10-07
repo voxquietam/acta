@@ -3576,23 +3576,23 @@ html.dark .acta-dock-chip.is-ex {
 
 /* The description takes the column's spare height — the whole point of
    the two-column layout is that the field people need room for gets it. */
-.acta-ctm-desc {
+.acta-modal-desc {
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
 @media (min-width: 640px) {
-  .acta-ctm-desc {
+  .acta-modal-desc {
     flex: 1 1 auto;
   }
 }
 /* The editor fills the box: TipTap's contenteditable is only as tall as
    its text, so clicking the empty space below a one-line draft hit the
    wrapper and did nothing — you had to aim at the placeholder itself. */
-.acta-ctm-desc-mount > .ProseMirror {
+.acta-modal-desc-mount > .ProseMirror {
   min-height: 100%;
 }
-.acta-ctm-desc-mount {
+.acta-modal-desc-mount {
   flex: 1;
   min-height: 5rem;
   overflow-y: auto;

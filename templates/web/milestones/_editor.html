@@ -77,13 +77,26 @@ x-data="{
              class="w-full bg-transparent border-0 p-0 text-sm text-muted-foreground placeholder-placeholder-foreground outline-none focus:ring-0">
 
       {% comment %}
-      The description takes whatever height is left. ``rows`` stays as the
-      floor for the narrow layout, where the column is not stretched.
+      The same TipTap editor the task modal and the project overview use.
+      A milestone people plan with is written up with headings and lists,
+      and a plain textarea made that a wall of text on the page.
+
+      ``data-no-autosave``: the explicit Save is the only persistence
+      path, so a half-typed draft never flies off on tab close. No
+      ``data-image-upload-url`` — inline images belong to a project and a
+      milestone spans several, so pasting one is not offered here.
+
+      The editor takes whatever height the column has left; the mount's
+      floor keeps it usable in the narrow layout, where nothing stretches.
       {% endcomment %}
-      <div class="flex flex-1 min-h-0 rounded-lg border border-border bg-subtle/40 p-3">
-        <textarea name="description" rows="4"
-                  placeholder="{% trans 'Optional details — context, links, the go/no-go call…' %}"
-                  class="w-full flex-1 min-h-0 bg-transparent border-0 p-0 text-sm text-muted-foreground placeholder-placeholder-foreground outline-none resize-none focus:ring-0">{{ form.description }}</textarea>
+      <div data-description-editor
+           data-no-autosave
+           data-placeholder="{% trans 'Optional details — context, links, the go/no-go call…' %}"
+           class="acta-modal-desc">
+        <input type="hidden" name="description" value="{{ form.description }}" data-editor-output>
+        <textarea class="description-editor-source hidden" readonly>{{ form.description }}</textarea>
+        {% include "web/projects/_editor_toolbar.html" %}
+        <div class="description-editor-mount acta-modal-desc-mount"></div>
       </div>
 
       {% if errors.projects %}

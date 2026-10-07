@@ -191,11 +191,11 @@ Alpine event instead of a ``change``.
          data-no-autosave
          {% if selected_project %}data-image-upload-url="{% url 'web:upload_project_inline_image' slug_prefix=selected_project.slug_prefix %}"{% endif %}
          data-placeholder="{% trans 'Optional details…' %}"
-         class="acta-ctm-desc">
+         class="acta-modal-desc">
       <input type="hidden" name="description" value="{{ pre_description|default:'' }}" data-editor-output>
       <textarea class="description-editor-source hidden" readonly>{{ pre_description|default:'' }}</textarea>
       {% include "web/projects/_editor_toolbar.html" %}
-      <div class="description-editor-mount acta-ctm-desc-mount"></div>
+      <div class="description-editor-mount acta-modal-desc-mount"></div>
     </div>
 
     {# Attachments — chips for files picked but not yet submitted, same #}
