@@ -144,147 +144,149 @@ quietly swap nothing at all.
     </section>
     {% endif %}
 
-    {# ---------- Progress + burndown | At risk ---------- #}
-    <div class="grid gap-4 items-start lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
-      <div class="bg-card border border-border rounded-lg p-4 min-w-0">
-        <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Progress" %}</div>
-        {% comment %}
-        Progress is a count, never a percentage. The only "%" on this
-        card is the forecast's chance, and two percentages side by side
-        is how "32% done" gets read as "32% likely".
-        {% endcomment %}
-        {% if total %}
-        <div class="flex items-center gap-3 mt-1">
-          <span class="inline-flex items-baseline gap-1.5 shrink-0">
-            <span class="font-mono text-base tabular-nums">{{ done }} / {{ total }}</span>
-            <span class="text-xs text-subtle-foreground">{% trans "done" %}</span>
-          </span>
-          <span class="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
-            <span class="block h-full bg-emerald-500" style="width: {{ percent }}%;"></span>
-          </span>
-        </div>
-        <p class="text-[11px] text-placeholder-foreground mt-1">
-          {% if note %}{{ note }}{% else %}{% trans "Every attached task is counted." %}{% endif %}
-        </p>
-        {% else %}
-        <p class="text-xs italic text-placeholder-foreground mt-1">{% trans "Nothing attached yet — no progress bar, no burndown: 0 of 0 is not 100%." %}</p>
-        {% endif %}
+    {% comment %}
+    Progress takes the full width and At risk sits under it. Side by side
+    the burndown was squeezed into half a page — and the chart is the one
+    thing here that needs room, because it is read by its shape.
+    {% endcomment %}
+    <div class="bg-card border border-border rounded-lg p-4 min-w-0">
+      <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Progress" %}</div>
+      {% comment %}
+      Progress is a count, never a percentage. The only "%" on this
+      card is the forecast's chance, and two percentages side by side
+      is how "32% done" gets read as "32% likely".
+      {% endcomment %}
+      {% if total %}
+      <div class="flex items-center gap-3 mt-1">
+        <span class="inline-flex items-baseline gap-1.5 shrink-0">
+          <span class="font-mono text-base tabular-nums">{{ done }} / {{ total }}</span>
+          <span class="text-xs text-subtle-foreground">{% trans "done" %}</span>
+        </span>
+        <span class="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+          <span class="block h-full bg-emerald-500" style="width: {{ percent }}%;"></span>
+        </span>
+      </div>
+      <p class="text-[11px] text-placeholder-foreground mt-1">
+        {% if note %}{{ note }}{% else %}{% trans "Every attached task is counted." %}{% endif %}
+      </p>
+      {% else %}
+      <p class="text-xs italic text-placeholder-foreground mt-1">{% trans "Nothing attached yet — no progress bar, no burndown: 0 of 0 is not 100%." %}</p>
+      {% endif %}
 
-        {% comment %}
-        The forecast (ADR 0038). The chance of making the date leads; the
-        two percentile dates sit under it as the band, never as promises.
-        Likely at 70 and up, unlikely at 30 and down, and the coin flip
-        between them stays neutral — a middling chance dressed in green
-        or rose is the page taking a side it has no evidence for.
-        {% endcomment %}
-        {% if burndown %}
-        {% with fc=burndown.forecast reading=burndown.reading %}
-        <div class="mt-4 pt-3 border-t border-border">
-          <div class="flex items-center gap-2 flex-wrap">
-            <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Forecast" %}</span>
-            {% if reading == "likely" %}
-            <span class="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300">{% trans "likely" %}</span>
-            {% elif reading == "unlikely" %}
-            <span class="text-[10px] px-1.5 py-0.5 rounded-md bg-rose-500/15 text-rose-300">{% if fc.passed %}{% trans "date passed" %}{% else %}{% trans "unlikely" %}{% endif %}</span>
-            {% elif reading == "coin" %}
-            <span class="text-[10px] px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground">{% trans "coin flip" %}</span>
-            {% elif reading == "thin" %}
-            <span class="text-[10px] px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground">{% trans "not enough history" %}</span>
-            {% endif %}
-            <span class="flex-1"></span>
-            {% if fc.state == "ready" %}
-            <span class="text-[10px] text-placeholder-foreground">
-              {% blocktrans count counter=fc.window_days %}replayed from {{ counter }} day of closes{% plural %}replayed from {{ counter }} days of closes{% endblocktrans %}
-            </span>
-            {% endif %}
-          </div>
-
-          {% if fc.state == "ready" %}
-          <div class="flex items-baseline gap-x-2 gap-y-0.5 mt-1.5 flex-wrap">
-            <span class="text-2xl font-semibold leading-tight whitespace-nowrap
-              {% if reading == 'likely' %}text-emerald-400{% elif reading == 'unlikely' %}text-rose-400{% else %}text-foreground{% endif %}">
-              {% if fc.passed %}{% trans "Past the date" %}{% else %}{% blocktrans with chance=fc.chance %}{{ chance }}% chance{% endblocktrans %}{% endif %}
-            </span>
-            <span class="text-sm text-muted-foreground">
-              {% if fc.passed %}{{ milestone.target_date|date:"M j" }}{% else %}{% blocktrans with date=milestone.target_date|date:"M j" %}of making {{ date }}{% endblocktrans %}{% endif %}
-            </span>
-          </div>
-          <p class="text-xs text-subtle-foreground mt-1">
-            {% if fc.passed %}
-            {% blocktrans count counter=fc.days_over with open=burndown.open %}The date passed {{ counter }} day ago with {{ open }} still open.{% plural %}The date passed {{ counter }} days ago with {{ open }} still open.{% endblocktrans %}
-            {% elif reading == "likely" %}{% trans "Most runs finish before the date." %}
-            {% elif reading == "unlikely" %}{% trans "Most runs finish after the date." %}
-            {% else %}{% trans "Runs land on both sides of the date — about as many before it as after." %}{% endif %}
-          </p>
-          <div class="flex items-center gap-x-4 gap-y-1 flex-wrap mt-2 text-xs
-            {% if reading == 'likely' %}text-emerald-400{% elif reading == 'unlikely' %}text-rose-400{% else %}text-muted-foreground{% endif %}">
-            <span class="inline-flex items-center gap-1.5">
-              <span class="w-2 h-2 rounded-full shrink-0 bg-current"></span>
-              <span class="text-muted-foreground">{% trans "half the runs by" %}</span>
-              <span class="font-mono">{{ fc.p50|date:"M j" }}</span>
-            </span>
-            <span class="inline-flex items-center gap-1.5">
-              <span class="w-2 h-2 rounded-full border border-current shrink-0"></span>
-              <span class="text-muted-foreground">{% trans "85 in 100 by" %}</span>
-              <span class="font-mono">{{ fc.p85|date:"M j" }}</span>
-            </span>
-          </div>
-
+      {% comment %}
+      The forecast (ADR 0038). The chance of making the date leads; the
+      two percentile dates sit under it as the band, never as promises.
+      Likely at 70 and up, unlikely at 30 and down, and the coin flip
+      between them stays neutral — a middling chance dressed in green
+      or rose is the page taking a side it has no evidence for.
+      {% endcomment %}
+      {% if burndown %}
+      {% with fc=burndown.forecast reading=burndown.reading %}
+      <div class="mt-4 pt-3 border-t border-border">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Forecast" %}</span>
+          {% if reading == "likely" %}
+          <span class="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300">{% trans "likely" %}</span>
+          {% elif reading == "unlikely" %}
+          <span class="text-[10px] px-1.5 py-0.5 rounded-md bg-rose-500/15 text-rose-300">{% if fc.passed %}{% trans "date passed" %}{% else %}{% trans "unlikely" %}{% endif %}</span>
+          {% elif reading == "coin" %}
+          <span class="text-[10px] px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground">{% trans "coin flip" %}</span>
           {% elif reading == "thin" %}
-          <div class="flex items-start gap-2 mt-1.5 text-xs">
-            {% lucide "history" "w-3.5 h-3.5 mt-0.5 shrink-0 text-placeholder-foreground" %}
-            <span class="text-subtle-foreground">
-              {% blocktrans count counter=fc.closed with window=fc.window_days %}No forecast yet. {{ counter }} task closed in the last {{ window }} days — too few to replay.{% plural %}No forecast yet. {{ counter }} tasks closed in the last {{ window }} days — too few to replay.{% endblocktrans %}
-              {% blocktrans with need=forecast_need %}It starts once {{ need }} have closed across three weeks.{% endblocktrans %}
-            </span>
-          </div>
-
-          {% else %}
-          <div class="flex items-start gap-2 mt-1.5 text-xs">
-            {% lucide "circle-check" "w-3.5 h-3.5 mt-0.5 shrink-0 text-emerald-400" %}
-            <span class="text-muted-foreground">
-              {% blocktrans count counter=total %}All {{ counter }} done — nothing left to forecast.{% plural %}All {{ counter }} done — nothing left to forecast.{% endblocktrans %}
-            </span>
-          </div>
+          <span class="text-[10px] px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground">{% trans "not enough history" %}</span>
           {% endif %}
-        </div>
-        {% endwith %}
-        <div class="relative mt-2" style="height: 180px;"><canvas id="milestoneBurndown"></canvas></div>
-        <p class="text-[11px] text-placeholder-foreground mt-2">
-          {% trans "Read off the activity log, never from due dates — a burndown drawn from plans cannot be wrong." %}
-          {{ burndown.scope_note }}.
-        </p>
-        {% endif %}
-      </div>
-
-      <div class="bg-card border border-border rounded-lg p-4 min-w-0">
-        <div class="flex items-center gap-2">
-          <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% blocktrans with counter=risk %}At risk · {{ counter }}{% endblocktrans %}</span>
           <span class="flex-1"></span>
-          <span class="text-[11px] text-placeholder-foreground">{% trans "days over the date" %}</span>
-        </div>
-        <p class="text-[11px] text-placeholder-foreground mt-1">
-          {% blocktrans with date=milestone.target_date|date:"M j" %}Unfinished and due after {{ date }}, or still open once it passed.{% endblocktrans %}
-        </p>
-        <div class="mt-2 flex flex-col">
-          {% for row in risk_rows|slice:":8" %}
-          <a href="{% task_url row.task %}" class="flex items-center gap-2 h-8 px-2 -mx-2 rounded-md hover:bg-muted text-xs">
-            <span class="w-[7px] h-[7px] rounded-full shrink-0 {{ row.task.status|status_dot_classes }}"></span>
-            <span class="font-mono text-[11px] text-placeholder-foreground w-16 shrink-0">{{ row.task.slug }}</span>
-            <span class="flex-1 truncate">{{ row.task.title }}</span>
-            <span class="text-[11px] text-placeholder-foreground shrink-0 hidden sm:inline">{{ row.why }}</span>
-            <span class="font-mono text-rose-400 w-10 text-right shrink-0">+{{ row.over }}d</span>
-          </a>
-          {% empty %}
-          <p class="text-xs italic text-placeholder-foreground">{% trans "Nothing runs past this date." %}</p>
-          {% endfor %}
-          {% if risk > 8 %}
-          <span class="text-[11px] text-placeholder-foreground mt-1">
-            {% blocktrans with counter=risk|add:"-8" %}+ {{ counter }} more at risk{% endblocktrans %}
+          {% if fc.state == "ready" %}
+          <span class="text-[10px] text-placeholder-foreground">
+            {% blocktrans count counter=fc.window_days %}replayed from {{ counter }} day of closes{% plural %}replayed from {{ counter }} days of closes{% endblocktrans %}
           </span>
           {% endif %}
         </div>
+
+        {% if fc.state == "ready" %}
+        <div class="flex items-baseline gap-x-2 gap-y-0.5 mt-1.5 flex-wrap">
+          <span class="text-2xl font-semibold leading-tight whitespace-nowrap
+            {% if reading == 'likely' %}text-emerald-400{% elif reading == 'unlikely' %}text-rose-400{% else %}text-foreground{% endif %}">
+            {% if fc.passed %}{% trans "Past the date" %}{% else %}{% blocktrans with chance=fc.chance %}{{ chance }}% chance{% endblocktrans %}{% endif %}
+          </span>
+          <span class="text-sm text-muted-foreground">
+            {% if fc.passed %}{{ milestone.target_date|date:"M j" }}{% else %}{% blocktrans with date=milestone.target_date|date:"M j" %}of making {{ date }}{% endblocktrans %}{% endif %}
+          </span>
+        </div>
+        <p class="text-xs text-subtle-foreground mt-1">
+          {% if fc.passed %}
+          {% blocktrans count counter=fc.days_over with open=burndown.open %}The date passed {{ counter }} day ago with {{ open }} still open.{% plural %}The date passed {{ counter }} days ago with {{ open }} still open.{% endblocktrans %}
+          {% elif reading == "likely" %}{% trans "Most runs finish before the date." %}
+          {% elif reading == "unlikely" %}{% trans "Most runs finish after the date." %}
+          {% else %}{% trans "Runs land on both sides of the date — about as many before it as after." %}{% endif %}
+        </p>
+        <div class="flex items-center gap-x-4 gap-y-1 flex-wrap mt-2 text-xs
+          {% if reading == 'likely' %}text-emerald-400{% elif reading == 'unlikely' %}text-rose-400{% else %}text-muted-foreground{% endif %}">
+          <span class="inline-flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full shrink-0 bg-current"></span>
+            <span class="text-muted-foreground">{% trans "half the runs by" %}</span>
+            <span class="font-mono">{{ fc.p50|date:"M j" }}</span>
+          </span>
+          <span class="inline-flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full border border-current shrink-0"></span>
+            <span class="text-muted-foreground">{% trans "85 in 100 by" %}</span>
+            <span class="font-mono">{{ fc.p85|date:"M j" }}</span>
+          </span>
+        </div>
+
+        {% elif reading == "thin" %}
+        <div class="flex items-start gap-2 mt-1.5 text-xs">
+          {% lucide "history" "w-3.5 h-3.5 mt-0.5 shrink-0 text-placeholder-foreground" %}
+          <span class="text-subtle-foreground">
+            {% blocktrans count counter=fc.closed with window=fc.window_days %}No forecast yet. {{ counter }} task closed in the last {{ window }} days — too few to replay.{% plural %}No forecast yet. {{ counter }} tasks closed in the last {{ window }} days — too few to replay.{% endblocktrans %}
+            {% blocktrans with need=forecast_need %}It starts once {{ need }} have closed across three weeks.{% endblocktrans %}
+          </span>
+        </div>
+
+        {% else %}
+        <div class="flex items-start gap-2 mt-1.5 text-xs">
+          {% lucide "circle-check" "w-3.5 h-3.5 mt-0.5 shrink-0 text-emerald-400" %}
+          <span class="text-muted-foreground">
+            {% blocktrans count counter=total %}All {{ counter }} done — nothing left to forecast.{% plural %}All {{ counter }} done — nothing left to forecast.{% endblocktrans %}
+          </span>
+        </div>
+        {% endif %}
       </div>
+      {% endwith %}
+      <div class="relative mt-2" style="height: 180px;"><canvas id="milestoneBurndown"></canvas></div>
+      <p class="text-[11px] text-placeholder-foreground mt-2">
+        {% trans "Read off the activity log, never from due dates — a burndown drawn from plans cannot be wrong." %}
+        {{ burndown.scope_note }}.
+      </p>
+      {% endif %}
+    </div>
+
+    <div class="bg-card border border-border rounded-lg p-4 min-w-0">
+      <div class="flex items-center gap-2">
+        <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% blocktrans with counter=risk %}At risk · {{ counter }}{% endblocktrans %}</span>
+        <span class="flex-1"></span>
+        <span class="text-[11px] text-placeholder-foreground">{% trans "days over the date" %}</span>
+      </div>
+      <p class="text-[11px] text-placeholder-foreground mt-1">
+        {% blocktrans with date=milestone.target_date|date:"M j" %}Unfinished and due after {{ date }}, or still open once it passed.{% endblocktrans %}
+      </p>
+      <div class="mt-2 flex flex-col">
+        {% for row in risk_rows|slice:":8" %}
+        <a href="{% task_url row.task %}" class="flex items-center gap-2 h-8 px-2 -mx-2 rounded-md hover:bg-muted text-xs">
+          <span class="w-[7px] h-[7px] rounded-full shrink-0 {{ row.task.status|status_dot_classes }}"></span>
+          <span class="font-mono text-[11px] text-placeholder-foreground w-16 shrink-0">{{ row.task.slug }}</span>
+          <span class="flex-1 truncate">{{ row.task.title }}</span>
+          <span class="text-[11px] text-placeholder-foreground shrink-0 hidden sm:inline">{{ row.why }}</span>
+          <span class="font-mono text-rose-400 w-10 text-right shrink-0">+{{ row.over }}d</span>
+        </a>
+        {% empty %}
+        <p class="text-xs italic text-placeholder-foreground">{% trans "Nothing runs past this date." %}</p>
+        {% endfor %}
+      {% if risk > 8 %}
+      <span class="text-[11px] text-placeholder-foreground mt-1">
+        {% blocktrans with counter=risk|add:"-8" %}+ {{ counter }} more at risk{% endblocktrans %}
+      </span>
+      {% endif %}
+    </div>
     </div>
 
     {# ---------- Slices ---------- #}
