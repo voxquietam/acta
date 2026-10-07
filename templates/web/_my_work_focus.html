@@ -225,10 +225,17 @@ Expects ``focus`` — ``rows`` / ``ranked`` / ``summary`` / ``tidy``.
     {% lucide "circle-check" "w-3.5 h-3.5 text-emerald-400" %}
     <span class="text-subtle-foreground">{% trans "On track" %}</span>
     {% for card in focus.commitments.steady %}
+    {% comment %}
+    One line per chip, whatever the name. It had a fixed ``h-6`` and no
+    limit on the name, so a long one wrapped to a second line and spilled
+    straight out of the bottom of its own border.
+    {% endcomment %}
     <a href="{% wurl 'milestone_detail' pk=card.milestone.id %}"
-       class="inline-flex items-center gap-1.5 h-6 px-2 rounded-md border border-border hover:border-border-strong transition">
-      {% lucide "diamond" "w-3 h-3 text-brand-400" %}{{ card.milestone.name }}
-      <span class="font-mono text-[11px] text-placeholder-foreground">{{ card.countdown }} · {{ card.mine_done }}/{{ card.mine_total }}</span>
+       title="{{ card.milestone.name }}"
+       class="inline-flex items-center gap-1.5 max-w-full min-w-0 py-1 px-2 rounded-md border border-border hover:border-border-strong transition">
+      {% lucide "diamond" "w-3 h-3 shrink-0 text-brand-400" %}
+      <span class="truncate">{{ card.milestone.name }}</span>
+      <span class="font-mono text-[11px] text-placeholder-foreground whitespace-nowrap shrink-0">{{ card.countdown }} · {{ card.mine_done }}/{{ card.mine_total }}</span>
     </a>
     {% endfor %}
   </div>
