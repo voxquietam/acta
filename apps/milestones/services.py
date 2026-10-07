@@ -18,6 +18,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.utils.translation import ngettext
 
+from apps.milestones import forecast
 from apps.milestones.models import Milestone
 from apps.tasks.models import Task, counted_q
 
@@ -36,9 +37,12 @@ ATTACHED_STATUS_ORDER = [
 #: row that says nothing the Plan tab does not say better.
 OVERVIEW_CARD_LIMIT = 4
 
-#: How far past the target date a projection is still drawn. Beyond this
-#: the line says "much later" more honestly than a date does.
-PROJECTION_HORIZON_DAYS = 40
+#: How far past the target date the chart still draws. The 85th
+#: percentile sits further out than the old mean projection did, so the
+#: window is wider — but a chart stretched to a date a year away is a flat
+#: line and a wasted axis, and the sentence above it names the real date
+#: either way.
+PROJECTION_HORIZON_DAYS = 90
 
 STATE_LABELS = {
     Milestone.STATE_OPEN: _("open"),
@@ -807,12 +811,14 @@ def _done_days(task_ids: list[int]) -> dict[int, datetime.date]:
 def burndown(milestone, today=None) -> dict | None:
     """Return the burndown series for a milestone, ready for Chart.js.
 
-    Three lines and a projection, which is the shape GitLab and Jira
-    release reports settled on: how much work remains, how much work the
-    milestone holds at all (so a scope change reads as a scope change and
-    not as a stall), and the straight line to zero on the date. The
-    projection continues today's pace, and its verdict line — "at this
-    pace, done eight days after the date" — is the part people read.
+    Three lines and a fan, which is the shape GitLab and Jira release
+    reports settled on with the projection made honest: how much work
+    remains, how much work the milestone holds at all (so a scope change
+    reads as a scope change and not as a stall), and the straight line to
+    zero on the date. Where those reports draw one projection, this draws
+    two — the median and the 85th percentile of a replay of the team's
+    own days (ADR 0038) — because the gap between them is the only
+    truthful thing to say about a date.
 
     Drawn from the activity log, never from due dates: a due date is a
     plan, and a burndown drawn from plans cannot be wrong.
@@ -822,8 +828,9 @@ def burndown(milestone, today=None) -> dict | None:
         today: Reference date; defaults to the local current date.
 
     Returns:
-        A dict of parallel series plus the verdict, or ``None`` when
-        nothing counted is attached — zero of zero is not a chart.
+        A dict of parallel series plus ``forecast`` and the ``reading``
+        the page branches its tone on, or ``None`` when nothing counted
+        is attached — zero of zero is not a chart.
     """
     today = today or timezone.localdate()
     now_ids = list(
@@ -859,12 +866,26 @@ def burndown(milestone, today=None) -> dict | None:
     start = min(history[task_id][0][0] for task_id in ever_ids)
     total = len(now_ids)
     open_now = sum(1 for task_id in now_ids if statuses.get(task_id) != Task.STATUS_DONE)
-    velocity = _velocity(ever_ids, done_days, start, today)
-    projected = today + datetime.timedelta(days=round(open_now / velocity)) if open_now else today
+    # The whole answer about "when", from the days the team actually had
+    # (ADR 0038). Seeded on the milestone so a refresh does not reshuffle
+    # the numbers under the reader.
+    outlook = forecast.forecast(
+        closes=forecast.daily_closes(done_days, today),
+        remaining=open_now,
+        history_days=(today - start).days,
+        today=today,
+        target=milestone.target_date,
+        seed=milestone.id,
+    )
+    reading = forecast.reading(outlook)
+    if outlook.get("passed"):
+        # The page says how long ago, and only the caller knows "ago".
+        outlook["days_over"] = (today - milestone.target_date).days
+    far = outlook.get("p85")
     axis_end = max(
         milestone.target_date,
         today,
-        min(projected, milestone.target_date + datetime.timedelta(days=PROJECTION_HORIZON_DAYS)),
+        min(far, milestone.target_date + datetime.timedelta(days=PROJECTION_HORIZON_DAYS)) if far else today,
     )
     labels = []
     scope = []
@@ -887,15 +908,9 @@ def burndown(milestone, today=None) -> dict | None:
     for index, label in enumerate(labels):
         offset = (datetime.date.fromisoformat(label) - start).days
         ideal.append(round(total * max(0, span_days - offset) / span_days, 2) if offset <= span_days else 0)
-    projection = [None] * len(labels)
     today_index = (today - start).days
-    if open_now and 0 <= today_index < len(labels):
-        projection[today_index] = open_now
-        end_index = min((projected - start).days, len(labels) - 1)
-        for index in range(today_index + 1, end_index + 1):
-            elapsed = index - today_index
-            projection[index] = round(max(0, open_now - velocity * elapsed), 2)
-    slip = (projected - milestone.target_date).days if open_now else 0
+    p50_line = _straight_down(labels, today_index, open_now, outlook.get("p50"), start)
+    p85_line = _straight_down(labels, today_index, open_now, outlook.get("p85"), start)
     scope_moves = sum(
         1 for index in range(1, today_index + 1) if index < len(scope) and scope[index] != scope[index - 1]
     )
@@ -904,15 +919,14 @@ def burndown(milestone, today=None) -> dict | None:
         "scope": scope,
         "remaining": remaining,
         "ideal": ideal,
-        "projection": projection,
+        "p50_line": p50_line,
+        "p85_line": p85_line,
         "total": total,
         "open": open_now,
         "today_index": today_index,
         "target_index": (milestone.target_date - start).days,
-        "projected_date": projected if open_now else None,
-        "slip": slip,
-        "behind": open_now > 0 and slip > 0,
-        "verdict": _verdict(open_now, projected, slip),
+        "forecast": outlook,
+        "reading": reading,
         "scope_note": (
             ngettext(
                 "scope moved on %(count)d day",
@@ -939,55 +953,36 @@ def _in_milestone(spans: list[list], day: datetime.date) -> bool:
     return any(joined <= day and (left is None or left > day) for joined, left in spans)
 
 
-def _velocity(task_ids: list[int], done_days: dict, start, today) -> float:
-    """Return tasks finished per day since the milestone started filling.
+def _straight_down(labels, today_index: int, open_now: int, landing, start) -> list:
+    """Draw one projection line from today's remainder to zero on a date.
+
+    A percentile is a date, not a slope, so the line between here and
+    there is the plainest thing that can connect them. Two of these — the
+    median and the 85th — are what replace the single "at this pace"
+    line, and the gap between them is the uncertainty made visible.
 
     Args:
-        task_ids: Every task that was ever in the milestone.
-        done_days: When each finished task became done.
-        start: The first day anything joined.
-        today: Reference date.
-
-    Returns:
-        A strictly positive rate, so a projection always lands somewhere.
-    """
-    finished = sum(1 for task_id in task_ids if task_id in done_days and done_days[task_id] >= start)
-    elapsed = max(1, (today - start).days)
-    return max(0.05, finished / elapsed)
-
-
-def _verdict(open_now: int, projected, slip: int) -> str:
-    """Phrase the one line that reads the burndown out loud.
-
-    Args:
+        labels: The chart's ISO day labels.
+        today_index: Where today sits in them.
         open_now: Counted work still unfinished.
-        projected: The day today's pace lands on.
-        slip: Days between that day and the target date.
+        landing: The day the line reaches zero, or ``None`` when there is
+            no forecast to draw.
+        start: The chart's first day.
 
     Returns:
-        A translated verdict.
+        A series as long as ``labels``, ``None`` outside the line.
     """
-    if not open_now:
-        return _("all done")
-    if slip > 0:
-        return ngettext(
-            "Behind · at this pace done %(date)s, %(count)d day after the date",
-            "Behind · at this pace done %(date)s, %(count)d days after the date",
-            slip,
-        ) % {
-            "date": date_label(projected),
-            "count": slip,
-        }
-    if slip < 0:
-        return ngettext(
-            "On track · at this pace done %(date)s, %(count)d day early",
-            "On track · at this pace done %(date)s, %(count)d days early",
-            -slip,
-        ) % {
-            "date": date_label(projected),
-            "count": -slip,
-        }
-    return _("On track · at this pace done %(date)s") % {"date": date_label(projected)}
+    line = [None] * len(labels)
+    if not landing or not open_now or not 0 <= today_index < len(labels):
+        return line
+    end_index = min((landing - start).days, len(labels) - 1)
+    line[today_index] = open_now
+    span = end_index - today_index
+    if span <= 0:
+        return line
+    for index in range(today_index + 1, end_index + 1):
+        line[index] = round(open_now * (1 - (index - today_index) / span), 2)
+    return line
 
 
 def fill_candidates(milestone, query: str = "", limit: int = 12) -> list[dict]:

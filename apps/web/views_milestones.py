@@ -28,7 +28,7 @@ from django.views.decorators.http import require_POST
 
 from apps.activity.models import ActivityLog
 from apps.activity.services import log_event
-from apps.milestones import services
+from apps.milestones import forecast, services
 from apps.milestones.models import Milestone
 from apps.tasks.bulk import _run_bulk_update
 from apps.tasks.models import Task, counted_q
@@ -139,6 +139,9 @@ def milestone_detail(request, pk):
     if not milestone.is_closed:
         context["reports"] = services.membership_reports(milestone, today)
     context.update(_burndown_json(context["burndown"]))
+    # The one number the "not enough history" line quotes, so the page and
+    # the rule cannot drift apart.
+    context["forecast_need"] = forecast.NEED_CLOSES
     return render(request, "web/milestones/detail.html", context)
 
 
@@ -234,7 +237,8 @@ def _burndown_json(burndown) -> dict:
             "scope",
             "remaining",
             "ideal",
-            "projection",
+            "p50_line",
+            "p85_line",
         )
     }
 

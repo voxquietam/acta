@@ -406,24 +406,77 @@ class TestBurndown:
         assert chart["scope"][-1] is None
         assert chart["scope"][3] == 1
 
-    def test_the_verdict_names_the_day_the_pace_lands_on(self, scope):
+    def _replayable(self, backend, milestone, *, closed, open_tasks, over_days=24):
+        """Seed enough closes for the forecast to answer at all.
+
+        Below ten closes across three weeks it refuses, which is the
+        point of the refusal — so a test about the verdict has to clear
+        that bar first.
+        """
+        joined = timezone.now() - datetime.timedelta(days=over_days + 2)
+        for index in range(closed):
+            task = TaskFactory(project=backend, milestone=milestone, status=Task.STATUS_DONE)
+            milestone_event(task, milestone, joined)
+            status_event(task, Task.STATUS_DONE, timezone.now() - datetime.timedelta(days=index % over_days))
+        for _index in range(open_tasks):
+            task = TaskFactory(project=backend, milestone=milestone, status=Task.STATUS_TODO)
+            milestone_event(task, milestone, joined)
+
+    def test_a_date_the_pace_cannot_reach_reads_as_unlikely(self, scope):
         backend, _, milestone = scope
         today = timezone.localdate()
         milestone.target_date = today + datetime.timedelta(days=1)
         milestone.save()
+        self._replayable(backend, milestone, closed=12, open_tasks=40)
+
+        chart = services.burndown(milestone, today=today)
+
+        assert chart["forecast"]["state"] == "ready"
+        assert chart["reading"] == "unlikely"
+        assert chart["forecast"]["chance"] <= 30
+
+    def test_a_date_it_clears_easily_reads_as_likely(self, scope):
+        backend, _, milestone = scope
+        today = timezone.localdate()
+        milestone.target_date = today + datetime.timedelta(days=120)
+        milestone.save()
+        self._replayable(backend, milestone, closed=12, open_tasks=3)
+
+        chart = services.burndown(milestone, today=today)
+
+        assert chart["reading"] == "likely"
+        assert chart["forecast"]["chance"] >= 70
+
+    def test_too_little_history_gets_no_forecast_and_no_lines(self, scope):
+        """What the 0.05-a-day floor used to answer with 865 days."""
+        backend, _, milestone = scope
+        today = timezone.localdate()
         joined = timezone.now() - datetime.timedelta(days=10)
         for _index in range(6):
             task = TaskFactory(project=backend, milestone=milestone, status=Task.STATUS_TODO)
             milestone_event(task, milestone, joined)
-        finished = TaskFactory(project=backend, milestone=milestone, status=Task.STATUS_DONE)
-        milestone_event(finished, milestone, joined)
-        status_event(finished, Task.STATUS_DONE, timezone.now() - datetime.timedelta(days=1))
 
         chart = services.burndown(milestone, today=today)
 
-        assert chart["behind"] is True
-        assert chart["slip"] > 0
-        assert "Behind" in chart["verdict"]
+        assert chart["reading"] == "thin"
+        assert set(chart["p50_line"]) == {None}
+        assert set(chart["p85_line"]) == {None}
+
+    def test_the_two_lines_run_from_today_to_their_own_landing(self, scope):
+        backend, _, milestone = scope
+        today = timezone.localdate()
+        milestone.target_date = today + datetime.timedelta(days=30)
+        milestone.save()
+        self._replayable(backend, milestone, closed=12, open_tasks=20)
+
+        chart = services.burndown(milestone, today=today)
+        here = chart["today_index"]
+        drawn = lambda line: [i for i, v in enumerate(line) if v is not None]  # noqa: E731
+
+        assert chart["p50_line"][here] == chart["open"]
+        assert chart["p85_line"][here] == chart["open"]
+        # The slower line lands no earlier than the faster one.
+        assert max(drawn(chart["p85_line"])) >= max(drawn(chart["p50_line"]))
 
     def test_everything_done_says_so(self, scope):
         backend, _, milestone = scope
@@ -435,8 +488,8 @@ class TestBurndown:
         chart = services.burndown(milestone, today=today)
 
         assert chart["open"] == 0
-        assert chart["verdict"] == "all done"
-        assert chart["behind"] is False
+        assert chart["reading"] == "done"
+        assert set(chart["p50_line"]) == {None}
 
 
 class TestFilling:
