@@ -44,26 +44,23 @@ flow-based planning, and it needs nothing we do not already hold.
 
 ### How it works
 
-1. **Bucket closures by ISO week** over a trailing window, from the
-   activity log — `task.status_changed` into `done`, which
-   `_done_days()` already derives. The result is a short series of
-   weekly throughputs, zeros included.
-2. **Bucket scope arrivals the same way**, from
-   `task.milestone_changed` — `_membership_history()` already gives the
-   join and leave spans.
-3. **Simulate the remaining work many times.** Each trial draws a random
-   historical week, subtracts its throughput from the remainder, adds
-   that week's scope growth, and repeats until the remainder is gone.
-   The trial's length is one possible answer.
-4. **Read the answers off the distribution**: the date half the trials
+1. **Bucket closures by day** over a trailing window, from the activity
+   log — `task.status_changed` into `done`, which `_done_days()` already
+   derives. The result is a series of daily throughputs, zeros included.
+2. **Simulate the remaining work many times.** Each trial draws a random
+   day from the window, subtracts what was closed on it, and repeats
+   until the remainder is gone. The trial's length is one possible
+   answer.
+3. **Read the answers off the distribution**: the date half the trials
    beat, the date 85% of them beat, and — the number that actually
    decides anything — the share of trials that land on or before the
    target.
 
-Throughput and scope growth are **drawn from the same historical week**,
-not independently. A week in which a lot was closed is often a week in
-which a lot arrived; sampling them apart would throw that correlation
-away and narrow the result dishonestly.
+**Days, not weeks.** A weekly bucket over a sensible window gives about
+a dozen samples; a daily one gives four weeks of them. Weekends need no
+special handling either way: they are days that closed nothing, the
+replay draws them as often as they occur, and a method that averaged
+them away would be promising work on a Sunday.
 
 ### What the page says
 
@@ -76,7 +73,7 @@ percentile. A fan, not a line.
 
 ### When we refuse to answer
 
-Below **four weeks of history** or **five closed tasks**, there is no
+Below **three weeks of history** or **ten closed tasks**, there is no
 forecast — the page says so and draws no projection. This replaces the
 `0.05` floor. "Not enough history yet" is a true statement about a young
 milestone; "865 days late" is not.
@@ -85,10 +82,15 @@ milestone; "865 days late" is not.
 
 | Knob | Value | Why |
 |---|---|---|
-| Window | trailing 12 weeks | Long enough to hold a team's rhythm, short enough to forget a dead quarter |
-| Trials | 10 000 | Percentiles stable to the day; a fraction of a millisecond |
+| Window | trailing 28 days | Long enough to hold a team's rhythm, short enough to forget a dead quarter |
+| Trials | 2 000, a quarter of that past 90 days out | Percentiles steady to the day where a day changes the verdict; a milestone months out is not in doubt and need not be sampled as finely |
+| Horizon | 400 days | Beyond a year the number is noise, and an unbounded loop on a stalled milestone is a hung request |
 | Reported | P50, P85, P(≤ target) | One honest headline plus the band behind it |
 | Floor | none | Replaced by the refusal above |
+
+Cost lands between 11 ms and 37 ms, the slow end being a milestone whose
+work is a year out. It is arithmetic over data `burndown()` has already
+fetched, so the page gains no query.
 
 ### One implementation, several surfaces
 
@@ -97,6 +99,23 @@ closure days, the remainder, and the scope history. The milestone
 burndown is its first caller; the cycle card in My Work is its second,
 where `at this pace N carry over` is the same naive average under
 another name. One reader per fact, as everywhere else here.
+
+### Scope growth is left out, for now
+
+A forecast that replays closes and ignores arrivals is optimistic by
+construction: it assumes the bucket is never topped up again. The data
+to fix that is already here — `_membership_history()` holds when every
+task joined and left — and the fix is to sample arrivals from the same
+historical day as the closes, so that the correlation between a busy day
+and a growing one survives.
+
+It is not in the first cut because it changes the question the page has
+to answer. A milestone whose scope grows faster than it burns down never
+finishes, and "never" needs a reading, a horizon and a sentence that no
+one has designed yet. Shipping the simulation without arrivals is a
+smaller, honest step: every number it prints is true of the work that
+exists today. The next cut adds arrivals and the "at this rate it does
+not converge" state together.
 
 ## Alternatives considered
 
@@ -135,8 +154,9 @@ without ceremony.
   "not enough history" where they used to show a confident date. That is
   the point, and it is the part most likely to be mistaken for a
   regression.
-- Forecasts move when scope moves. Adding work late pushes the band out,
-  which is correct and will occasionally be unwelcome.
+- Adding work late pushes the band out, because the remainder grew —
+  but the replay still assumes nothing more arrives. Until arrivals are
+  sampled the band is the optimistic edge of the truth.
 - Two dotted lines instead of one. The chart carries more ink; the fan is
   the thing that communicates uncertainty at a glance, so it earns it.
 - The simulation is deterministic per render only if we seed it. We do
