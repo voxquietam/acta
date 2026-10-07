@@ -28,7 +28,7 @@ beside it reads as something that failed to load.
 <div class="grid gap-4 {% if reports.near and reports.blocks %}lg:grid-cols-2{% endif %}">
 
   {% if reports.near %}
-  <div class="bg-card border border-border rounded-lg overflow-hidden min-w-0 flex flex-col max-h-[24rem]">
+  <div class="bg-card border border-border rounded-lg overflow-hidden min-w-0 flex flex-col max-h-[17rem]">
     <div class="flex items-center gap-2 px-3 h-9 border-b border-border">
       {% lucide "calendar-clock" "w-3.5 h-3.5 text-amber-400 shrink-0" %}
       <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground">
@@ -53,7 +53,7 @@ beside it reads as something that failed to load.
   {% endif %}
 
   {% if reports.blocks %}
-  <div class="bg-card border border-border rounded-lg overflow-hidden min-w-0 flex flex-col max-h-[24rem]">
+  <div class="bg-card border border-border rounded-lg overflow-hidden min-w-0 flex flex-col max-h-[17rem]">
     <div class="flex items-center gap-2 px-3 h-9 border-b border-border">
       {% lucide "octagon-alert" "w-3.5 h-3.5 text-rose-400 shrink-0" %}
       <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground">
@@ -80,7 +80,9 @@ beside it reads as something that failed to load.
           <span class="text-[11px] text-placeholder-foreground shrink-0">{% trans "Outside scope" %}</span>
           {% endif %}
         </div>
+        {% if row.why %}
         <p class="text-[11px] pl-[22px] {% if row.in_scope %}text-subtle-foreground{% else %}text-rose-400{% endif %}">{{ row.why }}</p>
+        {% endif %}
       </div>
       {% endfor %}
     </div>

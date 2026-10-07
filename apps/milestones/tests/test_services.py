@@ -527,7 +527,10 @@ class TestMembershipReports:
         assert [row["task"].id for row in rows] == [blocker.id]
         assert rows[0]["chain"] == [blocker.id, inside.id]
         assert rows[0]["in_scope"] is True
-        assert "no milestone at all" in str(rows[0]["why"])
+        # A blocker in scope and in no milestone gets no reason line: the
+        # row already offers an Add button, which says the same thing in
+        # the space of nothing.
+        assert rows[0]["why"] == ""
 
     def test_a_blocker_scheduled_after_the_work_it_blocks_says_so(self, scope):
         backend, _, milestone = scope

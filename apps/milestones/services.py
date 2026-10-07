@@ -1236,14 +1236,18 @@ def _blocker_reason(milestone, blocker, other, in_scope: bool) -> str:
         in_scope: Whether the milestone's scope covers the blocker.
 
     Returns:
-        A translated sentence.
+        A translated sentence, or the empty string when there is nothing
+        to say beyond what the row already shows.
     """
     if not in_scope:
         return _("%(project)s is outside this milestone's scope — widen it or drop the dependency.") % {
             "project": blocker.project.name,
         }
     if other is None:
-        return _("In no milestone at all.")
+        # Saying "in no milestone at all" next to an Add button that is
+        # offered for exactly that reason costs a line per row and tells
+        # the reader nothing they cannot already see.
+        return ""
     gap = (other.target_date - milestone.target_date).days
     if gap > 0:
         return ngettext(
