@@ -483,6 +483,84 @@ class TestTheFourNumbers:
         assert "nothing of yours in it" in card["sub"]
 
 
+class TestTheCyclePace:
+    """The cycle card forecasts the same way a milestone does (ADR 0038)."""
+
+    def _cycle(self, workspace, *, ends_in):
+        today = timezone.localdate()
+        return CycleFactory(
+            workspace=workspace,
+            start_date=today - datetime.timedelta(days=5),
+            end_date=today + datetime.timedelta(days=ends_in),
+        )
+
+    def _closed(self, project, me, count, *, over_days=24):
+        """Close ``count`` tasks, spread far enough back to be replayable."""
+        for index in range(count):
+            task = mine(project, me, status=Task.STATUS_DONE)
+            ActivityLog.objects.create(
+                workspace=project.workspace,
+                actor=me,
+                event_type="task.status_changed",
+                target_type=ActivityLog.TARGET_TASK,
+                target_id=task.pk,
+            )
+            moment = timezone.now() - datetime.timedelta(days=(index * 2) % over_days)
+            ActivityLog.objects.filter(target_id=task.pk).update(created_at=moment)
+
+    def test_a_card_with_history_quotes_a_chance(self, desk):
+        workspace, me, _them, project = desk
+        cycle = self._cycle(workspace, ends_in=30)
+        self._closed(project, me, 14)
+        for _index in range(3):
+            mine(project, me, cycle=cycle)
+
+        card = focus.kpi(me, workspace, focus.focus_tasks(me))[-1]
+
+        assert "to finish yours" in card["sub"]
+        assert "days left" in card["sub"]
+
+    def test_without_history_it_says_so_rather_than_guessing(self, desk):
+        workspace, me, _them, project = desk
+        cycle = self._cycle(workspace, ends_in=30)
+        self._closed(project, me, 3)
+        mine(project, me, cycle=cycle)
+
+        card = focus.kpi(me, workspace, focus.focus_tasks(me))[-1]
+
+        assert "too little history to forecast" in card["sub"]
+
+    def test_a_cycle_the_pace_cannot_reach_says_a_low_chance(self, desk):
+        workspace, me, _them, project = desk
+        cycle = self._cycle(workspace, ends_in=2)
+        self._closed(project, me, 12)
+        for _index in range(40):
+            mine(project, me, cycle=cycle)
+
+        card = focus.kpi(me, workspace, focus.focus_tasks(me))[-1]
+
+        assert card["sub"].endswith("0% to finish yours")
+
+    def test_the_throughput_is_the_persons_not_the_cycles(self, desk):
+        """A cycle three days old has no history; the person running it has.
+
+        Scoping the replay to the cycle would refuse to answer every time
+        a new one started, which is the moment the answer is wanted.
+        """
+        workspace, me, _them, project = desk
+        cycle = CycleFactory(
+            workspace=workspace,
+            start_date=timezone.localdate(),
+            end_date=timezone.localdate() + datetime.timedelta(days=14),
+        )
+        self._closed(project, me, 14)
+        mine(project, me, cycle=cycle)
+
+        card = focus.kpi(me, workspace, focus.focus_tasks(me))[-1]
+
+        assert "to finish yours" in card["sub"]
+
+
 class TestAroundYou:
     """People, days and calls — the things that act on the work."""
 

@@ -388,14 +388,38 @@ quietly swap nothing at all.
   (function () {
     const canvas = document.getElementById("milestoneBurndown");
     if (!canvas || !window.Chart) return;
-    const gridColor = "rgb(113 113 122 / 0.18)";
-    const tickColor = "rgb(161 161 170)";
+    // Read the palette off the theme rather than hard-coding it. The
+    // scope line used to be drawn in the GRID colour at 18% — the same
+    // ink the gridlines are made of — so on the dark theme it was a
+    // rumour, and a "remaining" line pinned to near-white vanished on
+    // the light one. Both now follow whichever theme is on.
+    const themeRgb = (name, alpha) => {
+      const triplet = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+      if (!triplet) return "rgb(113 113 122)";
+      return alpha ? `rgb(${triplet} / ${alpha})` : `rgb(${triplet})`;
+    };
     // The forecast lines take the reading's colour; the remaining line
     // stays neutral, because it is a record of what happened and has no
-    // opinion about the date.
-    const fcColor = {% if burndown.reading == "likely" %}"rgb(16 185 129)"{% elif burndown.reading == "unlikely" %}"rgb(251 113 133)"{% else %}"rgb(161 161 170)"{% endif %};
-    const remainingColor = "rgb(228 228 231)";
-    const brand = "rgb(66 90 245)";
+    // opinion about the date. ``--muted-foreground`` rather than
+    // ``--foreground``: full-strength foreground is right for text and a
+    // slab of black for a two-pixel line across a pale panel.
+    const palette = () => ({
+      grid: themeRgb("--border"),
+      tick: themeRgb("--muted-foreground"),
+      scope: themeRgb("--border-strong"),
+      ideal: themeRgb("--placeholder-foreground"),
+      remaining: themeRgb("--muted-foreground"),
+      forecast: {% if burndown.reading == "likely" %}"rgb(16 185 129)"{% elif burndown.reading == "unlikely" %}"rgb(251 113 133)"{% else %}themeRgb("--placeholder-foreground"){% endif %},
+      brand: "rgb(66 90 245)",
+    });
+    let ink = palette();
+    const gridColor = ink.grid;
+    const tickColor = ink.tick;
+    const scopeColor = ink.scope;
+    const idealColor = ink.ideal;
+    const fcColor = ink.forecast;
+    const remainingColor = ink.remaining;
+    const brand = ink.brand;
     // The target date and today are the two things this chart is read
     // against, and Chart.js draws neither without a plugin — so they are
     // drawn here, over the finished canvas.
@@ -416,11 +440,11 @@ quietly swap nothing at all.
           chart.ctx.stroke();
           chart.ctx.restore();
         };
-        draw({{ burndown.today_index }}, brand, []);
-        draw({{ burndown.target_index }}, tickColor, [4, 4]);
+        draw({{ burndown.today_index }}, ink.brand, []);
+        draw({{ burndown.target_index }}, ink.tick, [4, 4]);
       },
     };
-    new Chart(canvas, {
+    const chart = new Chart(canvas, {
       type: "line",
       data: {
         labels: {{ burndown_labels_json|safe }},
@@ -428,7 +452,8 @@ quietly swap nothing at all.
           {
             label: "{% trans 'Scope' %}",
             data: {{ burndown_scope_json|safe }},
-            borderColor: gridColor,
+            borderColor: scopeColor,
+            backgroundColor: scopeColor,
             borderWidth: 1,
             pointRadius: 0,
             fill: false,
@@ -437,7 +462,8 @@ quietly swap nothing at all.
           {
             label: "{% trans 'Ideal' %}",
             data: {{ burndown_ideal_json|safe }},
-            borderColor: tickColor,
+            borderColor: idealColor,
+            backgroundColor: idealColor,
             borderDash: [4, 4],
             borderWidth: 1.5,
             pointRadius: 0,
@@ -447,6 +473,7 @@ quietly swap nothing at all.
             label: "{% trans '85 in 100' %}",
             data: {{ burndown_p85_line_json|safe }},
             borderColor: fcColor,
+            backgroundColor: fcColor,
             borderWidth: 1,
             pointRadius: 0,
             fill: false,
@@ -470,6 +497,7 @@ quietly swap nothing at all.
             label: "{% trans 'Remaining' %}",
             data: {{ burndown_remaining_json|safe }},
             borderColor: remainingColor,
+            backgroundColor: remainingColor,
             borderWidth: 2,
             pointRadius: 0,
             tension: 0.2,
@@ -516,6 +544,33 @@ quietly swap nothing at all.
         },
       },
       plugins: [markers],
+    });
+
+    // Switching the theme rewrites the custom properties but not the
+    // canvas, which had already baked the old palette in — so a toggle
+    // left dark-theme lines on a light panel until the page was
+    // reloaded. Repaint when the theme class changes.
+    const repaint = () => {
+      ink = palette();
+      // By position, not by label — the labels are translated and a
+      // Ukrainian build would match none of them.
+      const order = [ink.scope, ink.ideal, ink.forecast, ink.forecast, ink.remaining];
+      chart.data.datasets.forEach((set, index) => {
+        const colour = order[index] || ink.forecast;
+        set.borderColor = colour;
+        if (set.fill === "-1") return; // keep the band translucent
+        set.backgroundColor = colour;
+      });
+      chart.options.scales.x.grid.color = ink.grid;
+      chart.options.scales.y.grid.color = ink.grid;
+      chart.options.scales.x.ticks.color = ink.tick;
+      chart.options.scales.y.ticks.color = ink.tick;
+      chart.options.plugins.legend.labels.color = ink.tick;
+      chart.update("none");
+    };
+    new MutationObserver(repaint).observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
     });
   })();
 </script>

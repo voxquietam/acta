@@ -25,6 +25,7 @@ from django.utils.translation import gettext_lazy as _
 from django.utils.translation import ngettext
 
 from apps.activity.models import ActivityLog
+from apps.milestones import forecast
 from apps.tasks.models import Task, counted_q
 
 #: How many ranked rows "Do first" shows. Six is what fits above the
@@ -831,11 +832,12 @@ def kpi(user, workspace, tasks, today=None) -> list[dict]:
         Card dicts with ``label``, ``value``, ``sub`` and ``tone``.
     """
     today = today or timezone.localdate()
+    closed_rows = _closed_recently(user, workspace, today)
     cards = [_wip_card(workspace, tasks)]
-    closed, on_time = _closed_cards(user, workspace, today)
+    closed, on_time = _closed_cards(closed_rows, today)
     cards.append(closed)
     cards.append(on_time)
-    cycle = _cycle_card(user, workspace, today)
+    cycle = _cycle_card(user, workspace, closed_rows, today)
     if cycle:
         cards.append(cycle)
     return cards
@@ -874,13 +876,16 @@ def _wip_card(workspace, tasks) -> dict:
     }
 
 
-def _closed_cards(user, workspace, today) -> tuple[dict, dict]:
-    """Return the throughput and reliability cards.
+def _closed_recently(user, workspace, today) -> list[dict]:
+    """Return the viewer's work closed inside the replay window.
 
-    Both read the same one query: the viewer's work closed in the last
-    fortnight, with the moment it was closed taken from the activity log
-    rather than from ``updated_at`` — an edit after the fact would
-    otherwise move the closing date, and "on time" would drift with it.
+    One read serves three readings — how much was closed this week, how
+    much of it landed on time, and the throughput the cycle forecast
+    replays — so the window is the widest of the three.
+
+    The closing day comes from the activity log rather than from
+    ``updated_at``: an edit after the fact would otherwise move the day a
+    task was finished, and "on time" would drift with it.
 
     Args:
         user: The viewer.
@@ -888,9 +893,8 @@ def _closed_cards(user, workspace, today) -> tuple[dict, dict]:
         today: Reference date.
 
     Returns:
-        A ``(closed, on_time)`` pair of card dicts.
+        Dicts of ``closed`` (date), ``due_date`` and ``cycle_id``.
     """
-    since = today - datetime.timedelta(days=WEEK_DAYS * 2)
     last_status_change = (
         ActivityLog.objects.filter(
             target_type=ActivityLog.TARGET_TASK,
@@ -903,20 +907,48 @@ def _closed_cards(user, workspace, today) -> tuple[dict, dict]:
     queryset = Task.objects.work().filter(assignee=user, status=Task.STATUS_DONE)
     if workspace is not None:
         queryset = queryset.filter(project__workspace=workspace)
-    rows = queryset.annotate(closed_at=Subquery(last_status_change)).values("closed_at", "due_date", "updated_at")
-    this_week, before, on_time = 0, 0, 0
-    for row in rows:
-        closed = row["closed_at"] or row["updated_at"]
-        if closed is None:
+    rows = []
+    cutoff = today - datetime.timedelta(days=forecast.WINDOW_DAYS)
+    for row in queryset.annotate(closed_at=Subquery(last_status_change)).values(
+        "closed_at",
+        "updated_at",
+        "due_date",
+        "cycle_id",
+    ):
+        moment = row["closed_at"] or row["updated_at"]
+        if moment is None:
             continue
-        closed = timezone.localtime(closed).date() if timezone.is_aware(closed) else closed.date()
-        if closed < since:
+        closed = timezone.localtime(moment).date() if timezone.is_aware(moment) else moment.date()
+        if closed < cutoff or closed > today:
             continue
-        if (today - closed).days <= WEEK_DAYS:
+        rows.append(
+            {
+                "closed": closed,
+                "due_date": row["due_date"],
+                "cycle_id": row["cycle_id"],
+            },
+        )
+    return rows
+
+
+def _closed_cards(closed_rows, today) -> tuple[dict, dict]:
+    """Return the throughput and reliability cards.
+
+    Args:
+        closed_rows: What :func:`_closed_recently` returned.
+        today: Reference date.
+
+    Returns:
+        A ``(closed, on_time)`` pair of card dicts.
+    """
+    this_week = before = on_time = 0
+    for row in closed_rows:
+        age = (today - row["closed"]).days
+        if age <= WEEK_DAYS:
             this_week += 1
-            if row["due_date"] and closed <= row["due_date"]:
+            if row["due_date"] and row["closed"] <= row["due_date"]:
                 on_time += 1
-        else:
+        elif age <= WEEK_DAYS * 2:
             before += 1
     share = round(on_time / this_week * 100) if this_week else None
     return (
@@ -942,16 +974,22 @@ def _closed_cards(user, workspace, today) -> tuple[dict, dict]:
     )
 
 
-def _cycle_card(user, workspace, today) -> dict | None:
+def _cycle_card(user, workspace, closed_rows, today) -> dict | None:
     """Return the running cycle's card, or ``None`` when none is running.
 
-    "At this pace" is the only honest projection available from one
-    number: how much the viewer has closed per day so far, against how
-    much is left and how many days remain.
+    The pace is forecast the same way a milestone's is (ADR 0038): replay
+    the viewer's own recent days against what the cycle still owes them.
+
+    The throughput sampled is their work across the workspace, not only
+    the work inside this cycle — a cycle three days old has no history of
+    its own, while the person running it has a fortnight of it, and
+    refusing to answer because the container is new would be answering
+    the wrong question.
 
     Args:
         user: The viewer.
         workspace: The active workspace, or ``None``.
+        closed_rows: What :func:`_closed_recently` returned.
         today: Reference date.
 
     Returns:
@@ -978,26 +1016,47 @@ def _cycle_card(user, workspace, today) -> dict | None:
     )
     total, done = counts["total"], counts["done"]
     left = max(0, (cycle.end_date - today).days)
-    remaining = total - done
-    elapsed = max(1, (today - cycle.start_date).days)
-    if not total:
-        # No work of theirs in it is not the same as having finished it,
-        # and "all yours done" over 0/0 is the kind of green that teaches
-        # people to stop reading the card.
-        pace = _("nothing of yours in it")
-    elif remaining <= 0:
-        pace = _("all yours done")
-    elif done / elapsed * left >= remaining:
-        pace = _("on pace to close %(count)d") % {"count": remaining}
-    else:
-        carried = max(0, round(remaining - done / elapsed * left))
-        pace = _("at this pace %(count)d carry over") % {"count": carried}
+    days_left = ngettext("%(count)d day left", "%(count)d days left", left) % {"count": left}
     return {
         "label": cycle.display_name,
         "value": f"{done}/{total}",
         "tone": "",
-        "sub": "%s · %s" % (ngettext("%(count)d day left", "%(count)d days left", left) % {"count": left}, pace),
+        "sub": f"{days_left} · {_cycle_pace(closed_rows, total, total - done, cycle, today)}",
     }
+
+
+def _cycle_pace(closed_rows, total: int, remaining: int, cycle, today) -> str:
+    """Say whether the viewer's share of the cycle lands inside it.
+
+    Args:
+        closed_rows: What :func:`_closed_recently` returned.
+        total: The viewer's counted work in the cycle, finished or not.
+        remaining: The part of it still unfinished.
+        cycle: The running cycle.
+        today: Reference date.
+
+    Returns:
+        A translated fragment for the card's second line.
+    """
+    if not total:
+        # No work of theirs in it is not the same as having finished it,
+        # and "all yours done" over 0/0 is the kind of green that teaches
+        # people to stop reading the card.
+        return str(_("nothing of yours in it"))
+    if remaining <= 0:
+        return str(_("all yours done"))
+    days = {row["closed"] for row in closed_rows}
+    outlook = forecast.forecast(
+        closes=forecast.daily_closes({index: row["closed"] for index, row in enumerate(closed_rows)}, today),
+        remaining=remaining,
+        history_days=(today - min(days)).days if days else 0,
+        today=today,
+        target=cycle.end_date,
+        seed=cycle.id,
+    )
+    if outlook["state"] != "ready":
+        return str(_("too little history to forecast"))
+    return _("%(chance)d%% to finish yours") % {"chance": outlook["chance"]}
 
 
 #: How many unread notifications one person's card lists before it stops.
