@@ -1544,3 +1544,94 @@ def _overview_decisions(rows: list[dict], unattached: int) -> list[dict]:
             },
         )
     return decisions
+
+
+#: The states the list offers as a filter, in the order the chips sit.
+#: ``today`` folds into ``open`` — a date due today is open until it is
+#: missed, and a chip for the one day it applies would be noise.
+LIST_STATES = [
+    Milestone.STATE_OPEN,
+    Milestone.STATE_OVERDUE,
+    Milestone.STATE_COMPLETE,
+    Milestone.STATE_CLOSED,
+]
+
+
+def filter_rows(rows: list[dict], *, state="", project_id=None, owner_id=None, at_risk=False) -> list[dict]:
+    """Narrow the milestone list to what was asked for.
+
+    Filtered after the rows are built rather than in SQL, because three
+    of the four things worth filtering on are read off the work and not
+    stored: a milestone's state, its progress and its risk all come from
+    replaying what is attached. The page is a dozen rows, so the cost of
+    building them all first is nothing against the cost of teaching the
+    database to derive them.
+
+    Args:
+        rows: Rows from :func:`workspace_rows`.
+        state: One of :data:`LIST_STATES`, or empty for every state.
+        project_id: Keep only milestones whose scope covers this project.
+        owner_id: Keep only milestones this person answers for.
+        at_risk: Keep only milestones with work that will miss the date.
+
+    Returns:
+        The rows that survive, in the order they arrived.
+    """
+    kept = rows
+    if state in LIST_STATES:
+        wanted = {state}
+        if state == Milestone.STATE_OPEN:
+            # A date due today has not been missed, so it is open.
+            wanted.add(Milestone.STATE_TODAY)
+        kept = [row for row in kept if row["state"] in wanted]
+    if project_id:
+        kept = [row for row in kept if any(slice_["project"].id == project_id for slice_ in row["projects"])]
+    if owner_id:
+        kept = [row for row in kept if row["milestone"].owner_id == owner_id]
+    if at_risk:
+        kept = [row for row in kept if row["risk"]]
+    return kept
+
+
+def list_facets(rows: list[dict], today=None) -> dict:
+    """Count what each filter would leave, so a chip can say so.
+
+    A filter chip that offers a choice leading to an empty page is worse
+    than no chip. Every count here is taken against the unfiltered rows,
+    which is what makes them stable while someone clicks around.
+
+    Args:
+        rows: Every row of the workspace, unfiltered.
+        today: Reference date; defaults to the local current date.
+
+    Returns:
+        ``states`` (key, label, count), ``projects`` and ``owners`` as
+        rows with their counts, and ``at_risk``.
+    """
+    today = today or timezone.localdate()
+    states = []
+    for key in LIST_STATES:
+        count = len(filter_rows(rows, state=key))
+        states.append(
+            {
+                "key": key,
+                "label": STATE_LABELS[key],
+                "count": count,
+            },
+        )
+    projects: dict = {}
+    owners: dict = {}
+    for row in rows:
+        for slice_ in row["projects"]:
+            cell = projects.setdefault(slice_["project"].id, {"project": slice_["project"], "count": 0})
+            cell["count"] += 1
+        owner = row["milestone"].owner
+        if owner is not None:
+            cell = owners.setdefault(owner.id, {"owner": owner, "count": 0})
+            cell["count"] += 1
+    return {
+        "states": states,
+        "projects": sorted(projects.values(), key=lambda cell: cell["project"].slug_prefix),
+        "owners": sorted(owners.values(), key=lambda cell: cell["owner"].display_name),
+        "at_risk": sum(1 for row in rows if row["risk"]),
+    }

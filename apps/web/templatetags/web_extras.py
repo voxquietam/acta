@@ -395,6 +395,26 @@ def url_replace(request, key, value):
 
 
 @register.simple_tag
+def url_drop(request, key):
+    """Return the current querystring with one key removed.
+
+    The companion to :func:`url_replace`: a filter chip that is already
+    on has to offer the way back off it, and that is the same URL minus
+    its own key rather than the key set to some empty sentinel.
+
+    Args:
+        request: The active ``HttpRequest``.
+        key: Querystring key to drop.
+
+    Returns:
+        URL-encoded querystring (no leading ``?``).
+    """
+    params = request.GET.copy()
+    params.pop(key, None)
+    return params.urlencode()
+
+
+@register.simple_tag
 def sort_url(request, key):
     """Build the ``?order=`` URL for clicking a sortable column header.
 

@@ -1,0 +1,113 @@
+{% load i18n %}
+{% load lucide %}
+{% load web_extras %}
+{% comment %}
+The list's filters, served by the server.
+
+The page used to carry none — a dozen dates grouped by month was its own
+navigation. A workspace that plans properly outgrows that, and three of
+the four things worth filtering on (state, risk, progress) are read off
+the attached work rather than stored, so the narrowing happens in Python
+over rows already built rather than in a query that would have to learn
+to derive them.
+
+Server-side, not client-side like the task dock: hiding rows in the DOM
+would leave the month headers, their counts and the "past" fold all
+describing a list that is no longer there.
+
+Each chip carries the count it would leave, taken against the unfiltered
+rows so the numbers hold still while someone clicks through them.
+
+Expects ``facets`` and ``chosen`` from ``milestones_overview``.
+{% endcomment %}
+<div class="flex items-center gap-x-2 gap-y-1.5 flex-wrap text-xs">
+
+  {# ---------- State ---------- #}
+  <div class="inline-flex items-center bg-card border border-border rounded-lg p-0.5 gap-0.5">
+    <a href="?{% url_drop request 'state' %}"
+       class="px-2 py-1 rounded-md transition {% if not chosen.state %}bg-brand-500/15 text-brand-300{% else %}text-subtle-foreground hover:text-foreground hover:bg-muted/50{% endif %}">
+      {% trans "All" %}
+    </a>
+    {% for row in facets.states %}
+    {% if row.count %}
+    <a href="?{% url_replace request 'state' row.key %}"
+       class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md transition {% if chosen.state == row.key %}bg-brand-500/15 text-brand-300{% else %}text-subtle-foreground hover:text-foreground hover:bg-muted/50{% endif %}">
+      {{ row.label }}
+      <span class="font-mono text-[10px] text-placeholder-foreground">{{ row.count }}</span>
+    </a>
+    {% endif %}
+    {% endfor %}
+  </div>
+
+  {# ---------- Project ---------- #}
+  {% if facets.projects|length > 1 %}
+  <div class="relative" x-data="{ open: false }">
+    <button type="button" @click="open = !open" @click.outside="open = false"
+            class="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border transition
+              {% if chosen.project %}border-brand-500/40 bg-brand-500/15 text-brand-300{% else %}border-border bg-card text-subtle-foreground hover:text-foreground{% endif %}">
+      {% lucide "folders" "w-3 h-3" %}
+      {% if chosen_project %}{{ chosen_project.slug_prefix }}{% else %}{% trans "Project" %}{% endif %}
+      {% lucide "chevron-down" "w-3 h-3 opacity-60" %}
+    </button>
+    <div x-show="open" x-cloak
+         class="absolute left-0 mt-1 w-56 max-h-72 overflow-y-auto bg-card border border-border rounded-lg shadow-lg z-20 py-1">
+      <a href="?{% url_drop request 'project' %}" class="flex items-center gap-2 px-3 py-1.5 hover:bg-muted">
+        <span class="flex-1 text-subtle-foreground">{% trans "Any project" %}</span>
+      </a>
+      {% for row in facets.projects %}
+      <a href="?{% url_replace request 'project' row.project.id %}"
+         class="flex items-center gap-2 px-3 py-1.5 hover:bg-muted {% if chosen.project == row.project.id %}text-brand-300{% endif %}">
+        <span class="w-1.5 h-1.5 rounded-full shrink-0 bg-current {{ row.project.icon_color_class }}"></span>
+        <span class="font-mono text-[11px] text-placeholder-foreground shrink-0">{{ row.project.slug_prefix }}</span>
+        <span class="flex-1 truncate">{{ row.project.name }}</span>
+        <span class="font-mono text-[10px] text-placeholder-foreground">{{ row.count }}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {# ---------- Owner ---------- #}
+  {% if facets.owners|length > 1 %}
+  <div class="relative" x-data="{ open: false }">
+    <button type="button" @click="open = !open" @click.outside="open = false"
+            class="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border transition
+              {% if chosen.owner %}border-brand-500/40 bg-brand-500/15 text-brand-300{% else %}border-border bg-card text-subtle-foreground hover:text-foreground{% endif %}">
+      {% lucide "user" "w-3 h-3" %}
+      {% if chosen_owner %}{{ chosen_owner.display_name }}{% else %}{% trans "Owner" %}{% endif %}
+      {% lucide "chevron-down" "w-3 h-3 opacity-60" %}
+    </button>
+    <div x-show="open" x-cloak
+         class="absolute left-0 mt-1 w-56 max-h-72 overflow-y-auto bg-card border border-border rounded-lg shadow-lg z-20 py-1">
+      <a href="?{% url_drop request 'owner' %}" class="flex items-center gap-2 px-3 py-1.5 hover:bg-muted">
+        <span class="flex-1 text-subtle-foreground">{% trans "Anyone" %}</span>
+      </a>
+      {% for row in facets.owners %}
+      <a href="?{% url_replace request 'owner' row.owner.id %}"
+         class="flex items-center gap-2 px-3 py-1.5 hover:bg-muted {% if chosen.owner == row.owner.id %}text-brand-300{% endif %}">
+        {% include "web/_user_avatar.html" with user=row.owner class="w-4 h-4" text_class="text-[9px]" %}
+        <span class="flex-1 truncate">{{ row.owner.display_name }}</span>
+        <span class="font-mono text-[10px] text-placeholder-foreground">{{ row.count }}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {# ---------- At risk ---------- #}
+  {% if facets.at_risk %}
+  <a href="?{% if chosen.at_risk %}{% url_drop request 'at_risk' %}{% else %}{% url_replace request 'at_risk' '1' %}{% endif %}"
+     class="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border transition
+       {% if chosen.at_risk %}border-rose-500/40 bg-rose-500/15 text-rose-300{% else %}border-border bg-card text-subtle-foreground hover:text-foreground{% endif %}">
+    {% lucide "calendar-x" "w-3 h-3" %}
+    {% trans "At risk" %}
+    <span class="font-mono text-[10px] text-placeholder-foreground">{{ facets.at_risk }}</span>
+  </a>
+  {% endif %}
+
+  {% if filtered %}
+  <a href="?" class="inline-flex items-center gap-1 h-7 px-2 text-placeholder-foreground hover:text-foreground transition">
+    {% lucide "x" "w-3 h-3" %}{% trans "Clear" %}
+  </a>
+  {% endif %}
+</div>

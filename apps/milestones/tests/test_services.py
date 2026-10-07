@@ -15,6 +15,7 @@ from django.utils import timezone
 
 import pytest
 
+from apps.accounts.tests.factories import UserFactory
 from apps.activity.models import ActivityLog
 from apps.milestones import services
 from apps.milestones.models import Milestone
@@ -946,3 +947,119 @@ class TestTheProjectOverview:
             services.project_overview(project)
 
         assert len(large.captured_queries) == len(small.captured_queries) == 4
+
+
+class TestNarrowingTheList:
+    """The Milestones tab's filters, and the counts on their chips."""
+
+    @pytest.fixture
+    def shelf(self):
+        """Four dates covering every state the list can filter on."""
+        today = timezone.localdate()
+        owner = UserFactory()
+        backend = ProjectFactory(slug_prefix="FBK")
+        infra = ProjectFactory(workspace=backend.workspace, slug_prefix="FIN")
+        workspace = backend.workspace
+
+        def date(name, offset, projects, **kwargs):
+            return MilestoneFactory(
+                workspace=workspace,
+                name=name,
+                target_date=today + datetime.timedelta(days=offset),
+                projects=projects,
+                **kwargs,
+            )
+
+        upcoming = date("Upcoming", 20, [backend], owner=owner)
+        TaskFactory(project=backend, milestone=upcoming, status=Task.STATUS_TODO)
+        missed = date("Missed", -5, [backend, infra])
+        TaskFactory(project=infra, milestone=missed, status=Task.STATUS_TODO)
+        ready = date("Ready", 10, [infra])
+        TaskFactory(project=infra, milestone=ready, status=Task.STATUS_DONE)
+        shut = date("Shut", 30, [backend], closed_at=timezone.now())
+        TaskFactory(project=backend, milestone=shut, status=Task.STATUS_TODO)
+        return workspace, backend, infra, owner
+
+    def names(self, rows):
+        """The names of the rows, in order."""
+        return [row["milestone"].name for row in rows]
+
+    def test_no_filter_keeps_everything(self, shelf):
+        workspace, _backend, _infra, _owner = shelf
+        rows = services.workspace_rows(workspace)
+
+        assert len(services.filter_rows(rows)) == 4
+
+    @pytest.mark.parametrize(
+        ("state", "expected"),
+        [
+            ("open", ["Upcoming"]),
+            ("overdue", ["Missed"]),
+            ("complete", ["Ready"]),
+            ("closed", ["Shut"]),
+        ],
+    )
+    def test_each_state_keeps_its_own(self, shelf, state, expected):
+        workspace, _backend, _infra, _owner = shelf
+        rows = services.workspace_rows(workspace)
+
+        assert self.names(services.filter_rows(rows, state=state)) == expected
+
+    def test_a_date_due_today_counts_as_open(self, shelf):
+        """It has not been missed, and a chip for one day would be noise."""
+        workspace, backend, _infra, _owner = shelf
+        today = MilestoneFactory(
+            workspace=workspace, name="Today", target_date=timezone.localdate(), projects=[backend]
+        )
+        TaskFactory(project=backend, milestone=today, status=Task.STATUS_TODO)
+        rows = services.workspace_rows(workspace)
+
+        assert "Today" in self.names(services.filter_rows(rows, state="open"))
+
+    def test_an_unknown_state_is_ignored_rather_than_emptying_the_page(self, shelf):
+        workspace, _backend, _infra, _owner = shelf
+        rows = services.workspace_rows(workspace)
+
+        assert len(services.filter_rows(rows, state="nonsense")) == 4
+
+    def test_a_project_keeps_the_dates_that_cover_it(self, shelf):
+        workspace, _backend, infra, _owner = shelf
+        rows = services.workspace_rows(workspace)
+
+        kept = services.filter_rows(rows, project_id=infra.id)
+
+        assert sorted(self.names(kept)) == ["Missed", "Ready"]
+
+    def test_an_owner_keeps_what_they_answer_for(self, shelf):
+        workspace, _backend, _infra, owner = shelf
+        rows = services.workspace_rows(workspace)
+
+        assert self.names(services.filter_rows(rows, owner_id=owner.id)) == ["Upcoming"]
+
+    def test_at_risk_keeps_only_what_will_miss(self, shelf):
+        workspace, _backend, _infra, _owner = shelf
+        rows = services.workspace_rows(workspace)
+
+        assert self.names(services.filter_rows(rows, at_risk=True)) == ["Missed"]
+
+    def test_filters_narrow_together(self, shelf):
+        """Missed covers both projects; Upcoming is open but only on FBK."""
+        workspace, _backend, infra, _owner = shelf
+        rows = services.workspace_rows(workspace)
+
+        assert self.names(services.filter_rows(rows, state="overdue", project_id=infra.id)) == ["Missed"]
+        assert services.filter_rows(rows, state="open", project_id=infra.id) == []
+
+    def test_the_chips_count_against_the_whole_list(self, shelf):
+        """So the numbers hold still while someone clicks through them."""
+        workspace, _backend, infra, owner = shelf
+        rows = services.workspace_rows(workspace)
+
+        facets = services.list_facets(rows)
+        states = {cell["key"]: cell["count"] for cell in facets["states"]}
+        projects = {cell["project"].slug_prefix: cell["count"] for cell in facets["projects"]}
+
+        assert states == {"open": 1, "overdue": 1, "complete": 1, "closed": 1}
+        assert projects == {"FBK": 3, "FIN": 2}
+        assert [cell["owner"] for cell in facets["owners"]] == [owner]
+        assert facets["at_risk"] == 1

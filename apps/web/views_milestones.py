@@ -91,8 +91,22 @@ def milestones_overview(request):
     """
     workspace = resolve_active_workspace(request)
     today = timezone.localdate()
-    rows = services.workspace_rows(workspace, today) if workspace is not None else []
+    every = services.workspace_rows(workspace, today) if workspace is not None else []
+    chosen = {
+        "state": request.GET.get("state", ""),
+        "project": _int_or_none(request.GET.get("project")),
+        "owner": _int_or_none(request.GET.get("owner")),
+        "at_risk": request.GET.get("at_risk") == "1",
+    }
+    rows = services.filter_rows(
+        every,
+        state=chosen["state"],
+        project_id=chosen["project"],
+        owner_id=chosen["owner"],
+        at_risk=chosen["at_risk"],
+    )
     upcoming = [row for row in rows if not row["is_past"]]
+    facets = services.list_facets(every, today)
     return render(
         request,
         "web/milestones/overview.html",
@@ -104,6 +118,22 @@ def milestones_overview(request):
             "upcoming_count": len(upcoming),
             "shared_count": sum(1 for row in rows if len(row["projects"]) > 1),
             "today": today,
+            # The counts beside each chip are taken against every row, so
+            # they do not move while someone clicks through them.
+            "facets": facets,
+            "chosen": chosen,
+            # The two dropdown buttons name what is picked, and only the
+            # facets know the object behind the id.
+            "chosen_project": next(
+                (cell["project"] for cell in facets["projects"] if cell["project"].id == chosen["project"]),
+                None,
+            ),
+            "chosen_owner": next(
+                (cell["owner"] for cell in facets["owners"] if cell["owner"].id == chosen["owner"]),
+                None,
+            ),
+            "filtered": len(rows) != len(every),
+            "every_count": len(every),
         },
     )
 

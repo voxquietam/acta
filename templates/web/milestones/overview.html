@@ -14,8 +14,12 @@ hidden in a fold is how a missed date goes unnoticed.
 
 Expects ``groups`` from ``apps.milestones.services.group_rows`` plus the
 ``total_count`` / ``upcoming_count`` / ``shared_count`` headline numbers.
-No filter dock: this page is a dozen dates, and its own grouping is the
-whole navigation it needs.
+
+It shipped without filters — a dozen dates grouped by month was its own
+navigation. A workspace that plans properly outgrows that, so a filter
+row sits above the table: state, project, owner, at-risk. Server-side,
+unlike the task dock, because hiding rows client-side would leave the
+month headers and their counts describing a list that is not there.
 {% endcomment %}
 
 {% block title %}{% trans "Milestones" %} · Acta{% endblock %}
@@ -61,8 +65,13 @@ whole navigation it needs.
     </div>
 
     {% else %}
+    {% include "web/milestones/_filters.html" %}
+
     <div class="flex items-center gap-2 text-xs text-subtle-foreground flex-wrap">
       <span>{% blocktrans count counter=total_count %}{{ counter }} milestone{% plural %}{{ counter }} milestones{% endblocktrans %}</span>
+      {% if filtered %}
+      <span class="text-placeholder-foreground">{% blocktrans with every=every_count %}of {{ every }}{% endblocktrans %}</span>
+      {% endif %}
       <span class="text-placeholder-foreground">·</span>
       <span class="text-placeholder-foreground">{% blocktrans count counter=upcoming_count %}{{ counter }} upcoming{% plural %}{{ counter }} upcoming{% endblocktrans %}</span>
       {% if shared_count %}

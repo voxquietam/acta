@@ -4128,8 +4128,13 @@ html.dark .acta-dock-chip.is-ex {
    goal line under it, then the date with its countdown, progress, the
    projects in scope, and what will not make the date. Below ``md`` the
    row re-stacks and this grid is not used. */
+/* The name is the column people read; the rest are numbers and chips
+   that know their own width. Progress was taking a share of the
+   flexible space for a bar and a fraction, and Covers a bigger one than
+   three project chips need — between them they squeezed the names into
+   an ellipsis on every row. */
 .acta-milestone-grid {
-  grid-template-columns: minmax(0, 2fr) 104px minmax(0, 1.1fr) minmax(0, 1.4fr) 84px;
+  grid-template-columns: minmax(0, 3fr) 120px 150px minmax(0, 1fr) 72px;
 }
 /* The two slice tables on a milestone's page: name, done, at risk. */
 .acta-milestone-slice {
