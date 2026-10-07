@@ -45,7 +45,7 @@ quietly swap nothing at all.
      hx-select="#milestone-body"
      hx-swap="innerHTML"
      hx-disinherit="hx-select hx-target hx-swap">
-  <div id="milestone-body" class="max-w-6xl mx-auto p-4 space-y-4">
+  <div id="milestone-body" class="p-4 space-y-4">
 
     {# ---------- Header ---------- #}
     <div class="flex items-start gap-3 flex-wrap">
@@ -128,12 +128,24 @@ quietly swap nothing at all.
       </span>
     </div>
 
+    {% comment %}
+    The description reads as prose, the same way a project's does: a
+    milestone people actually plan with carries headings, lists and
+    task ids, and 12px of pre-wrapped plain text turned all of that
+    into a wall. Markdown in, ``prose`` out — read-only here, because
+    the editor owns the writing side.
+    {% endcomment %}
     {% if milestone.description %}
-    <p class="text-xs text-muted-foreground whitespace-pre-line">{{ milestone.description }}</p>
+    <section>
+      <h2 class="text-[10px] uppercase tracking-wider text-placeholder-foreground font-semibold mb-2.5">{% trans "Description" %}</h2>
+      <div class="bg-card border border-border rounded-lg p-4">
+        <div class="prose dark:prose-invert prose-sm max-w-none text-foreground">{{ milestone.description|markdown }}</div>
+      </div>
+    </section>
     {% endif %}
 
     {# ---------- Progress + burndown | At risk ---------- #}
-    <div class="grid gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+    <div class="grid gap-4 items-start lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
       <div class="bg-card border border-border rounded-lg p-4 min-w-0">
         <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Progress" %}</div>
         {% if total %}
@@ -197,7 +209,7 @@ quietly swap nothing at all.
     {# ---------- Slices ---------- #}
     {% translate "By project" as by_project_heading %}
     {% translate "By epic" as by_epic_heading %}
-    <div class="grid gap-4 lg:grid-cols-2">
+    <div class="grid gap-4 items-start lg:grid-cols-2">
       {% include "web/milestones/_slice_table.html" with heading=by_project_heading rows=by_project kind="project" %}
       {% include "web/milestones/_slice_table.html" with heading=by_epic_heading rows=by_epic kind="epic" %}
     </div>

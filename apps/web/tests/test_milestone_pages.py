@@ -819,3 +819,37 @@ class TestOnTheProjectOverview:
             f"{len(few.captured_queries)} queries for 1 date, "
             f"{len(many.captured_queries)} for 30 — the page pays per date."
         )
+
+
+@pytest.mark.django_db
+class TestTheDescriptionReadsAsProse:
+    """A milestone people plan with carries structure, so render it.
+
+    The design draws the description as one small paragraph, which is
+    right for its one-line sample and wrong for the real thing: a
+    milestone written up with headings and lists became a wall of 12px
+    pre-wrapped text. It renders as Markdown here, the way a project's
+    description does — read-only, because the editor owns the writing.
+    """
+
+    def test_markdown_becomes_markup(self, client, setup):
+        workspace, user, _backend, _infra, milestone = setup
+        milestone.description = "## Scope\n\n- First **item**\n- Second item\n"
+        milestone.save(update_fields=["description"])
+        client.force_login(user)
+
+        resp = client.get(f"/{workspace.slug}/milestones/{milestone.pk}/")
+        body = resp.content.decode()
+
+        assert "<h2>Scope</h2>" in body
+        assert "<strong>item</strong>" in body
+        assert "<li>" in body
+
+    def test_a_milestone_without_one_renders_no_section(self, client, setup):
+        workspace, user, _backend, _infra, milestone = setup
+        client.force_login(user)
+
+        resp = client.get(f"/{workspace.slug}/milestones/{milestone.pk}/")
+
+        assert milestone.description == ""
+        assert "DESCRIPTION" not in resp.content.decode().upper().split("ATTACHED WORK")[0]
