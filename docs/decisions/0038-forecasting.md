@@ -78,6 +78,33 @@ forecast — the page says so and draws no projection. This replaces the
 `0.05` floor. "Not enough history yet" is a true statement about a young
 milestone; "865 days late" is not.
 
+### History is the span of the closes, not the age of the container
+
+A milestone is often filed in after the fact: the work has been running
+for two months and today someone draws a box around it and puts a date
+on it. The row is a day old; the effort is not. Measuring history from
+`created_at` — or from the day the first task was attached — makes that
+milestone wait three weeks to be told something its own activity log
+already knows.
+
+So the history a milestone is judged on is the span its closes cover
+inside the window, which for the case above is the full 28 days from the
+first day. Same rule as the cycle card, where a three-day cycle is
+likewise younger than the work in it.
+
+This is safe because the window does the filtering that membership
+otherwise would: a task closed in June and attached in October
+contributes nothing, being off the back of the window. What remains is
+by construction recent work, and counting it is the right answer for the
+retroactive milestone and a tolerable one for a milestone that has had
+unrelated finished work swept into it — a case that requires someone to
+assert, by attaching it, that the work belongs.
+
+It also keeps the refusal honest: the sentence names a count and a
+window that are now the same measurement, where before it could read
+"63 tasks closed in the last 1 days" — the count over four weeks, the
+window over the milestone's age.
+
 ### Parameters
 
 | Knob | Value | Why |

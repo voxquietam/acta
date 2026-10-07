@@ -412,13 +412,16 @@ class TestBurndown:
 
         Below ten closes across three weeks it refuses, which is the
         point of the refusal — so a test about the verdict has to clear
-        that bar first.
+        that bar first. The closes are spread evenly from ``over_days``
+        ago to today, because the span they cover is the history the
+        forecast measures.
         """
         joined = timezone.now() - datetime.timedelta(days=over_days + 2)
         for index in range(closed):
             task = TaskFactory(project=backend, milestone=milestone, status=Task.STATUS_DONE)
             milestone_event(task, milestone, joined)
-            status_event(task, Task.STATUS_DONE, timezone.now() - datetime.timedelta(days=index % over_days))
+            ago = over_days - index * over_days // max(1, closed - 1)
+            status_event(task, Task.STATUS_DONE, timezone.now() - datetime.timedelta(days=ago))
         for _index in range(open_tasks):
             task = TaskFactory(project=backend, milestone=milestone, status=Task.STATUS_TODO)
             milestone_event(task, milestone, joined)
@@ -478,6 +481,54 @@ class TestBurndown:
         assert chart["p85_line"][here] == chart["open"]
         # The slower line lands no earlier than the faster one.
         assert max(drawn(chart["p85_line"])) >= max(drawn(chart["p50_line"]))
+
+    def test_a_milestone_filed_in_late_still_has_the_pace_it_ran_at(self, scope):
+        """The container was opened this morning; the work was not.
+
+        Closing dates come off the activity log, so work that was
+        finished before it was attached still says when it was finished.
+        Refusing to read that because the milestone row is a day old
+        would be refusing the only history there is.
+        """
+        backend, _, milestone = scope
+        today = timezone.localdate()
+        milestone.target_date = today + datetime.timedelta(days=40)
+        milestone.save()
+        for _index in range(4):
+            open_task = TaskFactory(project=backend, milestone=milestone, status=Task.STATUS_TODO)
+            milestone_event(open_task, milestone, timezone.now())
+        for index in range(12):
+            old = TaskFactory(project=backend, milestone=milestone, status=Task.STATUS_DONE)
+            status_event(old, Task.STATUS_DONE, timezone.now() - datetime.timedelta(days=index * 2 + 2))
+            milestone_event(old, milestone, timezone.now())
+
+        chart = services.burndown(milestone, today=today)
+
+        assert chart["forecast"]["state"] == "ready"
+        assert chart["forecast"]["closed"] == 12
+        assert chart["total"] == 16
+        assert chart["open"] == 4
+        # Counted as done from the day they joined, not re-burned today.
+        assert chart["remaining"][chart["today_index"]] == 4
+
+    def test_closes_too_bunched_up_are_still_refused(self, scope):
+        """Ten closes in two days says nothing about the next month."""
+        backend, _, milestone = scope
+        today = timezone.localdate()
+        for _index in range(4):
+            open_task = TaskFactory(project=backend, milestone=milestone, status=Task.STATUS_TODO)
+            milestone_event(open_task, milestone, timezone.now() - datetime.timedelta(days=30))
+        for index in range(12):
+            burst = TaskFactory(project=backend, milestone=milestone, status=Task.STATUS_DONE)
+            status_event(burst, Task.STATUS_DONE, timezone.now() - datetime.timedelta(days=index % 2))
+            milestone_event(burst, milestone, timezone.now() - datetime.timedelta(days=30))
+
+        chart = services.burndown(milestone, today=today)
+
+        assert chart["reading"] == "thin"
+        # The window it names is the span of the closes, not the age of
+        # the milestone — so the count and the window agree.
+        assert chart["forecast"]["window_days"] == 1
 
     def test_everything_done_says_so(self, scope):
         backend, _, milestone = scope

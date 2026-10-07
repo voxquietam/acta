@@ -869,10 +869,18 @@ def burndown(milestone, today=None) -> dict | None:
     # The whole answer about "when", from the days the team actually had
     # (ADR 0038). Seeded on the milestone so a refresh does not reshuffle
     # the numbers under the reader.
+    #
+    # History is the span the closes cover, not the age of the milestone
+    # row: a container opened this morning over work that has been
+    # running for two months has two months of history, and asking it to
+    # wait three weeks would be asking about the wrong thing. Same rule
+    # as the cycle card, for the same reason.
+    closes = forecast.daily_closes(done_days, today)
+    oldest = min((day for day in done_days.values() if 0 <= (today - day).days < forecast.WINDOW_DAYS), default=None)
     outlook = forecast.forecast(
-        closes=forecast.daily_closes(done_days, today),
+        closes=closes,
         remaining=open_now,
-        history_days=(today - start).days,
+        history_days=(today - oldest).days if oldest else 0,
         today=today,
         target=milestone.target_date,
         seed=milestone.id,
