@@ -8,6 +8,7 @@ rows cannot tell it.
 """
 
 import datetime
+import re
 
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
@@ -224,3 +225,31 @@ class TestTheBoardKeepsItsOwnRules:
         assert [option["key"] for option in resp.context["lanes_options"]] == ["none", "milestone", "epic"]
         assert resp.context["lanes_axis"] == "none"
         assert resp.context["lanes"] == []
+
+    def test_every_lane_carries_its_key_on_the_lane_and_on_its_columns(self, client, setup):
+        """The pair ``(lane, status)`` is what names a cell, both sides of it.
+
+        A status column exists once per lane, so the client needs the
+        lane on the row AND on each cell to put a card back where it
+        belongs. Reading the status alone returned the first lane's
+        column, and a task in no milestone landed at the top of some
+        other milestone's Done after it was dragged.
+        """
+        workspace, project, soon, _, _ = setup
+        TaskFactory(project=project, milestone=soon, status=Task.STATUS_IN_REVIEW)
+        TaskFactory(project=project, milestone=None, status=Task.STATUS_IN_REVIEW)
+        client.force_login(workspace.owner)
+
+        resp = client.get(f"/{workspace.slug}/tasks/?view=kanban&lanes=milestone")
+        body = resp.content.decode()
+
+        assert "data-kanban-lanes" in body
+        assert 'data-lane-axis="milestone"' in body
+        for key in (f"ms-{soon.pk}", "none"):
+            assert f'data-kanban-lane="{key}"' in body
+            assert f'data-lane="{key}"' in body
+        # And the pair lives on one element: the Done cell of the loose
+        # lane says both which status it is and which lane it belongs to.
+        cells = re.findall(r"<div[^>]*data-kanban-column=\"done\"[^>]*>", body)
+        assert any('data-lane="none"' in cell for cell in cells)
+        assert any(f'data-lane="ms-{soon.pk}"' in cell for cell in cells)

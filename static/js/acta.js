@@ -3335,9 +3335,35 @@
     if (window.htmx) window.htmx.process(fresh);
     renderIcons();
   }
+  // On a sliced board every status column exists once PER LANE, so the
+  // destination is a pair — the status and the lane the card belongs to.
+  // Asking only for the status returns the first lane's column, which is
+  // how a task in no milestone landed at the top of some other
+  // milestone's Done. A status change never moves a card between lanes,
+  // so the lane it is already in is the lane it stays in.
+  function kanbanDropColumn(taskId, newStatus, staleCard) {
+    const sliced = document.querySelector("[data-kanban-lanes]");
+    const pick = (key) =>
+      document.querySelector(
+        `[data-kanban-lane="${window.CSS && CSS.escape ? CSS.escape(key) : key}"] ` +
+          `.kanban-column[data-status="${newStatus}"]`,
+      );
+    if (!sliced) return document.querySelector(`.kanban-column[data-status="${newStatus}"]`);
+    const lane = staleCard && staleCard.closest("[data-kanban-lane]");
+    if (lane) return pick(lane.dataset.kanbanLane);
+    // No card on the board to read the lane off — a peer's event for work
+    // this viewer has not got rendered. The milestone axis can still name
+    // the lane from the card's own data; the epic axis cannot, and
+    // guessing would reproduce the very bug this function exists to fix.
+    const axis = sliced.dataset.laneAxis;
+    if (axis !== "milestone") return null;
+    const msId = staleCard && staleCard.dataset.milestoneId;
+    return pick(msId ? `ms-${msId}` : "none");
+  }
+
   function applyCardMove(taskId, newStatus, cardHtml) {
     if (!cardHtml) return;
-    const column = document.querySelector(`.kanban-column[data-status="${newStatus}"]`);
+    const column = kanbanDropColumn(taskId, newStatus, document.querySelector(KANBAN_CARD(taskId)));
     // Drop the stale card up front. When the new status has no column on
     // the board — ``cancelled`` is terminal and hidden from the kanban
     // (ADR 0004) — the card must simply LEAVE the board, so bail after the

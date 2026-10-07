@@ -1474,7 +1474,14 @@ html.dark .acta-checkbox.is-indet {
    on dark theme. Trigger element keeps ``data-tooltip="..."`` +
    ``aria-label="..."``; JS in ``acta.js`` rewrites any leftover
    ``title=""`` to this form on load + after HTMX swaps. */
-[data-tooltip] {
+/* The bubble needs a positioning context, which an element that already
+   positions itself has. Without the guard this rule quietly beats the
+   Tailwind utility — same specificity, and it is emitted later — so any
+   absolutely-placed element that gained a tooltip fell back into the
+   flow. That is what dropped the Epics ribbon's bars onto the page as
+   stray green blocks: ``title`` is rewritten to ``data-tooltip`` on
+   load, and the bars lost ``position: absolute`` the moment it was. */
+[data-tooltip]:not(.absolute):not(.fixed):not(.sticky) {
   position: relative;
 }
 [data-tooltip]::after {
