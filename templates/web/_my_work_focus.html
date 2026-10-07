@@ -120,12 +120,13 @@ Expects ``focus`` — ``rows`` / ``ranked`` / ``summary`` / ``tidy``.
   {% endif %}
 
   {% comment %}
-  Three fifths against two: the viewer's own work carries the detail,
-  the column beside it is context. Below ``lg`` they stack, because at
-  that width two columns of rows is two columns of truncation.
+  Eight blocks, one flow. A fixed left/right split put the viewer's own
+  work on one side and its context on the other, which reads well only
+  when both sides happen to be the same length — and they almost never
+  are. These blocks are independent of each other, so they flow into two
+  balanced columns instead and land wherever the room is.
   {% endcomment %}
-  <div class="grid gap-4 items-start grid-cols-1 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-  <div class="flex flex-col gap-4 min-w-0">
+  <div class="acta-flow-2">
 
   {% if focus.commitments.hot %}
   {% comment %}
@@ -256,7 +257,6 @@ Expects ``focus`` — ``rows`` / ``ranked`` / ``summary`` / ``tidy``.
   </div>
   {% endif %}
 
-  </div>
   {% include "web/_my_work_around.html" %}
   </div>
 

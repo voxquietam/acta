@@ -3576,6 +3576,28 @@ html.dark .acta-dock-chip.is-ex {
 
 /* The description takes the column's spare height — the whole point of
    the two-column layout is that the field people need room for gets it. */
+/* Two columns that fill themselves.
+
+   My Work's lower half is eight independent blocks whose heights depend
+   entirely on the person's week: a quiet week leaves "Commitments" and
+   "Pick next" a few rows tall beside a People card with seven entries,
+   and a fixed left/right split then shows one side empty for a screen
+   and a half. Multi-column flow lets the browser balance them — each
+   block stays whole (`break-inside: avoid`) and lands wherever the room
+   is. Below `lg` it is one column, so the order is the reading order. */
+.acta-flow-2 {
+  column-gap: 1rem;
+}
+.acta-flow-2 > * {
+  break-inside: avoid;
+  margin-bottom: 1rem;
+}
+@media (min-width: 1024px) {
+  .acta-flow-2 {
+    column-count: 2;
+  }
+}
+
 .acta-modal-desc {
   display: flex;
   flex-direction: column;

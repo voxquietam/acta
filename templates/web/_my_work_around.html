@@ -9,18 +9,22 @@ People first, because a person waiting is the only item here that goes
 stale by itself. Then the week, the calls, and what others did — in
 descending order of how far ahead the reader has to plan for it.
 
+These blocks are siblings in the page's balancing flow, not a column of
+their own, so each one is a whole block that must not be split. The
+"Around you" heading travels with People rather than standing alone —
+a label with nothing under it is worse than no label.
+
 Expects ``focus`` — ``people`` / ``week`` / ``calls`` / ``feed``.
 {% endcomment %}
-<div class="flex flex-col gap-4 min-w-0">
-
-  <div class="flex items-center gap-2">
+{% if focus.people %}
+<div>
+  <div class="flex items-center gap-2 mb-4">
     {% lucide "users" "w-3.5 h-3.5 text-subtle-foreground" %}
     <span class="text-xs font-medium">{% trans "Around you" %}</span>
     <span class="flex-1"></span>
     <span class="hidden sm:block text-[11px] text-placeholder-foreground">{% trans "people, days, calls" %}</span>
   </div>
 
-  {% if focus.people %}
   <div class="bg-card border border-border rounded-lg">
     <div class="flex items-center gap-2 px-4 h-11 border-b border-border">
       {% lucide "users" "w-3.5 h-3.5 text-subtle-foreground" %}
@@ -72,9 +76,10 @@ Expects ``focus`` — ``people`` / ``week`` / ``calls`` / ``feed``.
     </div>
     {% endfor %}
   </div>
-  {% endif %}
+</div>
+{% endif %}
 
-  {% if focus.week %}
+{% if focus.week %}
   <div class="bg-card border border-border rounded-lg">
     <div class="flex items-center gap-2 px-4 h-11 border-b border-border">
       {% lucide "calendar-days" "w-3.5 h-3.5 text-subtle-foreground" %}
@@ -173,6 +178,4 @@ Expects ``focus`` — ``people`` / ``week`` / ``calls`` / ``feed``.
     </div>
     {% endfor %}
   </div>
-  {% endif %}
-
-</div>
+{% endif %}
