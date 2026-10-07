@@ -853,3 +853,67 @@ class TestTheDescriptionReadsAsProse:
 
         assert milestone.description == ""
         assert "DESCRIPTION" not in resp.content.decode().upper().split("ATTACHED WORK")[0]
+
+
+@pytest.mark.django_db
+class TestTheListFilters:
+    """The filter bar, and the two ways a page can hold none of a list."""
+
+    def test_a_filter_that_removes_nothing_still_offers_the_way_out(self, client, setup):
+        """Picking the project every date covers left no Clear button.
+
+        ``filtered`` used to mean "the list got shorter", which is a
+        different question from "a filter is on" — and the one that
+        strands someone inside a filter they cannot see the end of.
+        """
+        workspace, user, backend, _infra, milestone = setup
+        TaskFactory(project=backend, milestone=milestone, status=Task.STATUS_TODO)
+        client.force_login(user)
+
+        resp = client.get(f"/{workspace.slug}/milestones/?project={backend.pk}")
+
+        assert resp.context["filtered"] is True
+        assert resp.context["narrowed"] is False
+        assert len(resp.context["rows"]) == 1
+
+    def test_a_filter_that_matches_nothing_keeps_its_own_bar(self, client, setup):
+        """Otherwise the page falls into "no milestones yet" with no way back."""
+        workspace, user, backend, _infra, milestone = setup
+        TaskFactory(project=backend, milestone=milestone, status=Task.STATUS_TODO)
+        other = ProjectFactory(workspace=workspace, slug_prefix="MNO")
+        client.force_login(user)
+
+        resp = client.get(f"/{workspace.slug}/milestones/?project={other.pk}")
+        body = resp.content.decode()
+
+        assert resp.context["rows"] == []
+        assert "No milestone matches these filters." in body
+        assert "No milestones yet" not in body
+
+    def test_a_workspace_with_none_still_gets_the_invitation(self, client):
+        workspace = WorkspaceFactory()
+        user = UserFactory()
+        WorkspaceMember.objects.create(user=user, workspace=workspace)
+        client.force_login(user)
+
+        resp = client.get(f"/{workspace.slug}/milestones/")
+        body = resp.content.decode()
+
+        assert "No milestones yet" in body
+        assert "No milestone matches these filters." not in body
+
+    def test_the_count_line_says_of_how_many_only_once_it_narrows(self, client, setup):
+        workspace, user, backend, _infra, milestone = setup
+        TaskFactory(project=backend, milestone=milestone, status=Task.STATUS_TODO)
+        MilestoneFactory(
+            workspace=workspace,
+            name="Other",
+            target_date=timezone.localdate() + datetime.timedelta(days=40),
+            projects=[backend],
+        )
+        client.force_login(user)
+
+        resp = client.get(f"/{workspace.slug}/milestones/?at_risk=1")
+
+        assert resp.context["narrowed"] is True
+        assert resp.context["every_count"] == 2

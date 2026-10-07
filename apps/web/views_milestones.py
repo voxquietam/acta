@@ -132,7 +132,13 @@ def milestones_overview(request):
                 (cell["owner"] for cell in facets["owners"] if cell["owner"].id == chosen["owner"]),
                 None,
             ),
-            "filtered": len(rows) != len(every),
+            # Whether a filter is ON, not whether it happened to remove
+            # anything: picking a project that covers every date still
+            # has to offer the way back out of it.
+            "filtered": any(chosen.values()),
+            # And whether it actually took anything out, which is a
+            # different question and the one "3 of 7" answers.
+            "narrowed": len(rows) != len(every),
             "every_count": len(every),
         },
     )
