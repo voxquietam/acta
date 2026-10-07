@@ -1304,6 +1304,41 @@
     });
   }
 
+  // A filter that redraws a list in place still has to move the URL, or
+  // the narrowed list dies on refresh and Back walks straight past it.
+  // htmx's own history is off app-wide (ADR 0024 — the router below owns
+  // it), so ``hx-push-url`` is a no-op and the push is ours to make.
+  //
+  // Keyed on the SWAP TARGET, not on the link: a link inside a container
+  // that carries its own ``hx-get`` is reported with that container as
+  // ``detail.elt``, so reading the href off the trigger finds a div with
+  // no href and silently does nothing. The requested path is on the
+  // request either way.
+  document.body.addEventListener("htmx:afterRequest", (e) => {
+    const detail = e.detail || {};
+    const target = detail.target;
+    if (!detail.successful || !target || !target.hasAttribute) return;
+    if (!target.hasAttribute("data-push-href")) return;
+    const info = detail.pathInfo || {};
+    const path = info.finalRequestPath || info.requestPath;
+    if (!path) return;
+    window.history.pushState({ acta: true }, "", new URL(path, window.location.href).href);
+  });
+
+  // And the other half of pushing a URL: Back has to undo the filter, not
+  // just the address bar. The page router restores ``#app-content`` from
+  // its own cache, which never saw this swap, so the region refetches
+  // itself for whatever the restored URL asks for.
+  window.addEventListener("popstate", () => {
+    const region = document.querySelector("[data-push-href]");
+    if (!region || !region.id || !window.htmx) return;
+    window.htmx.ajax("GET", window.location.href, {
+      target: region,
+      select: "#" + region.id,
+      swap: "outerHTML",
+    });
+  });
+
   // Open-in-new-tab for kanban cards (plain divs, no href): middle-click
   // or Ctrl/Cmd-click. Delegated on document so it survives board swaps.
   function kanbanCardNewTab(e) {

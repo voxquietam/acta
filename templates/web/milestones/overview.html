@@ -49,7 +49,9 @@ month headers and their counts describing a list that is not there.
      hx-target="this"
      hx-select="#milestones-body"
      hx-swap="innerHTML">
-  <div id="milestones-body" class="max-w-6xl mx-auto p-4 space-y-4">
+  <div id="milestones-body" class="max-w-6xl mx-auto p-4 space-y-4"
+       {# Swapping this in place is a navigation, so acta.js pushes the URL. #}
+       data-push-href>
 
     {% if not rows %}
     <div class="grid place-items-center text-center py-20">

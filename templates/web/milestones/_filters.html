@@ -20,17 +20,37 @@ rows so the numbers hold still while someone clicks through them.
 
 Expects ``facets`` and ``chosen`` from ``milestones_overview``.
 {% endcomment %}
-<div class="flex items-center gap-x-2 gap-y-1.5 flex-wrap text-xs">
+{% comment %}
+The swap contract sits here once and every chip inherits it: a filter
+redraws the list, not the page. ``hx-select`` picks the fresh
+``#milestones-body`` out of the full response, so the view stays a plain
+view with no HTMX branch in it.
+
+``data-push-href`` on ``#milestones-body`` is what moves the URL. htmx's own history is off
+app-wide (ADR 0024 — acta.js runs its own router), so ``hx-push-url`` is
+a no-op here; acta.js watches for the marker and pushes the clicked
+link's href, which is what keeps the narrowed list alive through a
+refresh and reachable with Back.
+
+Each chip keeps its ``href`` as well, so middle-click and a JS-less load
+still work — ``hx-get`` only intercepts the ordinary click.
+{% endcomment %}
+<div class="flex items-center gap-x-2 gap-y-1.5 flex-wrap text-xs"
+     hx-target="#milestones-body"
+     hx-select="#milestones-body"
+     hx-swap="outerHTML">
 
   {# ---------- State ---------- #}
   <div class="inline-flex items-center bg-card border border-border rounded-lg p-0.5 gap-0.5">
     <a href="?{% url_drop request 'state' %}"
+       hx-get="?{% url_drop request 'state' %}"
        class="px-2 py-1 rounded-md transition {% if not chosen.state %}bg-brand-500/15 text-brand-300{% else %}text-subtle-foreground hover:text-foreground hover:bg-muted/50{% endif %}">
       {% trans "All" %}
     </a>
     {% for row in facets.states %}
     {% if row.count %}
     <a href="?{% url_replace request 'state' row.key %}"
+       hx-get="?{% url_replace request 'state' row.key %}"
        class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md transition {% if chosen.state == row.key %}bg-brand-500/15 text-brand-300{% else %}text-subtle-foreground hover:text-foreground hover:bg-muted/50{% endif %}">
       {{ row.label }}
       <span class="font-mono text-[10px] text-placeholder-foreground">{{ row.count }}</span>
@@ -51,11 +71,13 @@ Expects ``facets`` and ``chosen`` from ``milestones_overview``.
     </button>
     <div x-show="open" x-cloak
          class="absolute left-0 mt-1 w-56 max-h-72 overflow-y-auto bg-card border border-border rounded-lg shadow-lg z-20 py-1">
-      <a href="?{% url_drop request 'project' %}" class="flex items-center gap-2 px-3 py-1.5 hover:bg-muted">
+      <a href="?{% url_drop request 'project' %}"
+       hx-get="?{% url_drop request 'project' %}" class="flex items-center gap-2 px-3 py-1.5 hover:bg-muted">
         <span class="flex-1 text-subtle-foreground">{% trans "Any project" %}</span>
       </a>
       {% for row in facets.projects %}
       <a href="?{% url_replace request 'project' row.project.id %}"
+       hx-get="?{% url_replace request 'project' row.project.id %}"
          class="flex items-center gap-2 px-3 py-1.5 hover:bg-muted {% if chosen.project == row.project.id %}text-brand-300{% endif %}">
         <span class="w-1.5 h-1.5 rounded-full shrink-0 bg-current {{ row.project.icon_color_class }}"></span>
         <span class="font-mono text-[11px] text-placeholder-foreground shrink-0">{{ row.project.slug_prefix }}</span>
@@ -79,11 +101,13 @@ Expects ``facets`` and ``chosen`` from ``milestones_overview``.
     </button>
     <div x-show="open" x-cloak
          class="absolute left-0 mt-1 w-56 max-h-72 overflow-y-auto bg-card border border-border rounded-lg shadow-lg z-20 py-1">
-      <a href="?{% url_drop request 'owner' %}" class="flex items-center gap-2 px-3 py-1.5 hover:bg-muted">
+      <a href="?{% url_drop request 'owner' %}"
+       hx-get="?{% url_drop request 'owner' %}" class="flex items-center gap-2 px-3 py-1.5 hover:bg-muted">
         <span class="flex-1 text-subtle-foreground">{% trans "Anyone" %}</span>
       </a>
       {% for row in facets.owners %}
       <a href="?{% url_replace request 'owner' row.owner.id %}"
+       hx-get="?{% url_replace request 'owner' row.owner.id %}"
          class="flex items-center gap-2 px-3 py-1.5 hover:bg-muted {% if chosen.owner == row.owner.id %}text-brand-300{% endif %}">
         {% include "web/_user_avatar.html" with user=row.owner class="w-4 h-4" text_class="text-[9px]" %}
         <span class="flex-1 truncate">{{ row.owner.display_name }}</span>
@@ -97,6 +121,7 @@ Expects ``facets`` and ``chosen`` from ``milestones_overview``.
   {# ---------- At risk ---------- #}
   {% if facets.at_risk %}
   <a href="?{% if chosen.at_risk %}{% url_drop request 'at_risk' %}{% else %}{% url_replace request 'at_risk' '1' %}{% endif %}"
+       hx-get="?{% if chosen.at_risk %}{% url_drop request 'at_risk' %}{% else %}{% url_replace request 'at_risk' '1' %}{% endif %}"
      class="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border transition
        {% if chosen.at_risk %}border-rose-500/40 bg-rose-500/15 text-rose-300{% else %}border-border bg-card text-subtle-foreground hover:text-foreground{% endif %}">
     {% lucide "calendar-x" "w-3 h-3" %}
@@ -106,7 +131,8 @@ Expects ``facets`` and ``chosen`` from ``milestones_overview``.
   {% endif %}
 
   {% if filtered %}
-  <a href="?" class="inline-flex items-center gap-1 h-7 px-2 text-placeholder-foreground hover:text-foreground transition">
+  <a href="?"
+       hx-get="?" class="inline-flex items-center gap-1 h-7 px-2 text-placeholder-foreground hover:text-foreground transition">
     {% lucide "x" "w-3 h-3" %}{% trans "Clear" %}
   </a>
   {% endif %}
