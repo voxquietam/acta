@@ -8,13 +8,20 @@ Two slices, two different questions. By project: whose part of a shared
 commitment is whose, including the project in scope with nothing attached
 yet. By epic: which efforts this date is made of, read off the tasks,
 because an epic stores no milestone of its own and may well span three.
+
+Three rows tall, whatever the row count. The two slices sit side by side
+and one of them is routinely much longer than the other — a milestone
+over two projects can be made of sixteen epics — so letting each run to
+its own length left one card half a screen of nothing. They stretch to
+the same height and each scrolls its own rows.
 {% endcomment %}
-<div class="bg-card border border-border rounded-lg overflow-hidden min-w-0">
+<div class="bg-card border border-border rounded-lg overflow-hidden min-w-0 flex flex-col">
   <div class="grid items-center gap-3 px-3 h-8 acta-milestone-slice text-[10px] uppercase tracking-wider text-placeholder-foreground bg-subtle/95 border-b border-border">
     <span>{{ heading }}</span>
     <span>{% trans "Done" %}</span>
     <span>{% trans "At risk" %}</span>
   </div>
+  <div class="flex-1 min-h-0 max-h-[6.75rem] overflow-y-auto">
   {% for row in rows %}
   <div class="grid items-center gap-3 px-3 h-9 border-b border-border text-xs hover:bg-muted/60 acta-milestone-slice">
     <span class="flex items-center gap-2 min-w-0">
@@ -45,4 +52,5 @@ because an epic stores no milestone of its own and may well span three.
   {% empty %}
   <p class="text-xs italic text-placeholder-foreground px-3 py-4">{% trans "Nothing to slice yet." %}</p>
   {% endfor %}
+  </div>
 </div>

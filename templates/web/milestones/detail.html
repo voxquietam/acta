@@ -209,7 +209,7 @@ quietly swap nothing at all.
     {# ---------- Slices ---------- #}
     {% translate "By project" as by_project_heading %}
     {% translate "By epic" as by_epic_heading %}
-    <div class="grid gap-4 items-start lg:grid-cols-2">
+    <div class="grid gap-4 lg:grid-cols-2">
       {% include "web/milestones/_slice_table.html" with heading=by_project_heading rows=by_project kind="project" %}
       {% include "web/milestones/_slice_table.html" with heading=by_epic_heading rows=by_epic kind="epic" %}
     </div>

@@ -19,10 +19,16 @@ nothing can be missing from it any more.
 {% translate "Add" as add_label %}
 {% translate "Move here" as move_label %}
 {% if reports.near or reports.blocks %}
-<div class="grid gap-4 items-start {% if reports.near and reports.blocks %}lg:grid-cols-2{% endif %}">
+{% comment %}
+Side by side the two reports are rarely the same length, so each caps its
+own height and scrolls its own rows while the grid stretches both to the
+same box. A single report keeps the full width — half a row of nothing
+beside it reads as something that failed to load.
+{% endcomment %}
+<div class="grid gap-4 {% if reports.near and reports.blocks %}lg:grid-cols-2{% endif %}">
 
   {% if reports.near %}
-  <div class="bg-card border border-border rounded-lg overflow-hidden min-w-0">
+  <div class="bg-card border border-border rounded-lg overflow-hidden min-w-0 flex flex-col max-h-[24rem]">
     <div class="flex items-center gap-2 px-3 h-9 border-b border-border">
       {% lucide "calendar-clock" "w-3.5 h-3.5 text-amber-400 shrink-0" %}
       <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground">
@@ -32,7 +38,7 @@ nothing can be missing from it any more.
     <p class="px-3 pt-2 text-[11px] text-placeholder-foreground">
       {% trans "Forgotten, or deliberately out? Nothing joins until someone says so." %}
     </p>
-    <div class="p-1">
+    <div class="flex-1 min-h-0 overflow-y-auto p-1">
       {% for row in reports.near %}
       <div class="flex items-center gap-2 px-2 min-h-[32px] rounded-md hover:bg-muted text-xs">
         <span class="w-[7px] h-[7px] rounded-full shrink-0 {{ row.task.status|status_dot_classes }}"></span>
@@ -47,7 +53,7 @@ nothing can be missing from it any more.
   {% endif %}
 
   {% if reports.blocks %}
-  <div class="bg-card border border-border rounded-lg overflow-hidden min-w-0">
+  <div class="bg-card border border-border rounded-lg overflow-hidden min-w-0 flex flex-col max-h-[24rem]">
     <div class="flex items-center gap-2 px-3 h-9 border-b border-border">
       {% lucide "octagon-alert" "w-3.5 h-3.5 text-rose-400 shrink-0" %}
       <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground">
@@ -57,7 +63,7 @@ nothing can be missing from it any more.
     <p class="px-3 pt-2 text-[11px] text-placeholder-foreground">
       {% trans "Up to two hops out. A blocker scheduled after the work it blocks is a plan contradicting itself." %}
     </p>
-    <div class="p-1 flex flex-col gap-1">
+    <div class="flex-1 min-h-0 overflow-y-auto p-1 flex flex-col gap-1">
       {% for row in reports.blocks %}
       <div class="px-2 py-1.5 rounded-md hover:bg-muted text-xs flex flex-col gap-1">
         <div class="flex items-center gap-2 min-w-0">
