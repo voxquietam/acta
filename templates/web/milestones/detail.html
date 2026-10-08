@@ -196,8 +196,12 @@ quietly swap nothing at all.
           {% endif %}
           <span class="flex-1"></span>
           {% if fc.state == "ready" %}
+          {# The pace is what makes the percentage checkable. Without it #}
+          {# a reader who knows they do not close two a day has to       #}
+          {# divide the remainder by the date to find out what the page  #}
+          {# has assumed about them.                                     #}
           <span class="text-[10px] text-placeholder-foreground">
-            {% blocktrans count counter=fc.window_days %}replayed from {{ counter }} day of closes{% plural %}replayed from {{ counter }} days of closes{% endblocktrans %}
+            {% blocktrans with closed=fc.closed days=fc.window_days pace=fc.per_day %}replayed from {{ closed }} closes in {{ days }} days · ≈{{ pace }} a day{% endblocktrans %}
           </span>
           {% endif %}
         </div>

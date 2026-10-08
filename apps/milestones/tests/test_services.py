@@ -526,9 +526,7 @@ class TestBurndown:
         chart = services.burndown(milestone, today=today)
 
         assert chart["reading"] == "thin"
-        # The window it names is the span of the closes, not the age of
-        # the milestone — so the count and the window agree.
-        assert chart["forecast"]["window_days"] == 1
+        assert chart["forecast"]["closed"] == 12
 
     def test_everything_done_says_so(self, scope):
         backend, _, milestone = scope

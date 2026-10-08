@@ -59,7 +59,10 @@ class TestWhenItRefusesToAnswer:
         result = run(steady(per_day=5, days=28), remaining=10, history_days=2)
 
         assert result["state"] == "thin"
-        assert result["window_days"] == 2
+        # The window is the window the count was taken over, so the count
+        # and the window the page names are one measurement. How long the
+        # closes span is the gate, and the gate is what refused here.
+        assert result["window_days"] == forecast.WINDOW_DAYS
 
     def test_the_threshold_is_the_threshold(self):
         assert run([1] * 10 + [0] * 18, remaining=10)["state"] == "ready"
@@ -113,6 +116,14 @@ class TestTheDateItself:
         result = run(bursty(), remaining=40)
 
         assert result["p85"] >= result["p50"]
+
+    def test_the_pace_is_the_arithmetic_behind_the_dates(self):
+        """The number that lets a reader dismiss a date without dividing."""
+        result = run(steady(per_day=2, days=28), remaining=20)
+
+        assert result["closed"] == 56
+        assert result["per_day"] == 2.0
+        assert result["window_days"] == forecast.WINDOW_DAYS
 
     @pytest.mark.parametrize(
         ("chance", "expected"),

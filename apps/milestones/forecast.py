@@ -61,9 +61,10 @@ def forecast(*, closes, remaining, history_days, today, target, seed) -> dict:
         closes: One entry per day of the window, oldest first — how many
             tasks closed on that day. Zeros included and significant.
         remaining: Counted work still unfinished.
-        history_days: How long this milestone has held work at all, which
-            is not the same as the window: a fortnight-old milestone
-            cannot be replayed over four weeks.
+        history_days: The span the closes cover, which gates whether an
+            answer is offered at all — ten closes inside two days say
+            nothing about the next month. Not the width of the replay:
+            that is always the window, zeros and all.
         today: Reference date.
         target: The date being aimed at.
         seed: Any integer; the same seed gives the same answer, so a
@@ -81,7 +82,7 @@ def forecast(*, closes, remaining, history_days, today, target, seed) -> dict:
         return {
             "state": "thin",
             "closed": closed,
-            "window_days": min(history_days, WINDOW_DAYS),
+            "window_days": len(closes),
         }
     lengths = _simulate(closes, remaining, seed)
     to_target = (target - today).days
@@ -92,8 +93,15 @@ def forecast(*, closes, remaining, history_days, today, target, seed) -> dict:
         "p50": today + datetime.timedelta(days=_percentile(lengths, 0.5)),
         "p85": today + datetime.timedelta(days=_percentile(lengths, 0.85)),
         "passed": to_target < 0,
-        "window_days": min(history_days, WINDOW_DAYS),
+        "window_days": len(closes),
         "closed": closed,
+        # The pace is the one number that makes every other one on the
+        # page checkable: a reader who knows they do not close two a day
+        # can dismiss a confident date without doing the division
+        # themselves. It is the simulation's own input, closes over the
+        # whole window — quiet days included, because the simulation
+        # draws those too.
+        "per_day": round(closed / len(closes), 1),
     }
 
 
