@@ -90,7 +90,7 @@ status dot · slug + priority chevron · title (flex-1) · size · labels
     <span class="hidden md:inline-flex text-subtle-foreground font-mono items-center gap-1 acta-filter-chip hover:ring-zinc-500/40"
           title="{% trans 'Filter by size' %}: {{ task.size }}"
           data-filter-name="size" data-filter-value="{{ task.size }}">
-      {% lucide "gauge" "w-3 h-3" %}{{ task.size }}
+      {% lucide "gauge" "w-3 h-3" %}{{ task.size }}{% if task.size_source == "agent" %}<span class="text-placeholder-foreground" title="{% trans 'Estimated by an agent' %}">{% lucide "sparkles" "w-3 h-3" %}</span>{% endif %}
     </span>
     {% endif %}
 

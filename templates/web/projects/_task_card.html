@@ -92,7 +92,7 @@ with ``forceFallback`` on the Sortable instance in acta.js.
     {% if task.size %}
     <span class="px-1.5 py-0.5 rounded bg-muted text-subtle-foreground font-mono inline-flex items-center gap-1"
           title="{% trans 'Size estimate' %}">
-      {% lucide "gauge" "w-3 h-3" %}{{ task.size }}
+      {% lucide "gauge" "w-3 h-3" %}{{ task.size }}{% if task.size_source == "agent" %}<span class="text-placeholder-foreground" title="{% trans 'Estimated by an agent' %}">{% lucide "sparkles" "w-3 h-3" %}</span>{% endif %}
     </span>
     {% endif %}
     {% if task.cycle_id %}

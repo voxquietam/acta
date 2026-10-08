@@ -182,3 +182,46 @@ class TestThroughTheWeb:
         task.refresh_from_db()
         assert response.status_code == 200
         assert task.size_source == Task.SIZE_BY_HUMAN
+
+
+class TestTheMarkOnThePage:
+    """A guess has to look like one, or nobody will overrule it."""
+
+    def _rail(self, client, project, task):
+        client.force_login(project.workspace.owner)
+        url = f"/{project.workspace.slug}/projects/{project.slug_prefix}/{task.number}/"
+        return client.get(url).content.decode()
+
+    def test_an_agents_estimate_is_marked_and_invites_correction(self, client, project):
+        task = TaskFactory(project=project, size=5, size_source=Task.SIZE_BY_AGENT)
+
+        body = self._rail(client, project, task)
+
+        assert "lu-sparkles" in body
+        assert "Estimated by an agent" in body
+
+    def test_a_persons_estimate_carries_no_mark(self, client, project):
+        task = TaskFactory(project=project, size=5, size_source=Task.SIZE_BY_HUMAN)
+
+        body = self._rail(client, project, task)
+
+        assert "Estimated by an agent" not in body
+
+    def test_an_inherited_estimate_carries_no_mark_either(self, client, project):
+        """Null source with a size is legacy, not a claim about an agent."""
+        task = TaskFactory(project=project, size=5, size_source=None)
+
+        body = self._rail(client, project, task)
+
+        assert "Estimated by an agent" not in body
+
+    def test_a_person_overruling_it_clears_the_mark(self, client, project):
+        task = TaskFactory(project=project, size=5, size_source=Task.SIZE_BY_AGENT)
+        client.force_login(project.workspace.owner)
+
+        client.post(f"/projects/{project.slug_prefix}/{task.number}/size/", {"size": "8"})
+        task.refresh_from_db()
+
+        assert task.size == 8
+        assert task.size_source == Task.SIZE_BY_HUMAN
+        assert "Estimated by an agent" not in self._rail(client, project, task)

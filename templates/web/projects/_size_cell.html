@@ -4,6 +4,8 @@
 Size (story-point) cell — same click-to-edit + teleported dropdown pattern
 as the priority cell. An empty size shows a muted "Set size" trigger; the
 panel offers "No size" (clear) plus the Fibonacci values (``Task.SIZE_VALUES``).
+An estimate an agent guessed carries a sparkles mark, so a person can see
+which numbers are opinions before the forecast quotes them back.
 The dropdown's left is clamped to the viewport so it never runs off the
 right edge of the rail. Expects ``task``.
 {% endcomment %}
@@ -33,6 +35,17 @@ right edge of the rail. Expects ``task``.
             {% if task.size %}text-subtle-foreground{% else %}text-placeholder-foreground{% endif %}">
     {% if task.size %}
     {% lucide "gauge" "w-3.5 h-3.5" %}<span>{{ task.size }}</span>
+    {# An estimate an agent worked out from a title is a consistent      #}
+    {# opinion, not a measurement, and the forecast weighs it as such.   #}
+    {# Saying so here is what lets a person overrule it — the mark is    #}
+    {# the invitation, and clicking the cell is the correction.          #}
+    {% if task.size_source == "agent" %}
+    <span data-tooltip="{% trans 'Estimated by an agent — set it yourself if this is wrong' %}"
+          data-tooltip-pos="below"
+          class="shrink-0 text-placeholder-foreground">
+      {% lucide "sparkles" "w-3 h-3" %}
+    </span>
+    {% endif %}
     {% else %}
     <span class="italic">{% trans "Set size" %}</span>
     {% endif %}
