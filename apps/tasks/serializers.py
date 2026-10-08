@@ -3,6 +3,7 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
 from apps.common.markdown import render_markdown
+from apps.tasks.services import size_source_for
 from apps.workspaces.models import WorkspaceMember
 
 from .models import Task
@@ -28,6 +29,7 @@ class TaskSerializer(serializers.ModelSerializer):
             "status",
             "priority",
             "size",
+            "size_source",
             "start_date",
             "end_date",
             "due_date",
@@ -42,6 +44,10 @@ class TaskSerializer(serializers.ModelSerializer):
             "number",
             "slug",
             "reporter",
+            # Derived from the estimate and the channel it arrived on,
+            # never accepted from the wire: a client that could set it
+            # could call its own guess a person's.
+            "size_source",
             "created_at",
             "updated_at",
         ]
@@ -220,4 +226,11 @@ class TaskSerializer(serializers.ModelSerializer):
                         raise serializers.ValidationError(
                             {date_field: _("Only the assignee can change the start/end date.")},
                         )
+        # Provenance travels with the estimate rather than beside it:
+        # every write that sets a size sets who it came from, in the one
+        # place every write passes through. ``size_from_user`` is the
+        # MCP tool speaking up — nothing else sets it, and its absence
+        # means the agent guessed.
+        if "size" in attrs:
+            attrs["size_source"] = size_source_for(attrs["size"], from_user=self.context.get("size_from_user"))
         return attrs

@@ -198,7 +198,10 @@ def task_create(user: User, arguments: dict[str, Any]) -> Any:
         labels = _resolve_or_create_labels(project.workspace, label_names)
         data["labels"] = [lab.id for lab in labels]
 
-    serializer = TaskSerializer(data=data, context={"request": FakeRequest(user)})
+    serializer = TaskSerializer(
+        data=data,
+        context={"request": FakeRequest(user), "size_from_user": args.get("size_from_user")},
+    )
     if not serializer.is_valid():
         raise ValueError(f"Task validation failed: {serializer.errors}")
     task = serializer.save(reporter=user)
@@ -320,7 +323,12 @@ def task_update(user: User, arguments: dict[str, Any]) -> Any:
 
     with transaction.atomic():
         old_state = snapshot_task(task)
-        serializer = TaskSerializer(instance=task, data=data, partial=True, context={"request": FakeRequest(user)})
+        serializer = TaskSerializer(
+            instance=task,
+            data=data,
+            partial=True,
+            context={"request": FakeRequest(user), "size_from_user": args.get("size_from_user")},
+        )
         if not serializer.is_valid():
             raise ValueError(f"Task validation failed: {serializer.errors}")
         task = serializer.save()
@@ -1272,6 +1280,14 @@ TOOLS: list[Tool] = [
             "Optional: ``description`` (Markdown), ``status`` (default to-do), "
             "``priority`` (0=none, 1=Urgent, 2=High, 3=Medium, 4=Low), "
             "``size`` (Fibonacci integer 1/2/3/5/8/13), ``due_date`` (ISO date), "
+            "**Always leave a size.** A task without one is invisible to the "
+            "forecast, which falls back to counting tasks as if they were all "
+            "the same work. If the person named a number, pass it with "
+            "``size_from_user: true``. If they did not, estimate it yourself "
+            "from the title and description and pass it without that flag — a "
+            "consistent guess is worth more than a blank, and it is recorded "
+            "as yours so a person can correct it. Never claim a number as the "
+            "person's unless they actually said it. "
             "``assignee_username`` (must be a member of the project's workspace; "
             "pass ``me`` to assign the authenticated user — never guess a username "
             "off the member roster), "
@@ -1300,6 +1316,15 @@ TOOLS: list[Tool] = [
                 },
                 "priority": {"type": "integer", "minimum": 0, "maximum": 4},
                 "size": {"type": "integer", "enum": [1, 2, 3, 5, 8, 13]},
+                "size_from_user": {
+                    "type": "boolean",
+                    "description": (
+                        "True only when the person named the estimate. Omit it when you "
+                        "worked the number out yourself — the forecast weighs the two "
+                        "differently, and a guess recorded as a person's would have it "
+                        "quoting you back to yourself."
+                    ),
+                },
                 "start_date": {"type": "string", "description": "ISO date — timeline bar start, e.g. '2026-05-30'."},
                 "end_date": {"type": "string", "description": "ISO date — planned finish (timeline bar end)."},
                 "due_date": {"type": "string", "description": "ISO date — hard deadline, e.g. '2026-05-30'."},
@@ -1331,6 +1356,14 @@ TOOLS: list[Tool] = [
             "``title``, ``description``, ``status`` (``cancelled`` is the "
             "terminal 'won't do' state — distinct from done), ``priority``, "
             "``size`` (Fibonacci 1/2/3/5/8/13), ``due_date``, ``assignee_username`` "
+            "**Always leave a size.** A task without one is invisible to the "
+            "forecast, which falls back to counting tasks as if they were all "
+            "the same work. If the person named a number, pass it with "
+            "``size_from_user: true``. If they did not, estimate it yourself "
+            "from the title and description and pass it without that flag — a "
+            "consistent guess is worth more than a blank, and it is recorded "
+            "as yours so a person can correct it. Never claim a number as the "
+            "person's unless they actually said it. "
             "(``me`` for the authenticated user, ``null`` to clear), ``label_names`` (replaces the full "
             "label set; missing labels are auto-created — see ``acta_task_create``), "
             "``project`` (slug prefix of a project IN THE SAME WORKSPACE to move "
@@ -1359,6 +1392,13 @@ TOOLS: list[Tool] = [
                 },
                 "priority": {"type": "integer", "minimum": 0, "maximum": 4},
                 "size": {"type": ["integer", "null"], "enum": [1, 2, 3, 5, 8, 13, None]},
+                "size_from_user": {
+                    "type": "boolean",
+                    "description": (
+                        "True only when the person named the estimate. Omit it when you "
+                        "worked the number out yourself."
+                    ),
+                },
                 "start_date": {"type": ["string", "null"]},
                 "end_date": {"type": ["string", "null"]},
                 "due_date": {"type": ["string", "null"]},

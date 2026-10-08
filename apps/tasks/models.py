@@ -186,6 +186,26 @@ class Task(models.Model):
     )
     SIZE_CHOICES = [(s, str(s)) for s in SIZE_VALUES]
 
+    # Who put the estimate there. An estimate a person gave is evidence;
+    # one an agent guessed off a title is a consistent opinion, which is
+    # worth more than nothing and less than evidence — and the forecast
+    # has to be able to tell them apart before it weights anything by
+    # them. The channel answers this for the web (a person clicked), but
+    # not for MCP, where a number dictated by a person and a number the
+    # agent invented arrive through the same door: the tool declares it,
+    # and silence means the agent. Erring towards the weaker claim is
+    # the point — forgetting to say so costs trust, never fakes it.
+    SIZE_BY_HUMAN = "human"
+    SIZE_BY_AGENT = "agent"
+    SIZE_SOURCE_VALUES = (
+        SIZE_BY_HUMAN,
+        SIZE_BY_AGENT,
+    )
+    SIZE_SOURCE_CHOICES = [
+        (SIZE_BY_HUMAN, _("Person")),
+        (SIZE_BY_AGENT, _("Agent")),
+    ]
+
     objects = TaskQuerySet.as_manager()
 
     project = models.ForeignKey(
@@ -250,6 +270,16 @@ class Task(models.Model):
         blank=True,
         choices=SIZE_CHOICES,
         help_text="Story-point estimate. Restricted to the Fibonacci set 1, 2, 3, 5, 8, 13",
+    )
+    size_source = models.CharField(
+        max_length=10,
+        choices=SIZE_SOURCE_CHOICES,
+        null=True,
+        blank=True,
+        help_text=(
+            "Who put the estimate there: a person, or an agent that guessed it. "
+            "Null when there is no estimate, and on estimates predating this field"
+        ),
     )
     start_date = models.DateField(
         null=True,

@@ -66,7 +66,7 @@ from apps.tasks.events import broadcast_link_change, broadcast_task_events, emit
 from apps.tasks.metrics import compute_bottlenecks, compute_cfd, compute_flow_metrics
 from apps.tasks.models import Task
 from apps.tasks.search import search_tasks
-from apps.tasks.services import turn_epic_into_task, turn_task_into_epic
+from apps.tasks.services import size_source_for, turn_epic_into_task, turn_task_into_epic
 from apps.web import focus
 from apps.web import kanban as kanban_lanes
 from apps.web import plan
@@ -4621,7 +4621,7 @@ def _build_timeline(task, user_id):
 # ---------------------------------------------------------------------
 
 
-def _apply_task_field_change(task, field, value, actor):
+def _apply_task_field_change(task, field, value, actor, extra=None):
     """Apply a single scalar field change and emit diff events.
 
     Captures the pre-save state, mutates the attribute, saves, and pipes
@@ -4635,11 +4635,16 @@ def _apply_task_field_change(task, field, value, actor):
         field: The model attribute name to set.
         value: The new value to assign.
         actor: The acting :class:`User`.
+        extra: Further attributes to set in the same save, for a field
+            that carries a derived companion — the estimate and the note
+            of where it came from have to land together or not at all.
     """
 
     with transaction.atomic():
         old = snapshot_task(task)
         setattr(task, field, value)
+        for name, companion in (extra or {}).items():
+            setattr(task, name, companion)
         task.save()
         emit_task_diff_events(old_state=old, task=task, actor=actor)
 
@@ -4778,7 +4783,7 @@ def set_task_size(request, slug_prefix, number):
             return HttpResponseBadRequest("invalid size")
         if size not in Task.SIZE_VALUES:
             return HttpResponseBadRequest("invalid size")
-    _apply_task_field_change(task, "size", size, request.user)
+    _apply_task_field_change(task, "size", size, request.user, extra={"size_source": size_source_for(size)})
     return _inline_edit_response(
         request,
         task,

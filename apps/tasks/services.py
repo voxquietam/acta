@@ -19,6 +19,36 @@ from apps.tasks.events import emit_task_diff_events, snapshot_task
 from apps.tasks.models import Task
 
 
+def size_source_for(size, *, from_user=None):
+    """Return who to credit the estimate to, or ``None`` when there is none.
+
+    The channel answers this on its own almost everywhere: a size that
+    arrives from the web was typed by whoever was looking at the task.
+    MCP is the exception, and the interesting one — a number the person
+    dictated and a number the agent invented arrive through the same
+    door, so only the tool can say which it is, and it has to say so
+    out loud. Silence is read as the agent, because an estimate wrongly
+    marked as a guess only costs it some weight, while a guess wrongly
+    marked as a person's would be a forecast quoting itself.
+
+    Args:
+        size: The estimate the task will carry, or ``None`` to clear it.
+        from_user: What the caller knows about where the number came
+            from. ``None`` — the usual case — reads it off the channel.
+
+    Returns:
+        ``Task.SIZE_BY_HUMAN`` / ``Task.SIZE_BY_AGENT``, or ``None``
+        when the task is left without an estimate.
+    """
+    from apps.mcp.context import IS_MCP_REQUEST
+
+    if size is None:
+        return None
+    if from_user is None:
+        from_user = not IS_MCP_REQUEST.get()
+    return Task.SIZE_BY_HUMAN if from_user else Task.SIZE_BY_AGENT
+
+
 def turn_task_into_epic(task, *, actor):
     """Turn a plain task into an epic.
 

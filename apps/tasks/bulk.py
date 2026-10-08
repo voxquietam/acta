@@ -35,6 +35,7 @@ from apps.workspaces.models import WorkspaceMember
 
 from .events import broadcast_task_events, build_diff_events, snapshot_task
 from .models import Task
+from .services import size_source_for
 
 BULK_LIMIT = 500
 
@@ -252,6 +253,10 @@ def _bulk_apply_scalars(ids: list[int], updates: dict[str, Any]) -> None:
         payload["priority"] = updates["priority"]
     if "size" in updates:
         payload["size"] = updates["size"]
+        # Bulk writes through ``QuerySet.update``, so nothing downstream
+        # derives this for us — the estimate and its provenance are set
+        # in the same column list or they drift apart.
+        payload["size_source"] = size_source_for(updates["size"])
     if "assignee" in updates:
         payload["assignee_id"] = updates["assignee"]
     if "epic" in updates:
