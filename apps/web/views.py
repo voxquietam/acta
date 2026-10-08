@@ -1855,6 +1855,15 @@ def _focus_context(user, workspace, today, meetings):
         "calls": focus.calls(meetings, tasks, today),
         "feed": focus.feed(user, workspace),
     }
+    # What "Everything else" is else to. Every block above that draws a
+    # task by name, so the bar underneath can say how much work the
+    # viewer has that the page has not already put in front of them.
+    shown = {row["task"].id for row in built["rows"]}
+    shown |= {row["task"].id for row in built["pick"]}
+    for card in built["commitments"]["hot"]:
+        for group in card["groups"]:
+            shown |= {row["task"].id for row in group["rows"]}
+    built["rest"] = sum(1 for task in tasks if task.id not in shown)
     # One flag the template can branch on. Without it the strip's outer
     # gate has to list every block, and the block added next is the one
     # nobody remembers to add to the list.
@@ -1938,6 +1947,10 @@ class MyWorkView(LoginRequiredMixin, TemplateView):
         ctx["focus"] = SimpleLazyObject(
             lambda: _focus_context(self.request.user, active, ctx["today"], ctx["upcoming_calls"]),
         )
+        # The grouped list lives behind the "Everything else" disclosure
+        # and in the page's own scroll, not in a bounded box of its own.
+        ctx["list_in_flow"] = True
+        ctx["rest_open"] = self.request.COOKIES.get("acta_my_work_rest") == "1"
         list_axis_keys = _optional_axes(("deadline", "status", "priority", "project"), active)
         list_axis = _resolve_list_axis(self.request, default="deadline", options=list_axis_keys)
         ctx["list_axis"] = list_axis

@@ -3135,6 +3135,15 @@ button.acta-gepic-row:hover .acta-gepic-name {
 .acta-dock-wrap > * {
   pointer-events: auto;
 }
+/* The dock floats over the page, so whatever ends underneath it is
+   unreachable — there is nothing left to scroll out of the way. A
+   scroll container whose last content can reach the bottom of the
+   viewport reserves the dock's height here: its own 46px, the 20px it
+   sits off the edge, and a gap so the last row is read rather than
+   grazed. */
+.acta-dock-safe {
+  padding-bottom: 86px;
+}
 .acta-dock {
   display: flex;
   align-items: center;

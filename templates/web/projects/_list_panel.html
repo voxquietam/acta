@@ -13,7 +13,13 @@ subsequent toggles are pure client-side ``x-show`` (no round-trip).
 This shaves ~80% off the cold-load payload on the All Tasks list view
 (previously all 5 axes × N rows were inlined; now only the active one).
 {% endcomment %}
-<div data-scroll-wrap class="relative flex-1 min-h-0"
+{% comment %}
+``list_in_flow`` is My Work, where the panel sits in the page's own
+scroll behind the "Everything else" disclosure rather than owning a
+height-bounded scroll region of its own. In flow there is no edge to
+fade against and no box to scroll inside, so both go.
+{% endcomment %}
+<div data-scroll-wrap class="relative{% if not list_in_flow %} flex-1 min-h-0{% endif %}"
      x-data="{
        activeAxis: '{{ list_axis }}',
        loadedAxes: { '{{ list_axis }}': true },
@@ -30,7 +36,7 @@ This shaves ~80% off the cold-load payload on the All Tasks list view
          }
        }
      }">
-<div data-scroll-target class="h-full overflow-y-auto scrollbar-none pb-4">
+<div {% if not list_in_flow %}data-scroll-target class="h-full overflow-y-auto scrollbar-none pb-4"{% else %}class="pb-4"{% endif %}>
 
   <div class="flex items-center gap-3 mb-3 text-xs">
     <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground font-medium">{% trans "Group by" %}</span>
@@ -78,8 +84,10 @@ This shaves ~80% off the cold-load payload on the All Tasks list view
   {% endfor %}
 
 </div>
+{% if not list_in_flow %}
 <div data-fade-top aria-hidden="true"
      class="pointer-events-none absolute inset-x-0 top-0 h-6 bg-gradient-to-b from-background to-transparent"></div>
 <div data-fade-bottom aria-hidden="true"
      class="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-background to-transparent"></div>
+{% endif %}
 </div>

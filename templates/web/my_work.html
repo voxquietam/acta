@@ -21,11 +21,19 @@
 {% endblock %}
 
 {% block app_main %}
-<div class="h-full flex flex-col">
-  <div class="flex-1 min-h-0 flex flex-col lg:flex-row gap-4 lg:items-stretch">
+{% comment %}
+The page flows and ``main`` scrolls it. It used to pin itself to the
+viewport (``h-full`` → ``flex-1 min-h-0``) so the task list could own an
+inner scroll region, which worked while the list was the whole page.
+With the focus strip above it the strip ate the column, the list was
+handed a height of zero, and its rows landed past the end of the
+scroll — present in the DOM, unreachable on screen, visible only by
+zooming out.
+{% endcomment %}
+<div class="flex flex-col lg:flex-row gap-4 lg:items-start">
     <div id="my-work-content"
          data-task-list-root
-         class="flex-1 min-w-0 min-h-0 flex flex-col w-full max-w-6xl mx-auto"
+         class="flex-1 min-w-0 w-full max-w-6xl mx-auto acta-dock-safe"
          hx-get="{{ request.path }}"
          hx-trigger="acta:task-moved from:body, acta:task-changed from:body, acta:bulk-changed from:body, acta:meeting-changed from:body"
          hx-target="this"
@@ -33,6 +41,5 @@
       {% include "web/_my_work_inner.html" %}
     </div>
     {% include "web/_filter_dock.html" %}
-  </div>
 </div>
 {% endblock %}
