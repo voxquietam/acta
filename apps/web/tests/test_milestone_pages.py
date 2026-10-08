@@ -216,6 +216,56 @@ class TestTheDetailPage:
         assert "100% of the estimates were set by an agent" in body
         assert Log.objects.exists()
 
+    def test_the_page_shows_the_days_the_forecast_replayed(self, client, setup):
+        """A percentage nobody can audit is a number to argue with.
+
+        A steady fortnight and one afternoon of clearing the backlog
+        average out the same and look nothing alike, so the days go on
+        the page rather than staying inside the simulation.
+        """
+        workspace, user, backend, _, milestone = setup
+        today = timezone.localdate()
+        milestone.target_date = today + datetime.timedelta(days=60)
+        milestone.save()
+        joined = timezone.now() - datetime.timedelta(days=30)
+        for index in range(12):
+            task = TaskFactory(project=backend, milestone=milestone, status=Task.STATUS_DONE)
+            _milestone_event(task, milestone, joined)
+            _status_event(task, timezone.now() - datetime.timedelta(days=24 - index * 2))
+        for _index in range(4):
+            _milestone_event(
+                TaskFactory(project=backend, milestone=milestone, status=Task.STATUS_TODO),
+                milestone,
+                joined,
+            )
+        client.force_login(user)
+
+        resp = client.get(f"/{workspace.slug}/milestones/{milestone.pk}/")
+        strip = resp.context["burndown"]["closes"]
+        body = resp.content.decode()
+
+        assert len(strip) == 28
+        assert strip[-1]["day"] == today
+        assert sum(day["value"] for day in strip) == 12
+        # A day that closed something must not look like a day that did
+        # not, however big the biggest day was.
+        assert all(day["pct"] >= 15 for day in strip if day["value"])
+        assert all(day["pct"] == 0 for day in strip if not day["value"])
+        assert "tasks closed per day" in body
+
+    def test_a_milestone_with_nothing_to_replay_draws_no_strip(self, client, setup):
+        workspace, user, backend, _, milestone = setup
+        _milestone_event(
+            TaskFactory(project=backend, milestone=milestone, status=Task.STATUS_TODO),
+            milestone,
+            timezone.now() - datetime.timedelta(days=2),
+        )
+        client.force_login(user)
+
+        body = client.get(f"/{workspace.slug}/milestones/{milestone.pk}/").content.decode()
+
+        assert "tasks closed per day" not in body
+
     def test_a_milestone_in_another_workspace_is_a_404(self, client, setup):
         workspace, user, _, _, _ = setup
         stranger = ProjectFactory()

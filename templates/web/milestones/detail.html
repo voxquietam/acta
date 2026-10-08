@@ -272,6 +272,30 @@ quietly swap nothing at all.
       </div>
       {% endwith %}
       <div class="relative mt-2" style="height: 180px;"><canvas id="milestoneBurndown"></canvas></div>
+      {% if burndown.forecast.closed %}
+      {# The days the replay drew from. A steady fortnight and one       #}
+      {# afternoon of clearing the backlog average out the same and look #}
+      {# nothing alike — so the page shows them rather than asking the   #}
+      {# reader to take the percentage on trust.                         #}
+      <div class="mt-3">
+        <div class="flex items-end justify-between h-10" aria-hidden="true">
+          {% for day in burndown.closes %}
+          <span class="w-1.5 rounded-sm {% if day.value %}bg-muted-foreground/50{% else %}bg-border{% endif %}"
+                style="height: {% if day.value %}{{ day.pct }}%{% else %}2px{% endif %};"
+                data-tooltip="{{ day.day|date:'M j' }} · {{ day.value }}"
+                data-tooltip-pos="below"></span>
+          {% endfor %}
+        </div>
+        <div class="flex items-center justify-between mt-1 text-[10px] text-placeholder-foreground">
+          <span>{{ burndown.closes.0.day|date:"M j" }}</span>
+          <span>
+            {% if burndown.forecast.unit == "points" %}{% trans "points closed per day" %}
+            {% else %}{% trans "tasks closed per day" %}{% endif %}
+          </span>
+          <span>{% trans "today" %}</span>
+        </div>
+      </div>
+      {% endif %}
       <p class="text-[11px] text-placeholder-foreground mt-2">
         {% trans "Read off the activity log, never from due dates — a burndown drawn from plans cannot be wrong." %}
         {{ burndown.scope_note }}.

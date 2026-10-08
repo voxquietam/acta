@@ -874,9 +874,11 @@ def burndown(milestone, today=None) -> dict | None:
         today: Reference date; defaults to the local current date.
 
     Returns:
-        A dict of parallel series plus ``forecast`` and the ``reading``
-        the page branches its tone on, or ``None`` when nothing counted
-        is attached — zero of zero is not a chart.
+        A dict of parallel series plus ``forecast``, the ``reading`` the
+        page branches its tone on and ``closes`` — the replay's own
+        per-day input, so the page can show what the percentage was
+        worked out from. ``None`` when nothing counted is attached: zero
+        of zero is not a chart.
     """
     today = today or timezone.localdate()
     now_ids = list(
@@ -943,6 +945,24 @@ def burndown(milestone, today=None) -> dict | None:
     )
     if basis:
         outlook["agent_share"] = basis["agent_share"]
+    # The days the replay actually drew from, so the page can show them.
+    # A percentage nobody can audit is a number to argue with; the strip
+    # is the evidence underneath it — a steady fortnight and a single
+    # afternoon of clearing out the backlog produce the same average and
+    # look nothing alike.
+    peak = max(closes) or 1
+    strip = [
+        {
+            "day": today - datetime.timedelta(days=len(closes) - 1 - index),
+            "value": round(value, 1) if value % 1 else int(value),
+            # A day that closed something has to look different from a
+            # day that closed nothing, even next to a cleanup day that
+            # closed thirty. Below the floor the bar would be a pixel
+            # taller than the baseline, which reads as a rounding error.
+            "pct": max(15, round(value / peak * 100)) if value else 0,
+        }
+        for index, value in enumerate(closes)
+    ]
     reading = forecast.reading(outlook)
     if outlook.get("passed"):
         # The page says how long ago, and only the caller knows "ago".
@@ -993,6 +1013,7 @@ def burndown(milestone, today=None) -> dict | None:
         "target_index": (milestone.target_date - start).days,
         "forecast": outlook,
         "reading": reading,
+        "closes": strip,
         "scope_note": (
             ngettext(
                 "scope moved on %(count)d day",
