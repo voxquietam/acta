@@ -74,6 +74,22 @@ transfer flow).
 
       <div class="flex items-center gap-3 pt-3.5 border-t border-border">
         <div class="flex-1 min-w-0">
+          <div class="text-[12.5px] text-foreground font-medium">{% trans "Keep the Ready column" %}</div>
+          <div class="text-[11px] text-placeholder-foreground mt-0.5 leading-tight">{% trans "A groomed, pullable task that has not started. Turning this off moves every ready task to planned — turning it back on does not bring them back." %}</div>
+          {% if ready_count %}
+          <div class="text-[11px] text-amber-500 mt-1 leading-tight">
+            {% blocktrans count counter=ready_count %}{{ counter }} task would move to Planned.{% plural %}{{ counter }} tasks would move to Planned.{% endblocktrans %}
+          </div>
+          {% endif %}
+        </div>
+        <label class="inline-flex items-center cursor-pointer shrink-0">
+          <input type="checkbox" name="ready_enabled" {% if workspace.ready_enabled %}checked{% endif %} class="peer sr-only">
+          <span class="relative w-7 h-4 rounded-full bg-muted border border-border-strong transition-colors peer-checked:bg-brand-500/25 peer-checked:border-brand-500 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-3 after:h-3 after:rounded-full after:bg-muted-foreground after:transition-transform peer-checked:after:translate-x-3 peer-checked:after:bg-brand-500"></span>
+        </label>
+      </div>
+
+      <div class="flex items-center gap-3 pt-3.5 border-t border-border">
+        <div class="flex-1 min-w-0">
           <div class="text-[12.5px] text-foreground font-medium">{% trans "Let members broadcast announcements" %}</div>
           <div class="text-[11px] text-placeholder-foreground mt-0.5 leading-tight">{% trans "When off, only owners and admins can post a workspace-wide announcement." %}</div>
         </div>

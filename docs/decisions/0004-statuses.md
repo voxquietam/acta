@@ -70,3 +70,35 @@ replenishment buffer for groomed, pullable work that hasn't started yet.
 - **The board now has six columns** (planned · ready · to-do ·
   in-progress · in-review · done); the "five columns" note above is
   superseded.
+
+## Amendment 2026-10-08 — `ready` is optional per workspace
+
+Teams that never groom a replenishment buffer get nothing from the
+column and pay for it: the backlog arrives split in two, and every
+status picker is a row longer. `Workspace.ready_enabled` (default on)
+lets a workspace retire it.
+
+- **One reader for the columns.** `Workspace.board_statuses()` is the
+  answer to "which columns does this team have", and
+  `offers_status()` to "may a write land here". The board, the lanes
+  and every picker read those; nothing enumerates the statuses on its
+  own any more.
+- **Labels stay whole.** `STATUS_LABELS` keeps every status, retired or
+  not. A workspace that dropped the column still has to render the word
+  on an activity entry that mentions it. What shrinks is the menu, not
+  the dictionary.
+- **Retiring moves the work and says so.** Turning it off runs
+  `retire_ready_status()`: every ready task becomes planned, each move a
+  `task.status_changed` event under one `bulk_id`, credited to the admin
+  who flipped the switch. Two hundred tasks changing state without a
+  trace is the thing ADR 0011 exists to prevent. The settings page names
+  the count before the switch is flipped, not after.
+- **Re-enabling does not undo it.** The move was a real event; a second,
+  unlogged rewrite pretending otherwise would be worse than setting them
+  back by hand.
+- **A write into a retired column is refused, not rerouted.** Model and
+  serializer both raise on `status=ready` where it is off. Silently
+  landing it in planned would let a client believe it wrote something it
+  did not. The MCP schema still lists `ready` — the enum is static
+  across workspaces, and the error is what carries the per-workspace
+  truth.

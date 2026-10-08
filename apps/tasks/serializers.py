@@ -158,6 +158,11 @@ class TaskSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"kind": _("Unknown kind: %(value)s.") % {"value": kind}},
             )
+        status = attrs.get("status") if "status" in attrs else getattr(self.instance, "status", None)
+        if status and project and not project.workspace.offers_status(status):
+            raise serializers.ValidationError(
+                {"status": _("The Ready column is turned off for this workspace.")},
+            )
         if (kind == Task.KIND_EPIC or epic is not None) and project and not project.workspace.epics_enabled:
             raise serializers.ValidationError(
                 {"kind": _("Epics are turned off for this workspace.")},

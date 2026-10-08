@@ -153,6 +153,15 @@ class Workspace(models.Model):
         ),
     )
 
+    ready_enabled = models.BooleanField(
+        default=True,
+        help_text=(
+            "When true (default), the workspace keeps the Ready column — the replenishment "
+            "buffer between the backlog and active work. Turning it off moves every ready "
+            "task to planned and refuses new ones; turning it back on does not bring them back"
+        ),
+    )
+
     allow_member_announcements = models.BooleanField(
         default=False,
         help_text=(
@@ -185,6 +194,40 @@ class Workspace(models.Model):
 
     CYCLE_DEFAULT_LENGTH_WEEKS = 2
     CYCLE_MAX_LENGTH_WEEKS = 8
+
+    def board_statuses(self) -> tuple:
+        """Return the statuses this workspace offers, in board order.
+
+        The one reader for "which columns does this team have". Ready is
+        a buffer some teams groom into and others never touch, and a
+        column nobody fills is worse than no column — it splits the
+        backlog in two and makes every picker one row longer.
+
+        Labels are deliberately not filtered alongside: a task that was
+        ready before the column went away, or an activity entry that
+        mentions it, still has to render its own name.
+
+        Returns:
+            The kanban statuses, minus ``ready`` where it is turned off.
+        """
+        from apps.tasks.models import Task
+
+        if self.ready_enabled:
+            return Task.KANBAN_STATUS_VALUES
+        return tuple(status for status in Task.KANBAN_STATUS_VALUES if status != Task.STATUS_READY)
+
+    def offers_status(self, status: str) -> bool:
+        """Return whether a write may put a task in this status.
+
+        Args:
+            status: The status being written.
+
+        Returns:
+            ``False`` only for a status this workspace has turned off.
+        """
+        from apps.tasks.models import Task
+
+        return self.ready_enabled or status != Task.STATUS_READY
 
     def cycle_config(self):
         """Return the normalised cadence config from :attr:`cycle_settings`.

@@ -59,7 +59,7 @@ without parsing the labels.
        x-cloak
        :style="`position:fixed; top:${rect.bottom + 4}px; left:${Math.min(rect.left, window.innerWidth - 184)}px; width:11rem;`"
        class="bg-card border border-border rounded-lg shadow-lg overflow-hidden z-50">
-    {% for status_key, status_label in status_labels.items %}
+    {% for status_key, status_label in status_options %}
     <form method="post"
           hx-post="{% url 'web:set_task_status' slug_prefix=task.project.slug_prefix number=task.number %}"
           hx-target="#status-cell"

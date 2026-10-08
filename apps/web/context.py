@@ -77,5 +77,26 @@ def workspace_nav(request):
         "nav_favourite_tasks_orphan": tasks_orphan,
         "nav_cycles_enabled": bool(active and active.cycle_config()["enabled"]),
         "nav_epics_enabled": bool(active and active.epics_enabled),
+        # What a picker may offer, as opposed to what a label map may
+        # render: a workspace that retired the Ready column still has to
+        # name the status on an old activity entry, so the labels stay
+        # whole and only the menu shrinks.
+        "status_options": _status_options(active),
         "inbox_unread": unread,
     }
+
+
+def _status_options(workspace) -> list[tuple]:
+    """Return the statuses a picker may offer, in board order.
+
+    Args:
+        workspace: The active :class:`Workspace`, or ``None``.
+
+    Returns:
+        ``(key, label)`` pairs, cancelled last — it is a destination a
+        person can pick even though it is not a column.
+    """
+    from apps.tasks.models import Task
+
+    statuses = workspace.board_statuses() if workspace else Task.KANBAN_STATUS_VALUES
+    return [(status, Task.STATUS_LABELS[status]) for status in (*statuses, Task.STATUS_CANCELLED)]

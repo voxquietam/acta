@@ -7,6 +7,8 @@ same logic stays callable from the future workspace-settings page
 
 from __future__ import annotations
 
+import uuid
+
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
@@ -70,3 +72,63 @@ def send_invite_email(invite: WorkspaceInvite, *, request=None) -> bool:
     # email is recoverable (resend / copy link manually).
     sent = message.send(fail_silently=True)
     return bool(sent)
+
+
+def retire_ready_status(workspace, *, actor) -> int:
+    """Move every ready task in a workspace to planned, and say so.
+
+    Turning the column off is the decision; this is what it costs. Two
+    hundred tasks changing status silently is the thing the activity log
+    exists to prevent (ADR 0011), so each move is a
+    ``task.status_changed`` event under one bulk id — the same shape the
+    bulk endpoint writes, so the feed renders it as one act rather than
+    two hundred coincidences.
+
+    Re-enabling does not undo this. A status change is a real event; a
+    second, unlogged rewrite that pretended it never happened would be
+    worse than the work of setting them back by hand.
+
+    Args:
+        workspace: The :class:`Workspace` losing the column.
+        actor: The user to credit — the admin who flipped the switch.
+
+    Returns:
+        How many tasks moved.
+    """
+    from django.db import transaction
+    from django.utils import timezone
+
+    from apps.activity.models import ActivityLog
+    from apps.activity.services import log_event
+    from apps.tasks.models import Task
+
+    tasks = list(
+        Task.objects.filter(
+            project__workspace=workspace,
+            status=Task.STATUS_READY,
+        ).select_related("project"),
+    )
+    if not tasks:
+        return 0
+    bulk_id = uuid.uuid4()
+    with transaction.atomic():
+        Task.objects.filter(id__in=[task.id for task in tasks]).update(
+            status=Task.STATUS_PLANNED,
+            updated_at=timezone.now(),
+        )
+        for task in tasks:
+            log_event(
+                workspace=workspace,
+                project=task.project,
+                actor=actor,
+                event_type="task.status_changed",
+                target_type=ActivityLog.TARGET_TASK,
+                target_id=task.id,
+                payload={
+                    "from": Task.STATUS_READY,
+                    "to": Task.STATUS_PLANNED,
+                    "reason": "ready_column_retired",
+                },
+                bulk_id=bulk_id,
+            )
+    return len(tasks)

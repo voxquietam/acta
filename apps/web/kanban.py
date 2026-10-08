@@ -59,7 +59,7 @@ def lane_options(active: str) -> list[dict]:
     return [{"key": key, "label": label, "active": key == active} for key, label in LANES.items()]
 
 
-def build_lanes(tasks, axis: str, *, project=None) -> list[dict]:
+def build_lanes(tasks, axis: str, *, project=None, statuses=None) -> list[dict]:
     """Slice an already-filtered board into lanes.
 
     Args:
@@ -69,6 +69,8 @@ def build_lanes(tasks, axis: str, *, project=None) -> list[dict]:
         project: The project in view, or ``None`` across the workspace —
             a milestone lane names the other projects it covers only
             where there is more than one in play.
+        statuses: The columns the workspace keeps, so every lane splits
+            the same way the board above it does.
 
     Returns:
         Lane dicts, each carrying its header and one cell per kanban
@@ -88,7 +90,11 @@ def build_lanes(tasks, axis: str, *, project=None) -> list[dict]:
     progress = milestone_services.progress_by_milestone(
         [group["milestone"].id for group in groups if group.get("milestone") is not None],
     )
-    lanes = [_lane(group, progress=progress, project=project) for group in groups if group["key"] != "none"]
+    lanes = [
+        _lane(group, progress=progress, project=project, statuses=statuses)
+        for group in groups
+        if group["key"] != "none"
+    ]
     loose = next((group for group in groups if group["key"] == "none"), None)
     if loose and loose["tasks"]:
         lanes.append(
@@ -102,7 +108,7 @@ def build_lanes(tasks, axis: str, *, project=None) -> list[dict]:
                 "state_label": "",
                 "countdown": "",
                 "collapsed": False,
-                "cells": _cells(loose["tasks"]),
+                "cells": _cells(loose["tasks"], statuses),
             },
         )
     return lanes
@@ -154,7 +160,7 @@ def _by_epic(tasks) -> list[dict]:
     return groups
 
 
-def _lane(group: dict, *, progress: dict, project=None) -> dict:
+def _lane(group: dict, *, progress: dict, project=None, statuses=None) -> dict:
     """Build one lane from its bucket.
 
     Args:
@@ -170,7 +176,7 @@ def _lane(group: dict, *, progress: dict, project=None) -> dict:
     lane = {
         **_rollup(group["tasks"]),
         "key": group["key"],
-        "cells": _cells(group["tasks"]),
+        "cells": _cells(group["tasks"], statuses),
         "state": "",
         "state_label": "",
         "countdown": "",
@@ -227,20 +233,23 @@ def _rollup(tasks) -> dict:
     }
 
 
-def _cells(tasks) -> list[dict]:
+def _cells(tasks, statuses=None) -> list[dict]:
     """Split a lane's tasks into one cell per kanban status.
 
     Args:
         tasks: The lane's tasks.
+        statuses: The columns this workspace keeps; defaults to all of
+            them, for the callers that have no workspace in hand.
 
     Returns:
         One cell per status, in the board's column order.
     """
-    by_status: dict[str, list] = {status: [] for status in Task.KANBAN_STATUS_VALUES}
+    statuses = tuple(statuses or Task.KANBAN_STATUS_VALUES)
+    by_status: dict[str, list] = {status: [] for status in statuses}
     for task in tasks:
         if task.status in by_status:
             by_status[task.status].append(task)
-    return [{"key": status, "tasks": by_status[status]} for status in Task.KANBAN_STATUS_VALUES]
+    return [{"key": status, "tasks": by_status[status]} for status in statuses]
 
 
 def _count_line(tasks) -> str:

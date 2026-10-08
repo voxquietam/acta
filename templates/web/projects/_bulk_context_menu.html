@@ -157,7 +157,7 @@ workspace (not a task). Expects ``status_labels``, ``priority_labels``,
     <button type="button" @click="view = 'root'" class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[11px] text-placeholder-foreground hover:bg-muted/40 hover:text-foreground mb-1">
       {% lucide "chevron-left" "w-3 h-3" %}<span class="text-subtle-foreground"><span x-text="$store.selection.size"></span> {% trans "tasks" %} <span class="text-placeholder-foreground">›</span> <b class="text-foreground font-medium">{% trans "Status" %}</b></span>
     </button>
-    {% for key, label in status_labels.items %}
+    {% for key, label in status_options %}
     <button type="button" data-mk="{{ forloop.counter }}" @click="bulk({ status: '{{ key }}' })" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left text-xs hover:bg-muted/40 text-muted-foreground hover:text-foreground">
       <span class="w-[7px] h-[7px] rounded-full {% if key == 'planned' %}bg-zinc-500{% elif key == 'ready' %}bg-cyan-500{% elif key == 'to-do' %}bg-blue-500{% elif key == 'in-progress' %}bg-violet-500{% elif key == 'in-review' %}bg-amber-500{% elif key == 'done' %}bg-emerald-500{% else %}bg-zinc-600{% endif %}"></span>
       <span class="flex-1 {% if key == 'cancelled' %}line-through{% endif %}">{{ label }}</span>

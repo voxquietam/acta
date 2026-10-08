@@ -28,6 +28,7 @@ from django.utils.dateparse import parse_datetime
 from django.utils.formats import date_format
 from django.utils.functional import SimpleLazyObject
 from django.utils.translation import gettext_lazy as _
+from django.utils.translation import ngettext
 from django.views.decorators.http import require_POST
 from django.views.generic import DetailView, ListView, TemplateView
 
@@ -97,6 +98,7 @@ from apps.web.nav import resolve_active_workspace, set_active_workspace
 from apps.web.plan import late_days
 from apps.web.url_scoping import project_path, request_workspace_slug, section_path, task_path
 from apps.workspaces.models import Workspace, WorkspaceMember, reserved_workspace_slugs
+from apps.workspaces.services import retire_ready_status
 
 User = get_user_model()
 
@@ -123,6 +125,35 @@ _MY_WORK_BACKLOG_STATUSES = [
     Task.STATUS_PLANNED,
     Task.STATUS_READY,
 ]
+
+
+def _board_statuses(workspace):
+    """Return the columns a workspace keeps, in board order.
+
+    Args:
+        workspace: The workspace in view, or ``None``.
+
+    Returns:
+        The kanban statuses, minus any the workspace retired.
+    """
+    return workspace.board_statuses() if workspace else Task.KANBAN_STATUS_VALUES
+
+
+def _retired_statuses(workspace):
+    """Return the columns a workspace has turned off.
+
+    Hiding and retiring are different things and the board treats them
+    differently: the backlog toggle hides planned and ready client-side
+    so flipping it is instant, while a retired column is not rendered at
+    all — there is nothing to toggle back.
+
+    Args:
+        workspace: The workspace in view, or ``None``.
+
+    Returns:
+        A set of status keys to leave out of the board.
+    """
+    return set(Task.KANBAN_STATUS_VALUES) - set(_board_statuses(workspace))
 
 
 _VIEW_MODES = {"overview", "kanban", "table", "list", "timeline", "plan", "graph", "backlog", "archive"}
@@ -1533,10 +1564,13 @@ class AllTasksView(LoginRequiredMixin, ListView):
                 -t.updated_at.timestamp(),
             ),
         )
-        wip_mode, wip_limits, wip_over = _wip_context(resolve_active_workspace(self.request))
+        workspace = resolve_active_workspace(self.request)
+        wip_mode, wip_limits, wip_over = _wip_context(workspace)
         # All columns (incl. planned / ready) are always built; the kanban
         # hides the planned / ready columns client-side when the backlog
-        # toggle is off (acta.js), so the toggle is instant.
+        # toggle is off (acta.js), so the toggle is instant. A column the
+        # workspace retired is a different matter — it is not hidden, it
+        # is not there.
         return {
             "wip_mode": wip_mode,
             "columns": _build_kanban_columns(
@@ -1544,16 +1578,19 @@ class AllTasksView(LoginRequiredMixin, ListView):
                 wip_mode=wip_mode,
                 wip_limits=wip_limits,
                 over_by_status=wip_over,
+                hide_statuses=_retired_statuses(workspace),
             ),
-            **self._lanes_ctx(kanban_tasks),
+            **self._lanes_ctx(kanban_tasks, statuses=_board_statuses(workspace)),
         }
 
-    def _lanes_ctx(self, kanban_tasks, project=None):
+    def _lanes_ctx(self, kanban_tasks, project=None, statuses=None):
         """The board's lanes, when it is sliced by one.
 
         Args:
             kanban_tasks: The board's tasks, already ordered.
             project: The project in view, or ``None``.
+            statuses: The columns the workspace keeps, so a lane splits
+                the same way the board above it does.
 
         Returns:
             A context dict with ``lanes_axis`` / ``lanes_options`` /
@@ -1563,7 +1600,7 @@ class AllTasksView(LoginRequiredMixin, ListView):
         return {
             "lanes_axis": axis,
             "lanes_options": kanban_lanes.lane_options(axis),
-            "lanes": kanban_lanes.build_lanes(kanban_tasks, axis, project=project),
+            "lanes": kanban_lanes.build_lanes(kanban_tasks, axis, project=project, statuses=statuses),
         }
 
     def _list_axes_ctx(self, table_tasks):
@@ -2994,16 +3031,18 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
                 wip_mode=wip_mode,
                 wip_limits=wip_limits,
                 over_by_status=wip_over,
+                hide_statuses=_retired_statuses(project.workspace),
             ),
-            **self._lanes_ctx(kanban_tasks, project=project),
+            **self._lanes_ctx(kanban_tasks, project=project, statuses=_board_statuses(project.workspace)),
         }
 
-    def _lanes_ctx(self, kanban_tasks, project=None):
+    def _lanes_ctx(self, kanban_tasks, project=None, statuses=None):
         """The board's lanes, when it is sliced by one.
 
         Args:
             kanban_tasks: The board's tasks, already ordered.
             project: The project in view.
+            statuses: The columns the workspace keeps.
 
         Returns:
             A context dict with ``lanes_axis`` / ``lanes_options`` /
@@ -3013,7 +3052,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         return {
             "lanes_axis": axis,
             "lanes_options": kanban_lanes.lane_options(axis),
-            "lanes": kanban_lanes.build_lanes(kanban_tasks, axis, project=project),
+            "lanes": kanban_lanes.build_lanes(kanban_tasks, axis, project=project, statuses=statuses),
         }
 
     def _list_axes_ctx(self, *, table_tasks, project):
@@ -6612,20 +6651,39 @@ def set_workspace_general(request, slug):
     workspace.auto_archive_done_after_days = archive_days
     workspace.allow_member_announcements = bool(request.POST.get("allow_member_announcements"))
     workspace.epics_enabled = bool(request.POST.get("epics_enabled"))
+    keep_ready = bool(request.POST.get("ready_enabled"))
+    retiring_ready = workspace.ready_enabled and not keep_ready
+    workspace.ready_enabled = keep_ready
     workspace.save(
         update_fields=[
             "name",
             "auto_archive_done_after_days",
             "allow_member_announcements",
             "epics_enabled",
+            "ready_enabled",
         ],
     )
+    moved = retire_ready_status(workspace, actor=request.user) if retiring_ready else 0
     if request.headers.get("HX-Request"):
         return _settings_panel_response(
             request,
             "web/workspaces/_settings_general.html",
             _render_workspace_general(workspace, viewer_is_admin=True),
-            toast={"message": str(_("General settings saved.")), "level": "success"},
+            toast={
+                "message": (
+                    str(
+                        ngettext(
+                            "General settings saved. %(count)d task moved to Planned.",
+                            "General settings saved. %(count)d tasks moved to Planned.",
+                            moved,
+                        )
+                        % {"count": moved},
+                    )
+                    if moved
+                    else str(_("General settings saved."))
+                ),
+                "level": "success",
+            },
         )
     return redirect("web:workspace_settings", slug=workspace.slug)
 
@@ -9685,10 +9743,19 @@ def _render_workspace_general(workspace, *, viewer_is_admin):
     Fields read straight off the workspace; ``viewer_is_admin`` is passed
     in (not re-derived) so the full page doesn't repeat the membership
     lookup the members panel already did.
+
+    ``ready_count`` is the price of the Ready toggle, shown before it is
+    paid: a switch that silently restates two hundred tasks is a switch
+    nobody should flip without being told.
     """
     return {
         "workspace": workspace,
         "viewer_is_admin": viewer_is_admin,
+        "ready_count": (
+            Task.objects.filter(project__workspace=workspace, status=Task.STATUS_READY).count()
+            if workspace.ready_enabled
+            else 0
+        ),
     }
 
 
@@ -9808,6 +9875,10 @@ class WorkspaceSettingsView(LoginRequiredMixin, TemplateView):
         # ``viewer_is_admin`` the members panel already computed rather than
         # re-running the membership lookup twice more.
         viewer_is_admin = ctx["viewer_is_admin"]
+        # The General card was the one panel the page built by hand, so
+        # anything its builder adds — the count of work a toggle would
+        # restate — reached the HTMX swap and not the cold load.
+        ctx.update(_render_workspace_general(workspace, viewer_is_admin=viewer_is_admin))
         ctx.update(_render_workspace_wip(workspace, viewer_is_admin=viewer_is_admin))
         ctx.update(_render_workspace_required(workspace, viewer_is_admin=viewer_is_admin))
         ctx.update(_render_workspace_member_defaults(workspace, viewer_is_admin=viewer_is_admin))

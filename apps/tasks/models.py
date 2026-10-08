@@ -724,6 +724,12 @@ class Task(models.Model):
             # labels, members and cycles stop being valid.
             if self.epic.project.workspace_id != self.project.workspace_id:
                 raise ValidationError({"epic": "Epic must be in the same workspace."})
+        if not self.project.workspace.offers_status(self.status):
+            # The column is gone, so the status is not a place a task can
+            # be put. Refusing rather than quietly landing it in planned:
+            # a write that silently becomes a different write is how a
+            # client comes to believe something that is not true.
+            raise ValidationError({"status": "The Ready column is turned off for this workspace."})
         if (self.kind == self.KIND_EPIC or self.epic_id is not None) and not self.project.workspace.epics_enabled:
             # Turning the feature off hides it and refuses new ones; what
             # already exists keeps its tasks and returns on re-enable.

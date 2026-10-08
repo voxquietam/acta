@@ -94,7 +94,7 @@ blocker that's still open (the thing actually blocking this task).
       <button type="button" @click="statusFilter = ''; search()"
               :class="statusFilter === '' ? 'bg-brand-600 text-white' : 'bg-muted text-subtle-foreground'"
               class="text-[10px] px-1.5 py-0.5 rounded">{% trans "Any" %}</button>
-      {% for value, label in status_labels.items %}
+      {% for value, label in status_options %}
       <button type="button" @click="statusFilter = '{{ value }}'; search()"
               :class="statusFilter === '{{ value }}' ? 'bg-brand-600 text-white' : 'bg-muted text-subtle-foreground'"
               class="text-[10px] px-1.5 py-0.5 rounded">{{ label }}</button>
