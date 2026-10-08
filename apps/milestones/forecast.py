@@ -53,14 +53,22 @@ MAX_DAYS = 400
 LIKELY_AT = 70
 UNLIKELY_AT = 30
 
+#: How much of the work — closed and open alike — has to carry an
+#: estimate before the replay counts points instead of tasks. Both sides
+#: have to clear it: a pace in points over a remainder in tasks is not a
+#: ratio of anything. The rest are imputed at the median, so the bar is
+#: about having a sample worth taking a median of, not about perfection.
+NEED_SIZED = 0.7
 
-def forecast(*, closes, remaining, history_days, today, target, seed) -> dict:
+
+def forecast(*, closes, remaining, history_days, today, target, seed, closed_count=None, unit="tasks") -> dict:
     """Return what the recent past says about finishing the remaining work.
 
     Args:
-        closes: One entry per day of the window, oldest first — how many
-            tasks closed on that day. Zeros included and significant.
-        remaining: Counted work still unfinished.
+        closes: One entry per day of the window, oldest first — how much
+            was closed on that day, in whatever ``unit`` says. Zeros
+            included and significant.
+        remaining: Work still unfinished, in the same unit.
         history_days: The span the closes cover, which gates whether an
             answer is offered at all — ten closes inside two days say
             nothing about the next month. Not the width of the replay:
@@ -69,6 +77,12 @@ def forecast(*, closes, remaining, history_days, today, target, seed) -> dict:
         target: The date being aimed at.
         seed: Any integer; the same seed gives the same answer, so a
             refresh does not shuffle the numbers under the reader.
+        closed_count: How many tasks closed, when that is not what
+            ``closes`` holds. The refusal is about having seen enough
+            separate pieces of work to replay; ten points could be one
+            task, and one task is not a rhythm.
+        unit: ``tasks`` or ``points`` — what was counted, for the page
+            to say so.
 
     Returns:
         ``{"state": …}`` and whatever that state carries. ``done`` when
@@ -77,12 +91,13 @@ def forecast(*, closes, remaining, history_days, today, target, seed) -> dict:
     """
     if remaining <= 0:
         return {"state": "done"}
-    closed = sum(closes)
+    closed = sum(closes) if closed_count is None else closed_count
     if closed < NEED_CLOSES or history_days < NEED_HISTORY_DAYS:
         return {
             "state": "thin",
             "closed": closed,
             "window_days": len(closes),
+            "unit": unit,
         }
     lengths = _simulate(closes, remaining, seed)
     to_target = (target - today).days
@@ -95,13 +110,14 @@ def forecast(*, closes, remaining, history_days, today, target, seed) -> dict:
         "passed": to_target < 0,
         "window_days": len(closes),
         "closed": closed,
+        "unit": unit,
         # The pace is the one number that makes every other one on the
         # page checkable: a reader who knows they do not close two a day
         # can dismiss a confident date without doing the division
         # themselves. It is the simulation's own input, closes over the
         # whole window — quiet days included, because the simulation
         # draws those too.
-        "per_day": round(closed / len(closes), 1),
+        "per_day": round(sum(closes) / len(closes), 1),
     }
 
 
@@ -191,20 +207,22 @@ def reading(result: dict) -> str:
     return "coin"
 
 
-def daily_closes(done_days: dict, today, window=WINDOW_DAYS) -> list[int]:
+def daily_closes(done_days: dict, today, window=WINDOW_DAYS, weights=None) -> list:
     """Bucket the days work was finished into the replay window.
 
     Args:
         done_days: ``{task_id: date}`` of when each finished task closed.
         today: Reference date.
         window: How many days back to cover.
+        weights: ``{task_id: points}`` to add instead of one per task,
+            when the replay runs on estimates rather than on counts.
 
     Returns:
-        One count per day, oldest first, length ``window``.
+        One total per day, oldest first, length ``window``.
     """
     counts = [0] * window
-    for day in done_days.values():
+    for task_id, day in done_days.items():
         offset = (today - day).days
         if 0 <= offset < window:
-            counts[window - 1 - offset] += 1
+            counts[window - 1 - offset] += 1 if weights is None else weights.get(task_id, 0)
     return counts

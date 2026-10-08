@@ -47,6 +47,34 @@ def setup(db):
     return workspace, user, backend, infra, milestone
 
 
+def _milestone_event(task, milestone, when):
+    """Record a task joining a milestone at a given moment."""
+    event = ActivityLog.objects.create(
+        workspace=task.project.workspace,
+        project=task.project,
+        target_type=ActivityLog.TARGET_TASK,
+        target_id=task.id,
+        event_type="task.milestone_changed",
+        payload={"from_milestone_id": None, "to_milestone_id": milestone.id},
+    )
+    ActivityLog.objects.filter(pk=event.pk).update(created_at=when)
+    return event
+
+
+def _status_event(task, when):
+    """Record a task becoming done at a given moment."""
+    event = ActivityLog.objects.create(
+        workspace=task.project.workspace,
+        project=task.project,
+        target_type=ActivityLog.TARGET_TASK,
+        target_id=task.id,
+        event_type="task.status_changed",
+        payload={"from": Task.STATUS_TODO, "to": Task.STATUS_DONE},
+    )
+    ActivityLog.objects.filter(pk=event.pk).update(created_at=when)
+    return event
+
+
 @pytest.mark.django_db
 class TestTheList:
     """Every date the workspace aims at, by target date."""
@@ -145,6 +173,48 @@ class TestTheDetailPage:
 
         assert resp.context["state"] == Milestone.STATE_COMPLETE
         assert "ready to close" in resp.content.decode()
+
+    def test_a_points_forecast_says_it_counted_points_and_who_guessed(self, client, setup):
+        """The finer unit must not read as finer data.
+
+        Weighting by estimates is only as good as the estimates, so the
+        page that switches units says so, and names the share an agent
+        made up rather than letting it pass as measurement.
+        """
+        from apps.activity.models import ActivityLog as Log
+
+        workspace, user, backend, _, milestone = setup
+        milestone.target_date = timezone.localdate() + datetime.timedelta(days=60)
+        milestone.save()
+        joined = timezone.now() - datetime.timedelta(days=30)
+        for index in range(12):
+            task = TaskFactory(
+                project=backend,
+                milestone=milestone,
+                status=Task.STATUS_DONE,
+                size=3,
+                size_source=Task.SIZE_BY_AGENT,
+            )
+            _milestone_event(task, milestone, joined)
+            _status_event(task, timezone.now() - datetime.timedelta(days=24 - index * 2))
+        for _index in range(6):
+            task = TaskFactory(
+                project=backend,
+                milestone=milestone,
+                status=Task.STATUS_TODO,
+                size=3,
+                size_source=Task.SIZE_BY_AGENT,
+            )
+            _milestone_event(task, milestone, joined)
+        client.force_login(user)
+
+        resp = client.get(f"/{workspace.slug}/milestones/{milestone.pk}/")
+        body = resp.content.decode()
+
+        assert resp.context["burndown"]["forecast"]["unit"] == "points"
+        assert "points a day" in body
+        assert "100% of the estimates were set by an agent" in body
+        assert Log.objects.exists()
 
     def test_a_milestone_in_another_workspace_is_a_404(self, client, setup):
         workspace, user, _, _, _ = setup

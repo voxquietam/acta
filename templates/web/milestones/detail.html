@@ -201,7 +201,11 @@ quietly swap nothing at all.
           {# divide the remainder by the date to find out what the page  #}
           {# has assumed about them.                                     #}
           <span class="text-[10px] text-placeholder-foreground">
+            {% if fc.unit == "points" %}
+            {% blocktrans with closed=fc.closed days=fc.window_days pace=fc.per_day %}replayed from {{ closed }} closes in {{ days }} days · ≈{{ pace }} points a day{% endblocktrans %}
+            {% else %}
             {% blocktrans with closed=fc.closed days=fc.window_days pace=fc.per_day %}replayed from {{ closed }} closes in {{ days }} days · ≈{{ pace }} a day{% endblocktrans %}
+            {% endif %}
           </span>
           {% endif %}
         </div>
@@ -223,6 +227,17 @@ quietly swap nothing at all.
           {% elif reading == "unlikely" %}{% trans "Most runs finish after the date." %}
           {% else %}{% trans "Runs land on both sides of the date — about as many before it as after." %}{% endif %}
         </p>
+        {% if fc.unit == "points" %}
+        {# Counting tasks assumes they are all the same work. Counting  #}
+        {# points does not — but only as far as the estimates are       #}
+        {# trustworthy, so the page says how many of them an agent made #}
+        {# up rather than letting the finer unit read as finer data.    #}
+        <p class="text-xs text-subtle-foreground mt-1">
+          {% if fc.agent_share %}
+          {% blocktrans with share=fc.agent_share %}Counted in points, not tasks — {{ share }}% of the estimates were set by an agent.{% endblocktrans %}
+          {% else %}{% trans "Counted in points, not tasks." %}{% endif %}
+        </p>
+        {% endif %}
         <div class="flex items-center gap-x-4 gap-y-1 flex-wrap mt-2 text-xs
           {% if reading == 'likely' %}text-emerald-400{% elif reading == 'unlikely' %}text-rose-400{% else %}text-muted-foreground{% endif %}">
           <span class="inline-flex items-center gap-1.5">

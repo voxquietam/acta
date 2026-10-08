@@ -12,6 +12,7 @@ See docs/decisions/0037-milestones.md.
 
 from collections import defaultdict
 import datetime
+import statistics
 
 from django.db.models import Q
 from django.utils import timezone
@@ -808,6 +809,51 @@ def _done_days(task_ids: list[int]) -> dict[int, datetime.date]:
     return done
 
 
+def _estimate_basis(sizes: dict, sources: dict, closed_ids: list[int], open_ids: list[int]) -> dict | None:
+    """Return the points to replay in, or ``None`` to fall back to counting.
+
+    Counting tasks assumes every task is the same work, which is the
+    assumption a reader notices first and believes least: the easy ones
+    went early, and what is left is left because it is harder. Estimates
+    fix that — when there are enough of them.
+
+    Both sides have to clear the bar. A pace measured in points against
+    a remainder measured in tasks is not a ratio of anything, and the
+    half-covered case is the one that would read as precision while
+    being neither.
+
+    The tasks without an estimate are imputed at the median of those
+    that have one. Dropping them would quietly shrink both the pace and
+    the remainder; imputing keeps the totals whole and costs only the
+    accuracy that was already missing.
+
+    Args:
+        sizes: ``{task_id: size_or_None}`` across the milestone.
+        sources: ``{task_id: size_source_or_None}``.
+        closed_ids: Tasks whose close falls inside the replay window.
+        open_ids: Counted work still unfinished.
+
+    Returns:
+        ``{"weights": …, "remaining": …, "agent_share": …}``, or ``None``
+        when either side is too bare to weigh.
+    """
+    if not closed_ids or not open_ids:
+        return None
+    estimated = [task_id for task_id in sizes if sizes.get(task_id)]
+    for side in (closed_ids, open_ids):
+        covered = sum(1 for task_id in side if sizes.get(task_id))
+        if covered / len(side) < forecast.NEED_SIZED:
+            return None
+    typical = statistics.median(sizes[task_id] for task_id in estimated)
+    weights = {task_id: sizes.get(task_id) or typical for task_id in sizes}
+    by_agent = sum(1 for task_id in estimated if sources.get(task_id) == Task.SIZE_BY_AGENT)
+    return {
+        "weights": weights,
+        "remaining": sum(weights[task_id] for task_id in open_ids),
+        "agent_share": round(by_agent / len(estimated) * 100),
+    }
+
+
 def burndown(milestone, today=None) -> dict | None:
     """Return the burndown series for a milestone, ready for Chart.js.
 
@@ -849,6 +895,11 @@ def burndown(milestone, today=None) -> dict | None:
     created_days = dict(
         Task.objects.filter(id__in=ever_ids).values_list("id", "created_at"),
     )
+    sizes = {}
+    size_sources = {}
+    for task_id, size, source in Task.objects.filter(id__in=ever_ids).values_list("id", "size", "size_source"):
+        sizes[task_id] = size
+        size_sources[task_id] = source
     ever_ids = [task_id for task_id in ever_ids if task_id in statuses]
     done_days = _done_days(ever_ids)
     joined_fallback = max(
@@ -875,16 +926,23 @@ def burndown(milestone, today=None) -> dict | None:
     # running for two months has two months of history, and asking it to
     # wait three weeks would be asking about the wrong thing. Same rule
     # as the cycle card, for the same reason.
-    closes = forecast.daily_closes(done_days, today)
-    oldest = min((day for day in done_days.values() if 0 <= (today - day).days < forecast.WINDOW_DAYS), default=None)
+    in_window = [task_id for task_id, day in done_days.items() if 0 <= (today - day).days < forecast.WINDOW_DAYS]
+    open_ids = [task_id for task_id in now_ids if statuses.get(task_id) != Task.STATUS_DONE]
+    basis = _estimate_basis(sizes, size_sources, in_window, open_ids)
+    closes = forecast.daily_closes(done_days, today, weights=basis["weights"] if basis else None)
+    oldest = min((done_days[task_id] for task_id in in_window), default=None)
     outlook = forecast.forecast(
         closes=closes,
-        remaining=open_now,
+        remaining=basis["remaining"] if basis else open_now,
         history_days=(today - oldest).days if oldest else 0,
         today=today,
         target=milestone.target_date,
         seed=milestone.id,
+        closed_count=len(in_window),
+        unit="points" if basis else "tasks",
     )
+    if basis:
+        outlook["agent_share"] = basis["agent_share"]
     reading = forecast.reading(outlook)
     if outlook.get("passed"):
         # The page says how long ago, and only the caller knows "ago".

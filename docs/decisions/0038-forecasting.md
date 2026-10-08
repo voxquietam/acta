@@ -105,6 +105,50 @@ window that are now the same measurement, where before it could read
 "63 tasks closed in the last 1 days" — the count over four weeks, the
 window over the milestone's age.
 
+### Points when there are points, tasks when there are not
+
+Replaying task counts assumes every task is the same work. It is the
+assumption a reader notices first and believes least — the easy work
+went early, and what remains is what remains because it is harder, so
+"twelve closed, twelve left" is not two equal fortnights.
+
+`Task.size` already exists. When **both** sides clear `NEED_SIZED` — the
+closes inside the window and the open work alike — the replay runs on
+points instead: the daily buckets hold points closed, the remainder is
+points open, and the percentiles come out of the same simulation. Below
+that bar it counts tasks, as before.
+
+Both sides have to clear it because a pace in points over a remainder in
+tasks is not a ratio of anything, and the half-covered case is the one
+that reads as precision while being neither. Tasks with no estimate are
+imputed at the median of those that have one: dropping them would
+quietly shrink the pace and the remainder together, while imputing keeps
+the totals whole and costs only an accuracy that was already missing.
+
+The refusal stays in tasks. Ten points can be one task, and one task is
+not a rhythm — so `NEED_CLOSES` counts closes, whatever the replay is
+weighing.
+
+### An estimate is only as good as who made it
+
+An agent will fill an estimate in where a person would have left it
+blank, which is how coverage ever reaches the bar — see the MCP tool
+rule. That is worth having: a consistent guess beats treating a
+thirteen as a one. But a guess that the page then quotes back as a date
+is the page quoting itself.
+
+So `Task.size_source` records where each estimate came from. The
+channel answers it everywhere but MCP: a size that arrives from the web
+was typed by whoever was looking at the task. Through MCP, a number the
+person dictated and a number the agent invented arrive identically, so
+the tool declares it with `size_from_user`, and silence is read as the
+agent. The default is the weaker claim on purpose — forgetting to say
+so costs an estimate some trust, where the opposite default would let a
+guess pass as evidence.
+
+A points forecast therefore prints what share of its estimates an agent
+made up, next to the dates. The finer unit must not read as finer data.
+
 ### Parameters
 
 | Knob | Value | Why |
@@ -114,6 +158,7 @@ window over the milestone's age.
 | Horizon | 400 days | Beyond a year the number is noise, and an unbounded loop on a stalled milestone is a hung request |
 | Reported | P50, P85, P(≤ target) | One honest headline plus the band behind it |
 | Floor | none | Replaced by the refusal above |
+| Estimate coverage | 70% of each side | Enough of a sample to take a median of; below it, count tasks |
 
 Cost lands between 11 ms and 37 ms, the slow end being a milestone whose
 work is a year out. It is arithmetic over data `burndown()` has already

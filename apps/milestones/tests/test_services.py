@@ -1112,3 +1112,95 @@ class TestNarrowingTheList:
         assert projects == {"FBK": 3, "FIN": 2}
         assert [cell["owner"] for cell in facets["owners"]] == [owner]
         assert facets["at_risk"] == 1
+
+
+class TestCountingInPoints:
+    """When the estimates are there, the replay stops counting heads.
+
+    The milestone that reads as unbelievable is the one whose easy work
+    went first: ten tasks closed and ten tasks left are not the same
+    thirty days. Points say so; counts cannot.
+    """
+
+    def _sized(self, backend, milestone, *, closed, open_tasks, closed_size, open_size, source=None):
+        """Seed a replayable milestone whose work carries estimates."""
+        source = source or Task.SIZE_BY_HUMAN
+        joined = timezone.now() - datetime.timedelta(days=30)
+        for index in range(closed):
+            task = TaskFactory(
+                project=backend,
+                milestone=milestone,
+                status=Task.STATUS_DONE,
+                size=closed_size,
+                size_source=source,
+            )
+            milestone_event(task, milestone, joined)
+            ago = 24 - index * 24 // max(1, closed - 1)
+            status_event(task, Task.STATUS_DONE, timezone.now() - datetime.timedelta(days=ago))
+        for _index in range(open_tasks):
+            task = TaskFactory(
+                project=backend,
+                milestone=milestone,
+                status=Task.STATUS_TODO,
+                size=open_size,
+                size_source=source,
+            )
+            milestone_event(task, milestone, joined)
+
+    def test_a_heavy_remainder_is_not_a_light_one(self, scope):
+        """Same task counts, different work — and the dates differ."""
+        backend, _, milestone = scope
+        today = timezone.localdate()
+        milestone.target_date = today + datetime.timedelta(days=90)
+        milestone.save()
+        self._sized(backend, milestone, closed=12, open_tasks=12, closed_size=1, open_size=13)
+
+        chart = services.burndown(milestone, today=today)
+
+        assert chart["forecast"]["unit"] == "points"
+        # Twelve ones closed, twelve thirteens left: counting heads would
+        # call that done in a fortnight.
+        assert (chart["forecast"]["p50"] - today).days > 60
+
+    def test_the_refusal_still_counts_tasks_not_points(self, scope):
+        """Ten points could be one task, and one task is not a rhythm."""
+        backend, _, milestone = scope
+        today = timezone.localdate()
+        self._sized(backend, milestone, closed=3, open_tasks=5, closed_size=13, open_size=13)
+
+        chart = services.burndown(milestone, today=today)
+
+        assert chart["reading"] == "thin"
+        assert chart["forecast"]["closed"] == 3
+
+    def test_too_few_estimates_falls_back_to_counting(self, scope):
+        backend, _, milestone = scope
+        today = timezone.localdate()
+        milestone.target_date = today + datetime.timedelta(days=30)
+        milestone.save()
+        self._sized(backend, milestone, closed=12, open_tasks=6, closed_size=None, open_size=None)
+
+        chart = services.burndown(milestone, today=today)
+
+        assert chart["forecast"]["unit"] == "tasks"
+        assert "agent_share" not in chart["forecast"]
+
+    def test_the_page_is_told_how_much_of_it_a_machine_made_up(self, scope):
+        backend, _, milestone = scope
+        today = timezone.localdate()
+        milestone.target_date = today + datetime.timedelta(days=60)
+        milestone.save()
+        self._sized(
+            backend,
+            milestone,
+            closed=12,
+            open_tasks=8,
+            closed_size=3,
+            open_size=3,
+            source=Task.SIZE_BY_AGENT,
+        )
+
+        chart = services.burndown(milestone, today=today)
+
+        assert chart["forecast"]["unit"] == "points"
+        assert chart["forecast"]["agent_share"] == 100
