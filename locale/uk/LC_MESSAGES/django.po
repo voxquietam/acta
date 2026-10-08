@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Acta 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-08 08:28+0000\n"
+"POT-Creation-Date: 2026-10-08 08:40+0000\n"
 "PO-Revision-Date: 2026-05-16 15:30+0000\n"
 "Last-Translator: Acta team\n"
 "Language-Team: Ukrainian\n"
@@ -49,7 +49,7 @@ msgid "Invites"
 msgstr "Запрошення"
 
 #: acta/settings/base.py:602 acta/settings/base.py:606
-#: apps/projects/models.py:114 apps/web/views.py:10778 apps/web/views.py:10826
+#: apps/projects/models.py:114 apps/web/views.py:10782 apps/web/views.py:10830
 #: templates/base_app.html:165 templates/base_app.html:166
 #: templates/web/_command_palette.html:416
 #: templates/web/_command_palette.html:422 templates/web/epics.html:187
@@ -62,7 +62,7 @@ msgstr "Проєкти"
 msgid "Project updates"
 msgstr "Оновлення проєктів"
 
-#: acta/settings/base.py:618 acta/settings/base.py:622 apps/web/views.py:10824
+#: acta/settings/base.py:618 acta/settings/base.py:622 apps/web/views.py:10828
 #: templates/web/_command_palette.html:418
 #: templates/web/_command_palette.html:421
 #: templates/web/cycles/overview.html:185
@@ -349,7 +349,7 @@ msgstr "Завершено"
 msgid "Cycle"
 msgstr "Цикл"
 
-#: apps/cycles/models.py:78 apps/web/views.py:10782 templates/base_app.html:192
+#: apps/cycles/models.py:78 apps/web/views.py:10786 templates/base_app.html:192
 #: templates/base_app.html:193 templates/web/_inbox_preview.html:48
 #: templates/web/cycles/overview.html:15 templates/web/cycles/overview.html:19
 #: templates/web/workspaces/_settings_cycles.html:16
@@ -763,7 +763,7 @@ msgstr "Сповіщення"
 msgid "Notifications"
 msgstr "Сповіщення"
 
-#: apps/projects/models.py:11 apps/web/views.py:10104
+#: apps/projects/models.py:11 apps/web/views.py:10108
 msgid "Slug prefix must be 2–6 uppercase Latin letters."
 msgstr "Префікс slug має містити 2–6 великих латинських літер."
 
@@ -779,7 +779,7 @@ msgstr "Префікс slug має містити 2–6 великих лати�
 msgid "Project"
 msgstr "Проєкт"
 
-#: apps/projects/models.py:140 apps/web/views.py:10122
+#: apps/projects/models.py:140 apps/web/views.py:10126
 msgid "Lead must be a member of the project's workspace."
 msgstr "Лід повинен бути учасником робочого простору проєкту."
 
@@ -1323,7 +1323,7 @@ msgstr "Контекст"
 
 #: apps/web/create_dialog.py:112
 #: templates/web/projects/_bulk_context_menu.html:217
-#: templates/web/projects/_size_cell.html:60
+#: templates/web/projects/_size_cell.html:73
 #: templates/web/projects/_task_context_menu.html:328
 msgid "No size"
 msgstr "Без розміру"
@@ -2050,10 +2050,14 @@ msgstr "Простір «%(name)s» видалено."
 #, python-format
 msgid "General settings saved. %(count)d task moved to Planned."
 msgid_plural "General settings saved. %(count)d tasks moved to Planned."
-msgstr[0] "Загальні налаштування збережено. %(count)d задача переїхала в Planned."
-msgstr[1] "Загальні налаштування збережено. %(count)d задачі переїхали в Planned."
-msgstr[2] "Загальні налаштування збережено. %(count)d задач переїхало в Planned."
-msgstr[3] "Загальні налаштування збережено. %(count)d задачі переїхали в Planned."
+msgstr[0] ""
+"Загальні налаштування збережено. %(count)d задача переїхала в Planned."
+msgstr[1] ""
+"Загальні налаштування збережено. %(count)d задачі переїхали в Planned."
+msgstr[2] ""
+"Загальні налаштування збережено. %(count)d задач переїхало в Planned."
+msgstr[3] ""
+"Загальні налаштування збережено. %(count)d задачі переїхали в Planned."
 
 #: apps/web/views.py:6683
 msgid "General settings saved."
@@ -2081,7 +2085,7 @@ msgid "Created %(slug)s"
 msgstr "Створено %(slug)s"
 
 #: apps/web/views.py:9624 apps/web/views.py:9668 apps/web/views.py:9695
-#: apps/web/views.py:9917 apps/web/views.py:9949 apps/web/views.py:9974
+#: apps/web/views.py:9921 apps/web/views.py:9953 apps/web/views.py:9978
 msgid "Admin or owner only"
 msgstr "Тільки для адміна або власника"
 
@@ -2089,7 +2093,7 @@ msgstr "Тільки для адміна або власника"
 msgid "Email is required"
 msgstr "Email обов'язковий"
 
-#: apps/web/views.py:9636 apps/web/views.py:9924 apps/web/views.py:9957
+#: apps/web/views.py:9636 apps/web/views.py:9928 apps/web/views.py:9961
 msgid "Invalid role"
 msgstr "Неправильна роль"
 
@@ -2137,174 +2141,174 @@ msgstr "Учасник"
 msgid "Admin"
 msgstr "Адміністратор"
 
-#: apps/web/views.py:9921
+#: apps/web/views.py:9925
 msgid "Invalid user_id"
 msgstr "Неправильний user_id"
 
-#: apps/web/views.py:9929
+#: apps/web/views.py:9933
 msgid "Cannot add another owner"
 msgstr "Не можна додати ще одного власника"
 
-#: apps/web/views.py:9932
+#: apps/web/views.py:9936
 msgid "User not found"
 msgstr "Користувача не знайдено"
 
-#: apps/web/views.py:9934
+#: apps/web/views.py:9938
 msgid "User already a member"
 msgstr "Користувач вже є учасником"
 
-#: apps/web/views.py:9952 apps/web/views.py:9977
+#: apps/web/views.py:9956 apps/web/views.py:9981
 msgid "Not a member"
 msgstr "Не є учасником"
 
-#: apps/web/views.py:9954
+#: apps/web/views.py:9958
 msgid "Transfer ownership first"
 msgstr "Спочатку передай право власності"
 
-#: apps/web/views.py:9959
+#: apps/web/views.py:9963
 msgid "Ownership transfer not supported here"
 msgstr "Передача права власності тут не підтримується"
 
-#: apps/web/views.py:9979
+#: apps/web/views.py:9983
 msgid "Cannot remove owner"
 msgstr "Не можна видалити власника"
 
-#: apps/web/views.py:10088
+#: apps/web/views.py:10092
 msgid "Invalid workspace"
 msgstr "Неправильний робочий простір"
 
-#: apps/web/views.py:10094
+#: apps/web/views.py:10098
 msgid "Workspace not accessible"
 msgstr "Робочий простір недоступний"
 
-#: apps/web/views.py:10098 apps/web/views.py:10208
+#: apps/web/views.py:10102 apps/web/views.py:10212
 msgid "Name is required"
 msgstr "Ім'я обов'язкове"
 
-#: apps/web/views.py:10100 apps/web/views.py:10210
+#: apps/web/views.py:10104 apps/web/views.py:10214
 msgid "Name too long"
 msgstr "Назва задовга"
 
-#: apps/web/views.py:10106
+#: apps/web/views.py:10110
 msgid "Slug prefix already used in this workspace"
 msgstr "Префікс slug вже використовується в цьому робочому просторі"
 
-#: apps/web/views.py:10116
+#: apps/web/views.py:10120
 msgid "Invalid lead"
 msgstr "Неправильний лід"
 
-#: apps/web/views.py:10216
+#: apps/web/views.py:10220
 msgid "Invalid slug"
 msgstr "Неправильний slug"
 
-#: apps/web/views.py:10218 apps/workspaces/models.py:344
+#: apps/web/views.py:10222 apps/workspaces/models.py:344
 msgid "This name is reserved. Pick another."
 msgstr "Це імʼя зарезервоване. Оберіть інше."
 
-#: apps/web/views.py:10220
+#: apps/web/views.py:10224
 msgid "Slug already taken"
 msgstr "Slug вже зайнятий"
 
-#: apps/web/views.py:10232
+#: apps/web/views.py:10236
 msgid "Cannot generate unique slug"
 msgstr "Не вдалось згенерувати унікальний slug"
 
-#: apps/web/views.py:10486 apps/web/views.py:10489
+#: apps/web/views.py:10490 apps/web/views.py:10493
 msgid "Unknown label group."
 msgstr "Невідома група міток."
 
-#: apps/web/views.py:10506 apps/web/views.py:10532
+#: apps/web/views.py:10510 apps/web/views.py:10536
 msgid "Group name is required."
 msgstr "Потрібно вказати назву групи."
 
-#: apps/web/views.py:10510 apps/web/views.py:10537
+#: apps/web/views.py:10514 apps/web/views.py:10541
 msgid "A group with that name already exists."
 msgstr "Група з такою назвою вже існує."
 
-#: apps/web/views.py:10520
+#: apps/web/views.py:10524
 msgid "Group created."
 msgstr "Групу створено."
 
-#: apps/web/views.py:10555
+#: apps/web/views.py:10559
 msgid "Group deleted. Its labels moved to Ungrouped."
 msgstr "Групу видалено. Її мітки переміщено до «Без групи»."
 
-#: apps/web/views.py:10566 apps/web/views.py:10597
+#: apps/web/views.py:10570 apps/web/views.py:10601
 msgid "Label name is required."
 msgstr "Потрібно вказати назву мітки."
 
-#: apps/web/views.py:10569 apps/web/views.py:10600
+#: apps/web/views.py:10573 apps/web/views.py:10604
 msgid "Pick a colour from the palette."
 msgstr "Виберіть колір з палітри."
 
-#: apps/web/views.py:10574 apps/web/views.py:10606
+#: apps/web/views.py:10578 apps/web/views.py:10610
 msgid "A label with that name already exists in this workspace."
 msgstr "Мітка з такою назвою вже існує в цьому воркспейсі."
 
-#: apps/web/views.py:10585
+#: apps/web/views.py:10589
 msgid "Label created."
 msgstr "Мітку створено."
 
-#: apps/web/views.py:10631
+#: apps/web/views.py:10635
 msgid "Label deleted."
 msgstr "Мітку видалено."
 
-#: apps/web/views.py:10774 templates/base_app.html:122
+#: apps/web/views.py:10778 templates/base_app.html:122
 #: templates/base_app.html:123 templates/web/dashboard.html:4
 #: templates/web/dashboard.html:7
 msgid "Dashboard"
 msgstr "Панель"
 
-#: apps/web/views.py:10775 templates/base_app.html:128
+#: apps/web/views.py:10779 templates/base_app.html:128
 #: templates/base_app.html:129 templates/web/inbox.html:14
 msgid "Inbox"
 msgstr "Вхідні"
 
-#: apps/web/views.py:10776 templates/base_app.html:141
+#: apps/web/views.py:10780 templates/base_app.html:141
 #: templates/base_app.html:142 templates/web/my_work.html:6
 #: templates/web/my_work.html:9
 msgid "My Work"
 msgstr "Моя робота"
 
-#: apps/web/views.py:10777 templates/base_app.html:147
+#: apps/web/views.py:10781 templates/base_app.html:147
 #: templates/base_app.html:148 templates/web/all_tasks.html:6
 #: templates/web/all_tasks.html:9
 msgid "All Tasks"
 msgstr "Усі задачі"
 
-#: apps/web/views.py:10779 templates/base_app.html:135
+#: apps/web/views.py:10783 templates/base_app.html:135
 #: templates/base_app.html:136 templates/web/my_activity.html:11
 msgid "My activity"
 msgstr "Моя активність"
 
-#: apps/web/views.py:10783
+#: apps/web/views.py:10787
 msgid "Account settings"
 msgstr "Налаштування акаунта"
 
-#: apps/web/views.py:10788 templates/base_app.html:271
+#: apps/web/views.py:10792 templates/base_app.html:271
 #: templates/web/cycles/overview.html:38
 #: templates/web/workspaces/settings.html:20
 #: templates/web/workspaces/settings.html:59
 msgid "Workspace settings"
 msgstr "Налаштування робочого простору"
 
-#: apps/web/views.py:10807 templates/base_app.html:416
+#: apps/web/views.py:10811 templates/base_app.html:416
 #: templates/base_app.html:418 templates/web/_create_task_modal.html:52
 #: templates/web/projects/_kanban.html:128
 msgid "New task"
 msgstr "Нова задача"
 
-#: apps/web/views.py:10812
+#: apps/web/views.py:10816
 #, python-format
 msgid "New task in %(name)s"
 msgstr "Нова задача в %(name)s"
 
-#: apps/web/views.py:10825 templates/web/_command_palette.html:415
+#: apps/web/views.py:10829 templates/web/_command_palette.html:415
 #: templates/web/_command_palette.html:423
 msgid "Quick actions"
 msgstr "Швидкі дії"
 
-#: apps/web/views.py:10827 templates/web/_command_palette.html:417
+#: apps/web/views.py:10831 templates/web/_command_palette.html:417
 #: templates/web/_command_palette.html:425
 msgid "Navigation"
 msgstr "Навігація"
@@ -4130,6 +4134,10 @@ msgstr "Перевести в %(label)s"
 msgid "Filter by size"
 msgstr "Фільтрувати за розміром"
 
+#: templates/web/_task_row.html:94 templates/web/projects/_task_card.html:97
+msgid "Estimated by an agent"
+msgstr "Оцінку поставив агент"
+
 #: templates/web/_task_row.html:145
 #: templates/web/meetings/_meetings_inner.html:33
 #: templates/web/projects/_table_row.html:171
@@ -5326,7 +5334,7 @@ msgid "Assign to…"
 msgstr "Призначити…"
 
 #: templates/web/projects/_bulk_context_menu.html:87
-#: templates/web/projects/_size_cell.html:37
+#: templates/web/projects/_size_cell.html:50
 #: templates/web/projects/_task_context_menu.html:83
 msgid "Set size"
 msgstr "Змінити розмір"
@@ -6191,6 +6199,10 @@ msgstr "Типовий колір"
 #: templates/web/projects/_project_icon_picker.html:146
 msgid "Default"
 msgstr "Типовий"
+
+#: templates/web/projects/_size_cell.html:43
+msgid "Estimated by an agent — set it yourself if this is wrong"
+msgstr "Оцінку поставив агент — вкажіть свою, якщо вона хибна"
 
 #: templates/web/projects/_start_date_cell.html:20
 msgid "No start date"
