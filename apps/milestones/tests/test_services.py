@@ -542,6 +542,43 @@ class TestBurndown:
         # The two paces are what the page says instead of a date.
         assert chart["forecast"]["arrive_per_day"] > chart["forecast"]["per_day"]
 
+    def test_the_fan_starts_where_the_remaining_line_stops(self, scope):
+        """They are read from different places and must still meet.
+
+        The remaining line replays the activity log; the status field is
+        now. A milestone whose closings were imported without events has
+        the two disagreeing, and a fan that begins in mid-air above the
+        line it continues is a chart arguing with itself.
+        """
+        backend, _, milestone = scope
+        today = timezone.localdate()
+        milestone.target_date = today + datetime.timedelta(days=45)
+        milestone.save()
+        self._replayable(backend, milestone, closed=12, open_tasks=10)
+        # Done, but with no closing event — the shape an import leaves.
+        for _index in range(4):
+            imported = TaskFactory(project=backend, milestone=milestone, status=Task.STATUS_DONE)
+            milestone_event(imported, milestone, timezone.now() - datetime.timedelta(days=20))
+
+        chart = services.burndown(milestone, today=today)
+        here = chart["today_index"]
+
+        assert chart["p50_line"][here] == chart["remaining"][here]
+        assert chart["p85_line"][here] == chart["remaining"][here]
+
+    def test_counting_heads_leaves_the_chart_in_heads(self, scope):
+        """Without estimates the axis stays where it always was."""
+        backend, _, milestone = scope
+        today = timezone.localdate()
+        milestone.target_date = today + datetime.timedelta(days=30)
+        milestone.save()
+        self._replayable(backend, milestone, closed=12, open_tasks=8)
+
+        chart = services.burndown(milestone, today=today)
+
+        assert chart["unit"] == "tasks"
+        assert chart["scope"][chart["today_index"]] == 20
+
     def test_a_milestone_filled_over_two_days_is_not_told_it_never_ends(self, scope):
         """The defect that reached production, as the page met it.
 
@@ -1279,6 +1316,40 @@ class TestCountingInPoints:
         # Twelve ones closed, twelve thirteens left: counting heads would
         # call that done in a fortnight.
         assert (chart["forecast"]["p50"] - today).days > 60
+
+    def test_the_chart_is_drawn_in_whatever_the_forecast_counted(self, scope):
+        """The axis and the pace have to be divisible by each other.
+
+        A burn-down in tasks under a pace in points invites the reader to
+        divide one by the other: sixty-eight left at six a day is eleven
+        days, while the projection in front of them lands fifty out. Both
+        numbers are right and the division means nothing, which is worse
+        than either of them being wrong.
+        """
+        backend, _, milestone = scope
+        today = timezone.localdate()
+        milestone.target_date = today + datetime.timedelta(days=90)
+        milestone.save()
+        self._sized(backend, milestone, closed=12, open_tasks=8, closed_size=3, open_size=5)
+
+        chart = services.burndown(milestone, today=today)
+        here = chart["today_index"]
+
+        assert chart["unit"] == "points"
+        # Twenty tasks in scope, worth 12×3 + 8×5 = 76 points.
+        assert chart["scope"][here] == 76
+        # Eight open fives, not eight tasks — and the projections start
+        # from the same number they will burn down.
+        assert chart["remaining"][here] == 40
+        assert chart["p50_line"][here] == 40
+        assert chart["p50_line"][here] == chart["remaining"][here]
+        # The ideal line runs the whole scope down to zero on the date,
+        # so it starts at the scope — in points, not at twenty tasks.
+        assert chart["ideal"][0] == 76
+        # The sentences stay in tasks: "8 still open" is eight things a
+        # person can go and look at.
+        assert chart["open"] == 8
+        assert chart["total"] == 20
 
     def test_the_refusal_still_counts_tasks_not_points(self, scope):
         """Ten points could be one task, and one task is not a rhythm."""

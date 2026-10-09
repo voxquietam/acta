@@ -1000,6 +1000,12 @@ def burndown(milestone, today=None) -> dict | None:
         today,
         min(far, milestone.target_date + datetime.timedelta(days=PROJECTION_HORIZON_DAYS)) if far else today,
     )
+    # The chart speaks whatever unit the forecast settled on. Drawing the
+    # burn-down in tasks under a pace in points leaves a reader dividing
+    # one by the other — sixty-eight left at six a day is eleven days,
+    # and the line in front of them lands fifty days out. Both numbers
+    # were right and the division was meaningless, which is worse than
+    # either being wrong.
     labels = []
     scope = []
     remaining = []
@@ -1008,22 +1014,36 @@ def burndown(milestone, today=None) -> dict | None:
         labels.append(day.isoformat())
         in_scope = [task_id for task_id in ever_ids if _in_milestone(history[task_id], day)]
         if day <= today:
-            scope.append(len(in_scope))
+            scope.append(_weigh(in_scope, weights))
             remaining.append(
-                sum(1 for task_id in in_scope if not (task_id in done_days and done_days[task_id] <= day)),
+                _weigh(
+                    [task_id for task_id in in_scope if not (task_id in done_days and done_days[task_id] <= day)],
+                    weights,
+                ),
             )
         else:
             scope.append(None)
             remaining.append(None)
         day += datetime.timedelta(days=1)
     span_days = max(1, (milestone.target_date - start).days)
+    drawn_total = _weigh(now_ids, weights)
     ideal = []
     for index, label in enumerate(labels):
         offset = (datetime.date.fromisoformat(label) - start).days
-        ideal.append(round(total * max(0, span_days - offset) / span_days, 2) if offset <= span_days else 0)
+        ideal.append(round(drawn_total * max(0, span_days - offset) / span_days, 2) if offset <= span_days else 0)
     today_index = (today - start).days
-    p50_line = _straight_down(labels, today_index, open_now, outlook.get("p50"), start)
-    p85_line = _straight_down(labels, today_index, open_now, outlook.get("p85"), start)
+    # The projections start where the remaining line stops, not from the
+    # status field. The two are read from different places — the line
+    # replays the log, the field is now — and on a milestone whose
+    # history was imported they disagree, which draws a fan that begins
+    # in mid-air above the line it continues.
+    drawn_open = (
+        remaining[today_index]
+        if 0 <= today_index < len(remaining) and remaining[today_index] is not None
+        else (basis["remaining"] if basis else open_now)
+    )
+    p50_line = _straight_down(labels, today_index, drawn_open, outlook.get("p50"), start)
+    p85_line = _straight_down(labels, today_index, drawn_open, outlook.get("p85"), start)
     scope_moves = sum(
         1 for index in range(1, today_index + 1) if index < len(scope) and scope[index] != scope[index - 1]
     )
@@ -1036,6 +1056,10 @@ def burndown(milestone, today=None) -> dict | None:
         "p85_line": p85_line,
         "total": total,
         "open": open_now,
+        # What the lines are drawn in, for the axis to say so. The counts
+        # above stay in tasks: they are read aloud in sentences, where
+        # "12 still open" means twelve things someone can go and look at.
+        "unit": outlook.get("unit", "tasks"),
         "today_index": today_index,
         "target_index": (milestone.target_date - start).days,
         "forecast": outlook,
@@ -1052,6 +1076,22 @@ def burndown(milestone, today=None) -> dict | None:
             else _("no work joined or left")
         ),
     }
+
+
+def _weigh(task_ids, weights: dict | None):
+    """Return what a set of tasks is worth in the chart's unit.
+
+    Args:
+        task_ids: The tasks to measure.
+        weights: ``{task_id: points}`` when the forecast settled on
+            points, or ``None`` to count tasks.
+
+    Returns:
+        The points they carry, or how many of them there are.
+    """
+    if weights is None:
+        return len(task_ids)
+    return round(sum(weights.get(task_id, 0) for task_id in task_ids), 2)
 
 
 def _in_milestone(spans: list[list], day: datetime.date) -> bool:

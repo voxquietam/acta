@@ -610,7 +610,20 @@ quietly swap nothing at all.
               },
             },
           },
-          y: { beginAtZero: true, grid: { color: gridColor }, ticks: { color: tickColor, font: { size: 10 }, precision: 0 } },
+          {# The axis names its unit, because the card quotes a pace in the #}
+          {# same breath and the reader is meant to be able to divide one by #}
+          {# the other. Both halves speak points, or both speak tasks.       #}
+          y: {
+            beginAtZero: true,
+            grid: { color: gridColor },
+            ticks: { color: tickColor, font: { size: 10 }, precision: 0 },
+            title: {
+              display: true,
+              text: "{% if burndown.unit == 'points' %}{% trans 'points' context 'chart axis' %}{% else %}{% trans 'tasks' context 'chart axis' %}{% endif %}",
+              color: tickColor,
+              font: { size: 10 },
+            },
+          },
         },
       },
       plugins: [markers],
@@ -635,6 +648,7 @@ quietly swap nothing at all.
       chart.options.scales.y.grid.color = ink.grid;
       chart.options.scales.x.ticks.color = ink.tick;
       chart.options.scales.y.ticks.color = ink.tick;
+      chart.options.scales.y.title.color = ink.tick;
       chart.options.plugins.legend.labels.color = ink.tick;
       chart.update("none");
     };
