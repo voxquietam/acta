@@ -216,16 +216,55 @@ Behaviour (see ADR 0002 update): an existing account logs in when its
 verified Google email matches; a brand-new account is created via Google
 only when an active workspace invite for that exact email is in flight.
 
+## Redis
+
+A third service (`acta.redis`), added because two things in the app
+assumed there is exactly one web process and neither said so:
+
+* **SSE fan-out.** `send_event` hands an event to the listeners held by
+  the process that wrote it. Anything written elsewhere — a qcluster
+  job, a `manage.py` command — reached the event table but no open
+  browser, and clients only saw it on their next reconnect. With Redis
+  the event is published and every process delivers it to its own
+  listeners.
+* **The shared cache.** With no `CACHES` setting Django uses per-process
+  memory, and the MCP rate limiter counts requests in it
+  (`apps/mcp/auth.py`). Each worker, and the stdio MCP server, had a
+  bucket of its own — so the ceiling was silently multiplied. It is one
+  counter now.
+
+**It holds nothing that cannot be rebuilt**, so it runs with persistence
+off (`--save "" --appendonly no`) and is not part of the backup story.
+Losing it costs a minute of rate-limit history; events are still written
+to the database and clients pick them up on reconnect.
+
+Both uses are opt-in on `REDIS_URL`. Leave it empty and the app behaves
+exactly as it did before — correct for a single web worker, wrong for
+two. That is also what the test suite runs with.
+
+**On deploy:** `make deploy` runs `docker compose up -d --build` with no
+service argument, which builds both images and brings the new `redis`
+service up — nothing extra to do. Rebuilding by hand is the trap: the
+`redis` package is new in `requirements/base.txt`, and `web` and
+`qcluster` build separately, so `build web` alone leaves the cluster
+crash-looping on an `ImportError` from `django_eventstream`.
+
+```bash
+docker compose exec -T redis redis-cli ping      # PONG
+docker compose exec -T redis redis-cli info keyspace
+```
+
 ## Recurring jobs (admin-managed scheduler)
 
 Recurring maintenance runs through **django-q2**, not host crontab. A
 single **`qcluster`** process (its own compose service) polls the database
-— which doubles as the broker, so there's no Redis — and runs each
-schedule. Schedules are **editable in the admin** (`/admin/` → *Django Q*
+— which doubles as the broker — and runs each schedule. (Redis is in the
+stack, but not for this: django-q keeps the durable ORM broker. See
+*Redis* below.) Schedules are **editable in the admin** (`/admin/` → *Django Q*
 → *Scheduled tasks*): change the time, disable a job, or run it now,
 without SSH.
 
-Seed the three default daily schedules once per environment:
+Seed the default daily schedules once per environment:
 
 ```bash
 docker compose exec -T web python manage.py setup_scheduled_jobs
@@ -247,6 +286,18 @@ per-workspace `Workspace.auto_archive_done_after_days` threshold (default
 `system.task.archived` activity events with `actor=None`. The first run
 processes the whole backlog of stale done rows — `--dry-run` first to see
 the batch size; `--workspace <slug>` scopes to one workspace.
+
+### prune event stream (~04:15 daily)
+
+`django_eventstream` persists every SSE broadcast so a reconnecting
+browser can replay what it missed. Nothing read those rows after the
+reconnect window, and nothing deleted them, so the table only grew.
+This drops events older than a week.
+
+The window is deliberately generous. Pruning past a client's last seen
+id makes the server answer `stream-reset` rather than the missed events,
+and the browser does not handle that — the tab would sit silently stale
+until a reload. Flags: `--dry-run`, `--older-than-days N`.
 
 ### gc orphan attachments (~04:00 daily)
 
