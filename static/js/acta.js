@@ -3599,6 +3599,53 @@
       }, 250);
     }
 
+    // One bulk operation broadcasts one event per task, so a fifteen-task
+    // change arrives as fifteen messages. The per-task DOM swaps are cheap
+    // and targeted — a card for a card. The tail after each one is not:
+    // recount every column, then walk every visible card again to rebuild
+    // the substatus row. Fifteen events ran that fifteen times, and that
+    // is what reads as the whole board churning rather than a few cards
+    // changing. The answer is the same whether it runs once or fifteen
+    // times, so it runs once, after the burst has landed. Debounced like
+    // the two panel refetches above, for the same reason.
+    // The events of one bulk operation carry the same ``bulk_id`` — the
+    // server already knows they are one act, so the client stops
+    // pretending they are fifteen. They are held until the burst stops
+    // arriving and then applied in a single pass, which is one visible
+    // change instead of fifteen in a row. Keyed by task, so a bulk that
+    // touches a task twice paints the last state, not both.
+    //
+    // Events without a ``bulk_id`` are somebody editing one task, and
+    // those still apply the moment they land: holding a single edit back
+    // for a debounce would trade a flicker nobody sees for a lag
+    // everybody does.
+    const pendingBulkApplies = new Map();
+    let bulkApplyTimer = null;
+    function applyMaybeBatched(d, apply) {
+      if (!d || !d.bulk_id) {
+        apply(d);
+        return;
+      }
+      pendingBulkApplies.set(`${d.bulk_id}:${d.target_id}`, () => apply(d));
+      if (bulkApplyTimer) clearTimeout(bulkApplyTimer);
+      bulkApplyTimer = setTimeout(() => {
+        bulkApplyTimer = null;
+        const batch = [...pendingBulkApplies.values()];
+        pendingBulkApplies.clear();
+        batch.forEach((run) => run());
+      }, 40);
+    }
+
+    let boardSettleTimer = null;
+    function settleBoard() {
+      if (boardSettleTimer) clearTimeout(boardSettleTimer);
+      boardSettleTimer = setTimeout(() => {
+        boardSettleTimer = null;
+        recountKanbanColumns();
+        recomputeKanbanSubstatus();
+      }, 60);
+    }
+
     // Backlog panel has no in-place row-swap path — sections are
     // status-grouped (planned / ready) and the promote chip moves a row
     // out of the backlog entirely once it crosses into to-do. Refetch the
@@ -3821,10 +3868,11 @@
       // stack) reads visible cards' data-attrs, so it has to re-run after
       // the card replace pulls in fresh values. No-op when no kanban panel
       // is rendered.
-      recomputeKanbanSubstatus();
+      settleBoard();
     }
 
-    handle("task.status_changed", (d) => {
+    handle("task.status_changed", (d) =>
+      applyMaybeBatched(d, (d) => {
       // Status change is the one event that *moves* the kanban card
       // between columns — applyCardMove handles that; everything else
       // (table / list) goes through the in-place row helpers, falling
@@ -3841,16 +3889,17 @@
       // Both source and target kanban columns changed cardinality + maybe
       // avatar stack / overdue count. Recount + recompute walk every
       // column so one call covers both.
-      recountKanbanColumns();
-      recomputeKanbanSubstatus();
-    });
-    handle("task.assigned", applyTaskUpdate);
-    handle("task.priority_changed", applyTaskUpdate);
-    handle("task.due_changed", applyTaskUpdate);
-    handle("task.labels_changed", applyTaskUpdate);
-    handle("task.updated", applyTaskUpdate);
-    handle("task.archived", applyTaskUpdate);
-    handle("task.unarchived", applyTaskUpdate);
+      settleBoard();
+      }),
+    );
+    const batchedTaskUpdate = (d) => applyMaybeBatched(d, applyTaskUpdate);
+    handle("task.assigned", batchedTaskUpdate);
+    handle("task.priority_changed", batchedTaskUpdate);
+    handle("task.due_changed", batchedTaskUpdate);
+    handle("task.labels_changed", batchedTaskUpdate);
+    handle("task.updated", batchedTaskUpdate);
+    handle("task.archived", batchedTaskUpdate);
+    handle("task.unarchived", batchedTaskUpdate);
 
     handle("task.project_changed", (d) => {
       // A move changes which project a task belongs to (and its slug).
@@ -3889,8 +3938,7 @@
       applyRowRemoveList(d.target_id);
       // Card gone → source column count drops, substatus row may need to
       // drop an avatar / overdue tick.
-      recountKanbanColumns();
-      recomputeKanbanSubstatus();
+      settleBoard();
     });
 
     // Stuck-popover guard (UI-20). The table's hover label popovers
