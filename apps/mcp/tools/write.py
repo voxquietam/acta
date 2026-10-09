@@ -151,8 +151,11 @@ def task_create(user: User, arguments: dict[str, Any]) -> Any:
     ``perform_create`` so the audit log records who created what,
     regardless of which client surface (web UI or MCP) triggered it.
     """
+    from django.db import transaction
+
     from apps.activity.models import ActivityLog
     from apps.activity.services import log_event
+    from apps.tasks.bulk import _run_bulk_update
     from apps.tasks.serializers import TaskSerializer
 
     args = arguments or {}
@@ -161,6 +164,11 @@ def task_create(user: User, arguments: dict[str, Any]) -> Any:
     if not project_slug or not title:
         raise ValueError("Arguments 'project' (slug prefix) and 'title' are required.")
     project = resolve_project(user, project_slug)
+    milestone_id = args.get("milestone_id")
+    if milestone_id:
+        # Resolved before anything is written: a bad id should fail
+        # outright rather than leave a task behind for someone to find.
+        resolve_milestone(user, milestone_id)
 
     data: dict[str, Any] = {
         "project": project.id,
@@ -204,20 +212,32 @@ def task_create(user: User, arguments: dict[str, Any]) -> Any:
     )
     if not serializer.is_valid():
         raise ValueError(f"Task validation failed: {serializer.errors}")
-    task = serializer.save(reporter=user)
-    log_event(
-        workspace=task.project.workspace,
-        project=task.project,
-        actor=user,
-        event_type="task.created",
-        target_type=ActivityLog.TARGET_TASK,
-        target_id=task.id,
-        payload={
-            "title": task.title,
-            "project_id": task.project_id,
-            "parent_id": task.parent_id,
-        },
-    )
+    with transaction.atomic():
+        task = serializer.save(reporter=user)
+        log_event(
+            workspace=task.project.workspace,
+            project=task.project,
+            actor=user,
+            event_type="task.created",
+            target_type=ActivityLog.TARGET_TASK,
+            target_id=task.id,
+            payload={
+                "title": task.title,
+                "project_id": task.project_id,
+                "parent_id": task.parent_id,
+            },
+        )
+        if milestone_id:
+            # Membership is not a serializer field: a milestone's scope is
+            # checked against the task's project, which only exists once
+            # the task does. Writing it through the bulk path reuses that
+            # check and emits ``task.milestone_changed`` the way every
+            # other surface does — and inside the transaction, so a
+            # milestone that does not cover this project rolls the task
+            # back instead of leaving it unattached.
+            _run_bulk_update(user=user, ids=[task.id], updates={"milestone": milestone_id})
+            task.refresh_from_db()
+
     from apps.notifications.services import notify_task_created
 
     notify_task_created(task=task, actor=user)
@@ -1280,6 +1300,20 @@ TOOLS: list[Tool] = [
             "Optional: ``description`` (Markdown), ``status`` (default to-do), "
             "``priority`` (0=none, 1=Urgent, 2=High, 3=Medium, 4=Low), "
             "``size`` (Fibonacci integer 1/2/3/5/8/13), ``due_date`` (ISO date), "
+            "**Fill the task in — a blank field is a decision, not a default.** "
+            "A task that arrives with no size, no owner and no priority lands on "
+            "a board where nobody can plan it: the forecast cannot weigh it, the "
+            "workload matrix cannot see it, and it sorts to the bottom of every "
+            "list that matters. Set ``size``, ``assignee_username`` and "
+            "``priority`` on every task you create. Set ``due_date``, "
+            "``epic_slug`` and ``milestone_id`` whenever the work plainly "
+            "belongs to one. "
+            "**When you cannot tell, ASK THE PERSON — do not guess and do not "
+            "skip the field.** Who owns it, how urgent it is and which effort it "
+            "belongs to are theirs to say, and one question costs a sentence "
+            "where a backlog of unowned, unsized tasks costs a planning session. "
+            "Size is the single exception: estimate it yourself when they did "
+            "not say, because it is recorded as your guess and can be corrected. "
             "**Always leave a size.** A task without one is invisible to the "
             "forecast, which falls back to counting tasks as if they were all "
             "the same work. If the person named a number, pass it with "
@@ -1314,7 +1348,16 @@ TOOLS: list[Tool] = [
                     "type": "string",
                     "enum": ["planned", "ready", "to-do", "in-progress", "in-review", "done"],
                 },
-                "priority": {"type": "integer", "minimum": 0, "maximum": 4},
+                "priority": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4,
+                    "description": (
+                        "0=none, 1=Urgent, 2=High, 3=Medium, 4=Low. Set it. Leaving it "
+                        "at none is not neutrality — it is the bottom of every sorted "
+                        "list. Ask the person when the work does not tell you."
+                    ),
+                },
                 "size": {"type": "integer", "enum": [1, 2, 3, 5, 8, 13]},
                 "size_from_user": {
                     "type": "boolean",
@@ -1330,12 +1373,27 @@ TOOLS: list[Tool] = [
                 "due_date": {"type": "string", "description": "ISO date — hard deadline, e.g. '2026-05-30'."},
                 "assignee_username": {
                     "type": "string",
-                    "description": "Username, or ``me`` for the authenticated user.",
+                    "description": (
+                        "Username, or ``me`` for the authenticated user. Set it on "
+                        "every task: unowned work is work nobody has agreed to. Never "
+                        "pick a name off the member roster to fill the gap — ask the "
+                        "person who should own it."
+                    ),
                 },
                 "parent_slug": {"type": "string", "description": "Parent task slug (e.g. ACTA-128)."},
                 "epic_slug": {
                     "type": "string",
                     "description": "Epic slug; may be in another project of the same workspace.",
+                },
+                "milestone_id": {
+                    "type": "integer",
+                    "description": (
+                        "Commit the task to a milestone as it is created. The milestone "
+                        "must cover this task's project — that scope is the whole reason "
+                        "a milestone can be shared. Membership is never inferred from "
+                        "dates, so a task with a due date near a milestone does not join "
+                        "it by itself: say so here, or leave it out."
+                    ),
                 },
                 "kind": {
                     "type": "string",
@@ -1644,7 +1702,13 @@ TOOLS: list[Tool] = [
             "describes — a bulk call is where duplicates arrive in quantity. "
             "``tasks`` is a list of "
             "task specs — each has the same shape as ``acta_task_create`` "
-            "arguments (project, title, etc.). If ANY task fails validation, "
+            "arguments (project, title, etc.), and each carries the same "
+            "obligation: size, assignee and priority on every one, plus due "
+            "date, epic and milestone where the work has them. A batch is "
+            "where blank fields arrive in quantity — if you cannot tell who "
+            "owns a task or how urgent it is, ask the person once for the whole "
+            "batch rather than filing twenty tasks nobody can plan. "
+            "If ANY task fails validation, "
             "the WHOLE batch rolls back — partial creates never persist. "
             "Returns ``{count, created: [<task summary>, …]}``. Activity events "
             "fire for each successful task once the transaction commits."
@@ -1673,6 +1737,14 @@ TOOLS: list[Tool] = [
                             "assignee_username": {"type": "string"},
                             "parent_slug": {"type": "string"},
                             "label_names": {"type": "array", "items": {"type": "string"}},
+                            # The description promises the same shape as
+                            # acta_task_create, and additionalProperties is
+                            # False — so anything missing here is a field the
+                            # batch silently cannot carry.
+                            "epic_slug": {"type": "string"},
+                            "milestone_id": {"type": "integer"},
+                            "size_from_user": {"type": "boolean"},
+                            "kind": {"type": "string", "enum": ["task", "epic"]},
                         },
                         "required": ["project", "title"],
                         "additionalProperties": False,

@@ -42,6 +42,107 @@ def setup(db):
 
 
 @pytest.mark.django_db
+class TestCommittingAtCreation:
+    """A task can arrive already committed, in one call.
+
+    Membership used to need a second tool, and a second tool is a second
+    chance to forget: the agent that files the task is the one that knows
+    which effort it belongs to.
+    """
+
+    def test_a_task_can_name_its_milestone_as_it_is_created(self, setup):
+        user, _ws, backend, _web, milestone = setup
+
+        result = CALLABLES["acta_task_create"](
+            user,
+            {
+                "project": backend.slug_prefix,
+                "title": "Ship the ranking eval",
+                "milestone_id": milestone.id,
+            },
+        )
+
+        assert result["milestone_id"] == milestone.id
+        assert result["milestone_name"] == milestone.name
+        assert Task.objects.get(title="Ship the ranking eval").milestone_id == milestone.id
+
+    def test_joining_is_logged_the_way_every_other_surface_logs_it(self, setup):
+        """The burndown is replayed from these events, so a membership
+        that arrives without one is a task the chart cannot see."""
+        from apps.activity.models import ActivityLog
+
+        user, _ws, backend, _web, milestone = setup
+
+        result = CALLABLES["acta_task_create"](
+            user,
+            {"project": backend.slug_prefix, "title": "Logged join", "milestone_id": milestone.id},
+        )
+        task = Task.objects.get(title="Logged join")
+        kinds = set(
+            ActivityLog.objects.filter(
+                target_type=ActivityLog.TARGET_TASK,
+                target_id=task.id,
+            ).values_list("event_type", flat=True),
+        )
+
+        assert result["slug"] == task.slug
+        assert {"task.created", "task.milestone_changed"} <= kinds
+
+    def test_a_milestone_that_does_not_cover_the_project_creates_nothing(self, setup):
+        """Not "creates it unattached" — the whole call fails.
+
+        Leaving the task behind would hand back a half-done instruction
+        that reads, from the agent's side, exactly like success.
+        """
+        user, _ws, _backend, web, milestone = setup
+        before = Task.objects.count()
+
+        with pytest.raises(Exception):
+            CALLABLES["acta_task_create"](
+                user,
+                {"project": web.slug_prefix, "title": "Out of scope", "milestone_id": milestone.id},
+            )
+
+        assert Task.objects.count() == before
+
+    def test_an_unreachable_milestone_fails_before_anything_is_written(self, setup):
+        user, _ws, backend, _web, _milestone = setup
+        before = Task.objects.count()
+
+        with pytest.raises(Exception):
+            CALLABLES["acta_task_create"](
+                user,
+                {"project": backend.slug_prefix, "title": "Bad id", "milestone_id": 10_000_000},
+            )
+
+        assert Task.objects.count() == before
+
+    def test_a_batch_can_commit_as_it_creates(self, setup):
+        user, _ws, backend, _web, milestone = setup
+
+        result = CALLABLES["acta_tasks_bulk_create"](
+            user,
+            {
+                "tasks": [
+                    {"project": backend.slug_prefix, "title": "Batch one", "milestone_id": milestone.id},
+                    {"project": backend.slug_prefix, "title": "Batch two", "milestone_id": milestone.id},
+                ],
+            },
+        )
+
+        assert result["count"] == 2
+        assert {row["milestone_id"] for row in result["created"]} == {milestone.id}
+
+    def test_a_task_with_no_milestone_says_so_rather_than_omitting_it(self, setup):
+        user, _ws, backend, _web, _milestone = setup
+
+        result = CALLABLES["acta_task_create"](user, {"project": backend.slug_prefix, "title": "Loose"})
+
+        assert result["milestone_id"] is None
+        assert result["milestone_name"] is None
+
+
+@pytest.mark.django_db
 class TestReading:
     def test_list_reports_progress_and_risk(self, setup):
         """A row carries the counts and how much will miss the date."""

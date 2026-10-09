@@ -230,6 +230,12 @@ def serialize_task_summary(task: Task) -> dict[str, Any]:
         # ignored, which is how a silent no-op gets reported as success.
         "kind": task.kind,
         "epic_slug": task.epic.slug if task.epic_id else None,
+        # Same reason as ``kind`` above: a caller that asked for a
+        # milestone has no way to tell a commitment that landed from one
+        # that was quietly dropped. The name rides along because an id on
+        # its own is not something a person can be shown.
+        "milestone_id": task.milestone_id,
+        "milestone_name": task.milestone.name if task.milestone_id else None,
         "status": task.epic_status if task.kind == Task.KIND_EPIC else task.status,
         "priority": task.priority,
         "size": task.size,

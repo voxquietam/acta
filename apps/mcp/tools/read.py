@@ -219,7 +219,7 @@ def tasks_list(user: User, arguments: dict[str, Any]) -> Any:
     args = arguments or {}
     qs = (
         Task.objects.filter(project__workspace_id__in=user_workspace_ids(user))
-        .select_related("project__workspace", "assignee", "epic__project")
+        .select_related("project__workspace", "assignee", "epic__project", "milestone")
         .prefetch_related("labels")
     )
     # Epics are hidden unless asked for, the same convention this tool
