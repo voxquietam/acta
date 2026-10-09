@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Acta 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-08 10:05+0000\n"
+"POT-Creation-Date: 2026-10-09 06:32+0000\n"
 "PO-Revision-Date: 2026-05-16 15:30+0000\n"
 "Last-Translator: Acta team\n"
 "Language-Team: Ukrainian\n"
@@ -675,7 +675,7 @@ msgstr "Належить до %(name)s, %(date)s."
 msgid "%(name)s — all done, not closed"
 msgstr "%(name)s — усе готово, але не закрито"
 
-#: apps/milestones/services.py:1586 templates/base_app.html:606
+#: apps/milestones/services.py:1586 templates/base_app.html:649
 #: templates/web/_epic_panel.html:24 templates/web/_modal_shell.html:42
 #: templates/web/_modal_shell.html:43 templates/web/inbox.html:173
 #: templates/web/milestones/_close_button.html:16
@@ -1303,6 +1303,46 @@ msgstr "Тихі години оновлено."
 #: apps/telegram/views.py:191
 msgid "Quiet hours turned off."
 msgstr "Тихі години вимкнено."
+
+#: apps/web/context.py:21 apps/web/context.py:31
+msgid "Light"
+msgstr "Світла"
+
+#: apps/web/context.py:21 apps/web/context.py:24
+msgid "neutral"
+msgstr "нейтральний"
+
+#: apps/web/context.py:22
+msgid "Paper"
+msgstr "Папір"
+
+#: apps/web/context.py:22 apps/web/context.py:25
+msgid "warm"
+msgstr "теплий"
+
+#: apps/web/context.py:23
+msgid "Ash"
+msgstr "Попіл"
+
+#: apps/web/context.py:23
+msgid "grey"
+msgstr "сірий"
+
+#: apps/web/context.py:24 apps/web/context.py:32
+msgid "Dark"
+msgstr "Темна"
+
+#: apps/web/context.py:25
+msgid "Dusk"
+msgstr "Сутінки"
+
+#: apps/web/context.py:26
+msgid "Midnight"
+msgstr "Нічна"
+
+#: apps/web/context.py:26
+msgid "indigo"
+msgstr "індиго"
 
 #: apps/web/create_dialog.py:37 templates/web/milestones/_editor.html:160
 msgid "Properties"
@@ -2137,7 +2177,7 @@ msgid "Member"
 msgstr "Учасник"
 
 #: apps/web/views.py:9797 apps/workspaces/models.py:369
-#: apps/workspaces/models.py:454 templates/base_app.html:502
+#: apps/workspaces/models.py:454 templates/base_app.html:545
 msgid "Admin"
 msgstr "Адміністратор"
 
@@ -2577,7 +2617,7 @@ msgid "Cancel"
 msgstr "Скасувати"
 
 #: templates/accounts/settings.html:5 templates/accounts/settings.html:8
-#: templates/base_app.html:497 templates/web/workspaces/settings.html:27
+#: templates/base_app.html:540 templates/web/workspaces/settings.html:27
 msgid "Settings"
 msgstr "Налаштування"
 
@@ -2633,7 +2673,7 @@ msgstr "Сесія"
 msgid "Sign out of this browser."
 msgstr "Вийти з цього браузера."
 
-#: templates/accounts/settings.html:143 templates/base_app.html:509
+#: templates/accounts/settings.html:143 templates/base_app.html:552
 msgid "Log out"
 msgstr "Вийти"
 
@@ -2839,52 +2879,45 @@ msgstr "Показати бічну панель"
 msgid "Search"
 msgstr "Пошук"
 
-#: templates/base_app.html:439 templates/base_app.html:441
+#: templates/base_app.html:444 templates/base_app.html:446
+#: templates/base_app.html:456
 msgid "Theme"
 msgstr "Тема"
 
-#: templates/base_app.html:453
-msgid "Light"
-msgstr "Світла"
+#: templates/base_app.html:522
+msgid "neutral · warm · tinted"
+msgstr "нейтральний · теплий · з підкладкою"
 
-#: templates/base_app.html:461
-msgid "Paper"
-msgstr "Папір"
+#: templates/base_app.html:523
+msgid "saved on this device"
+msgstr "збережено на цьому пристрої"
 
-#: templates/base_app.html:469
-msgid "Dark"
-msgstr "Темна"
-
-#: templates/base_app.html:477
-msgid "Midnight"
-msgstr "Нічна"
-
-#: templates/base_app.html:557 templates/base_app.html:637
+#: templates/base_app.html:600 templates/base_app.html:680
 msgid "Dismiss"
 msgstr "Закрити"
 
-#: templates/base_app.html:592
+#: templates/base_app.html:635
 msgid "Previous"
 msgstr "Назад"
 
-#: templates/base_app.html:598 templates/web/recurring/_recurring_row.html:47
+#: templates/base_app.html:641 templates/web/recurring/_recurring_row.html:47
 #: templates/web/workspaces/_settings_cycles.html:109
 msgid "Next"
 msgstr "Далі"
 
-#: templates/base_app.html:604
+#: templates/base_app.html:647
 msgid "Open original"
 msgstr "Відкрити оригінал"
 
-#: templates/base_app.html:691 templates/web/_inbox_list.html:103
+#: templates/base_app.html:734 templates/web/_inbox_list.html:103
 msgid "selected"
 msgstr "виділено"
 
-#: templates/base_app.html:707
+#: templates/base_app.html:750
 msgid "Actions"
 msgstr "Дії"
 
-#: templates/base_app.html:714 templates/web/_inbox_list.html:121
+#: templates/base_app.html:757 templates/web/_inbox_list.html:121
 msgid "Clear selection"
 msgstr "Зняти вибір"
 
