@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.contrib.postgres.indexes import GinIndex
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.utils import timezone
@@ -496,6 +497,21 @@ class Task(models.Model):
                 ],
                 name="tasks_active_assignee_updated",
                 condition=models.Q(archived_at__isnull=True),
+            ),
+            # Trigram index for the duplicate check. A typo and an
+            # inflected ending are both "a few characters out", which no
+            # substring match can see and an embedding does not either —
+            # it learns what words mean, not how they are spelled. This
+            # is what lets "кваліфікацй" find "кваліфікації". Without the
+            # index the similarity scan reads every title.
+            GinIndex(
+                fields=[
+                    "title",
+                ],
+                name="tasks_title_trigram",
+                opclasses=[
+                    "gin_trgm_ops",
+                ],
             ),
         ]
         ordering = [

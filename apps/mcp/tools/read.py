@@ -608,17 +608,11 @@ _LITERAL_PROBES = 4
 #: prepositions and the search returns the whole board.
 _LITERAL_MIN_LENGTH = 5
 
-#: Letters trimmed off the end of a word before searching for it. The
-#: lexical search matches substrings, and these boards are written in
-#: languages that inflect: the query says "кваліфікацій" where the task
-#: says "кваліфікації", and a whole-word substring finds neither in the
-#: other. Two letters is the cheapest thing that behaves like a stem
-#: without pretending to be a morphology engine.
-_LITERAL_TRIM = 2
-
-#: A stem shorter than this matches half the board, so the word is used
-#: whole instead.
-_LITERAL_MIN_STEM = 6
+#: How alike two words have to be, by trigrams, to count as the same
+#: word. A one-letter typo in a long word lands around 0.8 and an
+#: inflected ending higher still, while unrelated words sit under 0.3 —
+#: so this sits between them with room on both sides.
+_LITERAL_MIN_SIMILARITY = 0.5
 
 
 def _literal_matches(text: str, workspace_id: int, limit: int, exclude_ids) -> dict:
@@ -628,23 +622,29 @@ def _literal_matches(text: str, workspace_id: int, limit: int, exclude_ids) -> d
     for — but it answers it about the *shape* of a sentence. A long
     enumerated title averages out into a vector near nothing in
     particular, and the one word that carried the meaning drowns. Asking
-    the database for that word costs one indexed query and finds the
-    task named almost exactly it.
+    the database for that word finds the task named almost exactly it.
 
-    Words are tried one at a time because the lexical search ANDs them:
-    a whole title as one query matches nothing by construction.
+    Matched by trigrams rather than by substring, because a typo and an
+    inflected ending are the same kind of difference and neither survives
+    an exact match: the query says "кваліфікацій" where the board says
+    "кваліфікації", and a misspelling of either matches nothing at all.
+    The embedding cannot cover this — it knows what words mean, not how
+    they are spelled.
+
+    One query, with a similarity column per probe, so the caller learns
+    both how close the best word came and how many of them landed.
 
     Args:
         text: What the new task would say.
         workspace_id: The workspace to look in.
-        limit: How many rows each probe may return.
+        limit: How many rows to return.
         exclude_ids: Tasks to leave out — the anchor, usually.
 
     Returns:
-        ``{task_id: {"task": Task, "words": int}}``, where ``words`` is
-        how many of the probes that task answered.
+        ``{task_id: {"task": Task, "words": int, "similarity": float}}``.
     """
-    from apps.tasks.search import search_tasks
+    from django.contrib.postgres.search import TrigramWordSimilarity
+    from django.db.models import Q
 
     words = {
         word.lower()
@@ -653,20 +653,30 @@ def _literal_matches(text: str, workspace_id: int, limit: int, exclude_ids) -> d
     }
     if not words:
         return {}
-    base = (
+    # Longest first: in these titles the long word is the rare one, and
+    # the rare one is what tells two tasks apart.
+    probes = sorted(words, key=len, reverse=True)[:_LITERAL_PROBES]
+    columns = {f"word_{index}": TrigramWordSimilarity(word, "title") for index, word in enumerate(probes)}
+    close_enough = Q()
+    for column in columns:
+        close_enough |= Q(**{f"{column}__gte": _LITERAL_MIN_SIMILARITY})
+    rows = (
         Task.objects.work()
         .filter(project__workspace_id=workspace_id, archived_at__isnull=True, recurrence__isnull=True)
         .exclude(id__in=list(exclude_ids))
+        .annotate(**columns)
+        .filter(close_enough)
         .select_related("project__workspace", "assignee")
+        .order_by()[: limit * 2]
     )
-    found: dict[int, dict] = {}
-    # Longest first: in these titles the long word is the rare one, and
-    # the rare one is what tells two tasks apart.
-    for word in sorted(words, key=len, reverse=True)[:_LITERAL_PROBES]:
-        probe = word[: max(_LITERAL_MIN_STEM, len(word) - _LITERAL_TRIM)]
-        for task in search_tasks(base, probe, limit):
-            row = found.setdefault(task.id, {"task": task, "words": 0})
-            row["words"] += 1
+    found = {}
+    for task in rows:
+        scores = [getattr(task, column) or 0.0 for column in columns]
+        found[task.id] = {
+            "task": task,
+            "words": sum(1 for score in scores if score >= _LITERAL_MIN_SIMILARITY),
+            "similarity": round(max(scores), 3),
+        }
     return found
 
 
@@ -732,7 +742,7 @@ def tasks_find_similar(user: User, arguments: dict[str, Any]) -> Any:
     # cannot miss a word that is right there. Running only the first is
     # how a duplicate check reports "nothing found" about a task called
     # almost the same thing.
-    by_meaning = similarity.neighbours_of_text(
+    by_meaning, meaning_failed = similarity.neighbours_with_reason(
         text,
         workspace_id=workspace_id,
         limit=limit,
@@ -772,14 +782,12 @@ def tasks_find_similar(user: User, arguments: dict[str, Any]) -> Any:
     rows.sort(key=lambda row: (order[row["via"]], -(row["score"] or 0), -(row["words_matched"] or 0)))
     rows = rows[:limit]
 
-    if not rows:
-        # An empty list is four different pieces of news, and the caller
-        # was told to check for duplicates before creating. "None found"
-        # and "the check could not run" lead to opposite actions, so the
-        # one case that must never be silent is the second.
-        reason = similarity.unavailable_reason(workspace_id)
-        if reason:
-            return {"matches": [], "note": reason}
+    # The note rides along even when the word side found something: a
+    # caller that was told "here is what matched" has no way to know one
+    # of the two searches never ran, and half a duplicate check reads
+    # exactly like a whole one.
+    if meaning_failed:
+        return {"matches": rows, "note": meaning_failed}
     return {"matches": rows}
 
 

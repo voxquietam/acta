@@ -369,7 +369,7 @@ class TestWhyItFoundNothing:
     def test_a_deployment_with_no_host_says_the_feature_is_off(self, setup):
         workspace, _project = setup
 
-        reason = similarity.unavailable_reason(workspace.id)
+        _found, reason = similarity.neighbours_with_reason("шукаємо щось", workspace_id=workspace.id)
 
         assert reason is not None
         assert "no embedding host" in reason
@@ -382,18 +382,18 @@ class TestWhyItFoundNothing:
             raise similarity.EmbeddingUnavailable("connection refused")
 
         monkeypatch.setattr(similarity, "embed", refuse)
-        reason = similarity.unavailable_reason(workspace.id)
+        _found, reason = similarity.neighbours_with_reason("шукаємо щось", workspace_id=workspace.id)
 
         assert reason is not None
         assert "did not answer" in reason
-        assert "treat it as unknown" in reason
+        assert "treat that half as unknown" in reason
 
     @ENABLED
     def test_a_workspace_with_no_vectors_names_the_command_that_builds_them(self, setup, monkeypatch):
         workspace, _project = setup
-        monkeypatch.setattr(similarity, "embed", fake_embed({"ping": [1.0, 0.0]}))
+        monkeypatch.setattr(similarity, "embed", fake_embed({"шукаємо щось": [1.0, 0.0]}))
 
-        reason = similarity.unavailable_reason(workspace.id)
+        _found, reason = similarity.neighbours_with_reason("шукаємо щось", workspace_id=workspace.id)
 
         assert reason is not None
         assert "backfill_embeddings" in reason
@@ -403,11 +403,11 @@ class TestWhyItFoundNothing:
         """Changing ACTA_EMBEDDING_MODEL strands every vector already built."""
         workspace, project = setup
         task = TaskFactory(project=project, title="alpha")
-        monkeypatch.setattr(similarity, "embed", fake_embed({"alpha": [1.0, 0.0], "ping": [1.0, 0.0]}))
+        monkeypatch.setattr(similarity, "embed", fake_embed({"alpha": [1.0, 0.0], "шукаємо щось": [1.0, 0.0]}))
         similarity.rebuild_one(task.pk)
         TaskEmbedding.objects.filter(task=task).update(model="an-older-model")
 
-        reason = similarity.unavailable_reason(workspace.id)
+        _found, reason = similarity.neighbours_with_reason("шукаємо щось", workspace_id=workspace.id)
 
         assert reason is not None
         assert "another model" in reason
@@ -417,7 +417,9 @@ class TestWhyItFoundNothing:
         """The comparison ran and nothing was close. That is an answer."""
         workspace, project = setup
         task = TaskFactory(project=project, title="alpha")
-        monkeypatch.setattr(similarity, "embed", fake_embed({"alpha": [1.0, 0.0], "ping": [1.0, 0.0]}))
+        monkeypatch.setattr(similarity, "embed", fake_embed({"alpha": [1.0, 0.0], "шукаємо щось": [1.0, 0.0]}))
         similarity.rebuild_one(task.pk)
 
-        assert similarity.unavailable_reason(workspace.id) is None
+        _found, reason = similarity.neighbours_with_reason("alpha", workspace_id=workspace.id)
+
+        assert reason is None

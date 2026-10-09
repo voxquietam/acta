@@ -522,42 +522,74 @@ def on_task_saved(sender, instance, created, update_fields=None, **kwargs):
     schedule(instance)
 
 
-def unavailable_reason(workspace_id: int) -> str | None:
-    """Return why similarity can say nothing here, or ``None`` if it can.
+def neighbours_with_reason(
+    text: str,
+    *,
+    workspace_id: int,
+    limit: int = 5,
+    exclude_ids: Sequence[int] = (),
+    min_score: float = MIN_SCORE,
+) -> tuple[list[tuple[int, float]], str | None]:
+    """Return neighbours, and why the meaning side could not answer.
 
-    An empty result has four possible meanings and they are not the same
-    news: nothing resembles the text, the feature is off, the host is
-    unreachable, or the workspace has no usable vectors. Callers that
-    only show suggestions can treat all four alike — a quiet box is a
-    fine outcome. A caller that is being *trusted to find duplicates*
-    cannot: "no duplicates" and "the duplicate check did not run" lead to
-    opposite actions, and the second one quietly creates the duplicate.
-
-    Only worth calling once a lookup has already come back empty: it
-    costs a probe of the host and a count.
+    :func:`neighbours_of_text` swallows every failure, which is right for
+    a box of suggestions nobody promised. A duplicate check is a promise,
+    and a caller told "nothing matched" by a search that never ran will
+    file the duplicate. So this reports the failure instead of hiding it
+    — and reports it even when something *was* found another way, since
+    half a check is not a check.
 
     Args:
-        workspace_id: The workspace the lookup ran in.
+        text: What to look for.
+        workspace_id: The workspace to search.
+        limit: Most neighbours to return.
+        exclude_ids: Tasks to leave out.
+        min_score: Cosine below which two tasks are not worth showing.
 
     Returns:
-        A sentence for the caller to pass on, or ``None`` when the
-        lookup really did run and really found nothing.
+        ``(neighbours, reason)``. ``reason`` is ``None`` when the
+        comparison genuinely ran.
+    """
+    import numpy as np
+
+    text = (text or "").strip()
+    if not text:
+        return [], None
+    if not is_enabled():
+        return [], "This Acta has no embedding host configured, so nothing was compared by meaning."
+    try:
+        query = embed([text[:MAX_TEXT]])[0]
+    except EmbeddingUnavailable as exc:
+        logger.warning("similarity host unreachable: %s", exc)
+        return [], (
+            "The embedding host did not answer, so nothing was compared by meaning. "
+            "This is not an answer about duplicates — treat that half as unknown."
+        )
+    found = _rank(
+        np.asarray(query, dtype=np.float32),
+        workspace_id=workspace_id,
+        limit=limit,
+        exclude_ids=exclude_ids,
+        min_score=min_score,
+    )
+    if found:
+        return found, None
+    return [], _no_vectors_reason(workspace_id)
+
+
+def _no_vectors_reason(workspace_id: int) -> str | None:
+    """Return why a workspace has nothing to compare against, if so.
+
+    Args:
+        workspace_id: The workspace that came back empty.
+
+    Returns:
+        A sentence, or ``None`` when vectors exist and nothing was close.
     """
     from apps.tasks.models import TaskEmbedding
 
-    if not is_enabled():
-        return "This Acta has no embedding host configured; similarity search is off."
-    try:
-        embed(["ping"], timeout=settings.ACTA_EMBEDDING_TIMEOUT)
-    except EmbeddingUnavailable as exc:
-        logger.warning("similarity host unreachable: %s", exc)
-        return (
-            "The embedding host did not answer, so nothing could be compared. "
-            "This is not an answer about duplicates — treat it as unknown."
-        )
     vectors = TaskEmbedding.objects.filter(workspace_id=workspace_id)
-    current = vectors.filter(model=settings.ACTA_EMBEDDING_MODEL).count()
-    if current:
+    if vectors.filter(model=settings.ACTA_EMBEDDING_MODEL).exists():
         return None
     if vectors.exists():
         # Vectors exist under another model's name: the setting changed
@@ -567,6 +599,6 @@ def unavailable_reason(workspace_id: int) -> str | None:
             "another model are stored. Re-run 'manage.py backfill_embeddings' after a model change."
         )
     return (
-        "This workspace has no vectors yet, so nothing could be compared. Run "
+        "This workspace has no vectors yet, so nothing was compared by meaning. Run "
         "'manage.py backfill_embeddings' (and check the worker that builds them is running)."
     )

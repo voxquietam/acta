@@ -845,6 +845,12 @@ class TestFindSimilar:
         assert [m["slug"] for m in result["matches"]] == [other.slug]
 
     def test_without_a_host_it_says_so_rather_than_claiming_nothing_matches(self, project_setup):
+        """The word side still answers; the note says the other half did not.
+
+        Silence about the failed half is the dangerous part: a caller
+        reading "here is what matched" has no way to tell that the
+        cross-language search never ran.
+        """
         user, ws, project = project_setup
         TaskFactory(project=project, title="Налаштувати бекапи", reporter=user)
         with override_settings(ACTA_EMBEDDING_URL=""):
@@ -852,8 +858,8 @@ class TestFindSimilar:
                 user,
                 {"text": "настроить бекапы", "workspace": ws.slug},
             )
-        assert result["matches"] == []
-        assert "note" in result
+        assert "no embedding host" in result["note"]
+        assert all(match["via"] == "words" for match in result["matches"])
 
     def test_an_unreachable_host_is_not_reported_as_no_duplicates(self, project_setup, monkeypatch):
         """The case that made the duplicate check silently stop working.
@@ -879,8 +885,8 @@ class TestFindSimilar:
                 {"text": "настроить бекапы", "workspace": ws.slug},
             )
 
-        assert result["matches"] == []
         assert "did not answer" in result["note"]
+        assert all(match["via"] == "words" for match in result["matches"])
 
     def test_a_board_with_no_vectors_names_the_command_that_builds_them(self, project_setup, monkeypatch):
         user, ws, project = project_setup
@@ -892,8 +898,8 @@ class TestFindSimilar:
                 {"text": "настроить бекапы", "workspace": ws.slug},
             )
 
-        assert result["matches"] == []
         assert "backfill_embeddings" in result["note"]
+        assert all(match["via"] == "words" for match in result["matches"])
 
     def test_a_genuine_miss_carries_no_note(self, project_setup, monkeypatch):
         """Nothing close is an answer, and must not look like a failure."""
