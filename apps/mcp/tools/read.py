@@ -612,9 +612,12 @@ def tasks_find_similar(user: User, arguments: dict[str, Any]) -> Any:
     ``score`` between 0 and 1 — a ranking, not a verdict. Deciding
     whether two tasks are the same piece of work is the caller's job.
 
-    Returns an empty list with a ``note`` when the deployment has no
-    embedding host configured, so a client can say so instead of
-    assuming the board is empty.
+    An empty ``matches`` arrives with a ``note`` whenever the lookup
+    could not actually run — no host configured, the host unreachable,
+    or the workspace carrying no vectors yet. Without that distinction a
+    caller reads silence as "no duplicates" and creates the duplicate it
+    was asked to prevent. No ``note`` means the comparison ran and
+    nothing was close.
     """
     from apps.tasks import similarity
 
@@ -645,15 +648,20 @@ def tasks_find_similar(user: User, arguments: dict[str, Any]) -> Any:
             raise ValueError("Pass 'workspace' or 'project' — you are a member of more than one workspace.")
         exclude = []
 
-    if not similarity.is_enabled():
-        return {"matches": [], "note": "This Acta has no embedding host configured; similarity search is off."}
-
     found = similarity.neighbours_of_text(
         text,
         workspace_id=workspace_id,
         limit=limit,
         exclude_ids=exclude,
     )
+    if not found:
+        # An empty list is four different pieces of news, and the caller
+        # was told to check for duplicates before creating. "None found"
+        # and "the check could not run" lead to opposite actions, so the
+        # one case that must never be silent is the second.
+        reason = similarity.unavailable_reason(workspace_id)
+        if reason:
+            return {"matches": [], "note": reason}
     by_id = {
         task.pk: task
         for task in Task.objects.filter(pk__in=[task_id for task_id, _ in found]).select_related(

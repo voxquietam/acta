@@ -855,6 +855,69 @@ class TestFindSimilar:
         assert result["matches"] == []
         assert "note" in result
 
+    def test_an_unreachable_host_is_not_reported_as_no_duplicates(self, project_setup, monkeypatch):
+        """The case that made the duplicate check silently stop working.
+
+        A host that is down returns the same empty list as a board with
+        nothing similar on it. The create tool tells agents to run this
+        check first, so silence here is read as "go ahead" — and the
+        duplicate gets filed.
+        """
+        from apps.tasks import similarity
+
+        user, ws, project = project_setup
+        TaskFactory(project=project, title="Налаштувати бекапи", reporter=user)
+
+        def refuse(texts, timeout=None):
+            raise similarity.EmbeddingUnavailable("connection refused")
+
+        with self.settings_on:
+            similarity._CACHE.clear()
+            monkeypatch.setattr(similarity, "embed", refuse)
+            result = CALLABLES["acta_tasks_find_similar"](
+                user,
+                {"text": "настроить бекапы", "workspace": ws.slug},
+            )
+
+        assert result["matches"] == []
+        assert "did not answer" in result["note"]
+
+    def test_a_board_with_no_vectors_names_the_command_that_builds_them(self, project_setup, monkeypatch):
+        user, ws, project = project_setup
+        TaskFactory(project=project, title="Налаштувати бекапи", reporter=user)
+        with self.settings_on:
+            self._stub(monkeypatch, {"настроить бекапы": [1.0, 0.0], "ping": [1.0, 0.0]})
+            result = CALLABLES["acta_tasks_find_similar"](
+                user,
+                {"text": "настроить бекапы", "workspace": ws.slug},
+            )
+
+        assert result["matches"] == []
+        assert "backfill_embeddings" in result["note"]
+
+    def test_a_genuine_miss_carries_no_note(self, project_setup, monkeypatch):
+        """Nothing close is an answer, and must not look like a failure."""
+        from apps.tasks import similarity
+
+        user, ws, project = project_setup
+        existing = TaskFactory(project=project, title="Налаштувати бекапи", reporter=user)
+        mapping = {
+            "Налаштувати бекапи": [1.0, 0.0],
+            "зовсім інша робота": [0.0, 1.0],
+            "ping": [1.0, 0.0],
+        }
+        with self.settings_on:
+            self._stub(monkeypatch, mapping)
+            similarity.store([existing])
+            self._stub(monkeypatch, mapping)
+            result = CALLABLES["acta_tasks_find_similar"](
+                user,
+                {"text": "зовсім інша робота", "workspace": ws.slug},
+            )
+
+        assert result["matches"] == []
+        assert "note" not in result
+
     def test_text_or_slug_is_required(self, project_setup):
         user, _, _ = project_setup
         with pytest.raises(ValueError, match="text.*slug"):

@@ -520,3 +520,53 @@ def on_task_saved(sender, instance, created, update_fields=None, **kwargs):
     if not created and update_fields is not None and not (set(update_fields) & TEXT_FIELDS):
         return
     schedule(instance)
+
+
+def unavailable_reason(workspace_id: int) -> str | None:
+    """Return why similarity can say nothing here, or ``None`` if it can.
+
+    An empty result has four possible meanings and they are not the same
+    news: nothing resembles the text, the feature is off, the host is
+    unreachable, or the workspace has no usable vectors. Callers that
+    only show suggestions can treat all four alike — a quiet box is a
+    fine outcome. A caller that is being *trusted to find duplicates*
+    cannot: "no duplicates" and "the duplicate check did not run" lead to
+    opposite actions, and the second one quietly creates the duplicate.
+
+    Only worth calling once a lookup has already come back empty: it
+    costs a probe of the host and a count.
+
+    Args:
+        workspace_id: The workspace the lookup ran in.
+
+    Returns:
+        A sentence for the caller to pass on, or ``None`` when the
+        lookup really did run and really found nothing.
+    """
+    from apps.tasks.models import TaskEmbedding
+
+    if not is_enabled():
+        return "This Acta has no embedding host configured; similarity search is off."
+    try:
+        embed(["ping"], timeout=settings.ACTA_EMBEDDING_TIMEOUT)
+    except EmbeddingUnavailable as exc:
+        logger.warning("similarity host unreachable: %s", exc)
+        return (
+            "The embedding host did not answer, so nothing could be compared. "
+            "This is not an answer about duplicates — treat it as unknown."
+        )
+    vectors = TaskEmbedding.objects.filter(workspace_id=workspace_id)
+    current = vectors.filter(model=settings.ACTA_EMBEDDING_MODEL).count()
+    if current:
+        return None
+    if vectors.exists():
+        # Vectors exist under another model's name: the setting changed
+        # and the old ones can no longer be compared against the new one.
+        return (
+            f"No vectors for model {settings.ACTA_EMBEDDING_MODEL!r} in this workspace, though vectors from "
+            "another model are stored. Re-run 'manage.py backfill_embeddings' after a model change."
+        )
+    return (
+        "This workspace has no vectors yet, so nothing could be compared. Run "
+        "'manage.py backfill_embeddings' (and check the worker that builds them is running)."
+    )
