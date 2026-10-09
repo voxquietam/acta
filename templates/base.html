@@ -32,28 +32,24 @@
   {% endcomment %}
   <script>
     (function () {
+      // Six themes on a 2 x 3 grid: brightness (light / dark) x tint
+      // (neutral / warm / tinted). A variant always keeps its base
+      // class on, so every Tailwind ``dark:*`` utility still fires for
+      // the dark ones and none fires for the light ones; the variant
+      // class then overrides the surface tokens in main.css.
+      var LIGHT = { light: 1, paper: 1, ash: 1 };
+      var DARK = { dark: 1, midnight: 1, dusk: 1 };
+      // Themes tried and dropped. Someone who picked one still has it
+      // in storage, and an unknown value would silently fall back to
+      // dark — so they land on the theme that replaced theirs instead.
+      var RETIRED = { mist: "ash", sage: "ash", lilac: "ash" };
       var saved = localStorage.getItem("acta:theme");
-      var theme = (saved === "light" || saved === "paper" || saved === "midnight") ? saved : "dark";
+      saved = RETIRED[saved] || saved;
+      var theme = (LIGHT[saved] || DARK[saved]) ? saved : "dark";
       var html = document.documentElement;
-      html.classList.remove("light", "paper", "dark", "midnight");
-      if (theme === "light") {
-        html.classList.add("light");
-      } else if (theme === "paper") {
-        // Paper = light theme variant. Keep ``light`` on so no Tailwind
-        // ``dark:*`` utility fires; ``paper`` then overrides surface
-        // tokens via ``html.paper`` in main.css.
-        html.classList.add("light");
-        html.classList.add("paper");
-      } else if (theme === "midnight") {
-        // Midnight = dark theme variant. Keep ``dark`` class on so all
-        // Tailwind ``dark:*`` utilities (badge bgs, fg colours, status
-        // pills) keep firing; ``midnight`` then overrides surface
-        // tokens via ``html.midnight`` in main.css.
-        html.classList.add("dark");
-        html.classList.add("midnight");
-      } else {
-        html.classList.add("dark");
-      }
+      html.classList.remove("light", "paper", "ash", "dark", "midnight", "dusk");
+      html.classList.add(LIGHT[theme] ? "light" : "dark");
+      if (theme !== "light" && theme !== "dark") html.classList.add(theme);
       // Pre-paint filter sidebar open / closed state — same idea as
       // theme. CSS in main.css targets ``html.acta-filters-open`` /
       // ``html.acta-filters-closed`` to show the right child of the

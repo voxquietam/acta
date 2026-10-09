@@ -62,6 +62,21 @@ def _collect_hardcoded() -> set[str]:
             continue
         for match in _HARDCODED.finditer(text):
             names.add(match.group(1))
+    # Theme picker — the six themes live as ``(key, label, icon, tint)``
+    # tuples in ``apps/web/context.py`` and reach the template through a
+    # loop variable, so neither the hardcoded scan nor the ``"icon": …``
+    # one above can see them. Named here rather than guessed: an icon
+    # missing from the sprite renders as an empty ``<use>``, which is
+    # invisible rather than broken, so nothing fails loudly.
+    context = APPS_DIR / "web" / "context.py"
+    if context.is_file():
+        text = context.read_text(encoding="utf-8")
+        block = re.search(r"THEME_OPTIONS\s*=\s*\[(.*?)\]", text, re.DOTALL)
+        if block:
+            tuple_icon = r'\(\s*"[a-z][a-z0-9-]*",\s*_\("[^"]+"\),\s*"([a-z][a-z0-9-]*)"'
+            for match in re.finditer(tuple_icon, block.group(1)):
+                names.add(match.group(1))
+
     return names
 
 

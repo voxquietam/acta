@@ -151,29 +151,119 @@ code, kbd, pre, samp, .font-mono {
     --ring: 66 90 245;              /* brand-500 — same accent across themes */
   }
 
-  html.midnight {
-    /* Third theme — indigo-undertoned dark from the design system
-       (acta-design-system/colors_and_type.css). Anchored to the brand
-       hue so panels feel cohesive with brand-coloured CTAs. Toggle
-       cycle: light → dark → midnight → light. */
-    --background: 12 13 23;         /* #0c0d17 — very dark, indigo undertone */
-    --card: 22 24 38;               /* #161826 */
-    --graph-canvas: 12 13 23;       /* #0c0d17 — darker than the cards */
-    --muted: 33 36 53;              /* #212435 */
-    --subtle: 18 20 32;             /* #141420 */
+  html.midnight,
+  .theme-midnight {
+    /* Indigo-undertoned dark, anchored to the brand hue so panels feel
+       cohesive with brand-coloured CTAs. Lifted off near-black
+       (#0c0d17) on 2026-10-09: against Dark it read as "the same screen
+       but dimmer" rather than as its own theme. */
+    color-scheme: dark;
+    --background: 28 31 52;         /* #1c1f34 — slate-indigo page */
+    --card: 39 43 68;               /* #272b44 */
+    --graph-canvas: 28 31 52;       /* #1c1f34 — same as the page */
+    --muted: 54 59 90;              /* #363b5a */
+    --subtle: 33 36 59;             /* #21243b */
 
     --foreground: 244 244 250;      /* #f4f4fa */
-    --muted-foreground: 212 214 226; /* #d4d6e2 */
-    --subtle-foreground: 161 165 184; /* #a1a5b8 */
-    --placeholder-foreground: 95 100 124; /* #5f647c */
+    --muted-foreground: 216 218 232; /* #d8dae8 */
+    --subtle-foreground: 178 182 204; /* #b2b6cc */
+    --placeholder-foreground: 158 163 190; /* #9ea3be */
 
-    --border: 36 39 56;             /* #242738 */
-    --border-strong: 59 64 88;      /* #3b4058 */
+    --border: 50 55 84;             /* #323754 */
+    --border-strong: 78 84 120;     /* #4e5478 */
 
-    --ring: 66 90 245;              /* brand-500 — same accent across themes */
+    --ring: 108 126 251;            /* lifted with the surfaces */
   }
 
-  html.paper {
+  html.dusk,
+  .theme-dusk {
+    /* Warm dark — espresso-brown surfaces and cream text, the tinted
+       counterpart to Paper on the light row. Lifted well above Dark so
+       the warmth is the difference, not the brightness. */
+    color-scheme: dark;
+    --background: 43 37 31;         /* #2b251f */
+    --card: 56 49 42;               /* #38312a */
+    --graph-canvas: 43 37 31;       /* #2b251f — same as the page */
+    --muted: 72 64 55;              /* #484037 */
+    --subtle: 49 43 36;             /* #312b24 */
+
+    --foreground: 247 241 232;      /* #f7f1e8 */
+    --muted-foreground: 230 221 207; /* #e6ddcf */
+    --subtle-foreground: 206 196 180; /* #cec4b4 */
+    --placeholder-foreground: 186 176 160; /* #bab0a0 — clears 4.5:1 on muted */
+
+    --border: 72 64 55;             /* #484037 */
+    --border-strong: 100 90 78;     /* #645a4e */
+
+    --ring: 108 126 251;
+  }
+
+  html.ash,
+  .theme-ash {
+    /* Mid-grey, low-glare light: no tint, just less white. Sits between
+       Light and Dark for bright rooms and long sessions. A light theme,
+       so no ``dark:*`` utility may fire — the toggle keeps ``light`` on
+       and layers ``ash`` over it, the same way Paper works. */
+    color-scheme: light;
+    --background: 205 207 211;      /* #cdcfd3 */
+    --card: 226 228 231;            /* #e2e4e7 */
+    --graph-canvas: 205 207 211;    /* #cdcfd3 — same as the page */
+    --muted: 190 193 199;           /* #bec1c7 */
+    --subtle: 214 216 220;          /* #d6d8dc */
+
+    --foreground: 20 22 26;         /* #14161a */
+    --muted-foreground: 40 43 50;   /* #282b32 */
+    --subtle-foreground: 52 56 64;  /* #343840 */
+    --placeholder-foreground: 62 66 75; /* #3e424b */
+
+    --border: 186 189 195;          /* #babdc3 */
+    --border-strong: 160 164 172;   /* #a0a4ac */
+
+    --ring: 46 68 214;              /* darkened to hold its own on grey */
+  }
+
+  /* Preview scopes. The theme picker draws a miniature of the app in
+     every theme at once, so each tile needs its palette locally rather
+     than from ``<html>`` — a light tile has to stay light inside a dark
+     page. The variant themes above already carry their ``.theme-*``
+     scope in the same rule, which is what keeps a tile honest: there is
+     one set of values per theme, not one for the page and one for its
+     picture of itself. Light and Dark are the two that cannot, because
+     theirs live on ``:root`` and ``html.dark``. */
+  .theme-light {
+    color-scheme: light;
+    --background: 255 255 255;
+    --card: 255 255 255;
+    --graph-canvas: 250 250 250;
+    --muted: 244 244 245;
+    --subtle: 250 250 250;
+    --foreground: 24 24 27;
+    --muted-foreground: 63 63 70;
+    --subtle-foreground: 82 82 91;
+    --placeholder-foreground: 113 113 122;
+    --border: 228 228 231;
+    --border-strong: 212 212 216;
+    --ring: 66 90 245;
+  }
+
+  .theme-dark {
+    color-scheme: dark;
+    --background: 9 9 11;
+    --card: 24 24 27;
+    --graph-canvas: 9 9 11;
+    --muted: 39 39 42;
+    --subtle: 24 24 27;
+    --foreground: 244 244 245;
+    --muted-foreground: 212 212 216;
+    --subtle-foreground: 161 161 170;
+    --placeholder-foreground: 82 82 91;
+    --border: 39 39 42;
+    --border-strong: 63 63 70;
+    --ring: 66 90 245;
+  }
+
+  html.paper,
+  .theme-paper {
     /* Fourth theme — warm dimmed paper from the design system
        (acta-design-system/colors_and_type.css). A light theme, so no
        ``dark:*`` utility may fire: the toggle keeps ``light`` on and

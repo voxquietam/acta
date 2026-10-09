@@ -36,6 +36,19 @@ module.exports = {
       pattern:
         /^(text|bg)-(red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|slate|gray|zinc|stone)-500$/,
     },
+    // Theme preview scopes (main.css ``@layer base``). The picker writes
+    // ``theme-{{ key }}`` from a loop, so the scanner sees the template
+    // expression and not the six class names — and an unreferenced
+    // class-only rule in a ``@layer`` is tree-shaken away. Four of them
+    // survived by accident, riding along in a selector list with their
+    // ``html.*`` twin; Light and Dark have no such twin and vanished.
+    // Naming all six keeps that accident from deciding it.
+    "theme-light",
+    "theme-paper",
+    "theme-ash",
+    "theme-dark",
+    "theme-dusk",
+    "theme-midnight",
   ],
   theme: {
     extend: {

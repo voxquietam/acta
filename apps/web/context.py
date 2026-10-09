@@ -6,8 +6,31 @@ that nearly every page template needs (current user's workspaces and
 the projects inside them) without forcing each view to recompute it.
 """
 
+from django.utils.translation import gettext_lazy as _
+
 from apps.notifications.models import Notification
 from apps.web.nav import get_nav_workspaces, get_workspace_favourite_tasks, resolve_active_workspace
+
+#: The themes the picker offers, as ``(key, label, icon, tint)``. Two
+#: rows of three: brightness down, tint across. The key doubles as the
+#: ``html`` class and as the ``theme-<key>`` preview scope in main.css,
+#: so adding one here needs a token block there and an entry in both
+#: copies of the apply logic — ``static/js/acta.js`` and the pre-paint
+#: script in ``templates/base.html``.
+THEME_OPTIONS = [
+    ("light", _("Light"), "sun", _("neutral")),
+    ("paper", _("Paper"), "sun-dim", _("warm")),
+    ("ash", _("Ash"), "cloud", _("grey")),
+    ("dark", _("Dark"), "moon", _("neutral")),
+    ("dusk", _("Dusk"), "coffee", _("warm")),
+    ("midnight", _("Midnight"), "moon-star", _("indigo")),
+]
+
+#: The same list cut into the two rows the picker draws.
+THEME_ROWS = [
+    (_("Light"), THEME_OPTIONS[:3]),
+    (_("Dark"), THEME_OPTIONS[3:]),
+]
 
 
 def workspace_nav(request):
@@ -82,6 +105,8 @@ def workspace_nav(request):
         # name the status on an old activity entry, so the labels stay
         # whole and only the menu shrinks.
         "status_options": _status_options(active),
+        "theme_options": THEME_OPTIONS,
+        "theme_rows": THEME_ROWS,
         "inbox_unread": unread,
     }
 

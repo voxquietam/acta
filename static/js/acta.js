@@ -4721,35 +4721,45 @@
     // exactly the dark ones — ``midnight`` keeps ``dark`` on,
     // ``paper`` keeps ``light`` on, and the variant class then
     // overrides the surface CSS vars in main.css.
-    const THEMES = ["light", "paper", "dark", "midnight"];
+    // Six themes on a 2 x 3 grid: brightness x tint. The order is the
+    // order the picker draws them in, light row first.
+    //
+    // This list and the pre-paint script in base.html are two copies of
+    // the same rule, and they have to agree: the inline one runs before
+    // any stylesheet so a dark-theme user never sees a white flash, and
+    // this one takes over once Alpine is up. A theme added to one and
+    // not the other boots in the wrong colours and corrects itself a
+    // frame later, which is the flash the inline script exists to stop.
+    const LIGHT_THEMES = ["light", "paper", "ash"];
+    const DARK_THEMES = ["dark", "midnight", "dusk"];
+    const THEMES = [...LIGHT_THEMES, ...DARK_THEMES];
+    //: Themes tried and dropped, mapped to what replaced them. Someone
+    //: who picked one still has it in ``localStorage``.
+    const RETIRED_THEMES = { mist: "ash", sage: "ash", lilac: "ash" };
     function currentThemeFromDom() {
       const cls = document.documentElement.classList;
-      // Variants before their base: paper also carries ``light`` and
-      // midnight also carries ``dark``.
-      if (cls.contains("midnight")) return "midnight";
-      if (cls.contains("paper")) return "paper";
-      if (cls.contains("light")) return "light";
-      return "dark";
+      // Variants before their base: each one also carries ``light`` or
+      // ``dark``, so testing the base first would always win.
+      const variant = THEMES.find((t) => t !== "light" && t !== "dark" && cls.contains(t));
+      if (variant) return variant;
+      return cls.contains("light") ? "light" : "dark";
     }
     function applyTheme(theme) {
       const cls = document.documentElement.classList;
-      cls.remove("light", "paper", "dark", "midnight");
-      if (theme === "light") {
-        cls.add("light");
-      } else if (theme === "paper") {
-        cls.add("light");
-        cls.add("paper");
-      } else if (theme === "midnight") {
-        cls.add("dark");
-        cls.add("midnight");
-      } else {
-        cls.add("dark");
-      }
+      cls.remove(...THEMES);
+      // The base class stays on for the variants: ``dark:*`` utilities
+      // (badge backgrounds, status pills) key off it, and the variant
+      // class only re-declares surface tokens on top.
+      cls.add(LIGHT_THEMES.includes(theme) ? "light" : "dark");
+      if (theme !== "light" && theme !== "dark") cls.add(theme);
     }
     window.Alpine.store("theme", {
       current: currentThemeFromDom(),
       options: THEMES,
+      lightThemes: LIGHT_THEMES,
+      darkThemes: DARK_THEMES,
       set(theme) {
+        theme = RETIRED_THEMES[theme] || theme;
         if (!THEMES.includes(theme)) return;
         this.current = theme;
         applyTheme(theme);

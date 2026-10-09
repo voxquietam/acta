@@ -401,16 +401,21 @@ Pages extend this and override the `app_main` block.
         </button>
 
         {% comment %}
-        Theme picker — four themes chosen from a menu: light, paper, dark,
-        midnight. It replaced a three-state cycle button, where reaching
-        the theme you wanted meant clicking past the ones you didn't.
-        The trigger icon is the CURRENT theme (so the active one is
-        visible at a glance); the menu marks it with a check. Alpine
-        store ``theme.set(name)`` writes ``localStorage["acta:theme"]``,
+        Theme picker — six themes on a 2 x 3 grid: brightness (light /
+        dark) down the rows, tint (neutral / warm / tinted) across.
+        It replaced a four-row text menu, which asked people to pick a
+        colour scheme by reading its name.
+
+        Each tile is a miniature of the app drawn in its OWN theme: the
+        ``.theme-*`` scopes in main.css carry the same token values the
+        page uses, so a light tile stays light inside a dark page and
+        nobody has to imagine what "Paper" looks like. The tile's parts
+        are the ones a theme actually changes — a sidebar strip, a card
+        with text and status dots, a brand button.
+
+        Alpine store ``theme.set(name)`` writes ``localStorage["acta:theme"]``,
         which the pre-paint script in base.html reads back before the
-        first frame. Menu radius follows the user menu beside it rather
-        than the ``rounded-lg`` default — two adjacent dropdowns with
-        different corners read worse than one deviation does.
+        first frame.
         {% endcomment %}
         <div x-data="{ open: false }" class="hidden sm:block relative shrink-0">
           <button type="button"
@@ -419,45 +424,82 @@ Pages extend this and override the `app_main` block.
                   data-tooltip-pos="below"
                   aria-label="{% trans 'Theme' %}"
                   class="grid place-items-center p-1.5 rounded-md text-placeholder-foreground hover:bg-muted hover:text-foreground">
-            <span x-show="$store.theme.current === 'light'">{% lucide "sun" "w-4 h-4" %}</span>
-            <span x-show="$store.theme.current === 'paper'" x-cloak>{% lucide "sun-dim" "w-4 h-4" %}</span>
-            <span x-show="$store.theme.current === 'dark'" x-cloak>{% lucide "moon" "w-4 h-4" %}</span>
-            <span x-show="$store.theme.current === 'midnight'" x-cloak>{% lucide "moon-star" "w-4 h-4" %}</span>
+            {% for key, label, icon, tint in theme_options %}
+            <span x-show="$store.theme.current === '{{ key }}'"{% if not forloop.first %} x-cloak{% endif %}>{% lucide icon "w-4 h-4" %}</span>
+            {% endfor %}
           </button>
           <div x-show="open" @click.outside="open = false" x-cloak
-               class="absolute right-0 mt-2 w-44 bg-card border border-border rounded-md shadow-lg overflow-hidden z-20">
-            <button type="button" @click="$store.theme.set('light'); open = false"
-                    class="w-full text-left flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted">
-              {% lucide "sun" "w-3.5 h-3.5" %}
-              {% trans "Light" %}
-              <span class="flex-1"></span>
-              <span x-show="$store.theme.current === 'light'" x-cloak
-                    class="text-brand-500">{% lucide "check" "w-3.5 h-3.5" %}</span>
-            </button>
-            <button type="button" @click="$store.theme.set('paper'); open = false"
-                    class="w-full text-left flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted">
-              {% lucide "sun-dim" "w-3.5 h-3.5" %}
-              {% trans "Paper" %}
-              <span class="flex-1"></span>
-              <span x-show="$store.theme.current === 'paper'" x-cloak
-                    class="text-brand-500">{% lucide "check" "w-3.5 h-3.5" %}</span>
-            </button>
-            <button type="button" @click="$store.theme.set('dark'); open = false"
-                    class="w-full text-left flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted border-t border-border">
-              {% lucide "moon" "w-3.5 h-3.5" %}
-              {% trans "Dark" %}
-              <span class="flex-1"></span>
-              <span x-show="$store.theme.current === 'dark'" x-cloak
-                    class="text-brand-500">{% lucide "check" "w-3.5 h-3.5" %}</span>
-            </button>
-            <button type="button" @click="$store.theme.set('midnight'); open = false"
-                    class="w-full text-left flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted">
-              {% lucide "moon-star" "w-3.5 h-3.5" %}
-              {% trans "Midnight" %}
-              <span class="flex-1"></span>
-              <span x-show="$store.theme.current === 'midnight'" x-cloak
-                    class="text-brand-500">{% lucide "check" "w-3.5 h-3.5" %}</span>
-            </button>
+               style="width: min(344px, calc(100vw - 24px));"
+               class="absolute right-0 mt-2 bg-card border border-border rounded-lg shadow-lg z-20 p-3">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground font-medium flex-1">{% trans "Theme" %}</span>
+              {% for key, label, icon, tint in theme_options %}
+              <span x-show="$store.theme.current === '{{ key }}'" x-cloak
+                    class="text-[11px] text-placeholder-foreground">{{ label }} · {{ tint }}</span>
+              {% endfor %}
+            </div>
+            {% for row_label, row in theme_rows %}
+            <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground mt-2 mb-1">{{ row_label }}</div>
+            <div class="grid gap-2" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
+              {% for key, label, icon, tint in row %}
+              <button type="button"
+                      @click="$store.theme.set('{{ key }}'); open = false"
+                      data-tooltip="{{ label }} · {{ tint }}"
+                      data-tooltip-pos="below"
+                      :class="$store.theme.current === '{{ key }}'
+                        ? 'border-brand-500 bg-brand-500/15'
+                        : 'border-transparent hover:border-border-strong hover:bg-muted/60'"
+                      class="flex flex-col gap-1.5 p-1 rounded-lg border text-left transition">
+                {% comment %}
+                The miniature. ``theme-{{ key }}`` scopes every token
+                inside, so the tile paints itself rather than the page.
+                {% endcomment %}
+                <span class="theme-{{ key }} block rounded-md overflow-hidden border border-border bg-background"
+                      style="height: 58px; display: grid; grid-template-columns: 16px minmax(0, 1fr);">
+                  <span class="bg-card border-r border-border flex flex-col items-center gap-1 pt-1.5">
+                    <span class="w-2 h-2 rounded-full bg-brand-600"></span>
+                    <span class="w-2 h-0.5 rounded-full bg-muted"></span>
+                    <span class="w-2 h-0.5 rounded-full bg-muted"></span>
+                    <span class="w-2 h-0.5 rounded-full bg-muted"></span>
+                  </span>
+                  <span class="flex flex-col gap-1 p-1.5 min-w-0">
+                    <span class="block h-1 rounded-full" style="width: 60%; background: rgb(var(--foreground));"></span>
+                    <span class="flex flex-col gap-1 p-1 rounded-md bg-card border border-border">
+                      <span class="flex items-center gap-1">
+                        <span class="w-1 h-1 rounded-full bg-blue-500"></span>
+                        <span class="block h-0.5 rounded-full flex-1" style="background: rgb(var(--muted-foreground));"></span>
+                      </span>
+                      <span class="flex items-center gap-1">
+                        <span class="w-1 h-1 rounded-full bg-violet-500"></span>
+                        <span class="block h-0.5 rounded-full" style="width: 70%; background: rgb(var(--subtle-foreground));"></span>
+                      </span>
+                      <span class="flex items-center gap-1">
+                        <span class="w-1 h-1 rounded-full bg-emerald-500"></span>
+                        <span class="block h-0.5 rounded-full" style="width: 45%; background: rgb(var(--placeholder-foreground));"></span>
+                      </span>
+                    </span>
+                    <span class="flex items-center gap-1">
+                      <span class="block h-1.5 w-5 rounded-full bg-brand-600"></span>
+                      <span class="block h-1.5 w-4 rounded-full bg-muted"></span>
+                    </span>
+                  </span>
+                </span>
+                <span class="flex items-center gap-1 px-0.5 text-xs min-w-0">
+                  <span class="shrink-0 text-subtle-foreground">{% lucide icon "w-3 h-3" %}</span>
+                  <span class="truncate"
+                        :class="$store.theme.current === '{{ key }}' ? 'text-foreground font-medium' : 'text-muted-foreground'">{{ label }}</span>
+                  <span class="flex-1"></span>
+                  <span x-show="$store.theme.current === '{{ key }}'" x-cloak
+                        class="shrink-0 text-brand-500">{% lucide "check" "w-3 h-3" %}</span>
+                </span>
+              </button>
+              {% endfor %}
+            </div>
+            {% endfor %}
+            <div class="flex items-center gap-2 mt-2.5 pt-2 border-t border-border text-[11px] text-placeholder-foreground">
+              <span class="flex-1">{% trans "neutral · warm · tinted" %}</span>
+              <span>{% trans "saved on this device" %}</span>
+            </div>
           </div>
         </div>
 
