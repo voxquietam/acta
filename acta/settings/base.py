@@ -6,6 +6,7 @@ Environment-specific overrides live in dev.py and prod.py.
 
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 
 from django.urls import reverse_lazy
 from django.utils.translation import gettext_lazy as _
@@ -40,6 +41,48 @@ EVENTSTREAM_STORAGE_CLASS = "django_eventstream.storage.DjangoModelStorage"
 # SSE channel authorization — restricts ``workspace-<id>`` channels
 # to that workspace's members. See ``apps.workspaces.sse``.
 EVENTSTREAM_CHANNELMANAGER_CLASS = "apps.workspaces.sse.WorkspaceChannelManager"
+
+# -----------------------------------------------------------------------------
+# Redis — fan-out bus and shared cache
+# -----------------------------------------------------------------------------
+# Two things in this app assumed there is exactly one web process, and
+# neither said so out loud:
+#
+#   * ``send_event`` hands an event to the listeners held by the process
+#     that wrote it. Anything written elsewhere — the qcluster jobs, a
+#     ``manage.py`` command — lands in the event table and is only seen
+#     by a client on its next reconnect, never live.
+#   * ``django.core.cache`` with no ``CACHES`` is per-process memory, and
+#     the MCP rate limiter counts in it (``apps.mcp.auth``). With two
+#     workers the ceiling quietly doubles; with the stdio server running
+#     too, it has a bucket of its own.
+#
+# Both are repaired by pointing them at the same Redis. It is optional
+# on purpose: with ``REDIS_URL`` empty the app behaves exactly as it did
+# before — correct for one worker, wrong for two — so a minimal install
+# and the test suite need no broker.
+REDIS_URL = os.environ.get("REDIS_URL", "").strip()
+
+if REDIS_URL:
+    _redis = urlparse(REDIS_URL)
+    _redis_host = _redis.hostname or "redis"
+    _redis_port = _redis.port or 6379
+
+    # django_eventstream takes connection kwargs, not a URL, and uses the
+    # connection for pub/sub only — where the database index is ignored.
+    EVENTSTREAM_REDIS = {
+        "host": _redis_host,
+        "port": _redis_port,
+    }
+
+    # A database of its own, so flushing the cache can never take the
+    # event bus with it.
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": f"redis://{_redis_host}:{_redis_port}/1",
+        },
+    }
 
 
 # -----------------------------------------------------------------------------

@@ -9,6 +9,11 @@ pymdown-extensions>=10
 bleach>=6.1
 Pillow>=10.4
 django-eventstream>=5
+# Cross-process fan-out. Without it ``send_event`` only reaches streams
+# held by the process that wrote the event, and ``django.core.cache``
+# falls back to per-process memory — which silently multiplies the MCP
+# rate limit by the worker count. Both are opt-in on ``REDIS_URL``.
+redis>=5
 uvicorn[standard]>=0.32
 whitenoise>=6.7
 # Pinned to the 1.x API: 2.x drops the ``Server.list_tools`` /

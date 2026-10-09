@@ -37,6 +37,28 @@ services:
       timeout: 5s
       retries: 10
 
+  # Fan-out bus + shared cache. Holds nothing that cannot be rebuilt:
+  # SSE pub/sub is by definition in-flight, and the cache is rate-limit
+  # counters and derived reads. So it runs with persistence OFF — no RDB,
+  # no AOF — and is not in the backup story. Losing it costs a minute of
+  # rate-limit history and the live delivery of events still written to
+  # the database, which clients pick up on their next reconnect.
+  redis:
+    image: redis:7-alpine
+    container_name: acta.redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --save ""
+      --appendonly no
+      --maxmemory 128mb
+      --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   web:
     build:
       context: .
@@ -46,6 +68,8 @@ services:
     restart: unless-stopped
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     environment: &django_env
       DJANGO_SETTINGS_MODULE: acta.settings.prod
@@ -83,6 +107,10 @@ services:
       # Uvicorn worker processes (web only; qcluster ignores it). Each worker
       # is a full Django process — bump with care. Default 1.
       UVICORN_WORKERS: ${UVICORN_WORKERS:-1}
+      # Empty disables both uses and the app falls back to in-process
+      # delivery and a per-process cache — correct for a single web
+      # worker, wrong the moment there are two.
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
     # Uploaded media (attachments, inline images, avatars) lives in a named
     # volume so it survives ``docker compose up --build`` / image rebuilds —
     # the container filesystem is otherwise ephemeral. Mounted at
@@ -108,6 +136,8 @@ services:
     restart: unless-stopped
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     environment: *django_env
     volumes:
