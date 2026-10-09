@@ -1,0 +1,170 @@
+{% load i18n %}
+{% load lucide %}
+{% load web_extras %}
+{% comment %}
+Insights content — swapped whole (#insights-inner) when the scope or the
+window changes. Everything here obeys the scope, refusals included: a
+block can answer for the workspace while refusing for one project in it,
+and that is the honest outcome rather than a gap.
+
+Order is deliberate. The numbers say how much and how fast; Wait vs work
+says why that is; the charts show the shape over time; Blocked radar and
+Bounces say what to go and do about it.
+{% endcomment %}
+<div id="insights-inner" class="max-w-5xl mx-auto p-4 space-y-4">
+
+  <div class="flex items-center gap-2 flex-wrap">
+    {# Scope. A workspace here runs to twenty-odd projects, so the #}
+    {# project side is a searchable picker, not a row of buttons.  #}
+    <div class="inline-flex items-center gap-0.5 p-0.5 bg-card border border-border rounded-md"
+         x-data="{ open: false, q: '' }" @click.outside="open = false">
+      <a href="{% url 'web:insights' %}?weeks={{ weeks }}"
+         hx-get="{% url 'web:insights' %}?weeks={{ weeks }}&partial=1" hx-target="#insights-inner" hx-swap="outerHTML" hx-push-url="true"
+         class="px-2.5 py-1 rounded text-[11px] font-medium transition {% if whole_workspace %}bg-brand-500/15 text-brand-300 ring-1 ring-inset ring-brand-500/35{% else %}text-subtle-foreground hover:text-foreground{% endif %}">
+        {% trans "Whole workspace" %}
+      </a>
+      <div class="relative">
+        <button type="button" @click="open = !open"
+                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-medium transition {% if not whole_workspace %}bg-brand-500/15 text-brand-300 ring-1 ring-inset ring-brand-500/35{% else %}text-subtle-foreground hover:text-foreground{% endif %}">
+          {% if project %}<span class="font-mono">{{ project.slug_prefix }}</span>{% else %}{% trans "One project" %}{% endif %}
+          {% lucide "chevron-down" "w-3 h-3" %}
+        </button>
+        <div x-show="open" x-cloak x-transition.opacity
+             x-effect="if (open) $nextTick(() => $refs.search.focus())"
+             class="absolute left-0 top-full mt-1 w-60 max-h-80 overflow-y-auto bg-card border border-border rounded-lg shadow-lg z-20 p-1">
+          <input x-ref="search" x-model="q" type="search" placeholder="{% trans 'Find a project…' %}"
+                 class="acta-input text-xs w-full mb-1">
+          {% for label, projects in scope_groups %}
+          <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground px-2 pt-1.5 pb-0.5"
+               x-show="{{ projects|length }} > 0">{{ label }}</div>
+          {% for p in projects %}
+          <a href="{% url 'web_ws:project_insights' workspace=p.workspace.slug slug_prefix=p.slug_prefix %}?weeks={{ weeks }}"
+             hx-get="{% url 'web_ws:project_insights' workspace=p.workspace.slug slug_prefix=p.slug_prefix %}?weeks={{ weeks }}&partial=1"
+             hx-target="#insights-inner" hx-swap="outerHTML" hx-push-url="true"
+             x-show="q === '' || '{{ p.slug_prefix|escapejs }} {{ p.name|escapejs|lower }}'.toLowerCase().includes(q.toLowerCase())"
+             class="flex items-center gap-2 px-2 py-1.5 rounded text-xs text-muted-foreground hover:bg-muted hover:text-foreground">
+            <span class="w-1.5 h-1.5 rounded-full bg-current shrink-0 {{ p.icon_color_class }}"></span>
+            <span class="font-mono text-[11px] shrink-0">{{ p.slug_prefix }}</span>
+            <span class="truncate">{{ p.name }}</span>
+          </a>
+          {% endfor %}
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <span class="flex-1"></span>
+
+    <div class="inline-flex items-center gap-0.5 p-0.5 bg-card border border-border rounded-md">
+      {% for w in week_ranges %}
+      <a href="?weeks={{ w }}" hx-get="?weeks={{ w }}&partial=1" hx-target="#insights-inner" hx-swap="outerHTML" hx-push-url="true"
+         class="px-2.5 py-1 rounded text-[11px] font-medium transition {% if w == weeks %}bg-brand-500/15 text-brand-300 ring-1 ring-inset ring-brand-500/35{% else %}text-subtle-foreground hover:text-foreground{% endif %}">{{ w }}w</a>
+      {% endfor %}
+    </div>
+  </div>
+
+  <p class="text-xs text-placeholder-foreground">
+    {% if whole_workspace %}
+    {% blocktrans count counter=weeks with name=workspace.name %}Flow across {{ name }} over the last {{ counter }} week — replayed from the activity log.{% plural %}Flow across {{ name }} over the last {{ counter }} weeks — replayed from the activity log.{% endblocktrans %}
+    {% else %}
+    {% blocktrans count counter=weeks with name=project.name %}Flow in {{ name }} over the last {{ counter }} week — replayed from the activity log.{% plural %}Flow in {{ name }} over the last {{ counter }} weeks — replayed from the activity log.{% endblocktrans %}
+    {% endif %}
+  </p>
+
+  {# ---------- The numbers ---------- #}
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+    <a {% if closed_enough %}href="#insights-throughput" data-insights-jump{% endif %}
+       class="bg-card border border-border rounded-lg p-3 block {% if closed_enough %}hover:border-border-strong transition{% endif %}">
+      <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Completed" %}</div>
+      <div class="text-2xl font-semibold text-foreground tabular-nums mt-1">{{ metrics.completed_count }}</div>
+      <div class="text-[10px] text-placeholder-foreground mt-0.5">{% blocktrans count counter=weeks %}in {{ counter }} week{% plural %}in {{ counter }} weeks{% endblocktrans %}</div>
+    </a>
+    <a {% if closed_enough %}href="#insights-cycle" data-insights-jump{% endif %}
+       class="bg-card border border-border rounded-lg p-3 block {% if closed_enough %}hover:border-border-strong transition{% endif %}">
+      <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Cycle (median)" %}</div>
+      <div class="text-2xl font-semibold text-foreground tabular-nums mt-1">{{ cycle_median }}</div>
+      <div class="text-[10px] text-placeholder-foreground mt-0.5">
+        {% if closed_enough %}{% trans "in-progress → done" %}{% else %}{% blocktrans with need=need_closed have=metrics.completed_count %}needs {{ need }} closed · has {{ have }}{% endblocktrans %}{% endif %}
+      </div>
+    </a>
+    <a {% if closed_enough %}href="#insights-cycle" data-insights-jump{% endif %}
+       class="bg-card border border-border rounded-lg p-3 block {% if closed_enough %}hover:border-border-strong transition{% endif %}">
+      <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Cycle (85th pct)" %}</div>
+      <div class="text-2xl font-semibold text-foreground tabular-nums mt-1">{{ cycle_p85 }}</div>
+      <div class="text-[10px] text-placeholder-foreground mt-0.5">
+        {% if closed_enough %}{% blocktrans count counter=cycle_sample %}from {{ counter }} sample{% plural %}from {{ counter }} samples{% endblocktrans %}{% else %}{% trans "planning buffer" %}{% endif %}
+      </div>
+    </a>
+    {# Lead is the whole life of a task, which is exactly what Wait vs #}
+    {# work takes apart — so that is where this number explains itself. #}
+    <a {% if wait_work.ok %}href="#insights-wait-work" data-insights-jump{% endif %}
+       class="bg-card border border-border rounded-lg p-3 block {% if wait_work.ok %}hover:border-border-strong transition{% endif %}">
+      <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Lead (median)" %}</div>
+      <div class="text-2xl font-semibold text-foreground tabular-nums mt-1">{{ lead_median }}</div>
+      <div class="text-[10px] text-placeholder-foreground mt-0.5">{% trans "created → done" %}</div>
+    </a>
+    <a {% if closed_enough %}href="#insights-throughput" data-insights-jump{% endif %}
+       class="bg-card border border-border rounded-lg p-3 block {% if closed_enough %}hover:border-border-strong transition{% endif %}">
+      <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Throughput / wk" %}</div>
+      <div class="text-2xl font-semibold text-foreground tabular-nums mt-1">{{ throughput_avg }}</div>
+      <div class="text-[10px] text-placeholder-foreground mt-0.5">{% trans "avg done / week" %}</div>
+    </a>
+  </div>
+
+  <div id="insights-wait-work" class="scroll-mt-4">{% include "web/_insights_wait_work.html" %}</div>
+
+  {# ---------- Cumulative flow ---------- #}
+  <div class="bg-card border border-border rounded-lg p-4">
+    <div class="flex items-center gap-2 mb-3">
+      <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground flex-1">{% trans "Cumulative flow" %}</span>
+      <span class="text-[10px] text-placeholder-foreground">{% trans "widening bands = WIP piling up" %}</span>
+    </div>
+    {% if cfd_ok %}
+    {% comment %}
+    Fixed-height relative wrapper: Chart.js with maintainAspectRatio
+    false fills its parent, so the parent MUST cap the height or the
+    canvas grows unbounded on every resize tick.
+    {% endcomment %}
+    <div class="relative" style="height: 260px;"><canvas id="cfdChart"></canvas></div>
+    {% else %}
+    {% include "web/_insights_refusal.html" with reason=cfd_refusal hint=cfd_hint %}
+    {% endif %}
+  </div>
+
+  {% if closed_enough %}
+  <div class="grid lg:grid-cols-2 gap-4">
+    <div id="insights-throughput" class="bg-card border border-border rounded-lg p-4 scroll-mt-4 transition-colors">
+      <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground mb-3">{% trans "Throughput per week" %}</div>
+      <div class="relative" style="height: 200px;"><canvas id="throughputChart"></canvas></div>
+    </div>
+    <div id="insights-cycle" class="bg-card border border-border rounded-lg p-4 scroll-mt-4 transition-colors">
+      <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground mb-3">{% trans "Cycle time distribution" %}</div>
+      <div class="relative" style="height: 200px;"><canvas id="cycleChart"></canvas></div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="grid lg:grid-cols-2 gap-4">
+    {% include "web/_insights_blocked.html" %}
+    <div class="bg-card border border-border rounded-lg p-4 flex flex-col">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground flex-1">{% trans "Work in progress" %}</span>
+        <span class="text-[10px] text-placeholder-foreground">{% trans "open now" %}</span>
+      </div>
+      <div class="space-y-2 flex-1">
+        {% for status, label, count in wip_rows %}
+        <div class="flex items-center gap-2 text-sm">
+          <span class="flex-1 text-muted-foreground">{{ label }}</span>
+          <span class="font-mono text-foreground tabular-nums">{{ count }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="mt-3 pt-3 border-t border-border flex items-center gap-2 text-sm">
+        <span class="flex-1 text-muted-foreground">{% trans "Open in total" %}</span>
+        <span class="font-mono text-foreground tabular-nums">{{ wip_total }}</span>
+      </div>
+    </div>
+  </div>
+
+  {% include "web/_insights_bounces.html" %}
+</div>

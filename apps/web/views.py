@@ -64,7 +64,6 @@ from apps.projects.models import Project, ProjectUpdate
 from apps.reactions.services import TARGET_TYPES, attach_reactions, summarize_reactions, toggle_reaction
 from apps.tasks import similarity
 from apps.tasks.events import broadcast_link_change, broadcast_task_events, emit_task_diff_events, snapshot_task
-from apps.tasks.metrics import compute_bottlenecks, compute_cfd, compute_flow_metrics
 from apps.tasks.models import Task
 from apps.tasks.search import search_tasks
 from apps.tasks.services import size_source_for, turn_epic_into_task, turn_task_into_epic
@@ -7127,70 +7126,6 @@ def _cycle_histogram(hours: list[float]) -> dict[str, list]:
                 counts[i] += 1
                 break
     return {"labels": [label for _hi, label in bounds], "data": counts}
-
-
-@login_required
-def project_insights(request, slug_prefix):
-    """Flow-metrics insights page for a project (scrumban dashboard).
-
-    Renders cycle time / lead time / weekly throughput computed live
-    from the activity log (see :func:`apps.tasks.metrics.compute_flow_metrics`).
-    Charts are drawn client-side with Chart.js from the JSON blobs in
-    context.
-    """
-    project = _get_user_project_or_404(request.user, slug_prefix)
-    metrics = compute_flow_metrics(project, weeks=8)
-    cfd = compute_cfd(project, weeks=8)
-    bottlenecks = compute_bottlenecks(project, weeks=8)
-    throughput = metrics["throughput"]
-    avg_throughput = round(sum(p["count"] for p in throughput) / len(throughput), 1) if throughput else 0
-
-    def fmt(hours):
-        if hours is None:
-            return "—"
-        if hours < 24:
-            return f"{hours:.0f}h"
-        return f"{hours / 24:.1f}d"
-
-    # CFD bands, oldest status at the bottom — colours mirror the status
-    # palette (planned zinc → done emerald).
-    cfd_colors = {
-        "planned": "rgb(113 113 122 / 0.55)",
-        "ready": "rgb(6 182 212 / 0.55)",
-        "to-do": "rgb(59 130 246 / 0.55)",
-        "in-progress": "rgb(139 92 246 / 0.55)",
-        "in-review": "rgb(245 158 11 / 0.55)",
-        "done": "rgb(16 185 129 / 0.55)",
-    }
-    cfd_datasets = [
-        {
-            "label": str(Task.STATUS_LABELS[s]),
-            "data": cfd["series"][s],
-            "color": cfd_colors.get(s, "rgb(113 113 122 / 0.5)"),
-        }
-        for s in cfd["statuses"]
-    ]
-    tis = bottlenecks["time_in_status"]
-    tis_statuses = [s for s in Task.KANBAN_STATUS_VALUES if s != Task.STATUS_DONE]
-
-    ctx = {
-        "project": project,
-        "metrics": metrics,
-        "bottlenecks": bottlenecks,
-        "avg_throughput": avg_throughput,
-        "cycle_median_fmt": fmt(metrics["cycle_median"]),
-        "cycle_p85_fmt": fmt(metrics["cycle_p85"]),
-        "lead_median_fmt": fmt(metrics["lead_median"]),
-        "throughput_labels_json": json.dumps([p["label"] for p in throughput]),
-        "throughput_data_json": json.dumps([p["count"] for p in throughput]),
-        "cycle_hist_json": json.dumps(_cycle_histogram(metrics["cycle_times"])),
-        "cfd_labels_json": json.dumps(cfd["labels"]),
-        "cfd_datasets_json": json.dumps(cfd_datasets),
-        "tis_labels_json": json.dumps([str(Task.STATUS_LABELS[s]) for s in tis_statuses]),
-        "tis_data_json": json.dumps([tis.get(s, 0) for s in tis_statuses]),
-        "wip_items": [(Task.STATUS_LABELS[s], bottlenecks["wip"].get(s, 0)) for s in tis_statuses],
-    }
-    return render(request, "web/projects/insights.html", ctx)
 
 
 # An epic is "paused" when nothing inside it has closed in this long.

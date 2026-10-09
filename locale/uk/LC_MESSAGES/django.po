@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Acta 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-09 11:57+0000\n"
+"POT-Creation-Date: 2026-10-09 12:26+0000\n"
 "PO-Revision-Date: 2026-05-16 15:30+0000\n"
 "Last-Translator: Acta team\n"
 "Language-Team: Ukrainian\n"
@@ -35,7 +35,7 @@ msgid "Workspace"
 msgstr "Робочий простір"
 
 #: acta/settings/base.py:628 apps/workspaces/models.py:323
-#: templates/base_app.html:253
+#: templates/base_app.html:259
 msgid "Workspaces"
 msgstr "Робочі простори"
 
@@ -49,7 +49,7 @@ msgid "Invites"
 msgstr "Запрошення"
 
 #: acta/settings/base.py:645 acta/settings/base.py:649
-#: apps/projects/models.py:114 apps/web/views.py:10999 apps/web/views.py:11047
+#: apps/projects/models.py:114 apps/web/views.py:10931 apps/web/views.py:10979
 #: templates/base_app.html:165 templates/base_app.html:166
 #: templates/web/_command_palette.html:416
 #: templates/web/_command_palette.html:422 templates/web/epics.html:187
@@ -62,7 +62,7 @@ msgstr "Проєкти"
 msgid "Project updates"
 msgstr "Оновлення проєктів"
 
-#: acta/settings/base.py:661 acta/settings/base.py:665 apps/web/views.py:11045
+#: acta/settings/base.py:661 acta/settings/base.py:665 apps/web/views.py:10977
 #: templates/web/_command_palette.html:418
 #: templates/web/_command_palette.html:421
 #: templates/web/cycles/overview.html:185
@@ -70,7 +70,7 @@ msgid "Tasks"
 msgstr "Задачі"
 
 #: acta/settings/base.py:670 apps/comments/models.py:71
-#: apps/web/activity_header.py:74 apps/web/views.py:2685
+#: apps/web/activity_header.py:74 apps/web/views.py:2684
 #: templates/web/_inbox_list.html:44 templates/web/_my_activity_inner.html:86
 #: templates/web/meetings/_comments.html:14
 #: templates/web/projects/_update_comments.html:14
@@ -78,7 +78,7 @@ msgid "Comments"
 msgstr "Коментарі"
 
 #: acta/settings/base.py:675 apps/labels/models.py:110
-#: apps/web/create_dialog.py:456 apps/web/views.py:2683
+#: apps/web/create_dialog.py:456 apps/web/views.py:2682
 #: templates/web/projects/_bulk_context_menu.html:325
 #: templates/web/projects/_table.html:78
 #: templates/web/projects/_task_context_menu.html:440
@@ -337,7 +337,7 @@ msgid "Active"
 msgstr "Активний"
 
 #: apps/cycles/models.py:27 apps/projects/models.py:217
-#: templates/web/projects/insights.html:35
+#: templates/web/_insights_inner.html:77
 msgid "Completed"
 msgstr "Завершено"
 
@@ -350,8 +350,8 @@ msgstr "Завершено"
 msgid "Cycle"
 msgstr "Цикл"
 
-#: apps/cycles/models.py:78 apps/web/views.py:11003 templates/base_app.html:192
-#: templates/base_app.html:193 templates/web/_inbox_preview.html:48
+#: apps/cycles/models.py:78 apps/web/views.py:10935 templates/base_app.html:198
+#: templates/base_app.html:199 templates/web/_inbox_preview.html:48
 #: templates/web/cycles/overview.html:15 templates/web/cycles/overview.html:19
 #: templates/web/workspaces/_settings_cycles.html:16
 msgid "Cycles"
@@ -479,7 +479,7 @@ msgid "%(m)sm"
 msgstr "%(m)sхв"
 
 #: apps/milestones/models.py:109 apps/web/create_dialog.py:493
-#: apps/web/kanban.py:28 apps/web/views.py:2684
+#: apps/web/kanban.py:28 apps/web/views.py:2683
 #: templates/web/milestones/overview.html:104
 #: templates/web/projects/_bulk_context_menu.html:276
 #: templates/web/projects/_plan_chip.html:26
@@ -677,7 +677,7 @@ msgstr "Належить до %(name)s, %(date)s."
 msgid "%(name)s — all done, not closed"
 msgstr "%(name)s — усе готово, але не закрито"
 
-#: apps/milestones/services.py:1653 templates/base_app.html:649
+#: apps/milestones/services.py:1653 templates/base_app.html:655
 #: templates/web/_epic_panel.html:24 templates/web/_modal_shell.html:42
 #: templates/web/_modal_shell.html:43 templates/web/inbox.html:173
 #: templates/web/milestones/_close_button.html:16
@@ -765,7 +765,7 @@ msgstr "Сповіщення"
 msgid "Notifications"
 msgstr "Сповіщення"
 
-#: apps/projects/models.py:11 apps/web/views.py:10325
+#: apps/projects/models.py:11 apps/web/views.py:10257
 msgid "Slug prefix must be 2–6 uppercase Latin letters."
 msgstr "Префікс slug має містити 2–6 великих латинських літер."
 
@@ -781,7 +781,7 @@ msgstr "Префікс slug має містити 2–6 великих лати�
 msgid "Project"
 msgstr "Проєкт"
 
-#: apps/projects/models.py:140 apps/web/views.py:10343
+#: apps/projects/models.py:140 apps/web/views.py:10275
 msgid "Lead must be a member of the project's workspace."
 msgstr "Лід повинен бути учасником робочого простору проєкту."
 
@@ -960,7 +960,7 @@ msgstr "Майлстоун %(id)s не знайдено."
 msgid "Epic %(id)s not found."
 msgstr "Епік %(id)s не знайдено."
 
-#: apps/tasks/bulk.py:328 apps/tasks/serializers.py:168 apps/web/views.py:5246
+#: apps/tasks/bulk.py:328 apps/tasks/serializers.py:168 apps/web/views.py:5242
 msgid "Epics are turned off for this workspace."
 msgstr "Епіки вимкнені для цього воркспейсу."
 
@@ -1310,7 +1310,7 @@ msgstr "Тихі години вимкнено."
 msgid "Closed"
 msgstr "Закрито"
 
-#: apps/web/activity_header.py:64 apps/web/views.py:2679
+#: apps/web/activity_header.py:64 apps/web/views.py:2678
 #: templates/web/projects/_task_meta.html:124
 msgid "Created"
 msgstr "Створено"
@@ -1477,7 +1477,7 @@ msgstr "Щомісяця"
 msgid "No meeting"
 msgstr "Без зустрічі"
 
-#: apps/web/create_dialog.py:421 apps/web/views.py:2678
+#: apps/web/create_dialog.py:421 apps/web/views.py:2677
 #: templates/web/projects/_bulk_context_menu.html:159
 #: templates/web/projects/_table.html:69
 #: templates/web/projects/_task_context_menu.html:251
@@ -1486,7 +1486,7 @@ msgstr "Без зустрічі"
 msgid "Status"
 msgstr "Статус"
 
-#: apps/web/create_dialog.py:431 apps/web/views.py:2680
+#: apps/web/create_dialog.py:431 apps/web/views.py:2679
 #: templates/web/epics.html:185
 #: templates/web/projects/_bulk_context_menu.html:173
 #: templates/web/projects/_task_context_menu.html:270
@@ -1505,7 +1505,7 @@ msgstr "Пріоритет"
 msgid "Size"
 msgstr "Розмір"
 
-#: apps/web/create_dialog.py:447 apps/web/views.py:2681
+#: apps/web/create_dialog.py:447 apps/web/views.py:2680
 #: templates/web/_assignee_strip.html:15 templates/web/projects/_table.html:82
 #: templates/web/projects/_task_meta.html:67
 #: templates/web/recurring/_recurring_editor.html:113
@@ -1513,7 +1513,7 @@ msgstr "Розмір"
 msgid "Assignee"
 msgstr "Виконавець"
 
-#: apps/web/create_dialog.py:466 apps/web/views.py:2682
+#: apps/web/create_dialog.py:466 apps/web/views.py:2681
 #: templates/web/_inbox_list.html:40 templates/web/projects/_table.html:121
 #: templates/web/projects/_task_card.html:149
 msgid "Due"
@@ -1527,7 +1527,7 @@ msgstr "Повторення"
 msgid "Parent"
 msgstr "Батьківська задача"
 
-#: apps/web/create_dialog.py:539 apps/web/views.py:2686
+#: apps/web/create_dialog.py:539 apps/web/views.py:2685
 #: templates/web/projects/_links_panel.html:70
 msgid "Links"
 msgstr "Зв'язки"
@@ -2082,64 +2082,64 @@ msgstr "учасника виключено з простору"
 msgid "changed a member role"
 msgstr "змінено роль учасника"
 
-#: apps/web/views.py:2687
+#: apps/web/views.py:2686
 msgid "Edits"
 msgstr "Правки"
 
-#: apps/web/views.py:5244
+#: apps/web/views.py:5240
 msgid "This is already an epic."
 msgstr "Це вже епік."
 
-#: apps/web/views.py:5250
+#: apps/web/views.py:5246
 msgid "It is a subtask — promote it to a top-level task first."
 msgstr "Це підзадача — спершу підніміть її до рівня задачі."
 
-#: apps/web/views.py:5272
+#: apps/web/views.py:5268
 msgid "This is not an epic."
 msgstr "Це не епік."
 
-#: apps/web/views.py:5279
+#: apps/web/views.py:5275
 #, python-format
 msgid ""
 "It collects work from %(projects)s — a subtask lives in its parent's "
 "project, so that work would be orphaned."
 msgstr ""
 
-#: apps/web/views.py:5287
+#: apps/web/views.py:5283
 #, python-format
 msgid "%(tasks)s have subtasks of their own, and a subtask cannot have one."
 msgstr "%(tasks)s мають власні підзадачі, а підзадача не може їх мати."
 
-#: apps/web/views.py:5412
+#: apps/web/views.py:5408
 msgid "Project not available in this workspace"
 msgstr "Проєкт недоступний у цьому воркспейсі"
 
-#: apps/web/views.py:6734
+#: apps/web/views.py:6730
 #, python-format
 msgid "Project “%(name)s” archived."
 msgstr "Проєкт «%(name)s» заархівовано."
 
-#: apps/web/views.py:6736
+#: apps/web/views.py:6732
 #, python-format
 msgid "Project “%(name)s” restored."
 msgstr "Проєкт «%(name)s» відновлено."
 
-#: apps/web/views.py:6757
+#: apps/web/views.py:6753
 #, python-format
 msgid "Project “%(name)s” deleted."
 msgstr "Проєкт «%(name)s» видалено."
 
-#: apps/web/views.py:6796
+#: apps/web/views.py:6792
 #, python-format
 msgid "Ownership transferred to %(name)s — you are now an admin."
 msgstr "Право власності передано %(name)s — тепер ви адміністратор."
 
-#: apps/web/views.py:6819
+#: apps/web/views.py:6815
 #, python-format
 msgid "Workspace “%(name)s” deleted."
 msgstr "Простір «%(name)s» видалено."
 
-#: apps/web/views.py:6893
+#: apps/web/views.py:6889
 #, python-format
 msgid "General settings saved. %(count)d task moved to Planned."
 msgid_plural "General settings saved. %(count)d tasks moved to Planned."
@@ -2152,259 +2152,323 @@ msgstr[2] ""
 msgstr[3] ""
 "Загальні налаштування збережено. %(count)d задачі переїхали в Planned."
 
-#: apps/web/views.py:6900
+#: apps/web/views.py:6896
 msgid "General settings saved."
 msgstr "Загальні налаштування збережено."
 
-#: apps/web/views.py:6942
+#: apps/web/views.py:6938
 msgid "WIP limits saved."
 msgstr "WIP-ліміти збережено."
 
-#: apps/web/views.py:7010
+#: apps/web/views.py:7006
 msgid "Member defaults saved."
 msgstr "Дефолти для нових учасників збережено."
 
-#: apps/web/views.py:7046
+#: apps/web/views.py:7042
 msgid "Required-on-transition saved."
 msgstr "Політику обов'язкових полів збережено."
 
-#: apps/web/views.py:7099 apps/web/views.py:7107
+#: apps/web/views.py:7095 apps/web/views.py:7103
 msgid "Cycles saved."
 msgstr "Цикли збережено."
 
-#: apps/web/views.py:9558
+#: apps/web/views.py:9490
 #, python-format
 msgid "Created %(slug)s"
 msgstr "Створено %(slug)s"
 
-#: apps/web/views.py:9841 apps/web/views.py:9885 apps/web/views.py:9912
-#: apps/web/views.py:10138 apps/web/views.py:10170 apps/web/views.py:10195
+#: apps/web/views.py:9773 apps/web/views.py:9817 apps/web/views.py:9844
+#: apps/web/views.py:10070 apps/web/views.py:10102 apps/web/views.py:10127
 msgid "Admin or owner only"
 msgstr "Тільки для адміна або власника"
 
-#: apps/web/views.py:9844
+#: apps/web/views.py:9776
 msgid "Email is required"
 msgstr "Email обов'язковий"
 
-#: apps/web/views.py:9853 apps/web/views.py:10145 apps/web/views.py:10178
+#: apps/web/views.py:9785 apps/web/views.py:10077 apps/web/views.py:10110
 msgid "Invalid role"
 msgstr "Неправильна роль"
 
-#: apps/web/views.py:9862
+#: apps/web/views.py:9794
 #, python-format
 msgid "Invite sent to %(email)s."
 msgstr "Запрошення надіслано на %(email)s."
 
-#: apps/web/views.py:9865
+#: apps/web/views.py:9797
 msgid "Invite created but email failed — copy the link from the list."
 msgstr ""
 "Запрошення створено, але лист не надіслався — скопіюйте посилання зі списку."
 "Запрошення створено, але лист не надіслався — скопіюйте посилання зі списку."
 
-#: apps/web/views.py:9888
+#: apps/web/views.py:9820
 msgid "Invite not found"
 msgstr "Запрошення не знайдено"
 
-#: apps/web/views.py:9894
+#: apps/web/views.py:9826
 #, python-format
 msgid "Invite to %(email)s revoked."
 msgstr "Запрошення для %(email)s відкликано."
 
-#: apps/web/views.py:9915
+#: apps/web/views.py:9847
 msgid "Invite not found or already accepted"
 msgstr "Запрошення не знайдено або вже прийнято"
 
-#: apps/web/views.py:9918
+#: apps/web/views.py:9850
 #, python-format
 msgid "Invite re-sent to %(email)s."
 msgstr "Запрошення повторно надіслано на %(email)s."
 
-#: apps/web/views.py:9920
+#: apps/web/views.py:9852
 msgid "Resend failed — try again later."
 msgstr "Не вдалося надіслати повторно — спробуйте пізніше."
 
-#: apps/web/views.py:10013 apps/workspaces/models.py:370
+#: apps/web/views.py:9945 apps/workspaces/models.py:370
 #: apps/workspaces/models.py:455 templates/web/_dashboard_inner.html:222
 #: templates/web/_dashboard_inner.html:269
 msgid "Member"
 msgstr "Учасник"
 
-#: apps/web/views.py:10014 apps/workspaces/models.py:369
-#: apps/workspaces/models.py:454 templates/base_app.html:545
+#: apps/web/views.py:9946 apps/workspaces/models.py:369
+#: apps/workspaces/models.py:454 templates/base_app.html:551
 msgid "Admin"
 msgstr "Адміністратор"
 
-#: apps/web/views.py:10142
+#: apps/web/views.py:10074
 msgid "Invalid user_id"
 msgstr "Неправильний user_id"
 
-#: apps/web/views.py:10150
+#: apps/web/views.py:10082
 msgid "Cannot add another owner"
 msgstr "Не можна додати ще одного власника"
 
-#: apps/web/views.py:10153
+#: apps/web/views.py:10085
 msgid "User not found"
 msgstr "Користувача не знайдено"
 
-#: apps/web/views.py:10155
+#: apps/web/views.py:10087
 msgid "User already a member"
 msgstr "Користувач вже є учасником"
 
-#: apps/web/views.py:10173 apps/web/views.py:10198
+#: apps/web/views.py:10105 apps/web/views.py:10130
 msgid "Not a member"
 msgstr "Не є учасником"
 
-#: apps/web/views.py:10175
+#: apps/web/views.py:10107
 msgid "Transfer ownership first"
 msgstr "Спочатку передай право власності"
 
-#: apps/web/views.py:10180
+#: apps/web/views.py:10112
 msgid "Ownership transfer not supported here"
 msgstr "Передача права власності тут не підтримується"
 
-#: apps/web/views.py:10200
+#: apps/web/views.py:10132
 msgid "Cannot remove owner"
 msgstr "Не можна видалити власника"
 
-#: apps/web/views.py:10309
+#: apps/web/views.py:10241
 msgid "Invalid workspace"
 msgstr "Неправильний робочий простір"
 
-#: apps/web/views.py:10315
+#: apps/web/views.py:10247
 msgid "Workspace not accessible"
 msgstr "Робочий простір недоступний"
 
-#: apps/web/views.py:10319 apps/web/views.py:10429
+#: apps/web/views.py:10251 apps/web/views.py:10361
 msgid "Name is required"
 msgstr "Ім'я обов'язкове"
 
-#: apps/web/views.py:10321 apps/web/views.py:10431
+#: apps/web/views.py:10253 apps/web/views.py:10363
 msgid "Name too long"
 msgstr "Назва задовга"
 
-#: apps/web/views.py:10327
+#: apps/web/views.py:10259
 msgid "Slug prefix already used in this workspace"
 msgstr "Префікс slug вже використовується в цьому робочому просторі"
 
-#: apps/web/views.py:10337
+#: apps/web/views.py:10269
 msgid "Invalid lead"
 msgstr "Неправильний лід"
 
-#: apps/web/views.py:10437
+#: apps/web/views.py:10369
 msgid "Invalid slug"
 msgstr "Неправильний slug"
 
-#: apps/web/views.py:10439 apps/workspaces/models.py:344
+#: apps/web/views.py:10371 apps/workspaces/models.py:344
 msgid "This name is reserved. Pick another."
 msgstr "Це імʼя зарезервоване. Оберіть інше."
 
-#: apps/web/views.py:10441
+#: apps/web/views.py:10373
 msgid "Slug already taken"
 msgstr "Slug вже зайнятий"
 
-#: apps/web/views.py:10453
+#: apps/web/views.py:10385
 msgid "Cannot generate unique slug"
 msgstr "Не вдалось згенерувати унікальний slug"
 
-#: apps/web/views.py:10707 apps/web/views.py:10710
+#: apps/web/views.py:10639 apps/web/views.py:10642
 msgid "Unknown label group."
 msgstr "Невідома група міток."
 
-#: apps/web/views.py:10727 apps/web/views.py:10753
+#: apps/web/views.py:10659 apps/web/views.py:10685
 msgid "Group name is required."
 msgstr "Потрібно вказати назву групи."
 
-#: apps/web/views.py:10731 apps/web/views.py:10758
+#: apps/web/views.py:10663 apps/web/views.py:10690
 msgid "A group with that name already exists."
 msgstr "Група з такою назвою вже існує."
 
-#: apps/web/views.py:10741
+#: apps/web/views.py:10673
 msgid "Group created."
 msgstr "Групу створено."
 
-#: apps/web/views.py:10776
+#: apps/web/views.py:10708
 msgid "Group deleted. Its labels moved to Ungrouped."
 msgstr "Групу видалено. Її мітки переміщено до «Без групи»."
 
-#: apps/web/views.py:10787 apps/web/views.py:10818
+#: apps/web/views.py:10719 apps/web/views.py:10750
 msgid "Label name is required."
 msgstr "Потрібно вказати назву мітки."
 
-#: apps/web/views.py:10790 apps/web/views.py:10821
+#: apps/web/views.py:10722 apps/web/views.py:10753
 msgid "Pick a colour from the palette."
 msgstr "Виберіть колір з палітри."
 
-#: apps/web/views.py:10795 apps/web/views.py:10827
+#: apps/web/views.py:10727 apps/web/views.py:10759
 msgid "A label with that name already exists in this workspace."
 msgstr "Мітка з такою назвою вже існує в цьому воркспейсі."
 
-#: apps/web/views.py:10806
+#: apps/web/views.py:10738
 msgid "Label created."
 msgstr "Мітку створено."
 
-#: apps/web/views.py:10852
+#: apps/web/views.py:10784
 msgid "Label deleted."
 msgstr "Мітку видалено."
 
-#: apps/web/views.py:10995 templates/base_app.html:122
+#: apps/web/views.py:10927 templates/base_app.html:122
 #: templates/base_app.html:123 templates/web/dashboard.html:4
 #: templates/web/dashboard.html:7
 msgid "Dashboard"
 msgstr "Панель"
 
-#: apps/web/views.py:10996 templates/base_app.html:128
+#: apps/web/views.py:10928 templates/base_app.html:128
 #: templates/base_app.html:129 templates/web/inbox.html:14
 msgid "Inbox"
 msgstr "Вхідні"
 
-#: apps/web/views.py:10997 templates/base_app.html:141
+#: apps/web/views.py:10929 templates/base_app.html:141
 #: templates/base_app.html:142 templates/web/my_work.html:6
 #: templates/web/my_work.html:9
 msgid "My Work"
 msgstr "Моя робота"
 
-#: apps/web/views.py:10998 templates/base_app.html:147
+#: apps/web/views.py:10930 templates/base_app.html:147
 #: templates/base_app.html:148 templates/web/all_tasks.html:6
 #: templates/web/all_tasks.html:9
 msgid "All Tasks"
 msgstr "Усі задачі"
 
-#: apps/web/views.py:11000 templates/base_app.html:135
+#: apps/web/views.py:10932 templates/base_app.html:135
 #: templates/base_app.html:136 templates/web/my_activity.html:11
 msgid "My activity"
 msgstr "Моя активність"
 
-#: apps/web/views.py:11004
+#: apps/web/views.py:10936
 msgid "Account settings"
 msgstr "Налаштування акаунта"
 
-#: apps/web/views.py:11009 templates/base_app.html:271
+#: apps/web/views.py:10941 templates/base_app.html:277
 #: templates/web/cycles/overview.html:38
 #: templates/web/workspaces/settings.html:20
 #: templates/web/workspaces/settings.html:59
 msgid "Workspace settings"
 msgstr "Налаштування робочого простору"
 
-#: apps/web/views.py:11028 templates/base_app.html:416
-#: templates/base_app.html:418 templates/web/_create_task_modal.html:52
+#: apps/web/views.py:10960 templates/base_app.html:422
+#: templates/base_app.html:424 templates/web/_create_task_modal.html:52
 #: templates/web/projects/_kanban.html:128
 msgid "New task"
 msgstr "Нова задача"
 
-#: apps/web/views.py:11033
+#: apps/web/views.py:10965
 #, python-format
 msgid "New task in %(name)s"
 msgstr "Нова задача в %(name)s"
 
-#: apps/web/views.py:11046 templates/web/_command_palette.html:415
+#: apps/web/views.py:10978 templates/web/_command_palette.html:415
 #: templates/web/_command_palette.html:423
 msgid "Quick actions"
 msgstr "Швидкі дії"
 
-#: apps/web/views.py:11048 templates/web/_command_palette.html:417
+#: apps/web/views.py:10980 templates/web/_command_palette.html:417
 #: templates/web/_command_palette.html:425
 msgid "Navigation"
 msgstr "Навігація"
+
+#: apps/web/views_insights.py:86
+msgid "Starred"
+msgstr "Із зірочкою"
+
+#: apps/web/views_insights.py:87 templates/web/meetings/_meetings_inner.html:34
+#: templates/web/recurring/_recurring_inner.html:37
+msgid "All projects"
+msgstr "Усі проєкти"
+
+#: apps/web/views_insights.py:111
+#, python-format
+msgid "Needs %(need)d tasks closed in the window — this one has %(have)d."
+msgstr "Потрібно %(need)d закритих задач у вікні — тут їх %(have)d."
+
+#: apps/web/views_insights.py:115
+msgid "Splitting a life into work and waiting takes a sample, not an anecdote."
+msgstr ""
+"Щоб розділити життя задачі на роботу й очікування, потрібна вибірка, а не поодинокий випадок."
+
+#: apps/web/views_insights.py:119
+msgid "Nothing is blocked right now."
+msgstr "Зараз ніщо не заблоковане."
+
+#: apps/web/views_insights.py:119
+msgid "No blocking links here yet."
+msgstr "Тут ще немає зв'язків блокування."
+
+#: apps/web/views_insights.py:122
+msgid "Every blocking link in scope has an end that is already finished."
+msgstr "У кожного зв'язку блокування в цій області один кінець уже завершено."
+
+#: apps/web/views_insights.py:124
+msgid "Link one task as blocking another and the wait it causes shows up here."
+msgstr ""
+"Позначте одну задачу як блокувальну для іншої — і очікування, яке вона створює, з'явиться тут."
+
+#: apps/web/views_insights.py:131
+#, python-format
+msgid "Needs work to band — this scope has %(count)d tasks."
+msgstr "Нема чого групувати — у цій області %(count)d задач."
+
+#: apps/web/views_insights.py:134
+msgid "Attach or create some work and the bands appear on their own."
+msgstr "Додайте або створіть роботу — смуги з'являться самі."
+
+#: apps/web/views_insights.py:136
+#, python-format
+msgid "Needs %(need)d days of history — this scope has %(have)d."
+msgstr "Потрібно %(need)d днів історії — тут їх %(have)d."
+
+#: apps/web/views_insights.py:140
+msgid "A chart over three days of history is a cliff, not a trend."
+msgstr "Графік на трьох днях історії — це обрив, а не тенденція."
+
+#: apps/web/views_insights.py:142
+#, python-format
+msgid "Needs %(need)d status changes in the window — this one has %(have)d."
+msgstr "Потрібно %(need)d змін статусу у вікні — тут їх %(have)d."
+
+#: apps/web/views_insights.py:146
+msgid "A rate over a handful of moves is an anecdote with a percent sign."
+msgstr ""
+"Відсоток на кількох переходах — це поодинокий випадок зі знаком відсотка."
 
 #: apps/web/views_milestones.py:241
 #, python-format
@@ -2670,7 +2734,7 @@ msgid "Cancel"
 msgstr "Скасувати"
 
 #: templates/accounts/settings.html:5 templates/accounts/settings.html:8
-#: templates/base_app.html:540 templates/web/workspaces/settings.html:27
+#: templates/base_app.html:546 templates/web/workspaces/settings.html:27
 msgid "Settings"
 msgstr "Налаштування"
 
@@ -2726,7 +2790,7 @@ msgstr "Сесія"
 msgid "Sign out of this browser."
 msgstr "Вийти з цього браузера."
 
-#: templates/accounts/settings.html:143 templates/base_app.html:552
+#: templates/accounts/settings.html:143 templates/base_app.html:558
 msgid "Log out"
 msgstr "Вийти"
 
@@ -2908,69 +2972,75 @@ msgstr "Дзвінки"
 msgid "Epics"
 msgstr "Епіки"
 
-#: templates/base_app.html:231
+#: templates/base_app.html:191 templates/base_app.html:192
+#: templates/web/insights.html:16 templates/web/insights.html:26
+#: templates/web/projects/_overview_panel.html:187
+msgid "Insights"
+msgstr "Аналітика"
+
+#: templates/base_app.html:237
 msgid "Switch workspace"
 msgstr "Змінити воркспейс"
 
-#: templates/base_app.html:277 templates/web/_create_workspace_modal.html:104
+#: templates/base_app.html:283 templates/web/_create_workspace_modal.html:104
 msgid "Create workspace"
 msgstr "Створити робочий простір"
 
-#: templates/base_app.html:330
+#: templates/base_app.html:336
 msgid "Open navigation"
 msgstr "Відкрити навігацію"
 
-#: templates/base_app.html:344
+#: templates/base_app.html:350
 msgid "Hide sidebar"
 msgstr "Сховати бічну панель"
 
-#: templates/base_app.html:344
+#: templates/base_app.html:350
 msgid "Show sidebar"
 msgstr "Показати бічну панель"
 
-#: templates/base_app.html:403 templates/base_app.html:405
+#: templates/base_app.html:409 templates/base_app.html:411
 msgid "Search"
 msgstr "Пошук"
 
-#: templates/base_app.html:444 templates/base_app.html:446
-#: templates/base_app.html:456
+#: templates/base_app.html:450 templates/base_app.html:452
+#: templates/base_app.html:462
 msgid "Theme"
 msgstr "Тема"
 
-#: templates/base_app.html:522
+#: templates/base_app.html:528
 msgid "neutral · warm · tinted"
 msgstr "нейтральний · теплий · з підкладкою"
 
-#: templates/base_app.html:523
+#: templates/base_app.html:529
 msgid "saved on this device"
 msgstr "збережено на цьому пристрої"
 
-#: templates/base_app.html:600 templates/base_app.html:680
+#: templates/base_app.html:606 templates/base_app.html:686
 msgid "Dismiss"
 msgstr "Закрити"
 
-#: templates/base_app.html:635
+#: templates/base_app.html:641
 msgid "Previous"
 msgstr "Назад"
 
-#: templates/base_app.html:641 templates/web/recurring/_recurring_row.html:47
+#: templates/base_app.html:647 templates/web/recurring/_recurring_row.html:47
 #: templates/web/workspaces/_settings_cycles.html:109
 msgid "Next"
 msgstr "Далі"
 
-#: templates/base_app.html:647
+#: templates/base_app.html:653
 msgid "Open original"
 msgstr "Відкрити оригінал"
 
-#: templates/base_app.html:734 templates/web/_inbox_list.html:103
+#: templates/base_app.html:740 templates/web/_inbox_list.html:103
 msgid "selected"
 msgstr "виділено"
 
-#: templates/base_app.html:750
+#: templates/base_app.html:756
 msgid "Actions"
 msgstr "Дії"
 
-#: templates/base_app.html:757 templates/web/_inbox_list.html:121
+#: templates/base_app.html:763 templates/web/_inbox_list.html:121
 msgid "Clear selection"
 msgstr "Зняти вибір"
 
@@ -3942,6 +4012,262 @@ msgstr ""
 "Тут з'являтимуться статус-апдейти проєктів із ваших робочих просторів.Тут "
 "з'являтимуться апдейти статусу проєктів із ваших робочих просторів."
 
+#: templates/web/_insights_blocked.html:13
+msgid "Blocked radar"
+msgstr "Радар блокувань"
+
+#: templates/web/_insights_blocked.html:15
+msgid "right now, not a window"
+msgstr "просто зараз, не за період"
+
+#: templates/web/_insights_blocked.html:23
+msgid "held by %(counter)s task"
+msgid_plural "held by %(counter)s tasks"
+msgstr[0] "утримує %(counter)s задача"
+msgstr[1] "утримують %(counter)s задачі"
+msgstr[2] "утримують %(counter)s задач"
+msgstr[3] "утримують %(counter)s задачі"
+
+#: templates/web/_insights_blocked.html:27
+msgid "%(counter)s standing day"
+msgid_plural "%(counter)s standing days"
+msgstr[0] "%(counter)s день простою"
+msgstr[1] "%(counter)s дні простою"
+msgstr[2] "%(counter)s днів простою"
+msgstr[3] "%(counter)s дня простою"
+
+#: templates/web/_insights_blocked.html:38
+msgid "holds %(counter)s"
+msgid_plural "holds %(counter)s"
+msgstr[0] "тримає %(counter)s"
+msgstr[1] "тримає %(counter)s"
+msgstr[2] "тримає %(counter)s"
+msgstr[3] "тримає %(counter)s"
+
+#: templates/web/_insights_blocked.html:50
+msgid "Longest chain:"
+msgstr "Найдовший ланцюг:"
+
+#: templates/web/_insights_blocked.html:58
+#, python-format
+msgid ""
+"%(counter)s of %(total)s links predates the activity log — its age is "
+"estimated from when both tasks existed."
+msgid_plural ""
+"%(counter)s of %(total)s links predate the activity log — their age is "
+"estimated from when both tasks existed."
+msgstr[0] ""
+"%(counter)s із %(total)s зв'язків старший за журнал — його вік оцінено з моменту, коли існували обидві задачі."
+msgstr[1] ""
+"%(counter)s із %(total)s зв'язків старші за журнал — їхній вік оцінено з моменту, коли існували обидві задачі."
+msgstr[2] ""
+"%(counter)s із %(total)s зв'язків старші за журнал — їхній вік оцінено з моменту, коли існували обидві задачі."
+msgstr[3] ""
+"%(counter)s із %(total)s зв'язків старші за журнал — їхній вік оцінено з моменту, коли існували обидві задачі."
+
+#: templates/web/_insights_bounces.html:14
+msgid "Bounces"
+msgstr "Повернення"
+
+#: templates/web/_insights_bounces.html:16
+msgid "work going backwards"
+msgstr "робота йде назад"
+
+#: templates/web/_insights_bounces.html:24
+#, python-format
+msgid "of %(moves)s status moves (%(rate)s%%)"
+msgstr "із %(moves)s змін статусу (%(rate)s%%)"
+
+#: templates/web/_insights_bounces.html:38
+msgid "Nothing went backwards in this window."
+msgstr "У цьому вікні ніщо не йшло назад."
+
+#: templates/web/_insights_bounces.html:42
+msgid "and %(counter)s other move"
+msgid_plural "and %(counter)s other moves"
+msgstr[0] "і ще %(counter)s перехід"
+msgstr[1] "і ще %(counter)s переходи"
+msgstr[2] "і ще %(counter)s переходів"
+msgstr[3] "і ще %(counter)s переходу"
+
+#: templates/web/_insights_bounces.html:49
+msgid "Went back most often"
+msgstr "Найчастіше поверталися"
+
+#: templates/web/_insights_bounces.html:63
+msgid "Reopen rate"
+msgstr "Частка повернень"
+
+#: templates/web/_insights_bounces.html:71
+#, python-format
+msgid ""
+"%(reopened)s of %(completed)s tasks closed in this window later left done"
+msgstr ""
+"%(reopened)s із %(completed)s задач, закритих у цьому вікні, згодом вийшли з «Готово»"
+
+#: templates/web/_insights_inner.html:24
+msgid "Whole workspace"
+msgstr "Весь воркспейс"
+
+#: templates/web/_insights_inner.html:29
+msgid "One project"
+msgstr "Один проєкт"
+
+#: templates/web/_insights_inner.html:35
+msgid "Find a project…"
+msgstr "Знайти проєкт…"
+
+#: templates/web/_insights_inner.html:68
+msgid ""
+"Flow across %(name)s over the last %(counter)s week — replayed from the "
+"activity log."
+msgid_plural ""
+"Flow across %(name)s over the last %(counter)s weeks — replayed from the "
+"activity log."
+msgstr[0] ""
+"Потік у %(name)s за останній %(counter)s тиждень — відтворено з журналу активності."
+msgstr[1] ""
+"Потік у %(name)s за останні %(counter)s тижні — відтворено з журналу активності."
+msgstr[2] ""
+"Потік у %(name)s за останні %(counter)s тижнів — відтворено з журналу активності."
+msgstr[3] ""
+"Потік у %(name)s за останні %(counter)s тижня — відтворено з журналу активності."
+
+#: templates/web/_insights_inner.html:70
+msgid ""
+"Flow in %(name)s over the last %(counter)s week — replayed from the activity "
+"log."
+msgid_plural ""
+"Flow in %(name)s over the last %(counter)s weeks — replayed from the "
+"activity log."
+msgstr[0] ""
+"Потік у %(name)s за останній %(counter)s тиждень — відтворено з журналу активності."
+msgstr[1] ""
+"Потік у %(name)s за останні %(counter)s тижні — відтворено з журналу активності."
+msgstr[2] ""
+"Потік у %(name)s за останні %(counter)s тижнів — відтворено з журналу активності."
+msgstr[3] ""
+"Потік у %(name)s за останні %(counter)s тижня — відтворено з журналу активності."
+
+#: templates/web/_insights_inner.html:79
+msgid "in %(counter)s week"
+msgid_plural "in %(counter)s weeks"
+msgstr[0] "за %(counter)s тиждень"
+msgstr[1] "за %(counter)s тижні"
+msgstr[2] "за %(counter)s тижнів"
+msgstr[3] "за %(counter)s тижня"
+
+#: templates/web/_insights_inner.html:82
+msgid "Cycle (median)"
+msgstr "Цикл (медіана)"
+
+#: templates/web/_insights_inner.html:85
+msgid "in-progress → done"
+msgstr "у роботі → завершено"
+
+#: templates/web/_insights_inner.html:85
+#, python-format
+msgid "needs %(need)s closed · has %(have)s"
+msgstr "потрібно %(need)s закритих · є %(have)s"
+
+#: templates/web/_insights_inner.html:89
+msgid "Cycle (85th pct)"
+msgstr "Цикл (85-й перц.)"
+
+#: templates/web/_insights_inner.html:92
+msgid "from %(counter)s sample"
+msgid_plural "from %(counter)s samples"
+msgstr[0] "з %(counter)s вибірки"
+msgstr[1] "з %(counter)s вибірок"
+msgstr[2] "з %(counter)s вибірок"
+msgstr[3] "з %(counter)s вибірки"
+
+#: templates/web/_insights_inner.html:92
+msgid "planning buffer"
+msgstr "буфер планування"
+
+#: templates/web/_insights_inner.html:96
+msgid "Lead (median)"
+msgstr "Lead (медіана)"
+
+#: templates/web/_insights_inner.html:98
+msgid "created → done"
+msgstr "створено → завершено"
+
+#: templates/web/_insights_inner.html:101
+msgid "Throughput / wk"
+msgstr "Пропускна / тижд."
+
+#: templates/web/_insights_inner.html:103
+msgid "avg done / week"
+msgstr "сер. готово / тижд."
+
+#: templates/web/_insights_inner.html:112
+msgid "Cumulative flow"
+msgstr "Кумулятивний потік"
+
+#: templates/web/_insights_inner.html:113
+msgid "widening bands = WIP piling up"
+msgstr "смуги ширшають = WIP накопичується"
+
+#: templates/web/_insights_inner.html:131
+msgid "Throughput per week"
+msgstr "Пропускна здатність за тиждень"
+
+#: templates/web/_insights_inner.html:135
+msgid "Cycle time distribution"
+msgstr "Розподіл часу циклу"
+
+#: templates/web/_insights_inner.html:145
+msgid "Work in progress"
+msgstr "У роботі"
+
+#: templates/web/_insights_inner.html:146
+msgid "open now"
+msgstr "відкрито зараз"
+
+#: templates/web/_insights_inner.html:157
+msgid "Open in total"
+msgstr "Усього відкрито"
+
+#: templates/web/_insights_refusal.html:19
+msgid "Try the whole workspace"
+msgstr "Спробуйте весь воркспейс"
+
+#: templates/web/_insights_wait_work.html:13
+msgid "Wait vs work"
+msgstr "Очікування проти роботи"
+
+#: templates/web/_insights_wait_work.html:16
+msgid "%(counter)s task closed in %(weeks)s weeks"
+msgid_plural "%(counter)s tasks closed in %(weeks)s weeks"
+msgstr[0] "%(counter)s задача закрита за %(weeks)s тижнів"
+msgstr[1] "%(counter)s задачі закрито за %(weeks)s тижнів"
+msgstr[2] "%(counter)s задач закрито за %(weeks)s тижнів"
+msgstr[3] "%(counter)s задачі закрито за %(weeks)s тижнів"
+
+#: templates/web/_insights_wait_work.html:24
+msgid "of a task's life is spent being worked on"
+msgstr "життя задачі припадає на саму роботу"
+
+#: templates/web/_insights_wait_work.html:27
+#, python-format
+msgid "≈%(work)s days of work inside ≈%(life)s days of life"
+msgstr "≈%(work)s днів роботи всередині ≈%(life)s днів життя"
+
+#: templates/web/_insights_wait_work.html:53
+#, python-format
+msgid ""
+"The longest queue is %(stage)s, at ≈%(days)s days — %(ratio)s× the time "
+"anyone spends working on it."
+msgstr ""
+"Найдовша черга — %(stage)s, ≈%(days)s днів: у %(ratio)s× більше часу, ніж над нею працюють."
+
+#: templates/web/_insights_wait_work.html:55
+#, python-format
+msgid "The longest queue is %(stage)s, at ≈%(days)s days."
+msgstr "Найдовша черга — %(stage)s, ≈%(days)s днів."
+
 #: templates/web/_label_group_header.html:12
 #: templates/web/workspaces/_label_form.html:36
 #: templates/web/workspaces/_settings_labels.html:154
@@ -3993,8 +4319,6 @@ msgstr "один тип рядків — фільтрувати нічого"
 
 #: templates/web/_my_activity_items.html:40
 #, python-format
-#| msgid "%(count)d event"
-#| msgid_plural "%(count)d events"
 msgid "%(counter)s event"
 msgid_plural "%(counter)s events"
 msgstr[0] "%(counter)s подія"
@@ -4016,7 +4340,6 @@ msgstr "Немає активності в цьому діапазоні"
 
 #: templates/web/_my_activity_items.html:68
 #, python-format
-#| msgid "No milestone matches these filters."
 msgid "Nothing in the last %(counter)s day matches these filters."
 msgid_plural "Nothing in the last %(counter)s days matches these filters."
 msgstr[0] "За останній %(counter)s день нічого не підходить під ці фільтри."
@@ -4042,8 +4365,6 @@ msgstr "Завантажити ще"
 
 #: templates/web/_my_activity_items.html:84
 #, python-format
-#| msgid "%(counter)s late"
-#| msgid_plural "%(counter)s late"
 msgid "%(counter)s left"
 msgid_plural "%(counter)s left"
 msgstr[0] "ще %(counter)s"
@@ -4053,10 +4374,6 @@ msgstr[3] "ще %(counter)s"
 
 #: templates/web/_my_activity_items.html:89
 #, python-format
-#| msgid ""
-#| "Start of the last %(counter)s day — widen the range to see older events."
-#| msgid_plural ""
-#| "Start of the last %(counter)s days — widen the range to see older events."
 msgid "Start of the %(counter)s-day range — widen it to see older events."
 msgid_plural ""
 "Start of the %(counter)s-day range — widen it to see older events."
@@ -4683,11 +5000,6 @@ msgstr ""
 #: templates/web/meetings/meetings.html:17
 msgid "New call"
 msgstr "Новий дзвінок"
-
-#: templates/web/meetings/_meetings_inner.html:34
-#: templates/web/recurring/_recurring_inner.html:37
-msgid "All projects"
-msgstr "Усі проєкти"
 
 #: templates/web/meetings/_meetings_inner.html:35
 msgid "No project"
@@ -6263,12 +6575,6 @@ msgstr "оновлено %(t)s тому"
 msgid "Stats"
 msgstr "Статистика"
 
-#: templates/web/projects/_overview_panel.html:187
-#: templates/web/projects/insights.html:12
-#: templates/web/projects/insights.html:20
-msgid "Insights"
-msgstr "Аналітика"
-
 #: templates/web/projects/_overview_panel.html:198
 msgid "last 7d"
 msgstr "за 7 днів"
@@ -6929,75 +7235,6 @@ msgid ""
 "Open a task and pick this epic in its rail, or add the Epic row while "
 "creating one."
 msgstr ""
-
-#: templates/web/projects/insights.html:29
-#, python-format
-msgid "Flow over the last %(weeks)s weeks — computed from the activity log."
-msgstr "Потік за останні %(weeks)s тижнів — за даними журналу активності."
-
-#: templates/web/projects/insights.html:39
-msgid "Cycle (median)"
-msgstr "Цикл (медіана)"
-
-#: templates/web/projects/insights.html:41
-msgid "in-progress → done"
-msgstr "у роботі → завершено"
-
-#: templates/web/projects/insights.html:44
-msgid "Cycle (85th pct)"
-msgstr "Цикл (85-й перц.)"
-
-#: templates/web/projects/insights.html:46
-msgid "planning buffer"
-msgstr "буфер планування"
-
-#: templates/web/projects/insights.html:49
-msgid "Lead (median)"
-msgstr "Lead (медіана)"
-
-#: templates/web/projects/insights.html:51
-msgid "created → done"
-msgstr "створено → завершено"
-
-#: templates/web/projects/insights.html:54
-msgid "Throughput / wk"
-msgstr "Пропускна / тижд."
-
-#: templates/web/projects/insights.html:56
-msgid "avg done / week"
-msgstr "сер. готово / тижд."
-
-#: templates/web/projects/insights.html:63
-msgid "Cumulative flow"
-msgstr "Кумулятивний потік"
-
-#: templates/web/projects/insights.html:64
-msgid "widening bands = WIP piling up"
-msgstr "смуги ширшають = WIP накопичується"
-
-#: templates/web/projects/insights.html:79
-msgid "Throughput per week"
-msgstr "Пропускна здатність за тиждень"
-
-#: templates/web/projects/insights.html:83
-msgid "Cycle time distribution"
-msgstr "Розподіл часу циклу"
-
-#: templates/web/projects/insights.html:93
-msgid "Avg time in status"
-msgstr "Сер. час у статусі"
-
-#: templates/web/projects/insights.html:94
-msgid "tallest = bottleneck"
-msgstr "найвища = вузьке місце"
-
-#: templates/web/projects/insights.html:99
-msgid "Work in progress"
-msgstr "У роботі"
-
-#: templates/web/projects/insights.html:109
-msgid "Reopen rate"
-msgstr "Частка повернень"
 
 #: templates/web/projects/list.html:39
 msgid "Mine"
@@ -7776,6 +8013,12 @@ msgstr[3] "%(counter)s в очікуванні"
 #: templates/web/workspaces/settings.html:217
 msgid "Danger zone"
 msgstr "Небезпечна зона"
+
+#~ msgid "Avg time in status"
+#~ msgstr "Сер. час у статусі"
+
+#~ msgid "tallest = bottleneck"
+#~ msgstr "найвища = вузьке місце"
 
 #~ msgid "Drop a filter, or widen the range."
 #~ msgstr "Зніміть фільтр або розширте діапазон."

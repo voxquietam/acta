@@ -116,6 +116,7 @@ class LegacyWorkspacePathRedirectMiddleware:
             "cycles_overview",
             "dashboard",
             "inbox",
+            "insights",
             "my_activity",
             "my_work",
             "project_list",

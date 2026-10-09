@@ -1,0 +1,120 @@
+{% extends "base_app.html" %}
+{% load i18n %}
+{% load web_extras %}
+{% load lucide %}
+{% comment %}
+Insights — flow metrics for one project or a whole workspace, replayed
+live from the activity log (ADR 0026). Charts render client-side with
+Chart.js from the CDN, the same no-build approach the board takes with
+sortable.js (ADR 0014).
+
+The page shell holds Chart.js and the drawing code; everything that
+changes with the scope or the window lives in _insights_inner.html and
+is swapped into place, so switching scope does not reload the library.
+{% endcomment %}
+
+{% block title %}{% trans "Insights" %}{% if project %} · {{ project.slug_prefix }}{% endif %} · Acta{% endblock %}
+
+{% block topbar_left %}
+{% if project %}
+<a href="{% project_url project %}" class="text-placeholder-foreground hover:text-foreground text-sm">
+  &larr; {{ project.slug_prefix }}
+</a>
+<span class="text-muted-foreground">/</span>
+{% endif %}
+<h1 class="text-base font-medium inline-flex items-center gap-1.5">
+  {% lucide "chart-line" "w-4 h-4 text-placeholder-foreground" %}{% trans "Insights" %}
+</h1>
+{% endblock %}
+
+{% block app_main %}
+<div class="h-full overflow-y-auto">
+  {% include "web/_insights_inner.html" %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  (function () {
+    const draw = () => {
+      if (!window.Chart) return;
+      const root = getComputedStyle(document.documentElement);
+      const token = (name) => "rgb(" + root.getPropertyValue(name).trim() + ")";
+      const grid = "rgb(" + root.getPropertyValue("--border").trim() + " / 0.5)";
+      const tick = token("--placeholder-foreground");
+      const brand = "rgb(66 90 245)";
+      // Re-drawing after a scope swap means the old chart still owns the
+      // canvas; Chart.js refuses to mount twice over one element.
+      const mount = (id, config) => {
+        const canvas = document.getElementById(id);
+        if (!canvas) return;
+        const existing = window.Chart.getChart(canvas);
+        if (existing) existing.destroy();
+        new window.Chart(canvas, config);
+      };
+      const axes = (stacked) => ({
+        x: { stacked: !!stacked, grid: { color: grid }, ticks: { color: tick, font: { size: 10 }, maxRotation: 0, autoSkipPadding: 16 } },
+        y: { stacked: !!stacked, beginAtZero: true, grid: { color: grid }, ticks: { color: tick, font: { size: 10 }, precision: 0 } },
+      });
+      const bare = { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } };
+
+      {% if cfd_ok %}
+      const cfdSets = {{ cfd_datasets_json|safe }};
+      mount("cfdChart", {
+        type: "line",
+        data: {
+          labels: {{ cfd_labels_json|safe }},
+          datasets: cfdSets.map((set) => ({
+            label: set.label, data: set.data, backgroundColor: set.color, borderColor: set.color,
+            borderWidth: 1, fill: true, pointRadius: 0, tension: 0.25,
+          })),
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: "index", intersect: false },
+          plugins: { legend: { position: "bottom", labels: { color: tick, boxWidth: 10, font: { size: 10 } } } },
+          scales: axes(true),
+        },
+      });
+      {% endif %}
+
+      {% if closed_enough %}
+      mount("throughputChart", {
+        type: "bar",
+        data: {
+          labels: {{ throughput_labels_json|safe }},
+          datasets: [{ data: {{ throughput_data_json|safe }}, backgroundColor: brand, borderRadius: 3 }],
+        },
+        options: { ...bare, scales: axes(false) },
+      });
+      const hist = {{ cycle_hist_json|safe }};
+      mount("cycleChart", {
+        type: "bar",
+        data: { labels: hist.labels, datasets: [{ data: hist.counts, backgroundColor: "rgb(139 92 246)", borderRadius: 3 }] },
+        options: { ...bare, scales: axes(false) },
+      });
+      {% endif %}
+    };
+    draw();
+    // A number and the block that takes it apart sit on the same page,
+    // so the card jumps there rather than pretending to be a link out.
+    // A plain anchor would do the scrolling, but not the part that
+    // matters: saying which of six cards the reader just landed on.
+    document.body.addEventListener("click", (event) => {
+      const card = event.target.closest("[data-insights-jump]");
+      if (!card) return;
+      const target = document.querySelector(card.getAttribute("href"));
+      if (!target) return;
+      event.preventDefault();
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      target.classList.add("ring-1", "ring-brand-500/35");
+      setTimeout(() => target.classList.remove("ring-1", "ring-brand-500/35"), 1400);
+    });
+    // The inner block is swapped on scope and window changes, which
+    // brings fresh canvases with it.
+    document.body.addEventListener("htmx:afterSwap", (event) => {
+      if (event.target && event.target.id === "insights-inner") draw();
+    });
+    document.addEventListener("acta:theme", draw);
+  })();
+</script>
+{% endblock %}

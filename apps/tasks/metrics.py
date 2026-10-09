@@ -49,8 +49,43 @@ def _percentile(values: list[float], pct: float) -> float | None:
     return ordered[k]
 
 
-def compute_flow_metrics(project, *, today: datetime.date | None = None, weeks: int = 8) -> dict[str, Any]:
-    """Compute cycle time, lead time and throughput for one project.
+def _task_scope(project, workspace) -> dict:
+    """Return the queryset filter that narrows tasks to the scope.
+
+    Args:
+        project: A project, or ``None`` to measure a whole workspace.
+        workspace: The workspace, used when ``project`` is ``None``.
+
+    Returns:
+        Keyword arguments for ``Task.objects.filter``.
+    """
+    return {"project": project} if project is not None else {"project__workspace": workspace}
+
+
+def _log_scope(project, workspace) -> dict:
+    """Return the queryset filter that narrows activity rows to the scope.
+
+    The log carries both columns, so a workspace read does not need to
+    join through the project table.
+
+    Args:
+        project: A project, or ``None`` to measure a whole workspace.
+        workspace: The workspace, used when ``project`` is ``None``.
+
+    Returns:
+        Keyword arguments for ``ActivityLog.objects.filter``.
+    """
+    return {"project": project} if project is not None else {"workspace": workspace}
+
+
+def compute_flow_metrics(
+    project=None,
+    *,
+    workspace=None,
+    today: datetime.date | None = None,
+    weeks: int = 8,
+) -> dict[str, Any]:
+    """Compute cycle time, lead time and throughput for one scope.
 
     Replays the project's ``task.status_changed`` events to derive, per
     task that is currently ``done``:
@@ -67,7 +102,10 @@ def compute_flow_metrics(project, *, today: datetime.date | None = None, weeks: 
     flow rather than all-time history.
 
     Args:
-        project: The :class:`~apps.projects.models.Project` to measure.
+        project: The :class:`~apps.projects.models.Project` to measure,
+            or ``None`` to measure ``workspace`` entire. Positional, so
+            every existing caller keeps working unchanged.
+        workspace: The workspace to measure when no project is given.
         today: Date anchor for the trailing window (defaults to today).
         weeks: Size of the trailing window, in weeks.
 
@@ -83,12 +121,13 @@ def compute_flow_metrics(project, *, today: datetime.date | None = None, weeks: 
     # ``.work()`` throughout this module: an epic has no cycle time of
     # its own — its state is read off the tasks it collects — so
     # counting it would add a row that never flows.
-    task_created = dict(Task.objects.work().filter(project=project).values_list("id", "created_at"))
-    task_status = dict(Task.objects.work().filter(project=project).values_list("id", "status"))
+    scope = _task_scope(project, workspace)
+    task_created = dict(Task.objects.work().filter(**scope).values_list("id", "created_at"))
+    task_status = dict(Task.objects.work().filter(**scope).values_list("id", "status"))
 
     events = (
         ActivityLog.objects.filter(
-            project=project,
+            **_log_scope(project, workspace),
             target_type=ActivityLog.TARGET_TASK,
             event_type="task.status_changed",
         )
@@ -123,7 +162,13 @@ def compute_flow_metrics(project, *, today: datetime.date | None = None, weeks: 
         week_monday = done_date - datetime.timedelta(days=done_date.weekday())
         throughput_counts[week_monday] += 1
         created = task_created.get(task_id)
-        if created:
+        # A task cannot be finished before it exists. It happens anyway
+        # where history was imported: the row is stamped with the day of
+        # the import while its events carry the dates they really had.
+        # The cycle sample has always guarded against this; the lead one
+        # did not, and a handful of negative spans was enough to drag the
+        # median below zero and print "-240h" on the page.
+        if created and created <= done_at:
             lead_times.append((done_at - created).total_seconds() / 3600.0)
         started = first_in_progress.get(task_id)
         if started and started <= done_at:
@@ -155,7 +200,7 @@ def compute_flow_metrics(project, *, today: datetime.date | None = None, weeks: 
     }
 
 
-def _task_status_events(project):
+def _task_status_events(project=None, *, workspace=None, task_ids=None):
     """Return ``{task_id: [(date, from, to), …]}`` of status changes.
 
     One ordered pass over the project's ``task.status_changed`` rows.
@@ -165,7 +210,7 @@ def _task_status_events(project):
     events: dict[int, list] = defaultdict(list)
     rows = (
         ActivityLog.objects.filter(
-            project=project,
+            **_log_scope(project, workspace),
             target_type=ActivityLog.TARGET_TASK,
             event_type="task.status_changed",
         )
@@ -178,7 +223,13 @@ def _task_status_events(project):
     return events
 
 
-def compute_cfd(project, *, today: datetime.date | None = None, weeks: int = 8) -> dict[str, Any]:
+def compute_cfd(
+    project=None,
+    *,
+    workspace=None,
+    today: datetime.date | None = None,
+    weeks: int = 8,
+) -> dict[str, Any]:
     """Reconstruct a Cumulative Flow Diagram from the activity log.
 
     For each day in the trailing window, counts how many tasks sat in
@@ -196,8 +247,8 @@ def compute_cfd(project, *, today: datetime.date | None = None, weeks: int = 8) 
     statuses = list(Task.KANBAN_STATUS_VALUES)
     days = [start + datetime.timedelta(days=i) for i in range((today - start).days + 1)]
 
-    events = _task_status_events(project)
-    tasks = Task.objects.work().filter(project=project).values_list("id", "status", "created_at")
+    events = _task_status_events(project, workspace=workspace)
+    tasks = Task.objects.work().filter(**_task_scope(project, workspace)).values_list("id", "status", "created_at")
 
     series = {s: [0] * len(days) for s in statuses}
     for task_id, current_status, created_at in tasks:
@@ -225,7 +276,13 @@ def compute_cfd(project, *, today: datetime.date | None = None, weeks: int = 8) 
     }
 
 
-def compute_bottlenecks(project, *, today: datetime.date | None = None, weeks: int = 8) -> dict[str, Any]:
+def compute_bottlenecks(
+    project=None,
+    *,
+    workspace=None,
+    today: datetime.date | None = None,
+    weeks: int = 8,
+) -> dict[str, Any]:
     """Diagnose where work piles up: time-in-status, WIP, reopen rate.
 
     * **time_in_status** — average hours a task spends in each status
@@ -242,8 +299,8 @@ def compute_bottlenecks(project, *, today: datetime.date | None = None, weeks: i
     # intentional and the two types never meet. Wave 2 C1 §F2.
     today = today or timezone.localdate()
     window_start_dt = timezone.now() - datetime.timedelta(weeks=weeks)
-    events = _task_status_events(project)
-    tasks = dict(Task.objects.work().filter(project=project).values_list("id", "status"))
+    events = _task_status_events(project, workspace=workspace)
+    tasks = dict(Task.objects.work().filter(**_task_scope(project, workspace)).values_list("id", "status"))
 
     totals: dict[str, float] = defaultdict(float)
     counts: dict[str, int] = defaultdict(int)

@@ -56,7 +56,6 @@ from .views import (
     post_comment,
     post_project_update,
     post_update_comment,
-    project_insights,
     pwa_manifest,
     read_all_notifications,
     remove_task_link,
@@ -122,6 +121,7 @@ from .views import (
     upload_task_attachment,
     upload_task_inline_image,
 )
+from .views_insights import insights
 from .views_meetings import (
     call_detail,
     calls_list,
@@ -195,6 +195,7 @@ urlpatterns = [
     path("tasks/export.json", export_all_tasks_json, name="export_all_tasks_json"),
     path("cycles/", cycles_overview, name="cycles_overview"),
     path("epics/", epics_overview, name="epics_overview"),
+    path("insights/", insights, name="insights"),
     path("milestones/", milestones_overview, name="milestones_overview"),
     path("milestones/new/", milestone_editor, name="milestone_new"),
     path("milestones/<int:pk>/", milestone_detail, name="milestone_detail"),
@@ -359,7 +360,7 @@ urlpatterns = [
     ),
     path(
         "projects/<str:slug_prefix>/insights/",
-        project_insights,
+        insights,
         name="project_insights",
     ),
     path(

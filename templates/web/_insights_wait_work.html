@@ -1,0 +1,62 @@
+{% load i18n %}
+{% comment %}
+Wait vs work — where a finished task's life actually went. Replaces the
+old "avg time in status": the same replay, but it says which of those
+stages was work and which was a queue, and sums that into one number.
+
+A tenth to a fifth is the normal answer. The block must not look like a
+verdict on the team — the figure is a property of the process, and most
+of the waiting is structural.
+{% endcomment %}
+<div class="bg-card border border-border rounded-lg p-4">
+  <div class="flex items-center gap-2 mb-3 flex-wrap">
+    <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground flex-1">{% trans "Wait vs work" %}</span>
+    {% if wait_work.ok %}
+    <span class="text-[10px] text-placeholder-foreground">
+      {% blocktrans count counter=wait_work.counted with weeks=wait_work.weeks %}{{ counter }} task closed in {{ weeks }} weeks{% plural %}{{ counter }} tasks closed in {{ weeks }} weeks{% endblocktrans %}
+    </span>
+    {% endif %}
+  </div>
+
+  {% if wait_work.ok %}
+  <div class="flex items-baseline gap-2 flex-wrap">
+    <span class="text-2xl font-semibold text-foreground tabular-nums leading-none">{{ wait_work.efficiency }}%</span>
+    <span class="text-xs text-muted-foreground">{% trans "of a task's life is spent being worked on" %}</span>
+  </div>
+  <p class="text-[11px] text-placeholder-foreground mt-1">
+    {% blocktrans with work=wait_work.work_days life=wait_work.life_days %}≈{{ work }} days of work inside ≈{{ life }} days of life{% endblocktrans %}
+  </p>
+
+  {# One bar, split by stage. Work is the only filled segment: the eye #}
+  {# should land on how little of the bar it is.                       #}
+  <div class="flex h-7 mt-3 rounded-md overflow-hidden border border-border">
+    {% for seg in wait_work.segments %}
+    <div class="flex items-center justify-center min-w-0 {% if seg.is_work %}bg-brand-600{% else %}bg-muted{% endif %}"
+         style="flex: {{ seg.weight }} 1 0;"
+         data-tooltip="{{ seg.label }} · {{ seg.days }}d · {{ seg.share }}%" data-tooltip-pos="below">
+      {% if seg.share >= 12 %}
+      <span class="text-[10px] font-medium truncate px-1 {% if seg.is_work %}text-white{% else %}text-muted-foreground{% endif %}">{{ seg.share }}%</span>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  <div class="flex flex-wrap gap-x-3 gap-y-1 mt-2">
+    {% for seg in wait_work.segments %}
+    <span class="inline-flex items-center gap-1.5 text-[11px] text-placeholder-foreground">
+      <span class="w-1.5 h-1.5 rounded-full {% if seg.is_work %}bg-brand-600{% else %}bg-border-strong{% endif %}"></span>
+      {{ seg.label }} <span class="font-mono tabular-nums">{{ seg.days }}d</span>
+    </span>
+    {% endfor %}
+  </div>
+  <p class="text-xs text-subtle-foreground mt-3">
+    {% if wait_work.longest_vs_work %}
+    {% blocktrans with stage=wait_work.longest.label days=wait_work.longest.days ratio=wait_work.longest_vs_work %}The longest queue is {{ stage }}, at ≈{{ days }} days — {{ ratio }}× the time anyone spends working on it.{% endblocktrans %}
+    {% else %}
+    {% blocktrans with stage=wait_work.longest.label days=wait_work.longest.days %}The longest queue is {{ stage }}, at ≈{{ days }} days.{% endblocktrans %}
+    {% endif %}
+  </p>
+
+  {% else %}
+  {% include "web/_insights_refusal.html" with reason=wait_work_refusal hint=wait_work_hint %}
+  {% endif %}
+</div>

@@ -1,0 +1,77 @@
+{% load i18n %}
+{% load web_extras %}
+{% comment %}
+Bounces — work moving backwards through the pipeline. Replaces the lone
+"Reopen rate" number, which only ever saw one of the ways work goes
+back: out of done. The one that says the review lane is the problem is
+in-review → in-progress, and nothing counted it before.
+
+Reopen keeps its exact old meaning on its own line, so a number people
+recognise does not quietly change under them.
+{% endcomment %}
+<div class="bg-card border border-border rounded-lg p-4 flex flex-col">
+  <div class="flex items-center gap-2 mb-3 flex-wrap">
+    <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground flex-1">{% trans "Bounces" %}</span>
+    {% if bounces.ok %}
+    <span class="text-[10px] text-placeholder-foreground">{% trans "work going backwards" %}</span>
+    {% endif %}
+  </div>
+
+  {% if bounces.ok %}
+  <div class="flex items-baseline gap-2 flex-wrap">
+    <span class="text-2xl font-semibold text-foreground tabular-nums leading-none">{{ bounces.total }}</span>
+    <span class="text-xs text-muted-foreground">
+      {% blocktrans with moves=bounces.moves rate=bounces.rate %}of {{ moves }} status moves ({{ rate }}%){% endblocktrans %}
+    </span>
+  </div>
+
+  <div class="mt-3 space-y-1.5">
+    {% for kind in bounces.kinds %}
+    <div class="flex items-center gap-2 text-xs">
+      <span class="text-subtle-foreground truncate flex-1">{{ kind.from_label }} → {{ kind.to_label }}</span>
+      <span class="w-20 h-1.5 rounded-full bg-muted overflow-hidden shrink-0" aria-hidden="true">
+        <span class="block h-full bg-violet-500" style="width: {{ kind.pct }}%;"></span>
+      </span>
+      <span class="font-mono text-foreground tabular-nums shrink-0 w-8 text-right">{{ kind.count }}</span>
+    </div>
+    {% empty %}
+    <p class="text-xs text-subtle-foreground">{% trans "Nothing went backwards in this window." %}</p>
+    {% endfor %}
+    {% if bounces.other %}
+    <p class="text-[11px] text-placeholder-foreground">
+      {% blocktrans count counter=bounces.other %}and {{ counter }} other move{% plural %}and {{ counter }} other moves{% endblocktrans %}
+    </p>
+    {% endif %}
+  </div>
+
+  {% if bounces.repeat %}
+  <div class="mt-3 pt-3 border-t border-border space-y-1.5">
+    <div class="text-[10px] uppercase tracking-wider text-placeholder-foreground">{% trans "Went back most often" %}</div>
+    {% for row in bounces.repeat %}
+    <a href="{% task_url row.task %}" {% open_task_modal_attrs row.task %}
+       class="group flex items-center gap-2 text-xs min-w-0">
+      <span class="font-mono text-[11px] text-placeholder-foreground group-hover:text-foreground shrink-0">{{ row.task.slug }}</span>
+      <span class="text-subtle-foreground group-hover:text-foreground truncate flex-1">{{ row.task.title }}</span>
+      <span class="text-[11px] text-placeholder-foreground shrink-0 truncate">{{ row.path }}{% if row.mixed %} …{% endif %}</span>
+      <span class="font-mono text-foreground tabular-nums shrink-0">×{{ row.count }}</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="mt-3 pt-3 border-t border-border flex items-center gap-2 text-sm">
+    <span class="flex-1 text-muted-foreground">{% trans "Reopen rate" %}</span>
+    {% if bounces.reopen.rate is None %}
+    <span class="font-mono text-placeholder-foreground">—</span>
+    {% else %}
+    <span class="font-mono tabular-nums {% if bounces.reopen.rate > 15 %}text-rose-400{% else %}text-foreground{% endif %}">{{ bounces.reopen.rate }}%</span>
+    {% endif %}
+  </div>
+  <p class="text-[11px] text-placeholder-foreground mt-1">
+    {% blocktrans with reopened=bounces.reopen.reopened completed=bounces.reopen.completed %}{{ reopened }} of {{ completed }} tasks closed in this window later left done{% endblocktrans %}
+  </p>
+
+  {% else %}
+  {% include "web/_insights_refusal.html" with reason=bounces_refusal hint=bounces_hint %}
+  {% endif %}
+</div>

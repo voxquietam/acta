@@ -1,0 +1,21 @@
+{% load i18n %}
+{% load lucide %}
+{% comment %}
+What a block says instead of drawing a chart it has no data for. Expects
+``reason`` (one line) and optionally ``hint``. An empty axis with a flat
+line on it is a claim that nothing happened; this says the measurement
+is not available yet, which is a different statement.
+
+In a project scope it also offers the workspace, because the same block
+often has enough history one level up — and that is the honest next
+click, not a dead end.
+{% endcomment %}
+<div class="flex flex-col items-center justify-center text-center gap-1.5 py-8 px-4">
+  {% if icon %}{% lucide icon "w-5 h-5 text-emerald-400" %}{% else %}{% lucide "history" "w-5 h-5 text-placeholder-foreground" %}{% endif %}
+  <p class="text-xs text-subtle-foreground max-w-[320px] leading-relaxed">{{ reason }}</p>
+  {% if hint %}<p class="text-[11px] text-placeholder-foreground max-w-[320px]">{{ hint }}</p>{% endif %}
+  {% if project %}
+  <a href="{% url 'web:insights' %}?weeks={{ weeks }}"
+     class="text-[11px] text-brand-300 hover:text-brand-200 mt-0.5">{% trans "Try the whole workspace" %}</a>
+  {% endif %}
+</div>
