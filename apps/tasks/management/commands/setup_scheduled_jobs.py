@@ -15,6 +15,7 @@ from django.utils import timezone
 _JOBS = [
     ("archive stale done tasks", "apps.common.scheduled.archive_stale_done_tasks", (3, 30)),
     ("gc orphan attachments", "apps.common.scheduled.gc_orphan_attachments", (4, 0)),
+    ("prune event stream", "apps.common.scheduled.prune_event_stream", (4, 15)),
     ("notify cycle events", "apps.common.scheduled.notify_cycle_events", (6, 0)),
     ("materialize recurring tasks", "apps.common.scheduled.materialize_recurring_tasks", (5, 0)),
 ]

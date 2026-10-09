@@ -14,6 +14,11 @@ def archive_stale_done_tasks() -> None:
     call_command("archive_stale_done_tasks")
 
 
+def prune_event_stream() -> None:
+    """Delete SSE events past the window a client could still replay."""
+    call_command("prune_event_stream")
+
+
 def gc_orphan_attachments() -> None:
     """Delete attachment files no longer referenced by any record."""
     call_command("gc_orphan_attachments")

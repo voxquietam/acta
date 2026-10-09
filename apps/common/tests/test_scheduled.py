@@ -38,6 +38,9 @@ class TestSetupScheduledJobs:
             "apps.common.scheduled.materialize_recurring_tasks",
             # Telegram quiet-hours digest — minute cadence rather than daily.
             "apps.common.scheduled.flush_telegram_quiet_digests",
+            # Bounds the persisted SSE event table, which nothing else
+            # deletes from.
+            "apps.common.scheduled.prune_event_stream",
         }
         daily = Schedule.objects.exclude(func="apps.common.scheduled.flush_telegram_quiet_digests")
         assert all(s.schedule_type == Schedule.DAILY for s in daily)
