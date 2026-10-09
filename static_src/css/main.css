@@ -114,18 +114,18 @@ code, kbd, pre, samp, .font-mono {
        hence the subtle grey here and the page background in the dark
        themes. */
     --graph-canvas: 250 250 250;    /* zinc-50 */
-    --muted: 244 244 245;           /* zinc-100 — chips, inline blocks, hover */
+    --muted: 238 238 241;           /* zinc-100 — chips, inline blocks, hover */
     --subtle: 250 250 250;          /* zinc-50 — section backgrounds */
 
     /* Text */
     --foreground: 24 24 27;         /* zinc-900 — primary text and headings */
     --muted-foreground: 63 63 70;   /* zinc-700 — body copy on panels */
     --subtle-foreground: 82 82 91;  /* zinc-600 — secondary, metadata */
-    --placeholder-foreground: 113 113 122; /* zinc-500 — placeholder, empty slots */
+    --placeholder-foreground: 106 106 115; /* zinc-500 — placeholder, empty slots */
 
     /* Borders */
     --border: 228 228 231;          /* zinc-200 — default panel border */
-    --border-strong: 212 212 216;   /* zinc-300 — input border, raised */
+    --border-strong: 205 205 211;   /* zinc-300 — input border, raised */
 
     /* Interactive accents */
     --ring: 66 90 245;              /* brand-500 — focus ring */
@@ -143,12 +143,12 @@ code, kbd, pre, samp, .font-mono {
     --foreground: 244 244 245;      /* zinc-100 */
     --muted-foreground: 212 212 216; /* zinc-300 */
     --subtle-foreground: 161 161 170; /* zinc-400 */
-    --placeholder-foreground: 82 82 91; /* zinc-600 */
+    --placeholder-foreground: 143 143 152; /* zinc-600 */
 
     --border: 39 39 42;             /* zinc-800 */
     --border-strong: 63 63 70;      /* zinc-700 */
 
-    --ring: 66 90 245;              /* brand-500 — same accent across themes */
+    --ring: 108 126 251;              /* brand-500 — same accent across themes */
   }
 
   html.midnight,
@@ -166,11 +166,11 @@ code, kbd, pre, samp, .font-mono {
 
     --foreground: 244 244 250;      /* #f4f4fa */
     --muted-foreground: 216 218 232; /* #d8dae8 */
-    --subtle-foreground: 178 182 204; /* #b2b6cc */
-    --placeholder-foreground: 158 163 190; /* #9ea3be */
+    --subtle-foreground: 192 196 216; /* #b2b6cc */
+    --placeholder-foreground: 172 177 204; /* #9ea3be */
 
-    --border: 50 55 84;             /* #323754 */
-    --border-strong: 78 84 120;     /* #4e5478 */
+    --border: 58 63 96;             /* #323754 */
+    --border-strong: 84 90 128;     /* #4e5478 */
 
     --ring: 108 126 251;            /* lifted with the surfaces */
   }
@@ -205,19 +205,19 @@ code, kbd, pre, samp, .font-mono {
        so no ``dark:*`` utility may fire — the toggle keeps ``light`` on
        and layers ``ash`` over it, the same way Paper works. */
     color-scheme: light;
-    --background: 205 207 211;      /* #cdcfd3 */
-    --card: 226 228 231;            /* #e2e4e7 */
-    --graph-canvas: 205 207 211;    /* #cdcfd3 — same as the page */
-    --muted: 190 193 199;           /* #bec1c7 */
-    --subtle: 214 216 220;          /* #d6d8dc */
+    --background: 198 201 206;      /* #cdcfd3 */
+    --card: 234 236 239;            /* #e2e4e7 */
+    --graph-canvas: 198 201 206;    /* #cdcfd3 — same as the page */
+    --muted: 214 217 222;           /* #bec1c7 */
+    --subtle: 222 224 228;          /* #d6d8dc */
 
     --foreground: 20 22 26;         /* #14161a */
     --muted-foreground: 40 43 50;   /* #282b32 */
     --subtle-foreground: 52 56 64;  /* #343840 */
-    --placeholder-foreground: 62 66 75; /* #3e424b */
+    --placeholder-foreground: 56 60 68; /* #3e424b */
 
-    --border: 186 189 195;          /* #babdc3 */
-    --border-strong: 160 164 172;   /* #a0a4ac */
+    --border: 180 184 191;          /* #babdc3 */
+    --border-strong: 152 157 166;   /* #a0a4ac */
 
     --ring: 46 68 214;              /* darkened to hold its own on grey */
   }
@@ -235,14 +235,14 @@ code, kbd, pre, samp, .font-mono {
     --background: 255 255 255;
     --card: 255 255 255;
     --graph-canvas: 250 250 250;
-    --muted: 244 244 245;
+    --muted: 238 238 241;
     --subtle: 250 250 250;
     --foreground: 24 24 27;
     --muted-foreground: 63 63 70;
     --subtle-foreground: 82 82 91;
-    --placeholder-foreground: 113 113 122;
+    --placeholder-foreground: 106 106 115;
     --border: 228 228 231;
-    --border-strong: 212 212 216;
+    --border-strong: 205 205 211;
     --ring: 66 90 245;
   }
 
@@ -256,10 +256,10 @@ code, kbd, pre, samp, .font-mono {
     --foreground: 244 244 245;
     --muted-foreground: 212 212 216;
     --subtle-foreground: 161 161 170;
-    --placeholder-foreground: 82 82 91;
+    --placeholder-foreground: 143 143 152;
     --border: 39 39 42;
     --border-strong: 63 63 70;
-    --ring: 66 90 245;
+    --ring: 108 126 251;
   }
 
   html.paper,
@@ -269,22 +269,22 @@ code, kbd, pre, samp, .font-mono {
        ``dark:*`` utility may fire: the toggle keeps ``light`` on and
        layers ``paper`` to override surface tokens. */
     color-scheme: light;
-    --background: 232 230 224;      /* #e8e6e0 — warm beige-grey page */
-    --card: 245 243 238;            /* #f5f3ee — elevated cream */
+    --background: 234 231 223;      /* #e8e6e0 — warm beige-grey page */
+    --card: 248 246 241;            /* #f5f3ee — elevated cream */
     /* Light's canvas sits a step BELOW the card, same as the dark
        themes: here the page tone already is that step, so the graph
        canvas tracks the background rather than inventing a shade. */
-    --graph-canvas: 232 230 224;    /* #e8e6e0 — same as the page */
-    --muted: 221 218 211;           /* #dddad3 */
-    --subtle: 226 223 217;          /* #e2dfd9 */
+    --graph-canvas: 234 231 223;    /* #e8e6e0 — same as the page */
+    --muted: 216 215 211;           /* #dddad3 */
+    --subtle: 228 225 217;          /* #e2dfd9 */
 
     --foreground: 38 38 48;         /* #262630 */
-    --muted-foreground: 78 80 96;   /* #4e5060 */
-    --subtle-foreground: 105 108 124; /* #696c7c */
-    --placeholder-foreground: 141 143 156; /* #8d8f9c */
+    --muted-foreground: 61 63 79;   /* #4e5060 */
+    --subtle-foreground: 75 78 94; /* #696c7c */
+    --placeholder-foreground: 88 90 103; /* #8d8f9c */
 
-    --border: 207 203 193;          /* #cfcbc1 */
-    --border-strong: 184 180 168;   /* #b8b4a8 */
+    --border: 212 207 195;          /* #cfcbc1 */
+    --border-strong: 186 180 166;   /* #b8b4a8 */
 
     --ring: 66 90 245;              /* brand-500 — same accent across themes */
   }
@@ -4283,3 +4283,94 @@ html.dark .acta-dock-chip.is-ex {
   background-color: rgb(66 90 245 / 0.07);
   box-shadow: inset 3px 0 0 0 rgb(66 90 245 / 0.5);
 }
+
+/* ===================================================================
+   Legibility pass across the six themes
+   ===================================================================
+   Every ``text-<hue>-<shade>`` the templates use was measured against
+   each theme's card and muted surfaces. The -300/-400 shades are tuned
+   for dark grounds; on a light one they fall to about 2:1 — which is
+   why "6 overdue", risk counts and badges read as decoration rather
+   than as numbers. Light themes take the -700/-800 ramp instead; Paper
+   and Ash, sitting on beige and grey, go one step further than white
+   does; Dusk and Midnight, being lifted darks, go one step lighter
+   than Dark.
+
+   These are overrides of Tailwind utilities, so they live outside
+   ``@layer`` and win on specificity rather than on order: every rule
+   is prefixed with an ``html`` condition, which also makes them immune
+   to where ``dashboard.css`` is inlined relative to this bundle. Where
+   the design relied on file order alone, the rule carries a bare
+   ``html`` prefix here for the same reason. */
+
+/* Native input placeholders follow the token, not the browser grey. */
+input::placeholder,
+textarea::placeholder {
+  color: rgb(var(--placeholder-foreground));
+  opacity: 1;
+}
+
+/* Accent text — light grounds. */
+html:not(.dark) .text-rose-400,
+html:not(.dark) .text-rose-300 { color: rgb(190 18 60); }
+html:not(.dark) .text-amber-400,
+html:not(.dark) .text-amber-300 { color: rgb(146 64 14); }
+html:not(.dark) .text-emerald-400,
+html:not(.dark) .text-emerald-300 { color: rgb(4 120 87); }
+html:not(.dark) .text-orange-400 { color: rgb(194 65 12); }
+html:not(.dark) .text-brand-300,
+html:not(.dark) .text-brand-400 { color: rgb(46 68 214); }
+html:not(.dark) .text-violet-300 { color: rgb(109 40 217); }
+html:not(.dark) .text-sky-400 { color: rgb(3 105 161); }
+html:not(.dark) .text-indigo-400 { color: rgb(67 56 202); }
+html:not(.dark) .text-red-400 { color: rgb(185 28 28); }
+html:not(.dark) .text-brand-500 { color: rgb(46 68 214); }
+html:not(.dark) .text-zinc-400 { color: rgb(var(--subtle-foreground)); }
+html:not(.dark) .text-zinc-500 { color: rgb(var(--placeholder-foreground)); }
+
+/* Paper and Ash share the -800 ramp: beige and grey grounds need it. */
+html.paper .text-rose-400, html.paper .text-rose-300, html.paper .text-rose-700, html.paper .text-red-400,
+html.ash .text-rose-400, html.ash .text-rose-300, html.ash .text-rose-700, html.ash .text-red-400 { color: rgb(159 18 57); }
+html.paper .text-emerald-400, html.paper .text-emerald-300, html.paper .text-emerald-700,
+html.ash .text-emerald-400, html.ash .text-emerald-300, html.ash .text-emerald-700 { color: rgb(6 95 70); }
+html.paper .text-amber-400, html.paper .text-amber-300, html.paper .text-amber-700,
+html.ash .text-amber-400, html.ash .text-amber-300, html.ash .text-amber-700 { color: rgb(120 53 15); }
+html.paper .text-orange-400, html.ash .text-orange-400 { color: rgb(154 52 18); }
+html.paper .text-brand-300, html.paper .text-brand-400, html.paper .text-brand-500,
+html.paper .text-brand-600, html.paper .text-indigo-400,
+html.ash .text-brand-300, html.ash .text-brand-400, html.ash .text-brand-500,
+html.ash .text-brand-600, html.ash .text-indigo-400 { color: rgb(41 56 176); }
+html.paper .text-cyan-700, html.ash .text-cyan-700 { color: rgb(21 94 117); }
+html.paper .text-violet-700, html.paper .text-violet-300,
+html.ash .text-violet-700, html.ash .text-violet-300 { color: rgb(91 33 182); }
+html.paper .text-blue-700, html.ash .text-blue-700 { color: rgb(30 64 175); }
+
+/* Lifted darks move one step lighter than Dark. */
+html.dark .text-brand-500 { color: rgb(108 126 251); }
+html.dusk .text-rose-400, html.midnight .text-rose-400 { color: rgb(253 164 175); }
+html.dusk .text-red-400, html.midnight .text-red-400 { color: rgb(252 165 165); }
+html.dusk .text-brand-400, html.dusk .text-brand-500,
+html.midnight .text-brand-400, html.midnight .text-brand-500 { color: rgb(170 182 255); }
+html.dusk .text-brand-300, html.midnight .text-brand-300 { color: rgb(184 194 255); }
+html.dusk .text-indigo-400, html.midnight .text-indigo-400 { color: rgb(180 190 254); }
+
+/* Component colours hard-coded for dark surfaces in the blocks above. */
+html:not(.dark) .acta-flt-chip.is-exclude,
+html:not(.dark) .acta-flt-row.is-exclude,
+html:not(.dark) .acta-flt-row.is-exclude .n,
+html:not(.dark) .acta-flt-row.is-exclude .check,
+html:not(.dark) .acta-flt-rail-btn.is-reset:hover,
+html:not(.dark) .acta-flt-rail-btn.is-reset.has-active,
+html:not(.dark) .acta-flt-rail-btn.is-reset.has-active:hover,
+html:not(.dark) .acta-ctm-pop-clear:hover,
+html:not(.dark) .acta-ctm-link-x:hover { color: rgb(190 18 60); }
+html:not(.dark) .acta-gcard-due.is-today { color: rgb(146 64 14); }
+html:not(.dark) .acta-gedge-label[data-kind="related"] { color: rgb(3 105 161); }
+
+/* The dock's accent was a fixed periwinkle, near-invisible on light. */
+html:not(.dark) .acta-dock-lead,
+html:not(.dark) .acta-dock-display.is-on,
+html:not(.dark) .acta-dock-unlinked.is-active { color: rgb(46 68 214); }
+html.ash .acta-dock-chip { color: rgb(41 56 176); }
+html.paper .acta-dock-lead, html.paper .acta-dock-display.is-on, html.paper .acta-dock-unlinked.is-active,
+html.ash .acta-dock-lead, html.ash .acta-dock-display.is-on, html.ash .acta-dock-unlinked.is-active { color: rgb(41 56 176); }

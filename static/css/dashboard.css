@@ -326,3 +326,94 @@ html.light .dash .velo .stats .delta.up,
 html.light .dash .done-fg { color: #047857; }
 
 .dash .done-fg { color: rgb(16 185 129); }
+
+/* ===================================================================
+   Theme legibility — Paper, Ash, Dusk, Midnight
+   ===================================================================
+   The rules above darken the pastel signal colours under
+   ``html.light`` only, so the three themes added later kept the
+   dark-tuned ones: Attention headings, "filter →", zero counts and
+   deltas all sat near 2:1 on beige and grey.
+
+   They live at the end of THIS file rather than in the Tailwind
+   bundle on purpose. This file is inlined into the dashboard page,
+   so it lands after the bundle — and an ``html.ash .dash x`` rule
+   ties on specificity with the ``html.light .dash x`` rules above,
+   which means whoever comes last wins. Here, that is these. */
+
+/* Dashboard. ``dashboard.css`` darkens its pastel signals only under
+   ``html.light``, so Paper and Ash kept the dark-tuned ones. */
+html:not(.dark) .dash .why .good { color: rgb(4 120 87); }
+html:not(.dark) .dash .why .warn { color: rgb(146 64 14); }
+html:not(.dark) .dash .why .bad { color: rgb(190 18 60); }
+html:not(.dark) .dash .page-h .range a.active { color: rgb(46 68 214); }
+html:not(.dark) .dash .kpi .delta.up { color: rgb(4 120 87); }
+html:not(.dark) .dash .kpi .delta.down { color: rgb(190 18 60); }
+html:not(.dark) .dash .alerts > .alerts-h { color: rgb(190 18 60); }
+html:not(.dark) .dash .velo .stats .delta.up { color: rgb(4 120 87); }
+html:not(.dark) .dash .velo .stats .delta.down { color: rgb(190 18 60); }
+html:not(.dark) .dash .velo .forecast .pill { color: rgb(46 68 214); }
+html:not(.dark) .dash .matrix td.over .pill.warn { color: rgb(146 64 14); }
+html:not(.dark) .dash .matrix td.over .pill.bad { color: rgb(190 18 60); }
+html:not(.dark) .dash .overload .row .n.bad { color: rgb(190 18 60); }
+html:not(.dark) .dash .lb th.sorted { color: rgb(46 68 214); }
+html:not(.dark) .dash .lb td.warn { color: rgb(146 64 14); }
+html:not(.dark) .dash .lb td.bad { color: rgb(190 18 60); }
+html:not(.dark) .dash .lb td.good { color: rgb(4 120 87); }
+html:not(.dark) .dash .hyg .row .n.zero { color: rgb(4 120 87); }
+html:not(.dark) .dash .hyg .row .arr { color: rgb(46 68 214); }
+html:not(.dark) .dash .done-fg { color: rgb(4 120 87); }
+
+html.ash .dash .alerts > .alerts-h, html.ash .dash .why .bad, html.ash .dash .kpi .delta.down,
+html.ash .dash .velo .stats .delta.down, html.ash .dash .matrix td.over .pill.bad,
+html.ash .dash .overload .row .n.bad, html.ash .dash .lb td.bad,
+html.paper .dash .alerts > .alerts-h, html.paper .dash .why .bad, html.paper .dash .kpi .delta.down,
+html.paper .dash .velo .stats .delta.down, html.paper .dash .matrix td.over .pill.bad,
+html.paper .dash .overload .row .n.bad, html.paper .dash .lb td.bad { color: rgb(159 18 57); }
+html.ash .dash .done-fg, html.ash .dash .kpi .delta.up, html.ash .dash .velo .stats .delta.up,
+html.ash .dash .why .good, html.ash .dash .lb td.good, html.ash .dash .hyg .row .n.zero,
+html.paper .dash .done-fg, html.paper .dash .kpi .delta.up, html.paper .dash .velo .stats .delta.up,
+html.paper .dash .why .good, html.paper .dash .lb td.good, html.paper .dash .hyg .row .n.zero { color: rgb(6 95 70); }
+html.ash .dash .why .warn, html.ash .dash .lb td.warn,
+html.ash .dash .matrix td.over .pill.warn { color: rgb(120 53 15); }
+html.ash .dash .hyg .row .arr, html.ash .dash .page-h .range a.active,
+html.ash .dash .velo .forecast .pill, html.ash .dash .lb th.sorted { color: rgb(41 56 176); }
+html.ash .text-amber-400, html.ash .text-amber-300 { color: rgb(120 53 15); }
+html.ash .dash .alerts { border-color: rgb(190 18 60 / 0.45); }
+
+/* Attention block. The gradient container faded into the page and the
+   zero cards (opacity .45) all but vanished. On light themes the
+   container is a plain card and the items sit on it with a strong
+   edge; a zero item keeps full opacity and reads as empty through a
+   dashed border and a quiet number instead. */
+html:not(.dark) .dash .alerts { background: transparent; border-color: rgb(190 18 60 / 0.4); }
+html:not(.dark) .dash .alert { background: rgb(var(--card)); border-color: rgb(var(--border-strong)); }
+html:not(.dark) .dash .alert:hover { background: rgb(var(--muted)); }
+html .dash .alert.zero {
+  opacity: 1;
+  border-style: dashed;
+  border-left-style: solid;
+  border-left-color: rgb(var(--border-strong));
+}
+html .dash .alert.zero .n { color: rgb(var(--placeholder-foreground)); }
+html .dash .alert.zero .arrow { visibility: hidden; }
+html:not(.dark) .dash .alert.zero:hover { background: rgb(var(--card)); }
+html.dark .dash .alert.zero:hover { background: rgb(var(--card)); }
+
+/* The heading sat on the border as a legend with a page-coloured
+   patch, which collided with the card fill. An ordinary label row
+   inside the block now, in every theme. */
+html .dash .alerts > .alerts-h {
+  position: static;
+  grid-column: 1 / -1;
+  background: none;
+  padding: 0 0 2px;
+  top: auto;
+  left: auto;
+}
+
+/* Inset tiles used the page colour inside a card; on grey and beige
+   that reads as a hole. Light themes draw them as cards instead. */
+html:not(.dark) .dash .hyg .row { background: rgb(var(--card)); border-color: rgb(var(--border-strong)); }
+html:not(.dark) .dash .hyg .row:hover { background: rgb(var(--muted)); }
+html:not(.dark) .dash .cfd .hd .toggle { background: rgb(var(--muted)); }
