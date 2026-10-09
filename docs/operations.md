@@ -294,10 +294,14 @@ browser can replay what it missed. Nothing read those rows after the
 reconnect window, and nothing deleted them, so the table only grew.
 This drops events older than a week.
 
-The window is deliberately generous. Pruning past a client's last seen
-id makes the server answer `stream-reset` rather than the missed events,
-and the browser does not handle that — the tab would sit silently stale
-until a reload. Flags: `--dry-run`, `--older-than-days N`.
+The window was generous because the browser ignored `stream-reset` — the
+answer the server gives when a client's last seen id has been pruned —
+so a tab whose history had aged out sat silently stale until someone
+reloaded it. The client handles it now: it refetches the page and says
+so, once, until the stream proves it is delivering again. The week is
+therefore a comfort rather than a load-bearing margin, and can come down
+if the table ever becomes a cost. Flags: `--dry-run`,
+`--older-than-days N`.
 
 ### gc orphan attachments (~04:00 daily)
 

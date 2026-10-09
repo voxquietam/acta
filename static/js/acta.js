@@ -3510,8 +3510,51 @@
   }
 
   function bindWorkspaceHandlers(source, meId) {
+    // ``stream-reset`` is the server saying it cannot tell us what we
+    // missed: our last seen id is older than the events it still holds,
+    // so the size of the gap is unknowable. It is sent on reconnect,
+    // never on a first connect — a client with no ``Last-Event-ID`` is
+    // given the current position instead — so answering it by reloading
+    // cannot loop.
+    //
+    // Nothing listened for it before, and that was the worst kind of
+    // staleness: the tab went on believing it was in sync, the board
+    // showed the state it had at the moment of the break, and there was
+    // no symptom until somebody noticed the numbers were wrong. The
+    // only honest answer is to stop trusting the DOM and fetch the page
+    // again — the same fetch a navigation does, so the chrome, the
+    // scroll container and the open sidebar survive it.
+    //
+    // Debounced, because a flapping connection resets several channels
+    // in a row and each one would otherwise start its own fetch of the
+    // same page. And then held down until the stream proves it is
+    // delivering again: a connection that drops repeatedly reconnects
+    // stale every time, and a second reset before a single real event
+    // has arrived carries nothing the first one did not — answering it
+    // would refetch the page on every retry.
+    let streamResetTimer = null;
+    let awaitingFirstEventAfterReset = false;
+    source.addEventListener("stream-reset", () => {
+      invalidatePageCache();
+      if (awaitingFirstEventAfterReset) return;
+      if (streamResetTimer) clearTimeout(streamResetTimer);
+      streamResetTimer = setTimeout(() => {
+        streamResetTimer = null;
+        awaitingFirstEventAfterReset = true;
+        restorePage(currentUrl(), ++navToken);
+        // Plain English like every other toast in this file — there is
+        // no i18n path into JS, and inventing one for a single string
+        // would be the odd thing here.
+        if (window.actaToast) {
+          window.actaToast("Reconnected — this page was out of date and has been refreshed.", "info");
+        }
+      }, 250);
+    });
+
     const handle = (eventName, fn) => {
       source.addEventListener(eventName, (e) => {
+        // The stream is delivering again, so a future reset is news.
+        awaitingFirstEventAfterReset = false;
         let data;
         try {
           data = JSON.parse(e.data);

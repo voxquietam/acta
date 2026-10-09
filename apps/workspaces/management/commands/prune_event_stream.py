@@ -6,11 +6,11 @@ reconnects can replay what it missed, which it asks for by
 grows — and none of it is read after the window in which a reconnect is
 plausible.
 
-Retention is deliberately generous. Pruning past a client's last id
-makes the server answer ``stream-reset`` instead of the missed events,
-and our client does not handle that event: the tab would sit silently
-stale until someone reloaded it. A week is far longer than any tab
-survives and still bounds the table.
+Pruning past a client's last id makes the server answer
+``stream-reset`` instead of the missed events. The browser handles that
+now — it refetches the page rather than trusting a DOM it can no longer
+account for — so the week here is comfort, not a load-bearing margin.
+It can come down if the table ever becomes a cost.
 
     docker compose exec -T web python manage.py prune_event_stream --dry-run
 """

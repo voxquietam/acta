@@ -205,3 +205,38 @@ only decides whether it may.
 The two single-channel routes (`/events/workspace/<id>`,
 `/events/user/<id>`) are kept so a tab still running the previous bundle
 keeps receiving events until it reloads. No template references them.
+
+## Amendment 2026-10-09 — a gap the client can no longer ignore
+
+Events are persisted, so a reconnecting browser asks for what it missed
+by `Last-Event-ID`. When that id is older than the events still stored,
+the server cannot answer it and says so with a `stream-reset` event
+naming the channels — not an error, a statement that the size of the
+gap is unknowable.
+
+Nothing listened for it. The tab went on believing it was in sync, the
+board showed the state it held at the moment of the break, and there was
+no symptom until somebody noticed the numbers were wrong — the worst
+kind of staleness, the kind that looks exactly like being up to date.
+
+The client now treats it as what it is: a reason to stop trusting the
+DOM. It drops the page cache and refetches the current URL into
+`#app-content` — the same fetch a navigation does, so the chrome, the
+sidebar and the scroll container survive — and says so in a toast.
+
+Two guards, both learned from watching it fire:
+
+* **Debounced.** A reset names several channels at once and arrives per
+  reconnect; without it each one started its own fetch of the same page.
+* **Held down until the stream delivers again.** A connection that keeps
+  dropping reconnects stale every time, and the second reset before a
+  single real event has arrived carries nothing the first did not. The
+  first live event of any type releases the guard.
+
+`stream-reset` is never sent on a first connect — a client with no
+`Last-Event-ID` is handed the current position instead — so answering it
+by refetching cannot loop.
+
+This is what lets `prune_event_stream` exist at all. Its week-long
+window was sized to make a reset improbable; now it only has to make one
+rare.
