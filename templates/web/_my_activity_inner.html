@@ -1,47 +1,136 @@
 {% load i18n %}
 {% load lucide %}
 {% comment %}
-My Activity content — tabs header (Comments / Activity) + a scrolling
-feed. Swapped whole (#my-activity-content, outerHTML) on tab clicks.
-The tabs sit in a non-scrolling header (shrink-0); only the feed
-scrolls, so the tabs stay pinned without sticky hacks.
+My Activity content — swapped whole (#my-activity-content, outerHTML) on
+a range, tab or filter change. Top to bottom, and only the feed scrolls:
+
+1. Range (7/14/30/90d). Everything below obeys it.
+2. Five counts over the window, with a neutral comparison to the window
+   before. Grey whichever way it points: this page describes a person's
+   trail, it does not grade them.
+3. Rhythm — one bar per day of whatever the feed currently shows, so the
+   strip and the list cannot disagree.
+4. Tabs (Comments / Activity) counting the window, not the filters.
+5. Filters — search and project chips on both tabs; Activity adds the
+   event-type chips, Comments says plainly why it has none.
+
+Built on tokens rather than dashboard.css: those rules are scoped to
+.dash and carry per-theme overrides, so borrowing them here would mean
+inlining that sheet after the bundle and fighting it for specificity.
 {% endcomment %}
 <div id="my-activity-content" class="flex-1 flex flex-col min-h-0">
 
-  <div class="flex items-center px-4 md:px-8 border-b border-border shrink-0">
-    <a hx-get="{% url 'web:my_activity' %}?tab=comments" hx-target="#my-activity-content" hx-swap="outerHTML" hx-push-url="true"
-       class="inline-flex items-center gap-2 px-3.5 py-2.5 text-[13px] cursor-pointer -mb-px border-b-2 {% if activity_tab == 'comments' %}text-brand-300 border-brand-500{% else %}text-placeholder-foreground border-transparent hover:text-foreground{% endif %}">
-      {% lucide "message-square" "w-3.5 h-3.5" %}{% trans "Comments" %}
-      <span class="font-mono text-[10px] px-1.5 py-0.5 rounded {% if activity_tab == 'comments' %}bg-brand-500/20 text-brand-300{% else %}bg-muted text-subtle-foreground{% endif %}">{{ my_comments_count }}</span>
-    </a>
-    <a hx-get="{% url 'web:my_activity' %}?tab=activity" hx-target="#my-activity-content" hx-swap="outerHTML" hx-push-url="true"
+  <div class="shrink-0 px-4 md:px-8 pt-4">
+    <div class="flex items-center gap-3 flex-wrap">
+      <span class="text-xs text-placeholder-foreground">
+        {% blocktrans count counter=range_days %}Last {{ counter }} day · what you touched, newest first{% plural %}Last {{ counter }} days · what you touched, newest first{% endblocktrans %}
+      </span>
+      <span class="flex-1"></span>
+      <div class="inline-flex items-center gap-0.5 p-0.5 bg-card border border-border rounded-md">
+        {% for r in range_links %}
+        <a href="?{{ r.qs }}" hx-get="?{{ r.qs }}" hx-target="#my-activity-content" hx-swap="outerHTML" hx-push-url="true"
+           class="px-2.5 py-1 rounded text-[11px] font-medium transition {% if r.active %}bg-brand-500/15 text-brand-300 ring-1 ring-inset ring-brand-500/35{% else %}text-subtle-foreground hover:text-foreground{% endif %}">{{ r.key }}</a>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 mt-3">
+      {% for k in summary_tiles %}
+      <a href="?{{ k.qs }}" hx-get="?{{ k.qs }}" hx-target="#my-activity-content" hx-swap="outerHTML" hx-push-url="true"
+         class="bg-card border border-border rounded-lg p-3 flex flex-col gap-1 hover:border-border-strong transition"
+         data-tooltip="{% blocktrans count counter=range_days with was=k.before %}{{ was }} in the previous {{ counter }} day{% plural %}{{ was }} in the previous {{ counter }} days{% endblocktrans %}"
+         data-tooltip-pos="below">
+        <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground font-medium inline-flex items-center gap-1.5">
+          {% lucide k.icon "w-3 h-3 shrink-0" %}<span class="truncate">{{ k.label }}</span>
+        </span>
+        <span class="flex items-baseline gap-2">
+          <span class="text-2xl font-semibold leading-none tabular-nums text-foreground">{{ k.value }}</span>
+          {# The delta is never coloured. Closing fewer tasks than last #}
+          {# month is not a failure the page gets to announce.          #}
+          <span class="font-mono text-[11px] text-placeholder-foreground">{{ k.delta }}</span>
+        </span>
+      </a>
+      {% endfor %}
+    </div>
+
+    <div class="mt-3.5" x-data="{ hover: null }">
+      <div class="flex items-baseline gap-2">
+        <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground font-medium">{% trans "Rhythm" %}</span>
+        <span class="text-[11px] text-subtle-foreground tabular-nums" x-text="hover ?? '{{ rhythm.read|escapejs }}'">{{ rhythm.read }}</span>
+      </div>
+      <div class="flex items-end gap-px h-9 mt-1.5" @mouseleave="hover = null">
+        {% for b in rhythm.bars %}
+        {# A quiet day is a hairline, not a gap: a row of bars with holes #}
+        {# in it reads as missing data rather than as a quiet Sunday.     #}
+        <div class="flex-1 min-w-0 h-full flex items-end" @mouseenter="hover = '{{ b.tip|escapejs }}'"
+             data-tooltip="{{ b.tip }}" data-tooltip-pos="below">
+          <div class="w-full rounded-sm {% if b.count %}bg-brand-500{% else %}bg-border{% endif %}" style="height: {{ b.height }}px;"></div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="flex items-center justify-between font-mono text-[10px] text-placeholder-foreground mt-1">
+        <span>{{ rhythm.first_day }}</span>
+        <span>{% trans "today" %}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="flex items-center px-4 md:px-8 mt-3 border-b border-border shrink-0">
+    <a href="?{{ tab_links.activity }}" hx-get="?{{ tab_links.activity }}" hx-target="#my-activity-content" hx-swap="outerHTML" hx-push-url="true"
        class="inline-flex items-center gap-2 px-3.5 py-2.5 text-[13px] cursor-pointer -mb-px border-b-2 {% if activity_tab == 'activity' %}text-brand-300 border-brand-500{% else %}text-placeholder-foreground border-transparent hover:text-foreground{% endif %}">
       {% lucide "activity" "w-3.5 h-3.5" %}{% trans "Activity" %}
       <span class="font-mono text-[10px] px-1.5 py-0.5 rounded {% if activity_tab == 'activity' %}bg-brand-500/20 text-brand-300{% else %}bg-muted text-subtle-foreground{% endif %}">{{ my_activity_count }}</span>
     </a>
+    <a href="?{{ tab_links.comments }}" hx-get="?{{ tab_links.comments }}" hx-target="#my-activity-content" hx-swap="outerHTML" hx-push-url="true"
+       class="inline-flex items-center gap-2 px-3.5 py-2.5 text-[13px] cursor-pointer -mb-px border-b-2 {% if activity_tab == 'comments' %}text-brand-300 border-brand-500{% else %}text-placeholder-foreground border-transparent hover:text-foreground{% endif %}">
+      {% lucide "message-square" "w-3.5 h-3.5" %}{% trans "Comments" %}
+      <span class="font-mono text-[10px] px-1.5 py-0.5 rounded {% if activity_tab == 'comments' %}bg-brand-500/20 text-brand-300{% else %}bg-muted text-subtle-foreground{% endif %}">{{ my_comments_count }}</span>
+    </a>
   </div>
 
-  {% if activity_tab == 'activity' %}
   {% comment %}
-  Activity filters — text search + multi-select event-type chips. The
-  form auto-submits (HTMX) on chip toggle / debounced typing and swaps
+  Filters auto-submit (HTMX) on chip toggle / debounced typing and swap
   the whole content. The search keeps focus across swaps via its stable id.
   {% endcomment %}
   <form hx-get="{% url 'web:my_activity' %}" hx-target="#my-activity-content" hx-swap="outerHTML" hx-push-url="true"
         hx-trigger="change, keyup changed delay:350ms from:#activity-search"
         class="flex items-center gap-1.5 px-4 md:px-8 py-2.5 border-b border-border shrink-0 flex-wrap bg-subtle/40">
-    <input type="hidden" name="tab" value="activity">
-    <input id="activity-search" type="search" name="q" value="{{ activity_q }}"
-           placeholder="{% trans 'Search activity…' %}"
-           class="acta-input text-xs w-44 mr-1">
+    <input type="hidden" name="tab" value="{{ activity_tab }}">
+    <input type="hidden" name="range" value="{{ range_key }}">
+    <label class="relative flex items-center mr-1">
+      {% lucide "search" "w-3.5 h-3.5 text-placeholder-foreground absolute left-2 pointer-events-none" %}
+      <input id="activity-search" type="search" name="q" value="{{ activity_q }}"
+             placeholder="{% if activity_tab == 'comments' %}{% trans 'Search comments…' %}{% else %}{% trans 'Search activity…' %}{% endif %}"
+             class="acta-input text-xs w-48 pl-7">
+    </label>
+    {% if activity_tab == 'activity' %}
     {% for chip in activity_type_chips %}
     <label class="cursor-pointer">
       <input type="checkbox" name="types" value="{{ chip.key }}" {% if chip.active %}checked{% endif %} class="peer sr-only">
-      <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] border transition bg-muted/50 border-border text-muted-foreground hover:bg-muted peer-checked:bg-brand-600 peer-checked:text-white peer-checked:border-brand-500">{{ chip.label }}</span>
+      <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] border transition bg-muted/50 border-border text-muted-foreground hover:bg-muted peer-checked:bg-brand-600 peer-checked:text-white peer-checked:border-brand-500">{% lucide chip.icon "w-3 h-3 shrink-0" %}{{ chip.label }}</span>
     </label>
     {% endfor %}
+    {% else %}
+    {# Saying why there are no chips beats a row that silently differs #}
+    {# from the one on the other tab.                                  #}
+    <span class="text-[11px] italic text-placeholder-foreground mx-1">{% trans "one kind of row — nothing to filter by" %}</span>
+    {% endif %}
+    {% if project_chips %}
+    <span class="w-px h-4 bg-border mx-1"></span>
+    {% for p in project_chips %}
+    <label class="cursor-pointer" data-tooltip="{{ p.name }}" data-tooltip-pos="below">
+      <input type="checkbox" name="projects" value="{{ p.key }}" {% if p.active %}checked{% endif %} class="peer sr-only">
+      <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] border transition bg-muted/50 border-border text-muted-foreground hover:bg-muted peer-checked:bg-brand-600 peer-checked:text-white peer-checked:border-brand-500">
+        <span class="w-1.5 h-1.5 rounded-full bg-current {{ p.color }}"></span><span class="font-mono">{{ p.key }}</span>
+      </span>
+    </label>
+    {% endfor %}
+    {% endif %}
+    {% if any_filter %}
+    <a href="?{{ clear_qs }}" hx-get="?{{ clear_qs }}" hx-target="#my-activity-content" hx-swap="outerHTML" hx-push-url="true"
+       class="inline-flex items-center gap-1 ml-1 text-[11px] text-subtle-foreground hover:text-foreground">{% lucide "x" "w-3 h-3" %}{% trans "Clear" %}</a>
+    {% endif %}
   </form>
-  {% endif %}
 
   <div class="flex-1 overflow-y-auto px-4 md:px-8 py-4">
     {% include "web/_my_activity_items.html" %}

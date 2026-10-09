@@ -22,7 +22,7 @@ class TestMyActivity:
         other = WorkspaceMemberFactory(workspace=ws).user
         Comment.objects.create(task=task, author=other, body="someone elses note")
         client.force_login(ws.owner)
-        resp = client.get(reverse("web:my_activity"))
+        resp = client.get(reverse("web:my_activity"), {"tab": "comments"})
         body = resp.content.decode()
         assert resp.status_code == 200
         assert "my own comment" in body
@@ -110,13 +110,13 @@ class TestMyActivity:
         task = TaskFactory(project=project)
         Comment.objects.bulk_create([Comment(task=task, author=ws.owner, body=f"c{i}") for i in range(55)])
         client.force_login(ws.owner)
-        first = client.get(reverse("web:my_activity"))
+        first = client.get(reverse("web:my_activity"), {"tab": "comments"})
         assert first.context["has_more"] is True
         assert first.context["remaining_count"] == 5
-        assert len(first.context["my_comments"]) == 50
+        assert sum(day["count"] for day in first.context["my_days"]) == 50
         second = client.get(reverse("web:my_activity"), {"tab": "comments", "offset": 50, "items": 1})
         assert second.status_code == 200
-        assert len(second.context["my_comments"]) == 5
+        assert sum(day["count"] for day in second.context["my_days"]) == 5
         assert second.context["has_more"] is False
         assert second.context["remaining_count"] == 0
 

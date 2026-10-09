@@ -68,7 +68,7 @@ from apps.tasks.metrics import compute_bottlenecks, compute_cfd, compute_flow_me
 from apps.tasks.models import Task
 from apps.tasks.search import search_tasks
 from apps.tasks.services import size_source_for, turn_epic_into_task, turn_task_into_epic
-from apps.web import focus
+from apps.web import activity_header, focus
 from apps.web import kanban as kanban_lanes
 from apps.web import plan
 from apps.web.create_dialog import build_create_task_data
@@ -2645,6 +2645,10 @@ _MY_ACTIVITY_TABS = {
 }
 _MY_ACTIVITY_PAGE_SIZE = 50
 
+#: Which tab opens cold. Activity is the fuller of the two by a wide
+#: margin, and landing on an empty Comments tab reads as an empty page.
+_MY_ACTIVITY_DEFAULT_TAB = "activity"
+
 # Activity-tab filter chips → the event types each one covers.
 _ACTIVITY_TYPE_GROUPS = {
     "status": ["task.status_changed"],
@@ -2658,30 +2662,157 @@ _ACTIVITY_TYPE_GROUPS = {
         "task.link_removed",
     ],
     "edits": ["task.updated"],
+    "created": ["task.created"],
+    "milestone": [
+        "task.milestone_changed",
+        "milestone.created",
+        "milestone.closed",
+        "milestone.reopened",
+    ],
 }
+# Written as dicts with an ``icon`` key on purpose: the sprite builder
+# scans Python for that literal, and a name that reaches the template
+# through a loop variable is invisible to it any other way. An icon it
+# misses does not break — it renders an empty ``<use>``, which is worse.
 _ACTIVITY_TYPE_LABELS = [
-    ("status", _("Status")),
-    ("priority", _("Priority")),
-    ("assignee", _("Assignee")),
-    ("due", _("Due")),
-    ("labels", _("Labels")),
-    ("comments", _("Comments")),
-    ("links", _("Links")),
-    ("edits", _("Edits")),
+    {"key": "status", "label": _("Status"), "icon": "circle-dot"},
+    {"key": "created", "label": _("Created"), "icon": "plus"},
+    {"key": "priority", "label": _("Priority"), "icon": "flag"},
+    {"key": "assignee", "label": _("Assignee"), "icon": "user"},
+    {"key": "due", "label": _("Due"), "icon": "calendar"},
+    {"key": "labels", "label": _("Labels"), "icon": "tag"},
+    {"key": "milestone", "label": _("Milestone"), "icon": "diamond"},
+    {"key": "comments", "label": _("Comments"), "icon": "message-square"},
+    {"key": "links", "label": _("Links"), "icon": "link"},
+    {"key": "edits", "label": _("Edits"), "icon": "pencil"},
 ]
+
+
+def _activity_task_matches(user, query: str) -> list[int]:
+    """Return ids of the viewer's visible tasks a search string names.
+
+    Matches a title fragment, a full slug (``AUD-196``) or a bare task
+    number, which is how people refer to work in a search box.
+
+    Args:
+        user: The viewer, for visibility.
+        query: The raw search string.
+
+    Returns:
+        Up to 500 task ids, empty when the query names nothing.
+    """
+    match = Q(title__icontains=query)
+    upper = query.upper()
+    if "-" in upper:
+        prefix, _sep, number = upper.rpartition("-")
+        if number.isdigit():
+            match |= Q(project__slug_prefix=prefix, number=int(number))
+    elif query.isdigit():
+        match |= Q(number=int(query))
+    return list(
+        Task.objects.filter(project__workspace__memberships__user=user)
+        .filter(match)
+        .values_list("id", flat=True)[:500],
+    )
+
+
+def _my_activity_query(*, tab, range_key, query="", types=(), projects=()) -> str:
+    """Build the query string a My Activity link carries.
+
+    Every control on the page keeps the rest of the state, so changing
+    the range does not silently drop a project filter. ``offset`` is
+    never carried: any change to what is shown starts the feed again.
+
+    Args:
+        tab: ``comments`` or ``activity``.
+        range_key: One of :data:`activity_header.RANGE_DAYS`.
+        query: The search string, omitted when empty.
+        types: Selected event-type chips.
+        projects: Selected project slug prefixes.
+
+    Returns:
+        An encoded query string, without the leading ``?``.
+    """
+    pairs = [
+        ("tab", tab),
+        ("range", range_key),
+    ]
+    if query:
+        pairs.append(("q", query))
+    pairs += [("types", key) for key in types]
+    pairs += [("projects", prefix) for prefix in projects]
+    return urlencode(pairs)
+
+
+def _my_activity_days(rows, today, task_attr: str, after: str = "") -> list[dict]:
+    """Split a time-ordered feed into days, then into per-task runs.
+
+    Two levels, because the feed is read at two scales: a day is how
+    someone remembers when they did something, and a task is what they
+    did it to. Six edits to one task on Tuesday is one line of memory,
+    not six.
+
+    Args:
+        rows: Feed rows carrying ``created_at``, newest first.
+        today: Reference date, for naming Today and Yesterday.
+        task_attr: Where the row's task hangs — ``task`` on a comment,
+            ``linked_task`` on an event.
+        after: The last day of the previous page, when this is a
+            load-more fetch. Its heading is suppressed so a day split
+            across a page boundary does not announce itself twice.
+
+    Returns:
+        One dict per day: ``{"day", "heading", "repeat", "count",
+        "groups"}``, each group ``{"task", "rows", "count"}``.
+    """
+    days = []
+    for row in rows:
+        day = timezone.localtime(row.created_at).date()
+        task = getattr(row, task_attr, None)
+        if not days or days[-1]["day"] != day:
+            days.append(
+                {
+                    "day": day,
+                    "heading": activity_header.day_heading(day, today),
+                    "repeat": False,
+                    "count": 0,
+                    "groups": [],
+                },
+            )
+        bucket = days[-1]
+        bucket["count"] += 1
+        groups = bucket["groups"]
+        task_id = task.id if task else None
+        if groups and groups[-1]["task_id"] == task_id:
+            groups[-1]["rows"].append(row)
+        else:
+            groups.append({"task_id": task_id, "task": task, "rows": [row]})
+    for bucket in days:
+        for group in bucket["groups"]:
+            group["count"] = len(group["rows"])
+    if days and after and days[0]["day"].isoformat() == after:
+        days[0]["repeat"] = True
+    return days
 
 
 class MyActivityView(LoginRequiredMixin, TemplateView):
     """The user's own activity at ``/my-activity/``.
 
-    Inbox-style tabs over a single-column feed:
+    A window, what came of it, and the trail itself:
 
-    * **Comments** — every comment the user authored, newest first.
-    * **Activity** — every event the user is the actor of (from the
-      activity log), each linking back to its task.
+    * A **range** (7/14/30/90 days) that everything below obeys — the
+      feed, the tab counts and the rhythm.
+    * **Five counts** over that window with a neutral comparison to the
+      window before it, so the page says what came of the work and not
+      only what the work was.
+    * A **rhythm** strip, one bar per day of whatever the feed is
+      currently showing.
+    * The **feed** itself, under two tabs: every comment the user wrote,
+      and every event they are the actor of, grouped by day and then
+      into per-task runs.
 
-    A cold load returns the full page; tab clicks swap only the inner
-    feed over HTMX.
+    A cold load returns the full page; range, tab and filter changes
+    swap the inner block; load-more appends items only.
     """
 
     def get_template_names(self):
@@ -2693,23 +2824,27 @@ class MyActivityView(LoginRequiredMixin, TemplateView):
         return ["web/my_activity.html"]
 
     def get_context_data(self, **kwargs):
-        """Build one page of the active tab's feed (offset-paginated)."""
+        """Build the header and one page of the active tab's feed."""
         ctx = super().get_context_data(**kwargs)
         user = self.request.user
-        tab = self.request.GET.get("tab", "comments")
+        params = self.request.GET
+        tab = params.get("tab", _MY_ACTIVITY_DEFAULT_TAB)
         if tab not in _MY_ACTIVITY_TABS:
-            tab = "comments"
+            tab = _MY_ACTIVITY_DEFAULT_TAB
         try:
-            offset = max(0, int(self.request.GET.get("offset", 0)))
+            offset = max(0, int(params.get("offset", 0)))
         except (TypeError, ValueError):
             offset = 0
         page = _MY_ACTIVITY_PAGE_SIZE
         end = offset + page
+        window = activity_header.resolve_range(params.get("range", ""))
+        items_only = bool(params.get("items"))
 
         active = resolve_active_workspace(self.request)
         if active is None:
             comments_qs = Comment.objects.none()
             events_qs = ActivityLog.objects.none()
+            projects = []
         else:
             comments_qs = Comment.objects.filter(
                 author=user,
@@ -2719,28 +2854,53 @@ class MyActivityView(LoginRequiredMixin, TemplateView):
                 actor=user,
                 workspace=active,
             )
+            projects = list(Project.objects.filter(workspace=active).order_by("slug_prefix"))
+
+        chosen_projects = [prefix for prefix in params.getlist("projects") if prefix]
+        if chosen_projects:
+            comments_qs = comments_qs.filter(task__project__slug_prefix__in=chosen_projects)
+            events_qs = events_qs.filter(project__slug_prefix__in=chosen_projects)
+
+        # The tiles describe the period, so they are read before the
+        # search box and the type chips narrow anything: a count that
+        # moved with every chip would be nothing to compare against.
+        if not items_only:
+            ctx["summary_tiles"] = activity_header.summary_tiles(events_qs, comments_qs, window)
+
+        comments_qs = comments_qs.filter(created_at__gte=window["since"])
+        events_qs = events_qs.filter(created_at__gte=window["since"])
+        # The tab chips count the period, not the current view of it:
+        # a count that moved when the other tab's chips were toggled
+        # would be telling the reader nothing they could act on.
+        in_window = {
+            "comments": comments_qs,
+            "activity": events_qs,
+        }
+
+        activity_q = (params.get("q") or "").strip()
+        selected = [key for key in params.getlist("types") if key in _ACTIVITY_TYPE_GROUPS]
+
         ctx["activity_tab"] = tab
         ctx["tab"] = tab
         ctx["next_offset"] = offset + page
-        # Counts drive the tab chips — only needed when the tabs render
-        # (cold load / tab swap), not on a load-more items fetch.
-        if not self.request.GET.get("items"):
-            ctx["my_comments_count"] = comments_qs.count()
-            ctx["my_activity_count"] = events_qs.count()
+        ctx["range_key"] = window["key"]
+        ctx["range_days"] = window["days"]
+        ctx["activity_q"] = activity_q
+        ctx["activity_types"] = set(selected)
 
         if tab == "comments":
-            comments = list(
-                comments_qs.select_related("task__project__workspace").order_by("-created_at", "-id")[offset:end]
+            if activity_q:
+                matched = _activity_task_matches(user, activity_q)
+                match = Q(body__icontains=activity_q)
+                if matched:
+                    match |= Q(task_id__in=matched)
+                comments_qs = comments_qs.filter(match)
+            feed_qs = comments_qs
+            rows = list(
+                comments_qs.select_related("task__project__workspace").order_by("-created_at", "-id")[offset:end],
             )
-            ctx["my_comments"] = comments
-            total = comments_qs.count()
-            ctx["has_more"] = len(comments) == page and total > end
-            ctx["remaining_count"] = max(0, total - end)
+            ctx["my_days"] = _my_activity_days(rows, window["today"], "task", params.get("after", ""))
         else:
-            # Filters: multi-select event-type chips + a text search over
-            # the comment preview and the linked task's title / slug.
-            selected = [t for t in self.request.GET.getlist("types") if t in _ACTIVITY_TYPE_GROUPS]
-            activity_q = (self.request.GET.get("q") or "").strip()
             filtered = events_qs
             if selected:
                 event_types = []
@@ -2748,26 +2908,14 @@ class MyActivityView(LoginRequiredMixin, TemplateView):
                     event_types += _ACTIVITY_TYPE_GROUPS[key]
                 filtered = filtered.filter(event_type__in=event_types)
             if activity_q:
-                tmatch = Q(title__icontains=activity_q)
-                upper = activity_q.upper()
-                if "-" in upper:
-                    prefix, _sep, num = upper.rpartition("-")
-                    if num.isdigit():
-                        tmatch |= Q(project__slug_prefix=prefix, number=int(num))
-                elif activity_q.isdigit():
-                    tmatch |= Q(number=int(activity_q))
-                matched_task_ids = list(
-                    Task.objects.filter(project__workspace__memberships__user=user)
-                    .filter(tmatch)
-                    .values_list("id", flat=True)[:500]
-                )
+                matched = _activity_task_matches(user, activity_q)
                 match = Q(payload__body_preview__icontains=activity_q)
-                if matched_task_ids:
-                    match |= Q(target_type=ActivityLog.TARGET_TASK, target_id__in=matched_task_ids)
-                    match |= Q(target_type=ActivityLog.TARGET_COMMENT, payload__task_id__in=matched_task_ids)
+                if matched:
+                    match |= Q(target_type=ActivityLog.TARGET_TASK, target_id__in=matched)
+                    match |= Q(target_type=ActivityLog.TARGET_COMMENT, payload__task_id__in=matched)
                 filtered = filtered.filter(match)
-
-            events = list(filtered.select_related("project").order_by("-created_at", "-id")[offset:end])
+            feed_qs = filtered
+            rows = list(filtered.select_related("project").order_by("-created_at", "-id")[offset:end])
 
             # Resolve the task each event points at, in one batch (no N+1).
             # Task events carry it as ``target_id``; comment events
@@ -2779,26 +2927,92 @@ class MyActivityView(LoginRequiredMixin, TemplateView):
                     return (event.payload or {}).get("task_id")
                 return None
 
-            task_ids = [tid for tid in (_event_task_id(e) for e in events) if tid]
-            tasks = {t.id: t for t in Task.objects.filter(id__in=task_ids).select_related("project__workspace")}
-            for e in events:
-                e.linked_task = tasks.get(_event_task_id(e))
-            _enrich_activity_events(events)
-            ctx["my_events"] = events
-            ctx["my_event_groups"] = _group_events_by_task(events)
+            task_ids = [task_id for task_id in (_event_task_id(event) for event in rows) if task_id]
+            tasks = {
+                task.id: task for task in Task.objects.filter(id__in=task_ids).select_related("project__workspace")
+            }
+            for event in rows:
+                event.linked_task = tasks.get(_event_task_id(event))
+            _enrich_activity_events(rows)
+            ctx["my_events"] = rows
+            ctx["my_days"] = _my_activity_days(rows, window["today"], "linked_task", params.get("after", ""))
             ctx["status_labels"] = Task.STATUS_LABELS
             ctx["priority_labels"] = dict(Task.PRIORITY_CHOICES)
-            total = filtered.count()
-            ctx["has_more"] = len(events) == page and total > end
-            ctx["remaining_count"] = max(0, total - end)
-            ctx["activity_types"] = set(selected)
-            ctx["activity_q"] = activity_q
-            ctx["activity_type_chips"] = [
-                {"key": key, "label": label, "active": key in selected} for key, label in _ACTIVITY_TYPE_LABELS
-            ]
-            ctx["activity_filter_qs"] = urlencode(
-                [("types", t) for t in selected] + ([("q", activity_q)] if activity_q else [])
+
+        total = feed_qs.count()
+        ctx["has_more"] = len(rows) == page and total > end
+        ctx["remaining_count"] = max(0, total - end)
+        # The day the next page resumes on, so a day split across a page
+        # boundary does not print its heading twice.
+        ctx["after_day"] = timezone.localtime(rows[-1].created_at).date().isoformat() if rows else ""
+        ctx["activity_filter_qs"] = _my_activity_query(
+            tab=tab,
+            range_key=window["key"],
+            query=activity_q,
+            types=selected,
+            projects=chosen_projects,
+        )
+
+        # Everything above the feed only renders on a cold load or a full
+        # swap; a load-more fetch returns rows and nothing else.
+        if items_only:
+            return ctx
+
+        ctx["my_comments_count"] = in_window["comments"].count()
+        ctx["my_activity_count"] = in_window["activity"].count()
+        ctx["rhythm"] = activity_header.rhythm(feed_qs, window)
+        ctx["activity_type_chips"] = [dict(chip, active=chip["key"] in selected) for chip in _ACTIVITY_TYPE_LABELS]
+        # Only the projects this person actually touched in the window.
+        # A workspace with twenty projects would otherwise spend three
+        # rows offering filters that match nothing, and the ones that do
+        # match would be the hardest to find among them.
+        if tab == "comments":
+            touched = set(in_window["comments"].values_list("task__project_id", flat=True).distinct())
+        else:
+            touched = set(in_window["activity"].values_list("project_id", flat=True).distinct())
+        projects = [project for project in projects if project.id in touched or project.slug_prefix in chosen_projects]
+        ctx["project_chips"] = [
+            {
+                "key": project.slug_prefix,
+                "name": project.name,
+                "color": project.icon_color_class,
+                "active": project.slug_prefix in chosen_projects,
+            }
+            for project in projects
+        ]
+        ctx["range_links"] = [
+            {
+                "key": key,
+                "active": key == window["key"],
+                "qs": _my_activity_query(
+                    tab=tab,
+                    range_key=key,
+                    query=activity_q,
+                    types=selected,
+                    projects=chosen_projects,
+                ),
+            }
+            for key in activity_header.RANGE_DAYS
+        ]
+        ctx["tab_links"] = {
+            name: _my_activity_query(
+                tab=name,
+                range_key=window["key"],
+                query=activity_q,
+                types=selected if name == "activity" else [],
+                projects=chosen_projects,
             )
+            for name in ("activity", "comments")
+        }
+        for tile in ctx["summary_tiles"]:
+            tile["qs"] = _my_activity_query(
+                tab=tile["tab"],
+                range_key=window["key"],
+                types=tile["types"],
+                projects=chosen_projects,
+            )
+        ctx["any_filter"] = bool(activity_q or selected or chosen_projects)
+        ctx["clear_qs"] = _my_activity_query(tab=tab, range_key=window["key"])
         return ctx
 
 

@@ -115,6 +115,22 @@ def _collect_dynamic() -> set[str]:
             for match in re.finditer(r'["\']icon["\']\s*:\s*["\']([a-z][a-z0-9-]*)["\']', text):
                 names.add(match.group(1))
 
+    # Activity-event marks — ``_EVENT_ICONS`` in ``web_extras`` maps an
+    # event type to the icon that stands for it, and ``event_icon``
+    # returns a bare name that reaches the template through a filter.
+    # Neither the hardcoded scan nor the ``"icon": …`` one can see those,
+    # so the whole literal map is read instead.
+    extras = APPS_DIR / "web" / "templatetags" / "web_extras.py"
+    if extras.is_file():
+        text = extras.read_text(encoding="utf-8")
+        block = re.search(r"_EVENT_ICONS\s*=\s*\{(.*?)\n\}", text, re.S)
+        if block:
+            names.update(re.findall(r':\s*["\']([a-z][a-z0-9-]*)["\']', block.group(1)))
+        fallbacks = re.search(r"def event_icon\(.*?\n\n\n", text, re.S)
+        if fallbacks:
+            names.update(re.findall(r'return\s+["\']([a-z][a-z0-9-]*)["\']', fallbacks.group(0)))
+            names.update(re.findall(r':\s*["\']([a-z][a-z0-9-]*)["\'],', fallbacks.group(0)))
+
     # Settings tabs — icon string is hardcoded per tab. The settings
     # tab partial uses ``{% lucide icon %}`` with the name passed via
     # ``with``; the template caller side is already covered by the

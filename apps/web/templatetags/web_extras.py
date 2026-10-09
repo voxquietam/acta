@@ -789,3 +789,69 @@ def labels_payload(labels) -> str:
         separators=(",", ":"),
         ensure_ascii=False,
     )
+
+
+#: What each kind of event looks like at a glance. A feed of thirty rows
+#: is read by shape before it is read by word, and without this they are
+#: thirty identical grey lines.
+_EVENT_ICONS = {
+    "task.created": "plus",
+    "task.assigned": "user",
+    "task.labels_changed": "tag",
+    "task.due_changed": "calendar",
+    "task.start_changed": "calendar",
+    "task.end_changed": "calendar",
+    "task.milestone_changed": "diamond",
+    "milestone.created": "diamond",
+    "milestone.closed": "diamond",
+    "milestone.reopened": "diamond",
+    "task.cycle_changed": "refresh-cw",
+    "task.epic_changed": "layers",
+    "task.parent_changed": "git-branch",
+    "task.project_changed": "folder",
+    "task.link_added": "link",
+    "task.link_removed": "unlink",
+    "task.updated": "pencil",
+    "task.archived": "archive",
+    "task.unarchived": "archive-restore",
+    "system.task.archived": "archive",
+    "task.turned_into_epic": "layers",
+    "task.turned_into_task": "square-check",
+    "comment.created": "message-square",
+    "comment.edited": "message-square",
+    "comment.deleted": "message-square",
+    "attachment.created": "paperclip",
+    "attachment.deleted": "paperclip",
+    "meeting.created": "phone",
+    "meeting.deleted": "phone",
+}
+
+
+@register.filter(name="event_icon")
+def event_icon(event) -> str:
+    """Return the icon name that stands for one activity event.
+
+    A status change is the one kind that cannot be read off the type
+    alone: landing in done, going out for review and being reopened are
+    three different pieces of news, and the payload is what tells them
+    apart.
+
+    Args:
+        event: An :class:`~apps.activity.models.ActivityLog` row.
+
+    Returns:
+        A lucide icon name, falling back to a neutral dot.
+    """
+    from apps.tasks.models import Task
+
+    event_type = getattr(event, "event_type", "")
+    if event_type == "task.status_changed":
+        payload = getattr(event, "payload", None) or {}
+        if payload.get("from") == Task.STATUS_DONE and payload.get("to") != Task.STATUS_DONE:
+            return "rotate-ccw"
+        return {
+            Task.STATUS_DONE: "circle-check",
+            Task.STATUS_IN_REVIEW: "eye",
+            Task.STATUS_CANCELLED: "circle-slash",
+        }.get(payload.get("to"), "circle-dot")
+    return _EVENT_ICONS.get(event_type, "circle-dot")

@@ -2,63 +2,90 @@
 {% load lucide %}
 {% load web_extras %}
 {% comment %}
-One page of My Activity feed items + a Load-more button. Returned on its
-own for ``?items=1`` load-more fetches (the button targets itself with
-an outerHTML swap, so the next page appends in place).
+One page of the My Activity feed, plus its Load-more button. Returned on
+its own for ``?items=1`` fetches (the button targets itself with an
+outerHTML swap, so the next page appends in place).
+
+Two levels of grouping, because the feed is read at two scales: a day is
+how someone remembers when they did something, and a task is what they
+did it to. Six edits to one task on Tuesday are one line of memory, not
+six — so a day is one card, and each task inside it is a block with its
+own rail.
+
+Rows carry a clock time and a mark for their kind. The date is overhead
+a reader pays once per day; the mark is what lets thirty grey lines be
+scanned rather than read. A day split across a page boundary arrives
+with ``repeat`` set and prints no heading, so the join is invisible.
 {% endcomment %}
-{% if tab == 'comments' %}
-  {% for c in my_comments %}
-  <div class="mb-3">
-    <a href="{% task_url c.task %}"
-       {% open_task_modal_attrs c.task %}
-       class="group flex items-baseline gap-2 mb-1">
-      <span class="font-mono text-xs text-placeholder-foreground group-hover:text-foreground shrink-0">{{ c.task.slug }}</span>
-      <span class="text-xs text-subtle-foreground group-hover:text-foreground truncate">{{ c.task.title }}</span>
-    </a>
-    <ul>{% include "web/projects/_comment.html" with comment=c hide_author=True %}</ul>
+{% for d in my_days %}
+<section class="mb-5">
+  {% if not d.repeat %}
+  <div class="flex items-baseline gap-2 mb-2 px-1">
+    <span class="text-[10px] uppercase tracking-wider text-placeholder-foreground font-medium">{{ d.heading }}</span>
+    <span class="font-mono text-[10px] text-placeholder-foreground">{{ d.count }}</span>
   </div>
-  {% empty %}
-  <div class="flex flex-col items-center justify-center gap-2.5 text-center px-6 py-16">
-    <span class="w-12 h-12 rounded-full bg-muted text-placeholder-foreground grid place-items-center">{% lucide "message-square" "w-6 h-6" %}</span>
-    <h2 class="text-[15px] font-semibold text-foreground">{% trans "No comments yet" %}</h2>
-    <p class="text-xs text-placeholder-foreground max-w-[280px] leading-relaxed">{% trans "Comments you post on tasks will show up here." %}</p>
+  {% endif %}
+  <div class="bg-card border border-border rounded-lg overflow-hidden">
+    {% for g in d.groups %}
+    <div class="px-3.5 py-2.5 {% if not forloop.first %}border-t border-border{% endif %}">
+      {% if g.task %}
+      <a href="{% task_url g.task %}"
+         {% open_task_modal_attrs g.task %}
+         class="group flex items-baseline gap-2 min-w-0">
+        <span class="font-mono text-[11px] text-placeholder-foreground shrink-0">{{ g.task.slug }}</span>
+        <span class="text-[13px] text-foreground font-medium truncate group-hover:text-brand-300">{{ g.task.title }}</span>
+        {% if g.count > 1 %}
+        {# Saying how many up front stops the rail below reading as a #}
+        {# list of separate tasks.                                    #}
+        <span class="font-mono text-[10px] text-placeholder-foreground shrink-0">{% blocktrans count counter=g.count %}{{ counter }} event{% plural %}{{ counter }} events{% endblocktrans %}</span>
+        {% endif %}
+      </a>
+      {% endif %}
+      <ul class="border-l border-border-strong ml-1.5 pl-2 mt-1.5 space-y-0.5">
+        {% for row in g.rows %}
+        {% if tab == 'comments' %}
+        {% include "web/projects/_comment.html" with comment=row hide_author=True time_only=True %}
+        {% else %}
+        {% include "web/projects/_activity_event.html" with event=row hide_actor=True time_only=True show_icon=True %}
+        {% endif %}
+        {% endfor %}
+      </ul>
+    </div>
+    {% endfor %}
   </div>
-  {% endfor %}
-{% else %}
-  {% comment %}
-  Consecutive events on the same task group under one task header with a
-  left rail, so a run of edits reads like a timeline. Each row reuses
-  _activity_event.html (diff + verb) with the actor hidden — always me.
-  {% endcomment %}
-  {% for g in my_event_groups %}
-  <div class="mb-4">
-    {% if g.task %}
-    <a href="{% task_url g.task %}"
-       {% open_task_modal_attrs g.task %}
-       class="group flex items-baseline gap-2 mb-1">
-      <span class="font-mono text-xs text-placeholder-foreground group-hover:text-foreground shrink-0">{{ g.task.slug }}</span>
-      <span class="text-xs text-subtle-foreground group-hover:text-foreground truncate">{{ g.task.title }}</span>
-    </a>
-    {% endif %}
-    <ul class="border-l border-border ml-1.5 pl-1.5 space-y-0.5">
-      {% for e in g.events %}
-      {% include "web/projects/_activity_event.html" with event=e hide_actor=True %}
-      {% endfor %}
-    </ul>
-  </div>
-  {% empty %}
-  <div class="flex flex-col items-center justify-center gap-2.5 text-center px-6 py-16">
-    <span class="w-12 h-12 rounded-full bg-muted text-placeholder-foreground grid place-items-center">{% lucide "activity" "w-6 h-6" %}</span>
-    <h2 class="text-[15px] font-semibold text-foreground">{% trans "No activity yet" %}</h2>
-    <p class="text-xs text-placeholder-foreground max-w-[280px] leading-relaxed">{% trans "Your actions across tasks will show up here." %}</p>
-  </div>
-  {% endfor %}
-{% endif %}
+</section>
+{% empty %}
+<div class="flex flex-col items-center justify-center gap-2.5 text-center px-6 py-16">
+  <span class="w-12 h-12 rounded-full bg-muted text-placeholder-foreground grid place-items-center">
+    {% if any_filter %}{% lucide "search-x" "w-6 h-6" %}{% elif tab == 'comments' %}{% lucide "message-square" "w-6 h-6" %}{% else %}{% lucide "activity" "w-6 h-6" %}{% endif %}
+  </span>
+  <h2 class="text-[15px] font-semibold text-foreground">
+    {% if any_filter %}{% trans "Nothing matches" %}
+    {% elif tab == 'comments' %}{% trans "No comments in this range" %}
+    {% else %}{% trans "No activity in this range" %}{% endif %}
+  </h2>
+  <p class="text-xs text-placeholder-foreground max-w-[280px] leading-relaxed">
+    {% if any_filter %}{% blocktrans count counter=range_days %}Nothing in the last {{ counter }} day matches these filters.{% plural %}Nothing in the last {{ counter }} days matches these filters.{% endblocktrans %}
+    {% elif tab == 'comments' %}{% trans "Comments you post on tasks will show up here." %}
+    {% else %}{% trans "Your actions across tasks will show up here." %}{% endif %}
+  </p>
+  {% if any_filter %}
+  <a href="?{{ clear_qs }}" hx-get="?{{ clear_qs }}" hx-target="#my-activity-content" hx-swap="outerHTML" hx-push-url="true"
+     class="text-xs text-brand-300 hover:text-brand-200 mt-1">{% trans "Clear filters" %}</a>
+  {% endif %}
+</div>
+{% endfor %}
 
 {% if has_more %}
-<button hx-get="{% url 'web:my_activity' %}?tab={{ tab }}&offset={{ next_offset }}&items=1{% if activity_filter_qs %}&{{ activity_filter_qs }}{% endif %}"
+<button hx-get="{% url 'web:my_activity' %}?{{ activity_filter_qs }}&offset={{ next_offset }}&items=1&after={{ after_day }}"
         hx-target="this" hx-swap="outerHTML"
-        class="block w-full text-center text-xs text-placeholder-foreground hover:text-foreground py-3 mt-1">
-  {% lucide "chevron-down" "w-3.5 h-3.5 inline" %} {% trans "Load more" %}{% if remaining_count %} <span class="font-mono text-placeholder-foreground">({{ remaining_count }})</span>{% endif %}
+        class="w-full h-8 flex items-center justify-center gap-1.5 bg-card border border-border hover:border-border-strong rounded-lg text-xs text-subtle-foreground hover:text-foreground transition">
+  {% lucide "chevron-down" "w-3.5 h-3.5" %} {% trans "Load more" %}
+  {% if remaining_count %}<span class="font-mono text-[10px] text-placeholder-foreground">{% blocktrans count counter=remaining_count %}{{ counter }} left{% plural %}{{ counter }} left{% endblocktrans %}</span>{% endif %}
 </button>
+{% elif after_day %}
+{# The feed ends where the range does, not where the history does. #}
+<p class="text-center text-[11px] italic text-placeholder-foreground py-3">
+  {% blocktrans count counter=range_days %}Start of the {{ counter }}-day range — widen it to see older events.{% plural %}Start of the {{ counter }}-day range — widen it to see older events.{% endblocktrans %}
+</p>
 {% endif %}

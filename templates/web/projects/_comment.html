@@ -25,7 +25,7 @@ is a click into the task away.
     </button>
   </div>
   <span class="shrink-0 text-xs text-placeholder-foreground">
-    {% if comment.was_edited %}<span class="italic">({% trans "edited" %})</span> {% endif %}{{ comment.created_at|date:"M j, H:i" }}
+    {% if comment.was_edited %}<span class="italic">({% trans "edited" %})</span> {% endif %}{% if time_only %}<span data-tooltip="{{ comment.created_at|date:'M j, Y, H:i' }}" data-tooltip-pos="below">{{ comment.created_at|date:"H:i" }}</span>{% else %}{{ comment.created_at|date:"M j, H:i" }}{% endif %}
   </span>
 </li>
 {% else %}

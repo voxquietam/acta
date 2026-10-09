@@ -1,4 +1,5 @@
 {% load i18n %}
+{% load lucide %}
 {% load web_extras %}
 {% comment %}
 One activity event row — single-line compact form. Reused by the rail
@@ -11,6 +12,7 @@ timestamp pushed to the far right via ``ml-auto``. Long diffs truncate
 with ``truncate`` so the row never wraps.
 {% endcomment %}
 <li class="text-xs text-subtle-foreground px-3 py-1 flex items-baseline gap-1.5 min-w-0">
+  {% if show_icon %}{% lucide event|event_icon "w-3.5 h-3.5 text-subtle-foreground shrink-0 self-center" %}{% endif %}
   {% if not hide_actor %}
   <span class="text-muted-foreground shrink-0">{% if event.actor %}{{ event.actor.display_name }}{% else %}system{% endif %}</span>
   {% endif %}
@@ -115,5 +117,5 @@ with ``truncate`` so the row never wraps.
   {% else %}
     <span class="text-placeholder-foreground truncate">{{ event.event_type|event_label }}</span>
   {% endif %}
-  <span class="text-[10px] text-placeholder-foreground ml-auto shrink-0">{% include "web/projects/_relative_time.html" with dt=event.created_at %}</span>
+  <span class="text-[10px] text-placeholder-foreground ml-auto shrink-0">{% if time_only %}<span class="font-mono" data-tooltip="{{ event.created_at|date:'M j, Y, H:i' }}" data-tooltip-pos="below">{{ event.created_at|date:"H:i" }}</span>{% else %}{% include "web/projects/_relative_time.html" with dt=event.created_at %}{% endif %}</span>
 </li>
