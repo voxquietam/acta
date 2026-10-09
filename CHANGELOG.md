@@ -21,8 +21,15 @@ Automating this with `git-cliff` is deferred until `v1.0.0`.
   that closed seven and took in six is one observation about that team.
   Bands come out wider and later than before, which is the correction.
   Filling a milestone in the first place is not an arrival — that work
-  is already the remainder, and counting its day again would tell every
-  milestone younger than four weeks that it will never finish.
+  is already the remainder, and counting its days again would tell a
+  milestone filled last week that it will never finish. Filling is an
+  episode, so the whole opening run of days is excluded, and arrivals
+  carry the same history bar the closes carry: below three settled weeks
+  they are not replayed at all, because no task ever joined a milestone
+  that did not exist yet, and a young container holds nothing but its own
+  filling. Work that is done but whose closing never reached the activity
+  log — imported history — counts as closed before it arrived, since it
+  is not in the remainder and so cannot be an arrival into it.
 - **A milestone that takes in work faster than it closes it is told so.**
   `does not converge` is the sixth reading, beside likely / coin flip /
   unlikely / date passed / not enough history. It replaces the headline

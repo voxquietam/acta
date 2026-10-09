@@ -30,8 +30,15 @@ def bursty(total=56, days=forecast.WINDOW_DAYS):
     return series
 
 
-def run(closes, remaining, target_in=30, history_days=forecast.WINDOW_DAYS, arrivals=None):
-    """Forecast with the fixtures' defaults."""
+def run(
+    closes,
+    remaining,
+    target_in=30,
+    history_days=forecast.WINDOW_DAYS,
+    arrivals=None,
+    arrival_history_days=forecast.WINDOW_DAYS,
+):
+    """Forecast with the fixtures' defaults, a settled milestone among them."""
     return forecast.forecast(
         closes=closes,
         remaining=remaining,
@@ -40,6 +47,7 @@ def run(closes, remaining, target_in=30, history_days=forecast.WINDOW_DAYS, arri
         target=TODAY + datetime.timedelta(days=target_in),
         seed=1,
         arrivals=arrivals,
+        arrival_history_days=arrival_history_days,
     )
 
 
@@ -389,7 +397,7 @@ class TestBucketingArrivals:
         assert moves[-3] == 5
 
     def test_filling_the_milestone_is_not_the_scope_growing(self):
-        """That work is the remainder; drawing its day counts it twice.
+        """That work is the remainder; drawing its days counts it twice.
 
         Without this, a milestone filled with forty tasks a fortnight ago
         reads as a milestone that takes in forty tasks on a typical day,
@@ -403,19 +411,38 @@ class TestBucketingArrivals:
             3: [[later, None]],
         }
 
-        moves = forecast.daily_arrivals(spans, {}, TODAY, opened=opened)
+        moves = forecast.daily_arrivals(spans, {}, TODAY, settled=forecast.settled_from(spans, opened))
 
         assert moves[-15] == 0
         assert moves[-4] == 1
 
-    def test_leaving_on_the_opening_day_still_counts(self):
-        """Only the joining half is the scope being defined."""
+    def test_a_fill_that_took_two_days_is_excluded_on_both(self):
+        """The defect that reached production: only day one was excluded.
+
+        Someone opens a milestone and spends two afternoons deciding what
+        belongs in it. Counting the second one divides an afternoon of
+        planning by four weeks and calls the answer a pace.
+        """
+        opened = TODAY - datetime.timedelta(days=3)
+        second = TODAY - datetime.timedelta(days=2)
+        spans = {
+            1: [[opened, None]],
+            2: [[second, None]],
+            3: [[second, None]],
+        }
+
+        moves = forecast.daily_arrivals(spans, {}, TODAY, settled=forecast.settled_from(spans, opened))
+
+        assert moves == [0] * forecast.WINDOW_DAYS
+
+    def test_nothing_moves_at_all_while_the_milestone_is_being_filled(self):
+        """Pulling work back out mid-fill is the plan being drawn, too."""
         opened = TODAY - datetime.timedelta(days=9)
         spans = {1: [[opened, opened]]}
 
-        moves = forecast.daily_arrivals(spans, {}, TODAY, opened=opened)
+        moves = forecast.daily_arrivals(spans, {}, TODAY, settled=forecast.settled_from(spans, opened))
 
-        assert moves[-10] == -1
+        assert moves == [0] * forecast.WINDOW_DAYS
 
     def test_with_no_opening_day_every_arrival_counts(self):
         day = TODAY - datetime.timedelta(days=6)
@@ -423,3 +450,65 @@ class TestBucketingArrivals:
         moves = forecast.daily_arrivals({1: [[day, None]]}, {}, TODAY)
 
         assert moves[-7] == 1
+
+
+class TestWhereTheFillEnds:
+    """Filling is an episode, and the data says how long it ran."""
+
+    def test_the_run_ends_on_the_first_day_that_took_nothing_in(self):
+        opened = TODAY - datetime.timedelta(days=10)
+        spans = {
+            1: [[opened, None]],
+            2: [[opened + datetime.timedelta(days=1), None]],
+            3: [[opened + datetime.timedelta(days=2), None]],
+        }
+
+        assert forecast.settled_from(spans, opened) == opened + datetime.timedelta(days=3)
+
+    def test_coming_back_after_a_pause_is_a_top_up_not_the_fill(self):
+        """A day's silence ends it — which is the whole point of catching it."""
+        opened = TODAY - datetime.timedelta(days=10)
+        spans = {
+            1: [[opened, None]],
+            2: [[opened + datetime.timedelta(days=4), None]],
+        }
+
+        assert forecast.settled_from(spans, opened) == opened + datetime.timedelta(days=1)
+
+    def test_without_an_opening_day_there_is_nothing_to_walk_from(self):
+        assert forecast.settled_from({1: [[TODAY, None]]}, None) is None
+
+
+class TestAMilestoneTooYoungToJudgeItsOwnInflow:
+    """Closes can predate the container; arrivals cannot. That asymmetry bites."""
+
+    def test_arrivals_are_dropped_while_the_milestone_is_new(self):
+        """Three days of a milestone's life say nothing about the next month."""
+        young = run(steady(per_day=3), remaining=40, arrivals=[3] * 28, arrival_history_days=3)
+        sealed = run(steady(per_day=3), remaining=40)
+
+        assert young["p50"] == sealed["p50"]
+        assert young["arrive_per_day"] is None
+        assert forecast.reading(young) != "never"
+
+    def test_and_the_page_is_told_the_scope_moved_unreplayed(self):
+        """Quietly falling back to a sealed bucket would be the old lie."""
+        young = run(steady(per_day=3), remaining=40, arrivals=[3] * 28, arrival_history_days=3)
+
+        assert young["arrivals_young"] is True
+
+    def test_a_still_milestone_has_nothing_to_warn_about(self):
+        young = run(steady(per_day=3), remaining=40, arrivals=[0] * 28, arrival_history_days=3)
+
+        assert young["arrivals_young"] is False
+
+    def test_once_it_has_lived_long_enough_they_count(self):
+        grown = run(
+            steady(per_day=3),
+            remaining=40,
+            arrivals=[3] * 28,
+            arrival_history_days=forecast.NEED_HISTORY_DAYS,
+        )
+
+        assert grown["arrive_per_day"] == 3.0
+        assert forecast.reading(grown) == "never"

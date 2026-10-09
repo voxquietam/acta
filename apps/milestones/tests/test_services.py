@@ -542,6 +542,64 @@ class TestBurndown:
         # The two paces are what the page says instead of a date.
         assert chart["forecast"]["arrive_per_day"] > chart["forecast"]["per_day"]
 
+    def test_a_milestone_filled_over_two_days_is_not_told_it_never_ends(self, scope):
+        """The defect that reached production, as the page met it.
+
+        A milestone opened on Monday and filled across Monday and
+        Tuesday. Excluding only the first day left the second to be
+        divided by the four-week window, which read as a team taking in
+        more than it closes — so a milestone three days old, over work
+        that was mostly finished before it existed, was told it would
+        never converge.
+        """
+        backend, _, milestone = scope
+        today = timezone.localdate()
+        milestone.target_date = today + datetime.timedelta(days=60)
+        milestone.save()
+        Milestone.objects.filter(pk=milestone.pk).update(created_at=timezone.now() - datetime.timedelta(days=3))
+        # Day one of the fill: the work that was already finished.
+        for index in range(14):
+            task = TaskFactory(project=backend, milestone=milestone, status=Task.STATUS_DONE)
+            milestone_event(task, milestone, timezone.now() - datetime.timedelta(days=3))
+            status_event(task, Task.STATUS_DONE, timezone.now() - datetime.timedelta(days=24 - index))
+        # Day two: the rest of the scope, carried in the next afternoon.
+        for _index in range(20):
+            task = TaskFactory(project=backend, milestone=milestone, status=Task.STATUS_TODO)
+            milestone_event(task, milestone, timezone.now() - datetime.timedelta(days=2))
+
+        chart = services.burndown(milestone, today=today)
+
+        assert chart["reading"] != "never"
+        assert chart["forecast"]["p50"] is not None
+        # Nothing was replayed, because three days of a container's life
+        # is not evidence about inflow either way.
+        assert chart["forecast"]["arrive_per_day"] is None
+
+    def test_work_already_done_when_it_was_swept_in_is_not_an_arrival(self, scope):
+        """Both sides of the sum have to be measured the same way.
+
+        A milestone filed in over finished work collects tasks whose
+        closing never reached the log — imported history, or work closed
+        before the log existed. They are not in the remainder, so they
+        cannot be arrivals into it; counting them invents a backlog out
+        of a filing decision.
+        """
+        backend, _, milestone = scope
+        today = timezone.localdate()
+        milestone.target_date = today + datetime.timedelta(days=60)
+        milestone.save()
+        self._replayable(backend, milestone, closed=12, open_tasks=10)
+        # Swept in well after the fill, and finished long before it —
+        # with no closing event to say when.
+        for _index in range(30):
+            archived = TaskFactory(project=backend, milestone=milestone, status=Task.STATUS_DONE)
+            milestone_event(archived, milestone, timezone.now() - datetime.timedelta(days=4))
+
+        chart = services.burndown(milestone, today=today)
+
+        assert chart["forecast"]["arrive_per_day"] == 0
+        assert chart["reading"] != "never"
+
     def test_a_milestone_filed_in_late_still_has_the_pace_it_ran_at(self, scope):
         """The container was opened this morning; the work was not.
 

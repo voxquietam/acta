@@ -938,13 +938,25 @@ def burndown(milestone, today=None) -> dict | None:
     # moved on six days is one the simulation draws as moving: without
     # this the chart said the bucket was topped up and the forecast
     # assumed it never would be again.
-    arrivals = forecast.daily_arrivals(
-        {task_id: history[task_id] for task_id in ever_ids},
-        done_days,
-        today,
-        weights=weights,
-        opened=start,
-    )
+    #
+    # Minus the days it was being filled, and minus the whole question
+    # while it is too new to have an answer. Unlike the closes, which are
+    # the tasks' own history and can be older than the container, every
+    # arrival is younger than it by construction — so a milestone opened
+    # on Monday has nothing but its own filling to read.
+    spans = {task_id: history[task_id] for task_id in ever_ids}
+    settled = forecast.settled_from(spans, start)
+    # Work that is done but whose closing never reached the log — imported
+    # history, or work closed before the log existed — has no day to
+    # compare an arrival against, and would read as unfinished work
+    # turning up. It is not in the remainder, so it cannot be an arrival
+    # into the remainder: both sides have to be measured the same way, or
+    # a milestone filed in over finished work invents its own backlog.
+    closed = dict(done_days)
+    for task_id in ever_ids:
+        if task_id not in closed and statuses.get(task_id) == Task.STATUS_DONE:
+            closed[task_id] = datetime.date.min
+    arrivals = forecast.daily_arrivals(spans, closed, today, weights=weights, settled=settled)
     oldest = min((done_days[task_id] for task_id in in_window), default=None)
     outlook = forecast.forecast(
         closes=closes,
@@ -956,6 +968,7 @@ def burndown(milestone, today=None) -> dict | None:
         closed_count=len(in_window),
         unit="points" if basis else "tasks",
         arrivals=arrivals,
+        arrival_history_days=(today - settled).days if settled else 0,
     )
     if basis:
         outlook["agent_share"] = basis["agent_share"]

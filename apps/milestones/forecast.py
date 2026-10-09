@@ -83,6 +83,7 @@ def forecast(
     closed_count=None,
     unit="tasks",
     arrivals=None,
+    arrival_history_days=0,
 ) -> dict:
     """Return what the recent past says about finishing the remaining work.
 
@@ -110,6 +111,12 @@ def forecast(
             Paired with ``closes`` by position and never resampled apart
             from it. ``None`` replays a sealed bucket, which is only
             right where there is no membership history to read.
+        arrival_history_days: How long the milestone has been settled —
+            open, filled, and taking in whatever it takes in. Below
+            :data:`NEED_HISTORY_DAYS` the arrivals are dropped and the
+            bucket is replayed sealed, for the same reason ten closes in
+            two days buy no forecast: two days of a milestone's life say
+            nothing about how often work will turn up in it.
 
     Returns:
         ``{"state": …}`` and whatever that state carries. ``done`` when
@@ -128,7 +135,15 @@ def forecast(
             "window_days": len(closes),
             "unit": unit,
         }
-    net = closes if arrivals is None else [close - arrived for close, arrived in zip(closes, arrivals)]
+    # Closes can be older than the milestone — they are read off the
+    # tasks, which is what lets a container filed in late be judged on
+    # the work inside it. Arrivals cannot: no task joined a milestone
+    # before there was one to join. So a young milestone's window of
+    # arrivals is mostly its own filling, and reading a pace off it would
+    # divide one afternoon's planning by four weeks.
+    young = arrivals is not None and arrival_history_days < NEED_HISTORY_DAYS
+    counted = None if young else arrivals
+    net = closes if counted is None else [close - arrived for close, arrived in zip(closes, counted)]
     lengths, stalled = _simulate(net, remaining, seed)
     trials = len(lengths) + stalled
     to_target = (target - today).days
@@ -159,7 +174,10 @@ def forecast(
         # The other half of that division, and the whole of the answer
         # when the two are close: a milestone taking in 2.6 a day while
         # closing 2.1 does not have a late date, it has no date.
-        "arrive_per_day": None if arrivals is None else round(sum(arrivals) / len(arrivals), 1),
+        "arrive_per_day": None if counted is None else round(sum(counted) / len(counted), 1),
+        # Scope that moved but was not replayed, so the page can say so
+        # rather than quietly going back to the sealed-bucket answer.
+        "arrivals_young": bool(young and any(arrivals)),
     }
 
 
@@ -292,7 +310,7 @@ def daily_closes(done_days: dict, today, window=WINDOW_DAYS, weights=None) -> li
     return counts
 
 
-def daily_arrivals(spans: dict, done_days: dict, today, window=WINDOW_DAYS, weights=None, opened=None) -> list:
+def daily_arrivals(spans: dict, done_days: dict, today, window=WINDOW_DAYS, weights=None, settled=None) -> list:
     """Bucket the unfinished work that joined the milestone, net of what left.
 
     The scope line on the chart is drawn from these same spans, so this
@@ -312,11 +330,13 @@ def daily_arrivals(spans: dict, done_days: dict, today, window=WINDOW_DAYS, weig
 
     Filling the milestone in the first place is not an arrival. That
     work is the remainder — it is already on the other side of the sum —
-    and drawing its day again as a day more work turns up would count it
-    twice, which is enough on its own to tell a milestone filled a
-    fortnight ago that it will never finish. So the day the scope first
-    existed is excluded, and it is excluded by the one line that is not
-    arbitrary: before it there was no scope to add to.
+    and drawing its days again as days more work turns up would count it
+    twice, which is enough on its own to tell a milestone filled last
+    week that it will never finish. Filling takes as long as it takes,
+    so what is excluded is the whole opening run of days, as
+    :func:`settled_from` reads it off the spans. Both halves of those
+    days go: work pulled back out while the plan was being drawn is the
+    plan being drawn, not work flowing out.
 
     Args:
         spans: ``{task_id: [[joined, left_or_None], ...]}`` — the
@@ -326,10 +346,11 @@ def daily_arrivals(spans: dict, done_days: dict, today, window=WINDOW_DAYS, weig
         window: How many days back to cover.
         weights: ``{task_id: points}`` to move instead of one per task,
             matching whatever :func:`daily_closes` was given.
-        opened: The day the milestone first held anything. Arrivals on it
-            are the scope being defined, not scope growing. ``None``
-            counts every day, which is right only where the caller knows
-            the first fill is off the back of the window anyway.
+        settled: The first day the milestone was a plan rather than a
+            plan being written — :func:`settled_from`. Days before it are
+            the scope being defined and move nothing. ``None`` counts
+            every day, which is right only where the caller knows the
+            opening fill is off the back of the window anyway.
 
     Returns:
         One net total per day, oldest first, length ``window``. Negative
@@ -340,16 +361,60 @@ def daily_arrivals(spans: dict, done_days: dict, today, window=WINDOW_DAYS, weig
         weight = 1 if weights is None else weights.get(task_id, 0)
         done_day = done_days.get(task_id)
         for joined, left in task_spans:
-            first_fill = opened is not None and joined <= opened
-            if not first_fill and (done_day is None or done_day >= joined):
+            if _after_fill(joined, settled) and (done_day is None or done_day >= joined):
                 index = _bucket(joined, today, window)
                 if index is not None:
                     moves[index] += weight
-            if left is not None and (done_day is None or done_day >= left):
+            if left is not None and _after_fill(left, settled) and (done_day is None or done_day >= left):
                 index = _bucket(left, today, window)
                 if index is not None:
                     moves[index] -= weight
     return moves
+
+
+def settled_from(spans: dict, opened):
+    """Return the first day after the milestone's opening fill.
+
+    Filling a milestone is an episode, not a moment: someone opens it and
+    spends an afternoon — or two days, or a week — deciding what belongs
+    in it. Every one of those days looks like a day work arrived, and
+    none of them is.
+
+    The run is read off the data rather than guessed at: start on the day
+    the scope first existed and walk forward while each day took work in.
+    The first day that took none ends the fill, because coming back to
+    add more after a day's pause is a top-up, which is exactly what the
+    replay is meant to catch.
+
+    Args:
+        spans: ``{task_id: [[joined, left_or_None], ...]}``.
+        opened: The day the milestone first held anything.
+
+    Returns:
+        The first settled day, or ``None`` when there is no opening day
+        to walk from.
+    """
+    if opened is None:
+        return None
+    filling = {joined for task_spans in spans.values() for joined, _left in task_spans}
+    day = opened
+    while day in filling:
+        day += datetime.timedelta(days=1)
+    return day
+
+
+def _after_fill(day, settled) -> bool:
+    """Return whether a day counts as movement rather than as filling.
+
+    Args:
+        day: The day work joined or left.
+        settled: The first settled day, or ``None`` to count every day.
+
+    Returns:
+        ``True`` when the day is the milestone's own life rather than its
+        opening.
+    """
+    return settled is None or day >= settled
 
 
 def _bucket(day, today, window: int) -> int | None:

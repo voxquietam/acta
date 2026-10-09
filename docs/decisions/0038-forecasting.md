@@ -218,19 +218,75 @@ line is drawn with, so the two cannot disagree.
 **Filling the milestone is not the scope growing.** The day a milestone
 is opened and loaded with forty tasks is not evidence that forty tasks
 turn up on a typical day — and that work is already counted, as the
-remainder. Drawing its day as an arrival as well counts it twice, and
-the double count is large enough on its own to tell every milestone
-younger than the window that it will never finish. So arrivals on the
-day the scope first existed are excluded. The line is not arbitrary:
-before that day there was no scope to add to, and it is the same day the
-chart starts drawing from. Departures on it still count — only the
-joining half is the scope being defined.
+remainder. Drawing its days as arrivals as well counts it twice, and the
+double count is large enough on its own to tell a milestone filled last
+week that it will never finish.
+
+Filling is an *episode*, not a moment: someone opens a milestone and
+spends an afternoon, or two, or a week, deciding what belongs in it.
+Every one of those days looks like a day work arrived and none of them
+is, so the whole opening run is excluded. The run is read off the data
+rather than guessed at — start on the day the scope first existed and
+walk forward while each day took work in; the first day that took none
+ends it. Coming back to add more after a day's pause is a top-up, which
+is precisely what the replay exists to catch. Both halves of those days
+go: work pulled back out while the plan was still being drawn is the
+plan being drawn, not work flowing out.
+
+*(Shipped first as a single excluded day, which lasted until the first
+real milestone met it: one opened on a Monday and filled across Monday
+and Tuesday, where the Tuesday alone — divided by the four-week window —
+outweighed a month of closes and printed "does not converge" over work
+that was three weeks from done.)*
 
 This is the one place where the forecast and the scope line deliberately
 read the same data differently, so it is worth stating plainly: the
 chart draws the first fill because the reader needs to see where the
 work came from, and the replay skips it because the reader is being told
 what happens next.
+
+### Arrivals are gated on their own history, because they cannot borrow the tasks'
+
+Closes and arrivals look symmetric and are not. A close is an event on a
+*task*, so a milestone filed in late inherits weeks of closing history
+on its first day — that is the whole of "history is the span of the
+closes" above. An arrival is an event on the *membership*, and no task
+ever joined a milestone that did not exist yet. The window of arrivals
+is therefore capped by the age of the container, and for a young
+container it holds nothing but its own filling.
+
+So arrivals carry the same bar the closes carry, measured on their own
+span: below `NEED_HISTORY_DAYS` of settled life — life after the opening
+fill — they are dropped and the bucket is replayed sealed. Three days of
+a milestone's existence say nothing about how often work will turn up in
+it, exactly as ten closes in two days say nothing about the next month.
+Being a weaker answer, it is one the page admits to rather than passing
+off: where the scope moved and the replay did not draw it, the footnote
+says so.
+
+The two bars also dovetail. By the time a milestone has three settled
+weeks, its opening fill is most of the way off the back of the
+twenty-eight day window, so the measurement it graduates into is already
+mostly free of it — and what remains is excluded by the rule above
+rather than by luck.
+
+### Both sides of the sum are measured the same way
+
+An arrival only counts if it brought *unfinished* work, which means
+asking whether a task was closed on the day it joined. The remainder
+asks a different question of the same tasks — what is open now — and the
+two must not be answered from different sources.
+
+They were, at first: arrivals read the activity log, the remainder read
+`Task.status`. A task that is done but whose closing never reached the
+log — imported history, work closed before the log existed — has no day
+to compare against, so it read as unfinished work turning up while being
+absent from the remainder it supposedly turned up in. On a milestone
+filed in over finished work, which is most of what a retroactive
+milestone holds, that invents a backlog out of a filing decision. Work
+that is done and has no closing day is therefore treated as closed
+before it arrived: it is not in the remainder, so it cannot be an
+arrival into it.
 
 ### What "never" is, and what the page says about it
 
