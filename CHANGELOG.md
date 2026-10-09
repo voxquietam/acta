@@ -9,6 +9,8 @@ Automating this with `git-cliff` is deferred until `v1.0.0`.
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-10-09
+
 ### Added
 
 - **Epics — a task that collects other tasks.** An epic gathers work from
@@ -78,6 +80,73 @@ Automating this with `git-cliff` is deferred until `v1.0.0`.
   promotes a subtask back to top level. Previously a parent could only
   be set while creating the task.
 
+- **Milestones — a date with a scope, and the work that aims at it.** A
+  milestone is a point, not a span: a target date, the projects it
+  covers, and whatever work has been committed to it. Progress, risk,
+  the per-project and per-epic slices and the burndown are all read off
+  that work rather than stored, so the pages, the MCP tools and the
+  admin cannot drift into giving different answers about the same date.
+  A task carries its milestone from the rail, the create dialog, the
+  bulk endpoint and MCP; the list and the filters group by it; the board
+  draws it as a window, a column set and a lane. See ADR 0037.
+- **The Plan tab** cuts the work two levels deep and draws it as one
+  gantt shared by both surfaces, with milestones as markers on the
+  timeline. A date says which projects it belongs to, and the plan folds
+  on both renders.
+- **A milestone says its chance of making the date.** The old answer was
+  an average — tasks closed over days elapsed, printed as a date, which
+  read as a promise it could not keep. It now replays the team's own
+  recent days two thousand times and reports the share of runs that land
+  on or before the target, with the median and the 85th percentile
+  behind it. Five readings: likely, coin flip, unlikely, date passed,
+  not enough history. Below ten closes across three weeks it refuses to
+  answer, which replaced a floor that once printed "865 days after the
+  date". The same machine forecasts the cycle card in My Work, where the
+  pace is the workspace's because a three-day cycle has no history of
+  its own. See ADR 0038.
+- **The forecast shows its working.** The pace it assumed is printed
+  next to the percentage, and under the chart a strip of the twenty-eight
+  days it replayed — because a steady fortnight and one afternoon of
+  clearing the backlog average out the same and look nothing alike.
+- **It counts points where the estimates allow it.** Counting tasks
+  assumes they are all the same work, and the easy ones went first. When
+  both the closes and the remainder clear a coverage bar the replay runs
+  on `size` instead, imputing the median where an estimate is missing.
+  The page says which unit it counted in.
+- **An estimate now records who made it.** `Task.size_source` is set at
+  every door a size can arrive through. The channel answers it
+  everywhere but MCP, where a number the person dictated and one the
+  agent invented arrive identically — so the tool declares it with
+  `size_from_user`, and silence is read as the agent. The MCP tools are
+  told to always leave an estimate; an agent's guess carries a mark on
+  the task so a person can overrule it.
+- **My Work is a page about what to do next, not a list.** Four numbers,
+  a ranked shortlist, what each date is owed, what is free to start, and
+  a column of people, days, calls and what others did. The grouped list
+  it used to be is still there, folded behind **Everything else**.
+- **The project Overview opens on the dates it aims at.**
+- **A workspace can retire the Ready column.** A replenishment buffer
+  nobody grooms into splits the backlog in two and makes every picker a
+  row longer. Turning it off moves every ready task to planned — one
+  logged event per task, credited to the admin who flipped the switch —
+  and the settings page names the count before the switch is flipped.
+  Turning it back on does not undo the move.
+- **Six themes on a two-by-three grid**: brightness down the rows, tint
+  across. `light` · `paper` · `ash` and `dark` · `dusk` · `midnight`,
+  picked from tiles that each paint themselves in their own theme rather
+  than from a list of names.
+
+### Changed
+
+- **The graph's filters now remove rather than dim.** "Only matching" is
+  on by default; switching it off brings the filtered-out cards back
+  dimmed, for when the chain matters more than the filter.
+- **Graph layout is packed per chain.** Unrelated chains are laid out
+  separately and packed towards the shape of a screen, instead of dagre
+  lining them all up in one row — a busy project fitted at 12% before.
+- Stepping the zoom from the toolbar keeps the middle of the board in
+  place instead of growing out of its top-left corner.
+
 ### Fixed
 
 - **The dev server could serve a stale stylesheet and bundle forever.**
@@ -102,18 +171,39 @@ Automating this with `git-cliff` is deferred until `v1.0.0`.
   pink text on pale pink in the light themes. Same for the error banner
   on the sign-in and sign-up pages.
 
-### Changed
+- **A milestone drawn around work that had been running for months was
+  told it had no history.** The forecast measured history from the
+  milestone row's age rather than from the span its closes cover, so a
+  container opened this morning over two months of work waited three
+  weeks to be told something its own activity log already knew.
+- **My Work's grouped list was drawn at zero height, past the end of the
+  scroll.** The page pinned itself to the viewport so the list could own
+  an inner scroll region, which worked while the list was the whole
+  page; with the focus strip above it the strip ate the column. The rows
+  were in the DOM and unreachable on screen.
+- **Every theme but two was tuned for a ground it does not have.** The
+  `-300`/`-400` accent shades are for dark surfaces and fall to about
+  2:1 on light ones, so counts and badges read as decoration. Light
+  themes take the `-700`/`-800` ramp, Paper and Ash one step further,
+  the lifted darks one step lighter. Surface tokens were re-audited with
+  them — the dark placeholder sat at 2.6:1, and a card border on
+  Midnight at 1.19:1 made a card read as a smudge.
+- **Two theme icons rendered as nothing.** The sprite is built by
+  scanning templates for literal names, and the theme icons now arrive
+  through a loop variable. The build script reads the theme list from
+  Python too.
+- 174 entries in the Ukrainian catalogue were `#, fuzzy` — msgmerge
+  guesses that `compilemessages` discards, so the catalogue looked
+  translated while the interface was English, and some guesses were
+  simply wrong (the `Covers` column was labelled "overdue").
 
-- **The graph's filters now remove rather than dim.** "Only matching" is
-  on by default; switching it off brings the filtered-out cards back
-  dimmed, for when the chain matters more than the filter.
-- **Graph layout is packed per chain.** Unrelated chains are laid out
-  separately and packed towards the shape of a screen, instead of dagre
-  lining them all up in one row — a busy project fitted at 12% before.
-- Stepping the zoom from the toolbar keeps the middle of the board in
-  place instead of growing out of its top-left corner.
+### Performance
 
-### Fixed
+- **One bulk operation redrew the whole board.** A bulk broadcasts an
+  event per task, and each one re-walked every kanban column to rebuild
+  the substatus row — fifteen tasks meant fifteen full board walks
+  interleaved with fifteen card swaps. Events sharing a `bulk_id` now
+  land in one pass: 980 DOM mutations over 301 ms became 565 over 93 ms.
 
 - **Panning the graph lagged on a big board.** Every frame rewrote the
   geometry and state of every visible card, though a pan moves the stage
@@ -125,6 +215,38 @@ Automating this with `git-cliff` is deferred until `v1.0.0`.
   one notch of a wheel reports a hundred. Both now move about 1.2x per
   notch, and Firefox's line-based deltas are converted instead of taken
   as pixels (which had made panning crawl).
+
+### Infrastructure
+
+- **Redis**, for two things that assumed a single web process and said
+  so nowhere. `send_event` only reached listeners held by the process
+  that wrote the event, so every qcluster job was invisible to an open
+  browser until it reconnected; and `django.core.cache` with no `CACHES`
+  is per-process memory, which the MCP rate limiter counted in — giving
+  each worker, and the stdio server, a ceiling of its own. Both are one
+  shared thing now. It holds nothing durable, runs with persistence off
+  and is not in the backup story. Opt-in on `REDIS_URL`; empty keeps the
+  old behaviour.
+- **The SSE event table is pruned nightly.** Every broadcast is persisted
+  so a reconnecting browser can replay what it missed; nothing read them
+  after that window and nothing deleted them. A week — generous because
+  pruning past a client's last id answers `stream-reset`, which the
+  browser does not handle.
+
+### ⚠ Breaking
+
+- Migrations: the `milestones` app, `Task.milestone`, `Task.size_source`,
+  `Workspace.ready_enabled`, `Workspace.epics_enabled`, `TaskEmbedding`,
+  and the epic fields. All additive.
+- `requirements/base.txt` gains `redis`, so **both** images must be
+  rebuilt — `web` and `qcluster` build separately, and rebuilding only
+  `web` leaves the cluster crash-looping on an `ImportError`.
+  `make deploy` covers it.
+- Midnight's palette moved off near-black, so anyone on it sees a
+  different app. Retired theme keys (`mist`, `sage`, `lilac`) migrate to
+  `ash`.
+- MCP `acta_task_create` / `acta_task_update` accept `size_from_user`,
+  and refuse an argument they do not declare.
 
 ## [0.6.0] — 2026-10-02
 
