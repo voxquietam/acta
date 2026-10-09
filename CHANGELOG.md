@@ -9,6 +9,39 @@ Automating this with `git-cliff` is deferred until `v1.0.0`.
 
 ## [Unreleased]
 
+### Changed
+
+- **Milestone forecasts replay the work arriving, not only the work
+  closing.** The chart already drew the scope line so that work turning
+  up late read as work turning up late, and the caption already counted
+  the days it moved on — and then the projection extrapolated as though
+  the bucket were never topped up again. Each day of the replay window
+  now settles both sides: what closed comes off the remainder, what
+  joined goes back on. The two are never sampled apart, because a day
+  that closed seven and took in six is one observation about that team.
+  Bands come out wider and later than before, which is the correction.
+  Filling a milestone in the first place is not an arrival — that work
+  is already the remainder, and counting its day again would tell every
+  milestone younger than four weeks that it will never finish.
+- **A milestone that takes in work faster than it closes it is told so.**
+  `does not converge` is the sixth reading, beside likely / coin flip /
+  unlikely / date passed / not enough history. It replaces the headline
+  rather than colouring it, because `0% chance` reads as "late" and late
+  is a milestone that still finishes, and it prints the two paces side
+  by side — closing ≈2.1 a day against ≈2.6 arriving — so the verdict is
+  checkable the way the chance was. No projection is drawn, there being
+  no zero to draw a line to. See `docs/decisions/0038-forecasting.md`.
+
+### Fixed
+
+- **The forecast's 400-day horizon was being read back as a date.** A
+  simulated run still unfinished at the horizon was recorded in the same
+  pile as the honest finishes, so the percentiles could report "done in
+  400 days" — a number produced by the loop guard and nothing else, the
+  same defect as the `0.05`-a-day floor it replaced. Percentiles are now
+  taken over every run, stalled ones included, and a percentile with no
+  finish behind it reports no date at all.
+
 ## [0.7.0] — 2026-10-09
 
 ### Added

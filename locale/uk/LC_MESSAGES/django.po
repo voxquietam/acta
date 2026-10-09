@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Acta 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-09 06:32+0000\n"
+"POT-Creation-Date: 2026-10-09 09:42+0000\n"
 "PO-Revision-Date: 2026-05-16 15:30+0000\n"
 "Last-Translator: Acta team\n"
 "Language-Team: Ukrainian\n"
@@ -20,35 +20,35 @@ msgstr ""
 "100 > 14) ? 1 : n % 1 == 0 && (n % 10 ==0 || (n % 10 >=5 && n % 10 <=9) || "
 "(n % 100 >=11 && n % 100 <=14 )) ? 2: 3);\n"
 
-#: acta/settings/base.py:420
+#: acta/settings/base.py:463
 msgid "English"
 msgstr "Англійська"
 
-#: acta/settings/base.py:421
+#: acta/settings/base.py:464
 msgid "Ukrainian"
 msgstr "Українська"
 
-#: acta/settings/base.py:581 apps/workspaces/models.py:322
+#: acta/settings/base.py:624 apps/workspaces/models.py:322
 #: templates/web/_create_project_modal.html:71
 #: templates/web/projects/_assignee_cell.html:141
 msgid "Workspace"
 msgstr "Робочий простір"
 
-#: acta/settings/base.py:585 apps/workspaces/models.py:323
+#: acta/settings/base.py:628 apps/workspaces/models.py:323
 #: templates/base_app.html:253
 msgid "Workspaces"
 msgstr "Робочі простори"
 
-#: acta/settings/base.py:590 templates/web/projects/_overview_panel.html:403
+#: acta/settings/base.py:633 templates/web/projects/_overview_panel.html:403
 #: templates/web/workspaces/settings.html:91
 msgid "Members"
 msgstr "Учасники"
 
-#: acta/settings/base.py:595
+#: acta/settings/base.py:638
 msgid "Invites"
 msgstr "Запрошення"
 
-#: acta/settings/base.py:602 acta/settings/base.py:606
+#: acta/settings/base.py:645 acta/settings/base.py:649
 #: apps/projects/models.py:114 apps/web/views.py:10782 apps/web/views.py:10830
 #: templates/base_app.html:165 templates/base_app.html:166
 #: templates/web/_command_palette.html:416
@@ -58,25 +58,25 @@ msgstr "Запрошення"
 msgid "Projects"
 msgstr "Проєкти"
 
-#: acta/settings/base.py:611 apps/projects/models.py:263
+#: acta/settings/base.py:654 apps/projects/models.py:263
 msgid "Project updates"
 msgstr "Оновлення проєктів"
 
-#: acta/settings/base.py:618 acta/settings/base.py:622 apps/web/views.py:10828
+#: acta/settings/base.py:661 acta/settings/base.py:665 apps/web/views.py:10828
 #: templates/web/_command_palette.html:418
 #: templates/web/_command_palette.html:421
 #: templates/web/cycles/overview.html:185
 msgid "Tasks"
 msgstr "Задачі"
 
-#: acta/settings/base.py:627 apps/comments/models.py:71 apps/web/views.py:2668
+#: acta/settings/base.py:670 apps/comments/models.py:71 apps/web/views.py:2668
 #: templates/web/_inbox_list.html:44 templates/web/_my_activity_inner.html:14
 #: templates/web/meetings/_comments.html:14
 #: templates/web/projects/_update_comments.html:14
 msgid "Comments"
 msgstr "Коментарі"
 
-#: acta/settings/base.py:632 apps/labels/models.py:110
+#: acta/settings/base.py:675 apps/labels/models.py:110
 #: apps/web/create_dialog.py:456 apps/web/views.py:2667
 #: templates/web/projects/_bulk_context_menu.html:325
 #: templates/web/projects/_table.html:78
@@ -87,46 +87,46 @@ msgstr "Коментарі"
 msgid "Labels"
 msgstr "Мітки"
 
-#: acta/settings/base.py:637 apps/labels/models.py:49
+#: acta/settings/base.py:680 apps/labels/models.py:49
 msgid "Label groups"
 msgstr "Групи міток"
 
-#: acta/settings/base.py:644 templates/web/_my_activity_inner.html:19
+#: acta/settings/base.py:687 templates/web/_my_activity_inner.html:19
 #: templates/web/projects/_task_detail_body.html:83
 #: templates/web/projects/_task_detail_body.html:124
 #: templates/web/projects/_task_detail_modal_body.html:82
 msgid "Activity"
 msgstr "Активність"
 
-#: acta/settings/base.py:648 apps/activity/models.py:85
+#: acta/settings/base.py:691 apps/activity/models.py:85
 msgid "Activity log"
 msgstr "Журнал активності"
 
-#: acta/settings/base.py:655 apps/notifications/models.py:33
+#: acta/settings/base.py:698 apps/notifications/models.py:33
 msgid "System"
 msgstr "Система"
 
-#: acta/settings/base.py:660 apps/accounts/models.py:90
+#: acta/settings/base.py:703 apps/accounts/models.py:90
 msgid "Users"
 msgstr "Користувачі"
 
-#: acta/settings/base.py:665
+#: acta/settings/base.py:708
 msgid "Groups"
 msgstr "Групи"
 
-#: acta/settings/base.py:671
+#: acta/settings/base.py:714
 msgid "Sites"
 msgstr "Сайти"
 
-#: acta/settings/base.py:677
+#: acta/settings/base.py:720
 msgid "Email addresses"
 msgstr "Електронні адреси"
 
-#: acta/settings/base.py:683
+#: acta/settings/base.py:726
 msgid "Social apps"
 msgstr "Соціальні застосунки"
 
-#: acta/settings/base.py:689
+#: acta/settings/base.py:732
 msgid "Social accounts"
 msgstr "Соціальні акаунти"
 
@@ -632,7 +632,7 @@ msgstr "%(count)d незавершених в архіві відкинуто"
 msgid "%(count)d cancelled not counted"
 msgstr "%(count)d скасованих не враховано"
 
-#: apps/milestones/services.py:1019
+#: apps/milestones/services.py:1033
 #, python-format
 msgid "scope moved on %(count)d day"
 msgid_plural "scope moved on %(count)d days"
@@ -641,18 +641,18 @@ msgstr[1] "обсяг змінювався %(count)d дні"
 msgstr[2] "обсяг змінювався %(count)d днів"
 msgstr[3] "обсяг змінювався %(count)d дня"
 
-#: apps/milestones/services.py:1025
+#: apps/milestones/services.py:1039
 msgid "no work joined or left"
 msgstr "роботу не додавали й не прибирали"
 
-#: apps/milestones/services.py:1325
+#: apps/milestones/services.py:1339
 #, python-format
 msgid ""
 "%(project)s is outside this milestone's scope — widen it or drop the "
 "dependency."
 msgstr ""
 
-#: apps/milestones/services.py:1336
+#: apps/milestones/services.py:1350
 #, python-format
 msgid ""
 "Sits in %(name)s, %(count)d day after this date — the blocker is scheduled "
@@ -665,17 +665,17 @@ msgstr[1] ""
 msgstr[2] ""
 msgstr[3] ""
 
-#: apps/milestones/services.py:1343
+#: apps/milestones/services.py:1357
 #, python-format
 msgid "Sits in %(name)s, %(date)s."
 msgstr "Належить до %(name)s, %(date)s."
 
-#: apps/milestones/services.py:1585
+#: apps/milestones/services.py:1599
 #, python-format
 msgid "%(name)s — all done, not closed"
 msgstr "%(name)s — усе готово, але не закрито"
 
-#: apps/milestones/services.py:1586 templates/base_app.html:649
+#: apps/milestones/services.py:1600 templates/base_app.html:649
 #: templates/web/_epic_panel.html:24 templates/web/_modal_shell.html:42
 #: templates/web/_modal_shell.html:43 templates/web/inbox.html:173
 #: templates/web/milestones/_close_button.html:16
@@ -687,12 +687,12 @@ msgstr "%(name)s — усе готово, але не закрито"
 msgid "Close"
 msgstr "Закрити"
 
-#: apps/milestones/services.py:1595
+#: apps/milestones/services.py:1609
 #, python-format
 msgid "%(name)s — %(countdown)s, %(open)s"
 msgstr "%(name)s — %(countdown)s, %(open)s"
 
-#: apps/milestones/services.py:1600
+#: apps/milestones/services.py:1614
 #, python-format
 msgid "%(count)d open here"
 msgid_plural "%(count)d open here"
@@ -701,20 +701,20 @@ msgstr[1] "%(count)d тут у роботі"
 msgstr[2] "%(count)d тут у роботі"
 msgstr[3] "%(count)d тут у роботі"
 
-#: apps/milestones/services.py:1606
+#: apps/milestones/services.py:1620
 msgid "Close or move"
 msgstr "Закрити або перенести"
 
-#: apps/milestones/services.py:1615
+#: apps/milestones/services.py:1629
 #, python-format
 msgid "%(name)s — nothing attached yet"
 msgstr "%(name)s — ще нічого не прикріплено"
 
-#: apps/milestones/services.py:1616
+#: apps/milestones/services.py:1630
 msgid "Add work"
 msgstr "Додати роботу"
 
-#: apps/milestones/services.py:1625
+#: apps/milestones/services.py:1639
 #, python-format
 msgid "%(count)d open task in no milestone"
 msgid_plural "%(count)d open tasks in no milestone"
@@ -723,7 +723,7 @@ msgstr[1] "%(count)d задачі в роботі поза майлстоуна�
 msgstr[2] "%(count)d задач у роботі поза майлстоунами"
 msgstr[3] "%(count)d задачі в роботі поза майлстоунами"
 
-#: apps/milestones/services.py:1630
+#: apps/milestones/services.py:1644
 msgid "Open plan"
 msgstr "Відкрити план"
 
@@ -1516,7 +1516,7 @@ msgstr[1] "%(count)d дн. прострочення"
 msgstr[2] "%(count)d дн. прострочення"
 msgstr[3] "%(count)d дн. прострочення"
 
-#: apps/web/focus.py:102 templates/web/milestones/detail.html:300
+#: apps/web/focus.py:102 templates/web/milestones/detail.html:325
 msgid "today"
 msgstr "сьогодні"
 
@@ -1833,7 +1833,7 @@ msgid "Past its date"
 msgstr "Дата минула"
 
 #: apps/web/plan.py:71 templates/web/milestones/_editor.html:188
-#: templates/web/milestones/detail.html:502
+#: templates/web/milestones/detail.html:528
 #: templates/web/projects/_plan_panel.html:147
 msgid "Scope"
 msgstr "Обсяг"
@@ -2353,7 +2353,7 @@ msgstr "Швидкі дії"
 msgid "Navigation"
 msgstr "Навігація"
 
-#: apps/web/views_milestones.py:239
+#: apps/web/views_milestones.py:241
 #, python-format
 msgid "%(count)d task attached to %(name)s"
 msgid_plural "%(count)d tasks attached to %(name)s"
@@ -2362,25 +2362,25 @@ msgstr[1] "%(count)d задачі прикріплено до %(name)s"
 msgstr[2] "%(count)d задач прикріплено до %(name)s"
 msgstr[3] "%(count)d задачі прикріплено до %(name)s"
 
-#: apps/web/views_milestones.py:633
+#: apps/web/views_milestones.py:635
 msgid "A milestone needs a name."
 msgstr "Майлстоун потребує назви."
 
-#: apps/web/views_milestones.py:638
+#: apps/web/views_milestones.py:640
 msgid "Pick the date this has to be true by."
 msgstr "Оберіть дату, до якої це має справдитися."
 
-#: apps/web/views_milestones.py:640
+#: apps/web/views_milestones.py:642
 msgid "Pick at least one project. Scope is what lets tasks attach."
 msgstr "Оберіть принаймні один проєкт. Саме обсяг дозволяє прикріпляти задачі."
 
-#: apps/web/views_milestones.py:643
+#: apps/web/views_milestones.py:645
 msgid ""
 "A milestone is a date ahead. Recording one already reached? Create it, then "
 "close it."
 msgstr ""
 
-#: apps/web/views_milestones.py:851
+#: apps/web/views_milestones.py:853
 #, python-format
 msgid "%(count)d task taken out of its milestone"
 msgid_plural "%(count)d tasks taken out of their milestone"
@@ -2389,7 +2389,7 @@ msgstr[1] "%(count)d задачі вилучено з майлстоунів"
 msgstr[2] "%(count)d задач вилучено з майлстоунів"
 msgstr[3] "%(count)d задачі вилучено з майлстоунів"
 
-#: apps/web/views_milestones.py:860
+#: apps/web/views_milestones.py:862
 #, python-format
 msgid "%(count)d task committed to %(name)s"
 msgid_plural "%(count)d tasks committed to %(name)s"
@@ -2398,7 +2398,7 @@ msgstr[1] "%(count)d задачі закріплено за %(name)s"
 msgstr[2] "%(count)d задач закріплено за %(name)s"
 msgstr[3] "%(count)d задачі закріплено за %(name)s"
 
-#: apps/web/views_milestones.py:870
+#: apps/web/views_milestones.py:872
 #, python-format
 msgid "%(count)d stays outside its scope"
 msgid_plural "%(count)d stay outside its scope"
@@ -4240,12 +4240,12 @@ msgid "No cycles yet."
 msgstr "Ще немає циклів."
 
 #: templates/web/cycles/overview.html:149
-#: templates/web/milestones/detail.html:512
+#: templates/web/milestones/detail.html:538
 msgid "Ideal"
 msgstr "Ідеал"
 
 #: templates/web/cycles/overview.html:158
-#: templates/web/milestones/detail.html:546
+#: templates/web/milestones/detail.html:572
 msgid "Remaining"
 msgstr "Залишилось"
 
@@ -4921,40 +4921,71 @@ msgid "unlikely"
 msgstr "малоймовірно"
 
 #: templates/web/milestones/detail.html:198
+msgid "does not converge"
+msgstr "не збігається"
+
+#: templates/web/milestones/detail.html:200
 msgid "coin flip"
 msgstr "50 на 50"
 
-#: templates/web/milestones/detail.html:200
+#: templates/web/milestones/detail.html:202
 msgid "not enough history"
 msgstr "замало історії"
 
-#: templates/web/milestones/detail.html:210
+#: templates/web/milestones/detail.html:212
 #, python-format
 msgid ""
 "replayed from %(closed)s closes in %(days)s days · ≈%(pace)s points a day"
 msgstr ""
 "переграно з %(closed)s закриттів за %(days)s днів · ≈%(pace)s балів на день"
 
-#: templates/web/milestones/detail.html:212
+#: templates/web/milestones/detail.html:214
 #, python-format
 msgid "replayed from %(closed)s closes in %(days)s days · ≈%(pace)s a day"
 msgstr "переграно з %(closed)s закриттів за %(days)s днів · ≈%(pace)s на день"
 
-#: templates/web/milestones/detail.html:222
+#: templates/web/milestones/detail.html:224
+msgid "Does not converge"
+msgstr "Не збігається"
+
+#: templates/web/milestones/detail.html:224
 msgid "Past the date"
 msgstr "Дата минула"
 
-#: templates/web/milestones/detail.html:222
+#: templates/web/milestones/detail.html:224
 #, python-format
 msgid "%(chance)s%% chance"
 msgstr "%(chance)s%% шансів"
 
-#: templates/web/milestones/detail.html:225
+#: templates/web/milestones/detail.html:227
+msgid "at this pace"
+msgstr "за таким темпом"
+
+#: templates/web/milestones/detail.html:227
 #, python-format
 msgid "of making %(date)s"
 msgstr "встигнути до %(date)s"
 
-#: templates/web/milestones/detail.html:230
+#: templates/web/milestones/detail.html:236
+#, python-format
+msgid ""
+"Closing ≈%(pace)s a day and taking in ≈%(gain)s — the remainder is not "
+"shrinking."
+msgstr ""
+"Закривають ≈%(pace)s на день, а надходить ≈%(gain)s — залишок не "
+"зменшується."
+
+#: templates/web/milestones/detail.html:238
+#, python-format
+msgid ""
+"At ≈%(pace)s a day the remainder does not clear inside the %(horizon)s-day "
+"horizon."
+msgstr ""
+"За темпу ≈%(pace)s на день залишок не вичерпується в межах горизонту в "
+"%(horizon)s днів."
+
+#: templates/web/milestones/detail.html:241
+#: templates/web/milestones/detail.html:250
 #, python-format
 msgid "The date passed %(counter)s day ago with %(open)s still open."
 msgid_plural "The date passed %(counter)s days ago with %(open)s still open."
@@ -4963,38 +4994,47 @@ msgstr[1] "Дата минула %(counter)s дні тому, %(open)s ще в �
 msgstr[2] "Дата минула %(counter)s днів тому, %(open)s ще в роботі."
 msgstr[3] "Дата минула %(counter)s дня тому, %(open)s ще в роботі."
 
-#: templates/web/milestones/detail.html:231
+#: templates/web/milestones/detail.html:242
 msgid "Most runs finish before the date."
 msgstr "Більшість прогонів завершується до дати."
 
-#: templates/web/milestones/detail.html:232
+#: templates/web/milestones/detail.html:243
 msgid "Most runs finish after the date."
 msgstr "Більшість прогонів завершується після дати."
 
-#: templates/web/milestones/detail.html:233
+#: templates/web/milestones/detail.html:244
 msgid "Runs land on both sides of the date — about as many before it as after."
 msgstr "Прогони лягають по обидва боки дати — приблизно порівну до і після."
 
-#: templates/web/milestones/detail.html:242
+#: templates/web/milestones/detail.html:257
+#, python-format
+msgid "%(counter)s run in 100 never finishes at all."
+msgid_plural "%(counter)s runs in 100 never finish at all."
+msgstr[0] "%(counter)s прогін зі 100 не завершується взагалі."
+msgstr[1] "%(counter)s прогони зі 100 не завершуються взагалі."
+msgstr[2] "%(counter)s прогонів зі 100 не завершуються взагалі."
+msgstr[3] "%(counter)s прогону зі 100 не завершуються взагалі."
+
+#: templates/web/milestones/detail.html:267
 #, python-format
 msgid ""
 "Counted in points, not tasks — %(share)s%% of the estimates were set by an "
 "agent."
 msgstr "Пораховано в балах, не в задачах — %(share)s%% оцінок проставив агент."
 
-#: templates/web/milestones/detail.html:243
+#: templates/web/milestones/detail.html:268
 msgid "Counted in points, not tasks."
 msgstr "Пораховано в балах, не в задачах."
 
-#: templates/web/milestones/detail.html:250
+#: templates/web/milestones/detail.html:275
 msgid "half the runs by"
 msgstr "половина прогонів до"
 
-#: templates/web/milestones/detail.html:255
+#: templates/web/milestones/detail.html:280
 msgid "85 in 100 by"
 msgstr "85 зі 100 до"
 
-#: templates/web/milestones/detail.html:264
+#: templates/web/milestones/detail.html:289
 #, python-format
 msgid ""
 "No forecast yet. %(counter)s task closed in the last %(window)s days — too "
@@ -5007,12 +5047,12 @@ msgstr[1] ""
 msgstr[2] ""
 msgstr[3] ""
 
-#: templates/web/milestones/detail.html:265
+#: templates/web/milestones/detail.html:290
 #, python-format
 msgid "It starts once %(need)s have closed across three weeks."
 msgstr "Прогноз з'явиться, коли закриється %(need)s за три тижні."
 
-#: templates/web/milestones/detail.html:273
+#: templates/web/milestones/detail.html:298
 #, python-format
 msgid "All %(counter)s done — nothing left to forecast."
 msgid_plural "All %(counter)s done — nothing left to forecast."
@@ -5021,53 +5061,57 @@ msgstr[1] "Усі %(counter)s готові — прогнозувати нічо
 msgstr[2] "Усі %(counter)s готові — прогнозувати нічого."
 msgstr[3] "Усі %(counter)s готові — прогнозувати нічого."
 
-#: templates/web/milestones/detail.html:297
+#: templates/web/milestones/detail.html:322
 msgid "points closed per day"
 msgstr "балів закрито за день"
 
-#: templates/web/milestones/detail.html:298
+#: templates/web/milestones/detail.html:323
 msgid "tasks closed per day"
 msgstr "задач закрито за день"
 
-#: templates/web/milestones/detail.html:305
+#: templates/web/milestones/detail.html:330
 msgid ""
 "Read off the activity log, never from due dates — a burndown drawn from "
 "plans cannot be wrong."
 msgstr ""
 
-#: templates/web/milestones/detail.html:313
+#: templates/web/milestones/detail.html:332
+msgid "The forecast replays those moves too, not only the closes."
+msgstr "Прогноз відтворює й ці переміщення, не лише закриття."
+
+#: templates/web/milestones/detail.html:339
 #, python-format
 msgid "At risk · %(counter)s"
 msgstr "%(counter)s тижд."
 
-#: templates/web/milestones/detail.html:315
+#: templates/web/milestones/detail.html:341
 msgid "days over the date"
 msgstr "днів після дати"
 
-#: templates/web/milestones/detail.html:318
+#: templates/web/milestones/detail.html:344
 #, python-format
 msgid "Unfinished and due after %(date)s, or still open once it passed."
 msgstr ""
 "Незавершені з дедлайном після %(date)s або ще відкриті, коли дата минула."
 
-#: templates/web/milestones/detail.html:330
+#: templates/web/milestones/detail.html:356
 msgid "Nothing runs past this date."
 msgstr "Нічого не виходить за цю дату."
 
-#: templates/web/milestones/detail.html:334
+#: templates/web/milestones/detail.html:360
 #, python-format
 msgid "+ %(counter)s more at risk"
 msgstr "Показати ще %(counter)s"
 
-#: templates/web/milestones/detail.html:341
+#: templates/web/milestones/detail.html:367
 msgid "By project"
 msgstr "За проєктом"
 
-#: templates/web/milestones/detail.html:342
+#: templates/web/milestones/detail.html:368
 msgid "By epic"
 msgstr "За епіком"
 
-#: templates/web/milestones/detail.html:352
+#: templates/web/milestones/detail.html:378
 #, python-format
 msgid ""
 "All %(counter)s task is done — ready to close. It stays open until someone "
@@ -5080,26 +5124,26 @@ msgstr[1] ""
 msgstr[2] ""
 msgstr[3] ""
 
-#: templates/web/milestones/detail.html:365
+#: templates/web/milestones/detail.html:391
 #, python-format
 msgid "Attached work · %(counted)s counted · %(attached)s attached"
 msgstr "Прикріплена робота · %(counted)s враховано · %(attached)s прикріплено"
 
-#: templates/web/milestones/detail.html:374
+#: templates/web/milestones/detail.html:400
 msgid "Add tasks"
 msgstr "Додати задачі"
 
-#: templates/web/milestones/detail.html:423
+#: templates/web/milestones/detail.html:449
 msgid ""
 "Nothing attached yet — add work here, or commit a task from its rail or from "
 "a selection on any list."
 msgstr ""
 
-#: templates/web/milestones/detail.html:522
+#: templates/web/milestones/detail.html:548
 msgid "85 in 100"
 msgstr "85 зі 100"
 
-#: templates/web/milestones/detail.html:534
+#: templates/web/milestones/detail.html:560
 msgid "Half the runs"
 msgstr "Половина прогонів"
 

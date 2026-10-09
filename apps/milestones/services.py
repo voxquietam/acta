@@ -931,7 +931,20 @@ def burndown(milestone, today=None) -> dict | None:
     in_window = [task_id for task_id, day in done_days.items() if 0 <= (today - day).days < forecast.WINDOW_DAYS]
     open_ids = [task_id for task_id in now_ids if statuses.get(task_id) != Task.STATUS_DONE]
     basis = _estimate_basis(sizes, size_sources, in_window, open_ids)
-    closes = forecast.daily_closes(done_days, today, weights=basis["weights"] if basis else None)
+    weights = basis["weights"] if basis else None
+    closes = forecast.daily_closes(done_days, today, weights=weights)
+    # The replay now settles both sides of each day. The scope line below
+    # is drawn from these same spans, so a milestone the page tells you
+    # moved on six days is one the simulation draws as moving: without
+    # this the chart said the bucket was topped up and the forecast
+    # assumed it never would be again.
+    arrivals = forecast.daily_arrivals(
+        {task_id: history[task_id] for task_id in ever_ids},
+        done_days,
+        today,
+        weights=weights,
+        opened=start,
+    )
     oldest = min((done_days[task_id] for task_id in in_window), default=None)
     outlook = forecast.forecast(
         closes=closes,
@@ -942,6 +955,7 @@ def burndown(milestone, today=None) -> dict | None:
         seed=milestone.id,
         closed_count=len(in_window),
         unit="points" if basis else "tasks",
+        arrivals=arrivals,
     )
     if basis:
         outlook["agent_share"] = basis["agent_share"]

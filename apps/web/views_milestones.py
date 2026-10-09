@@ -175,9 +175,11 @@ def milestone_detail(request, pk):
     if not milestone.is_closed:
         context["reports"] = services.membership_reports(milestone, today)
     context.update(_burndown_json(context["burndown"]))
-    # The one number the "not enough history" line quotes, so the page and
-    # the rule cannot drift apart.
+    # The two numbers the refusals quote, so the page and the rules cannot
+    # drift apart: what "not enough history" is waiting for, and how far
+    # a run goes before it is called a run that never finished.
     context["forecast_need"] = forecast.NEED_CLOSES
+    context["forecast_horizon"] = forecast.MAX_DAYS
     return render(request, "web/milestones/detail.html", context)
 
 

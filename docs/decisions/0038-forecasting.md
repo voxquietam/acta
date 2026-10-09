@@ -1,6 +1,7 @@
 # 0038 — Forecasting: a date is a distribution, not a promise
 
-**Status:** accepted · 2026-10-07
+**Status:** accepted · 2026-10-07 (amended 2026-10-09 — arrivals are
+sampled, and a run that does not converge says so)
 
 ## Context
 
@@ -48,9 +49,10 @@ flow-based planning, and it needs nothing we do not already hold.
    log — `task.status_changed` into `done`, which `_done_days()` already
    derives. The result is a series of daily throughputs, zeros included.
 2. **Simulate the remaining work many times.** Each trial draws a random
-   day from the window, subtracts what was closed on it, and repeats
-   until the remainder is gone. The trial's length is one possible
-   answer.
+   day from the window and settles that day's account — what was closed
+   on it comes off the remainder, what joined the milestone goes back on
+   — and repeats until the remainder is gone. The trial's length is one
+   possible answer, or no answer at all when the remainder never clears.
 3. **Read the answers off the distribution**: the date half the trials
    beat, the date 85% of them beat, and — the number that actually
    decides anything — the share of trials that land on or before the
@@ -155,7 +157,7 @@ made up, next to the dates. The finer unit must not read as finer data.
 |---|---|---|
 | Window | trailing 28 days | Long enough to hold a team's rhythm, short enough to forget a dead quarter |
 | Trials | 2 000, a quarter of that past 90 days out | Percentiles steady to the day where a day changes the verdict; a milestone months out is not in doubt and need not be sampled as finely |
-| Horizon | 400 days | Beyond a year the number is noise, and an unbounded loop on a stalled milestone is a hung request |
+| Horizon | 400 days | Beyond a year the number is noise, and an unbounded loop on a stalled milestone is a hung request. Reaching it is not a finish |
 | Reported | P50, P85, P(≤ target) | One honest headline plus the band behind it |
 | Floor | none | Replaced by the refusal above |
 | Estimate coverage | 70% of each side | Enough of a sample to take a median of; below it, count tasks |
@@ -172,22 +174,110 @@ burndown is its first caller; the cycle card in My Work is its second,
 where `at this pace N carry over` is the same naive average under
 another name. One reader per fact, as everywhere else here.
 
-### Scope growth is left out, for now
+### Scope growth is in, and a day is one observation
+
+*Amended 2026-10-09. The first cut replayed closes only, and said here
+that it would be followed by arrivals and a "does not converge" state
+together. This is that cut.*
 
 A forecast that replays closes and ignores arrivals is optimistic by
-construction: it assumes the bucket is never topped up again. The data
-to fix that is already here — `_membership_history()` holds when every
-task joined and left — and the fix is to sample arrivals from the same
-historical day as the closes, so that the correlation between a busy day
-and a growing one survives.
+construction: it assumes the bucket is never topped up again. The page
+was already drawing the contradiction — the grey scope line is there
+precisely so that work arriving late reads as work arriving late, and
+the caption under it counts the days it moved on — and then the
+projection extrapolated as though the line were flat.
 
-It is not in the first cut because it changes the question the page has
-to answer. A milestone whose scope grows faster than it burns down never
-finishes, and "never" needs a reading, a horizon and a sentence that no
-one has designed yet. Shipping the simulation without arrivals is a
-smaller, honest step: every number it prints is true of the work that
-exists today. The next cut adds arrivals and the "at this rate it does
-not converge" state together.
+So each day of the window now carries both sides, and the replay settles
+the day's account: what closed comes off the remainder, what joined goes
+back on.
+
+**The two sides are never sampled apart.** A day is the unit of
+observation. Drawing closes from one day and arrivals from another would
+invent a team that had neither — the correlation between a busy day and
+a growing one is real and is the part worth keeping, because a hot day
+where the team closed seven and took in six is evidence about that team.
+In the code this falls out of subtracting before sampling: the window
+becomes one `net` series, `closes[i] - arrivals[i]`, and a single draw
+carries both. Same cost as before, and the pairing cannot drift because
+there is nothing left to pair.
+
+**Leaving counts as well as joining.** Milestones are emptied as well as
+topped up, and a replay that counted only arrivals would be pessimistic
+by the same construction it was built to remove: a team that regularly
+moves work elsewhere would be forecast as though it never did. The
+series is therefore a net movement and goes negative on a day the
+milestone shed more than it took in — which mirrors the scope line, a
+line that already goes both ways.
+
+**Only unfinished work moves the remainder.** A task that arrives
+already done adds nothing to burn through, and one that leaves after it
+closed takes nothing away. Work that arrives and closes the same day
+registers on both sides and cancels. This is the same test the remaining
+line is drawn with, so the two cannot disagree.
+
+**Filling the milestone is not the scope growing.** The day a milestone
+is opened and loaded with forty tasks is not evidence that forty tasks
+turn up on a typical day — and that work is already counted, as the
+remainder. Drawing its day as an arrival as well counts it twice, and
+the double count is large enough on its own to tell every milestone
+younger than the window that it will never finish. So arrivals on the
+day the scope first existed are excluded. The line is not arbitrary:
+before that day there was no scope to add to, and it is the same day the
+chart starts drawing from. Departures on it still count — only the
+joining half is the scope being defined.
+
+This is the one place where the forecast and the scope line deliberately
+read the same data differently, so it is worth stating plainly: the
+chart draws the first fill because the reader needs to see where the
+work came from, and the replay skips it because the reader is being told
+what happens next.
+
+### What "never" is, and what the page says about it
+
+A milestone taking in work at least as fast as it closes it does not
+have a late date. It has no date, and the distinction is the whole
+reason this needed a state of its own rather than a lower percentage.
+
+**The horizon stops being an answer.** `MAX_DAYS` was a guard against a
+hung request, and a trial that hit it was recorded as a trial that
+finished on day 400 — so a stalled milestone was handed a date derived
+from nothing but the guard. That is the same defect as the old `0.05`
+floor, one layer down, and adding arrivals without fixing it would have
+made the page lie louder: more runs reach the horizon once the remainder
+can grow. A run still unfinished at the horizon is now a run that did
+not finish, counted and reported as one.
+
+**A percentile is taken over every run, not over the ones that landed.**
+Stalled runs sort past the far end, so when more than half of them
+stalled the median falls off that end and there is no P50 to print. The
+threshold needs no new knob: "the median run does not finish" *is* the
+statement, and it reads straight off the percentile that is missing.
+
+**The page therefore has six readings, not five.** `never` joins
+`likely` / `coin` / `unlikely` / `date passed` / `not enough history`.
+It takes the rose of the unlikely family — it is the worse of the two
+readings, not a neutral one — and replaces the headline rather than
+colouring it, because `0% chance` is read as "late" and late is a
+milestone that still finishes:
+
+> **Does not converge** · at this pace
+> Closing ≈2.1 a day and taking in ≈2.6 — the remainder is not shrinking.
+
+Two paces side by side are the whole argument, and they are checkable in
+the same way the single pace made the chance checkable. Where the
+remainder is not growing and still does not clear — a very slow team
+against a very large remainder — the sentence names the horizon instead,
+because that is then the honest reason.
+
+The percentile band stays, with an em-dash where a date would be. A
+partial stall keeps its band and gains a line: half the runs can land by
+a date while 15 in 100 never land at all, and a band drawn without that
+line reads as a band with a far edge.
+
+No projection is drawn on the chart in this state. `_straight_down()`
+takes the percentile date and already draws nothing when there is none,
+so the fan simply does not appear — which is the correct picture: there
+is no line to zero.
 
 ## Alternatives considered
 
@@ -226,9 +316,14 @@ without ceremony.
   "not enough history" where they used to show a confident date. That is
   the point, and it is the part most likely to be mistaken for a
   regression.
-- Adding work late pushes the band out, because the remainder grew —
-  but the replay still assumes nothing more arrives. Until arrivals are
-  sampled the band is the optimistic edge of the truth.
+- Adding work late pushes the band out twice over: the remainder grew,
+  and the day it grew on is now a day the replay can draw. Bands get
+  wider and later than the first cut's, which is the correction, not a
+  regression — the first cut's band was the optimistic edge of the
+  truth.
+- A milestone can now be told it has no date at all. That is the
+  intended outcome and the one most likely to be read as a bug, the
+  same way "not enough history" was.
 - Two dotted lines instead of one. The chart carries more ink; the fan is
   the thing that communicates uncertainty at a glance, so it earns it.
 - The simulation is deterministic per render only if we seed it. We do

@@ -189,6 +189,8 @@ quietly swap nothing at all.
           <span class="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300">{% trans "likely" %}</span>
           {% elif reading == "unlikely" %}
           <span class="text-[10px] px-1.5 py-0.5 rounded-md bg-rose-500/15 text-rose-300">{% if fc.passed %}{% trans "date passed" %}{% else %}{% trans "unlikely" %}{% endif %}</span>
+          {% elif reading == "never" %}
+          <span class="text-[10px] px-1.5 py-0.5 rounded-md bg-rose-500/15 text-rose-300">{% trans "does not converge" %}</span>
           {% elif reading == "coin" %}
           <span class="text-[10px] px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground">{% trans "coin flip" %}</span>
           {% elif reading == "thin" %}
@@ -213,20 +215,43 @@ quietly swap nothing at all.
         {% if fc.state == "ready" %}
         <div class="flex items-baseline gap-x-2 gap-y-0.5 mt-1.5 flex-wrap">
           <span class="text-2xl font-semibold leading-tight whitespace-nowrap
-            {% if reading == 'likely' %}text-emerald-400{% elif reading == 'unlikely' %}text-rose-400{% else %}text-foreground{% endif %}">
-            {% if fc.passed %}{% trans "Past the date" %}{% else %}{% blocktrans with chance=fc.chance %}{{ chance }}% chance{% endblocktrans %}{% endif %}
+            {% if reading == 'likely' %}text-emerald-400{% elif reading == 'unlikely' or reading == 'never' %}text-rose-400{% else %}text-foreground{% endif %}">
+            {% if reading == "never" %}{% trans "Does not converge" %}{% elif fc.passed %}{% trans "Past the date" %}{% else %}{% blocktrans with chance=fc.chance %}{{ chance }}% chance{% endblocktrans %}{% endif %}
           </span>
           <span class="text-sm text-muted-foreground">
-            {% if fc.passed %}{{ milestone.target_date|date:"M j" }}{% else %}{% blocktrans with date=milestone.target_date|date:"M j" %}of making {{ date }}{% endblocktrans %}{% endif %}
+            {% if reading == "never" %}{% trans "at this pace" %}{% elif fc.passed %}{{ milestone.target_date|date:"M j" }}{% else %}{% blocktrans with date=milestone.target_date|date:"M j" %}of making {{ date }}{% endblocktrans %}{% endif %}
           </span>
         </div>
         <p class="text-xs text-subtle-foreground mt-1">
-          {% if fc.passed %}
+          {% if reading == "never" %}
+          {# Two paces side by side are the whole statement. A reader who #}
+          {# sees 2.1 closing against 2.6 arriving does not need to be    #}
+          {# told the date slipped — there is no date to slip.            #}
+          {% if fc.arrive_per_day > 0 %}
+          {% blocktrans with pace=fc.per_day gain=fc.arrive_per_day %}Closing ≈{{ pace }} a day and taking in ≈{{ gain }} — the remainder is not shrinking.{% endblocktrans %}
+          {% else %}
+          {% blocktrans with pace=fc.per_day horizon=forecast_horizon %}At ≈{{ pace }} a day the remainder does not clear inside the {{ horizon }}-day horizon.{% endblocktrans %}
+          {% endif %}
+          {% elif fc.passed %}
           {% blocktrans count counter=fc.days_over with open=burndown.open %}The date passed {{ counter }} day ago with {{ open }} still open.{% plural %}The date passed {{ counter }} days ago with {{ open }} still open.{% endblocktrans %}
           {% elif reading == "likely" %}{% trans "Most runs finish before the date." %}
           {% elif reading == "unlikely" %}{% trans "Most runs finish after the date." %}
           {% else %}{% trans "Runs land on both sides of the date — about as many before it as after." %}{% endif %}
         </p>
+        {% if reading == "never" and fc.passed %}
+        {# The date is still worth a line: it has gone, and nothing about #}
+        {# "no date" says that for it.                                    #}
+        <p class="text-xs text-subtle-foreground mt-1">
+          {% blocktrans count counter=fc.days_over with open=burndown.open %}The date passed {{ counter }} day ago with {{ open }} still open.{% plural %}The date passed {{ counter }} days ago with {{ open }} still open.{% endblocktrans %}
+        </p>
+        {% endif %}
+        {% if fc.stalled and not fc.diverges %}
+        {# Half the runs landing is not all of them. A band drawn without #}
+        {# this line would read as a band with a far edge.                #}
+        <p class="text-xs text-subtle-foreground mt-1">
+          {% blocktrans count counter=fc.stalled %}{{ counter }} run in 100 never finishes at all.{% plural %}{{ counter }} runs in 100 never finish at all.{% endblocktrans %}
+        </p>
+        {% endif %}
         {% if fc.unit == "points" %}
         {# Counting tasks assumes they are all the same work. Counting  #}
         {# points does not — but only as far as the estimates are       #}
@@ -239,16 +264,16 @@ quietly swap nothing at all.
         </p>
         {% endif %}
         <div class="flex items-center gap-x-4 gap-y-1 flex-wrap mt-2 text-xs
-          {% if reading == 'likely' %}text-emerald-400{% elif reading == 'unlikely' %}text-rose-400{% else %}text-muted-foreground{% endif %}">
+          {% if reading == 'likely' %}text-emerald-400{% elif reading == 'unlikely' or reading == 'never' %}text-rose-400{% else %}text-muted-foreground{% endif %}">
           <span class="inline-flex items-center gap-1.5">
             <span class="w-2 h-2 rounded-full shrink-0 bg-current"></span>
             <span class="text-muted-foreground">{% trans "half the runs by" %}</span>
-            <span class="font-mono">{{ fc.p50|date:"M j" }}</span>
+            <span class="font-mono">{% if fc.p50 %}{{ fc.p50|date:"M j" }}{% else %}—{% endif %}</span>
           </span>
           <span class="inline-flex items-center gap-1.5">
             <span class="w-2 h-2 rounded-full border border-current shrink-0"></span>
             <span class="text-muted-foreground">{% trans "85 in 100 by" %}</span>
-            <span class="font-mono">{{ fc.p85|date:"M j" }}</span>
+            <span class="font-mono">{% if fc.p85 %}{{ fc.p85|date:"M j" }}{% else %}—{% endif %}</span>
           </span>
         </div>
 
@@ -299,6 +324,7 @@ quietly swap nothing at all.
       <p class="text-[11px] text-placeholder-foreground mt-2">
         {% trans "Read off the activity log, never from due dates — a burndown drawn from plans cannot be wrong." %}
         {{ burndown.scope_note }}.
+        {% if burndown.forecast.arrive_per_day %}{% trans "The forecast replays those moves too, not only the closes." %}{% endif %}
       </p>
       {% endif %}
     </div>
@@ -452,7 +478,7 @@ quietly swap nothing at all.
       scope: themeRgb("--border-strong"),
       ideal: themeRgb("--placeholder-foreground"),
       remaining: themeRgb("--muted-foreground"),
-      forecast: {% if burndown.reading == "likely" %}"rgb(16 185 129)"{% elif burndown.reading == "unlikely" %}"rgb(251 113 133)"{% else %}themeRgb("--placeholder-foreground"){% endif %},
+      forecast: {% if burndown.reading == "likely" %}"rgb(16 185 129)"{% elif burndown.reading == "unlikely" or burndown.reading == "never" %}"rgb(251 113 133)"{% else %}themeRgb("--placeholder-foreground"){% endif %},
       brand: "rgb(66 90 245)",
     });
     let ink = palette();

@@ -30,7 +30,7 @@ def bursty(total=56, days=forecast.WINDOW_DAYS):
     return series
 
 
-def run(closes, remaining, target_in=30, history_days=forecast.WINDOW_DAYS):
+def run(closes, remaining, target_in=30, history_days=forecast.WINDOW_DAYS, arrivals=None):
     """Forecast with the fixtures' defaults."""
     return forecast.forecast(
         closes=closes,
@@ -39,6 +39,7 @@ def run(closes, remaining, target_in=30, history_days=forecast.WINDOW_DAYS):
         today=TODAY,
         target=TODAY + datetime.timedelta(days=target_in),
         seed=1,
+        arrivals=arrivals,
     )
 
 
@@ -215,3 +216,210 @@ class TestBucketing:
         done = {1: TODAY + datetime.timedelta(days=1)}
 
         assert sum(forecast.daily_closes(done, TODAY)) == 0
+
+
+class TestWorkArrivingWhileYouWork:
+    """The bucket is not sealed, and the first cut assumed it was."""
+
+    def test_a_sealed_replay_is_the_answer_it_always_was(self):
+        """Passing no arrivals must not move a single number."""
+        sealed = run(steady(per_day=2), remaining=28)
+        explicit = run(steady(per_day=2), remaining=28, arrivals=[0] * forecast.WINDOW_DAYS)
+
+        assert (sealed["p50"], sealed["p85"], sealed["chance"]) == (
+            explicit["p50"],
+            explicit["p85"],
+            explicit["chance"],
+        )
+
+    def test_arrivals_push_the_band_out(self):
+        """Half the throughput goes on refilling, so it takes twice as long."""
+        sealed = run(steady(per_day=2), remaining=28)
+        filling = run(steady(per_day=2), remaining=28, arrivals=[1] * forecast.WINDOW_DAYS)
+
+        assert (filling["p50"] - TODAY).days > (sealed["p50"] - TODAY).days
+
+    def test_work_leaving_pulls_it_in(self):
+        """Scope moves both ways, and a replay of one way only is a bias."""
+        sealed = run(steady(per_day=2), remaining=28)
+        shedding = run(steady(per_day=2), remaining=28, arrivals=[-1] * forecast.WINDOW_DAYS)
+
+        assert (shedding["p50"] - TODAY).days < (sealed["p50"] - TODAY).days
+
+    def test_a_milestone_filling_as_fast_as_it_empties_has_no_date(self):
+        result = run(steady(per_day=3), remaining=40, arrivals=[3] * forecast.WINDOW_DAYS)
+
+        assert result["diverges"] is True
+        assert result["p50"] is None
+        assert result["stalled"] == 100
+        assert forecast.reading(result) == "never"
+
+    def test_the_day_is_the_unit_of_observation(self):
+        """The same totals on both sides, paired differently, disagree.
+
+        56 closed and 56 arrived either way. Aligned, every day nets zero
+        and the work never clears; opposed, every other day nets four and
+        a four-task remainder goes in one of them. Sampling the two sides
+        apart would average both into the same answer, which is the one
+        thing a day-level replay is for.
+        """
+        aligned = run([4, 0] * 14, remaining=4, arrivals=[4, 0] * 14)
+        opposed = run([4, 0] * 14, remaining=4, arrivals=[0, 4] * 14)
+
+        assert forecast.reading(aligned) == "never"
+        assert (opposed["p50"] - TODAY).days <= 3
+
+    def test_both_paces_are_reported_so_the_verdict_is_checkable(self):
+        result = run(steady(per_day=2), remaining=40, arrivals=[1] * forecast.WINDOW_DAYS)
+
+        assert result["per_day"] == 2.0
+        assert result["arrive_per_day"] == 1.0
+
+    def test_a_sealed_replay_has_no_arrival_pace_to_report(self):
+        """``None``, not zero: nothing was measured, rather than nothing moved."""
+        assert run(steady(), remaining=10)["arrive_per_day"] is None
+
+
+class TestTheHorizonIsNotAnAnswer:
+    """``MAX_DAYS`` was a guard that got read back as a date."""
+
+    def test_a_run_that_never_finished_is_not_a_run_that_took_400_days(self):
+        """1 000 left at one a day: every run hits the horizon.
+
+        The old code appended ``MAX_DAYS`` to the same list as the honest
+        finishes, so the percentiles came back as a date 400 days out —
+        a number produced by the guard, not by anything that happened.
+        """
+        result = run([1] * forecast.WINDOW_DAYS, remaining=1000)
+
+        assert result["p50"] is None
+        assert result["p85"] is None
+        assert result["stalled"] == 100
+        assert result["diverges"] is True
+        assert forecast.reading(result) == "never"
+
+    def test_a_partial_stall_keeps_its_median_and_counts_the_rest(self):
+        """Half the runs can land while some never do, and both get said."""
+        result = run([5] * 7 + [0] * 21, remaining=80, arrivals=[1] * forecast.WINDOW_DAYS)
+
+        assert result["p50"] is not None
+        assert result["p85"] is None
+        assert result["diverges"] is False
+        assert 0 < result["stalled"] < 50
+
+    def test_the_percentile_is_over_every_run_not_the_ones_that_landed(self):
+        """Otherwise a stalled majority would hand its median to the page."""
+        result = run([5] * 7 + [0] * 21, remaining=80, arrivals=[1] * forecast.WINDOW_DAYS)
+        landed = 100 - result["stalled"]
+
+        assert landed > 50
+        assert landed < 85
+
+    def test_never_outranks_the_arithmetic_about_the_date(self):
+        """A date gone is not the headline when there is no date to miss."""
+        result = run(steady(per_day=3), remaining=40, arrivals=[3] * 28, target_in=-5)
+
+        assert result["passed"] is True
+        assert forecast.reading(result) == "never"
+
+
+class TestBucketingArrivals:
+    """Turning membership spans into the other half of each day."""
+
+    def test_joining_adds_and_leaving_subtracts(self):
+        spans = {
+            1: [[TODAY - datetime.timedelta(days=3), None]],
+            2: [
+                [
+                    TODAY - datetime.timedelta(days=5),
+                    TODAY - datetime.timedelta(days=1),
+                ],
+            ],
+        }
+
+        moves = forecast.daily_arrivals(spans, {}, TODAY)
+
+        assert len(moves) == forecast.WINDOW_DAYS
+        assert moves[-4] == 1
+        assert moves[-6] == 1
+        assert moves[-2] == -1
+
+    def test_arriving_and_closing_the_same_day_cancel(self):
+        """It gained a task and finished it; the remainder never moved."""
+        day = TODAY - datetime.timedelta(days=2)
+
+        moves = forecast.daily_arrivals({1: [[day, None]]}, {1: day}, TODAY)
+        closes = forecast.daily_closes({1: day}, TODAY)
+
+        assert moves[-3] == 1
+        assert closes[-3] == 1
+        assert [close - arrived for close, arrived in zip(closes, moves)] == [0] * forecast.WINDOW_DAYS
+
+    def test_work_that_arrives_already_done_is_not_work(self):
+        closed = TODAY - datetime.timedelta(days=10)
+        joined = TODAY - datetime.timedelta(days=4)
+
+        moves = forecast.daily_arrivals({1: [[joined, None]]}, {1: closed}, TODAY)
+
+        assert moves == [0] * forecast.WINDOW_DAYS
+
+    def test_leaving_after_it_closed_takes_nothing_away(self):
+        joined = TODAY - datetime.timedelta(days=20)
+        closed = TODAY - datetime.timedelta(days=10)
+        left = TODAY - datetime.timedelta(days=3)
+
+        moves = forecast.daily_arrivals({1: [[joined, left]]}, {1: closed}, TODAY)
+
+        assert moves[-21] == 1
+        assert moves[-4] == 0
+
+    def test_outside_the_window_is_not_history(self):
+        old = TODAY - datetime.timedelta(days=forecast.WINDOW_DAYS)
+        ahead = TODAY + datetime.timedelta(days=1)
+
+        moves = forecast.daily_arrivals({1: [[old, None]], 2: [[ahead, None]]}, {}, TODAY)
+
+        assert moves == [0] * forecast.WINDOW_DAYS
+
+    def test_points_move_instead_of_counts_when_the_replay_weighs_them(self):
+        day = TODAY - datetime.timedelta(days=2)
+
+        moves = forecast.daily_arrivals({7: [[day, None]]}, {}, TODAY, weights={7: 5})
+
+        assert moves[-3] == 5
+
+    def test_filling_the_milestone_is_not_the_scope_growing(self):
+        """That work is the remainder; drawing its day counts it twice.
+
+        Without this, a milestone filled with forty tasks a fortnight ago
+        reads as a milestone that takes in forty tasks on a typical day,
+        and no amount of throughput converges against it.
+        """
+        opened = TODAY - datetime.timedelta(days=14)
+        later = TODAY - datetime.timedelta(days=3)
+        spans = {
+            1: [[opened, None]],
+            2: [[opened, None]],
+            3: [[later, None]],
+        }
+
+        moves = forecast.daily_arrivals(spans, {}, TODAY, opened=opened)
+
+        assert moves[-15] == 0
+        assert moves[-4] == 1
+
+    def test_leaving_on_the_opening_day_still_counts(self):
+        """Only the joining half is the scope being defined."""
+        opened = TODAY - datetime.timedelta(days=9)
+        spans = {1: [[opened, opened]]}
+
+        moves = forecast.daily_arrivals(spans, {}, TODAY, opened=opened)
+
+        assert moves[-10] == -1
+
+    def test_with_no_opening_day_every_arrival_counts(self):
+        day = TODAY - datetime.timedelta(days=6)
+
+        moves = forecast.daily_arrivals({1: [[day, None]]}, {}, TODAY)
+
+        assert moves[-7] == 1

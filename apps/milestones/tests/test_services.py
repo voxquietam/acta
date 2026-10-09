@@ -482,6 +482,66 @@ class TestBurndown:
         # The slower line lands no earlier than the faster one.
         assert max(drawn(chart["p85_line"])) >= max(drawn(chart["p50_line"]))
 
+    def test_the_day_it_was_filled_is_not_a_day_work_arrived(self, scope):
+        """A fortnight-old milestone must not read as one that never ends.
+
+        ``_replayable`` attaches everything inside the window, so if the
+        first fill were drawn as an arrival the replay would expect forty
+        more tasks on a typical day and no pace would ever converge. The
+        work is already the remainder; its day is not evidence of growth.
+        """
+        backend, _, milestone = scope
+        today = timezone.localdate()
+        milestone.target_date = today + datetime.timedelta(days=60)
+        milestone.save()
+        self._replayable(backend, milestone, closed=12, open_tasks=20)
+
+        chart = services.burndown(milestone, today=today)
+
+        assert chart["reading"] != "never"
+        assert chart["forecast"]["p50"] is not None
+        assert chart["forecast"]["arrive_per_day"] == 0
+
+    def test_work_poured_in_after_the_start_pushes_the_dates_out(self, scope):
+        """The replay draws the top-ups the scope line already shows."""
+        backend, _, milestone = scope
+        today = timezone.localdate()
+        milestone.target_date = today + datetime.timedelta(days=60)
+        milestone.save()
+        self._replayable(backend, milestone, closed=12, open_tasks=20)
+        steady = services.burndown(milestone, today=today)
+
+        for index in range(10):
+            late = TaskFactory(project=backend, milestone=milestone, status=Task.STATUS_TODO)
+            milestone_event(late, milestone, timezone.now() - datetime.timedelta(days=index + 1))
+
+        grown = services.burndown(milestone, today=today)
+
+        assert grown["forecast"]["arrive_per_day"] > 0
+        assert grown["forecast"]["p50"] > steady["forecast"]["p50"]
+
+    def test_a_milestone_filling_faster_than_it_closes_gets_no_date(self, scope):
+        """The sixth reading, and the one the first cut could not reach."""
+        backend, _, milestone = scope
+        today = timezone.localdate()
+        milestone.target_date = today + datetime.timedelta(days=30)
+        milestone.save()
+        self._replayable(backend, milestone, closed=12, open_tasks=10)
+        for index in range(40):
+            late = TaskFactory(project=backend, milestone=milestone, status=Task.STATUS_TODO)
+            milestone_event(late, milestone, timezone.now() - datetime.timedelta(days=index % 20 + 1))
+
+        chart = services.burndown(milestone, today=today)
+
+        assert chart["reading"] == "never"
+        assert chart["forecast"]["diverges"] is True
+        assert chart["forecast"]["p50"] is None
+        # No line to zero, because there is no zero.
+        assert set(chart["p50_line"]) == {None}
+        assert set(chart["p85_line"]) == {None}
+        # The two paces are what the page says instead of a date.
+        assert chart["forecast"]["arrive_per_day"] > chart["forecast"]["per_day"]
+
     def test_a_milestone_filed_in_late_still_has_the_pace_it_ran_at(self, scope):
         """The container was opened this morning; the work was not.
 
