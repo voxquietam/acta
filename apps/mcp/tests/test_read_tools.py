@@ -918,6 +918,73 @@ class TestFindSimilar:
         assert result["matches"] == []
         assert "note" not in result
 
+    def test_the_production_miss_that_started_this(self, project_setup, monkeypatch):
+        """A long enumerated title found nothing, next to a near-copy.
+
+        Real case: the board held "Ingest: імпорт кваліфікації особи
+        (ступені, звання, почесні звання, академії)" and the query was
+        "Імпорт кваліфікацій осіб з ІАС: наукові ступені, вчені звання,
+        почесні звання, членство в академіях". The vector of a long
+        enumeration sits near nothing in particular, so the meaning side
+        came back empty and an agent filed the duplicate. The word is
+        right there in both.
+        """
+        user, ws, project = project_setup
+        existing = TaskFactory(
+            project=project,
+            title="Ingest: імпорт кваліфікації особи (ступені, звання, почесні звання, академії)",
+            reporter=user,
+        )
+        query = "Імпорт кваліфікацій осіб з ІАС: наукові ступені, вчені звання, " "почесні звання, членство в академіях"
+        with self.settings_on:
+            # The meaning side genuinely finds nothing — that is the bug
+            # being worked around, not something to stub away.
+            self._stub(monkeypatch, {query: [0.0, 1.0], "ping": [1.0, 0.0]})
+            result = CALLABLES["acta_tasks_find_similar"](user, {"text": query, "workspace": ws.slug})
+
+        assert [match["slug"] for match in result["matches"]] == [existing.slug]
+        assert result["matches"][0]["via"] == "words"
+        assert result["matches"][0]["score"] is None
+
+    def test_inflection_does_not_hide_a_duplicate(self, project_setup, monkeypatch):
+        """ "кваліфікацій" and "кваліфікації" are the same word to a reader."""
+        user, ws, project = project_setup
+        existing = TaskFactory(project=project, title="Довідник кваліфікації", reporter=user)
+        with self.settings_on:
+            self._stub(monkeypatch, {"Імпорт кваліфікацій": [0.0, 1.0], "ping": [1.0, 0.0]})
+            result = CALLABLES["acta_tasks_find_similar"](
+                user,
+                {"text": "Імпорт кваліфікацій", "workspace": ws.slug},
+            )
+
+        assert [match["slug"] for match in result["matches"]] == [existing.slug]
+
+    def test_a_task_found_both_ways_leads(self, project_setup, monkeypatch):
+        """Found by meaning and by word is the strongest candidate there is."""
+        user, ws, project = project_setup
+        both = TaskFactory(project=project, title="Налаштувати бекапи сховища", reporter=user)
+        meaning_only = TaskFactory(project=project, title="Перевірити копії даних", reporter=user)
+        mapping = {
+            "Налаштувати бекапи сховища": [1.0, 0.0],
+            "Перевірити копії даних": [0.99, 0.1],
+            "Налаштувати бекапи": [1.0, 0.0],
+            "ping": [1.0, 0.0],
+        }
+        from apps.tasks import similarity
+
+        with self.settings_on:
+            self._stub(monkeypatch, mapping)
+            similarity.store([both, meaning_only])
+            self._stub(monkeypatch, mapping)
+            result = CALLABLES["acta_tasks_find_similar"](
+                user,
+                {"text": "Налаштувати бекапи", "workspace": ws.slug},
+            )
+
+        assert result["matches"][0]["slug"] == both.slug
+        assert result["matches"][0]["via"] == "both"
+        assert meaning_only.slug in [match["slug"] for match in result["matches"]]
+
     def test_text_or_slug_is_required(self, project_setup):
         user, _, _ = project_setup
         with pytest.raises(ValueError, match="text.*slug"):

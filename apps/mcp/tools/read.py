@@ -9,6 +9,7 @@ membership scoping the web UI applies. Pair with
 from __future__ import annotations
 
 import datetime
+import re
 from typing import Any, Callable
 
 from mcp.types import Tool
@@ -598,14 +599,89 @@ def task_get(user: User, arguments: dict[str, Any]) -> Any:
     }
 
 
+#: How many words out of the text get a literal search of their own.
+#: Four covers the distinctive part of a title without turning one tool
+#: call into a dozen queries.
+_LITERAL_PROBES = 4
+
+#: Shortest word worth searching for literally. Below this they are
+#: prepositions and the search returns the whole board.
+_LITERAL_MIN_LENGTH = 5
+
+#: Letters trimmed off the end of a word before searching for it. The
+#: lexical search matches substrings, and these boards are written in
+#: languages that inflect: the query says "кваліфікацій" where the task
+#: says "кваліфікації", and a whole-word substring finds neither in the
+#: other. Two letters is the cheapest thing that behaves like a stem
+#: without pretending to be a morphology engine.
+_LITERAL_TRIM = 2
+
+#: A stem shorter than this matches half the board, so the word is used
+#: whole instead.
+_LITERAL_MIN_STEM = 6
+
+
+def _literal_matches(text: str, workspace_id: int, limit: int, exclude_ids) -> dict:
+    """Return tasks whose text literally carries the query's rarest words.
+
+    The vector side answers "something like this", which is what it is
+    for — but it answers it about the *shape* of a sentence. A long
+    enumerated title averages out into a vector near nothing in
+    particular, and the one word that carried the meaning drowns. Asking
+    the database for that word costs one indexed query and finds the
+    task named almost exactly it.
+
+    Words are tried one at a time because the lexical search ANDs them:
+    a whole title as one query matches nothing by construction.
+
+    Args:
+        text: What the new task would say.
+        workspace_id: The workspace to look in.
+        limit: How many rows each probe may return.
+        exclude_ids: Tasks to leave out — the anchor, usually.
+
+    Returns:
+        ``{task_id: {"task": Task, "words": int}}``, where ``words`` is
+        how many of the probes that task answered.
+    """
+    from apps.tasks.search import search_tasks
+
+    words = {
+        word.lower()
+        for word in re.findall(r"\w+", text, re.UNICODE)
+        if len(word) >= _LITERAL_MIN_LENGTH and not word.isdigit()
+    }
+    if not words:
+        return {}
+    base = (
+        Task.objects.work()
+        .filter(project__workspace_id=workspace_id, archived_at__isnull=True, recurrence__isnull=True)
+        .exclude(id__in=list(exclude_ids))
+        .select_related("project__workspace", "assignee")
+    )
+    found: dict[int, dict] = {}
+    # Longest first: in these titles the long word is the rare one, and
+    # the rare one is what tells two tasks apart.
+    for word in sorted(words, key=len, reverse=True)[:_LITERAL_PROBES]:
+        probe = word[: max(_LITERAL_MIN_STEM, len(word) - _LITERAL_TRIM)]
+        for task in search_tasks(base, probe, limit):
+            row = found.setdefault(task.id, {"task": task, "words": 0})
+            row["words"] += 1
+    return found
+
+
 def tasks_find_similar(user: User, arguments: dict[str, Any]) -> Any:
     """Find the tasks that already say something close to this text.
 
-    Meant to be called BEFORE creating a task: Acta's boards carry work
-    written in three languages, and substring search cannot tell that
-    "аудит сегментации сети" and *Network segmentation audit* are the
-    same job. The ranking comes from a multilingual embedding model, so
-    the match is by meaning rather than by letters.
+    Meant to be called BEFORE creating a task, and it searches twice
+    because one search is not enough. A multilingual embedding knows
+    that "аудит сегментации сети" and *Network segmentation audit* are
+    the same job, which no substring search can. It also averages a long
+    enumerated title into a vector near nothing in particular, which is
+    how a board holding "Ingest: імпорт кваліфікації особи" answered
+    "nothing found" to a query about importing qualifications. The
+    literal pass covers that: the rare words of the query, stemmed,
+    straight against the titles.
 
     Either ``text`` (what the new task would say) or ``slug`` (neighbours
     of an existing task) is required. Returns candidates with a
@@ -648,13 +724,55 @@ def tasks_find_similar(user: User, arguments: dict[str, Any]) -> Any:
             raise ValueError("Pass 'workspace' or 'project' — you are a member of more than one workspace.")
         exclude = []
 
-    found = similarity.neighbours_of_text(
+    # Two searches, because they fail in opposite directions. The vector
+    # one knows that "аудит сегментации сети" and "Network segmentation
+    # audit" are the same job, and misses a task named almost exactly the
+    # query when the query is a long enumeration — the distinctive word
+    # averages away. The literal one has no idea about languages and
+    # cannot miss a word that is right there. Running only the first is
+    # how a duplicate check reports "nothing found" about a task called
+    # almost the same thing.
+    by_meaning = similarity.neighbours_of_text(
         text,
         workspace_id=workspace_id,
         limit=limit,
         exclude_ids=exclude,
     )
-    if not found:
+    by_words = _literal_matches(text, workspace_id, limit, exclude)
+    tasks = {
+        task.pk: task
+        for task in Task.objects.filter(pk__in=[task_id for task_id, _ in by_meaning]).select_related(
+            "project__workspace",
+            "assignee",
+        )
+    }
+    tasks.update({task_id: row["task"] for task_id, row in by_words.items()})
+
+    rows = []
+    scored = dict(by_meaning)
+    for task_id, task in tasks.items():
+        score = scored.get(task_id)
+        words = by_words.get(task_id, {}).get("words", 0)
+        rows.append(
+            {
+                "slug": task.slug,
+                "title": task.title,
+                "status": task.status,
+                "project_slug_prefix": task.project.slug_prefix,
+                "assignee_username": task.assignee.username if task.assignee_id else None,
+                "updated_at": task.updated_at.isoformat(),
+                "score": round(score, 3) if score is not None else None,
+                # Why this row is here, so the caller can weigh it: a task
+                # found both ways is the strongest candidate there is.
+                "via": "both" if score is not None and words else ("meaning" if score is not None else "words"),
+                "words_matched": words or None,
+            },
+        )
+    order = {"both": 0, "meaning": 1, "words": 2}
+    rows.sort(key=lambda row: (order[row["via"]], -(row["score"] or 0), -(row["words_matched"] or 0)))
+    rows = rows[:limit]
+
+    if not rows:
         # An empty list is four different pieces of news, and the caller
         # was told to check for duplicates before creating. "None found"
         # and "the check could not run" lead to opposite actions, so the
@@ -662,28 +780,7 @@ def tasks_find_similar(user: User, arguments: dict[str, Any]) -> Any:
         reason = similarity.unavailable_reason(workspace_id)
         if reason:
             return {"matches": [], "note": reason}
-    by_id = {
-        task.pk: task
-        for task in Task.objects.filter(pk__in=[task_id for task_id, _ in found]).select_related(
-            "project__workspace",
-            "assignee",
-        )
-    }
-    return {
-        "matches": [
-            {
-                "slug": by_id[task_id].slug,
-                "title": by_id[task_id].title,
-                "status": by_id[task_id].status,
-                "project_slug_prefix": by_id[task_id].project.slug_prefix,
-                "assignee_username": (by_id[task_id].assignee.username if by_id[task_id].assignee_id else None),
-                "updated_at": by_id[task_id].updated_at.isoformat(),
-                "score": round(score, 3),
-            }
-            for task_id, score in found
-            if task_id in by_id
-        ],
-    }
+    return {"matches": rows}
 
 
 def milestones_list(user: User, arguments: dict[str, Any]) -> Any:
@@ -761,16 +858,25 @@ TOOLS: list[Tool] = [
     Tool(
         name="acta_tasks_find_similar",
         description=(
-            "Find tasks that already say something close to the given text — "
-            "by meaning, across languages, not by substring. CALL THIS BEFORE "
-            "``acta_task_create``: Acta's boards carry Ukrainian, Russian and "
-            "English side by side, so a duplicate is routinely invisible to a "
-            "keyword search. Pass ``text`` (what the new task would say) or "
-            "``slug`` (neighbours of an existing task), plus ``workspace`` or "
-            "``project`` when you are a member of more than one workspace. "
-            "``score`` is a ranking between 0 and 1, not a verdict: read the "
-            "titles and decide. Archived tasks and the copies generated by a "
-            "recurring rule are left out."
+            "Find tasks that already say what you are about to say. CALL THIS "
+            "BEFORE ``acta_task_create``. Pass ``text`` (what the new task would "
+            "say) or ``slug`` (neighbours of an existing task), plus "
+            "``workspace`` or ``project`` when you are a member of more than one "
+            "workspace. "
+            "It searches TWO ways and merges the result, because each way misses "
+            "what the other catches: by meaning, which knows that 'аудит "
+            "сегментации сети' and 'Network segmentation audit' are one job, and "
+            "by word, which cannot miss a term that is literally in both titles "
+            "even when a long enumerated title drowns it for the embedding. "
+            "``via`` says which found the row: ``both`` is the strongest "
+            "candidate there is, ``meaning`` carries a ``score`` from 0 to 1, "
+            "``words`` carries ``words_matched`` instead. None of them is a "
+            "verdict — read the titles and decide. "
+            "An empty ``matches`` with a ``note`` means the check could not run "
+            "(no host, host down, no vectors): that is NOT 'no duplicates', and "
+            "creating on the strength of it is how duplicates get filed. "
+            "Archived tasks and the copies generated by a recurring rule are "
+            "left out."
         ),
         inputSchema={
             "type": "object",
