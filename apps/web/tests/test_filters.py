@@ -1,15 +1,18 @@
 """Backend filter wiring in :func:`apps.web.filters.apply_task_filters`."""
 
+from django.contrib.auth.models import AnonymousUser
 from django.db import connection
 from django.http import QueryDict
 from django.test.utils import CaptureQueriesContext
+from django.urls import reverse
 
 import pytest
 
+from apps.accounts.tests.factories import UserFactory
 from apps.projects.tests.factories import ProjectFactory
 from apps.tasks.models import Task
 from apps.tasks.tests.factories import TaskFactory
-from apps.web.filters import apply_task_filters, project_facet_counts, visible_project_facets
+from apps.web.filters import apply_task_filters, normalise_assignee_tokens, project_facet_counts, visible_project_facets
 from apps.workspaces.tests.factories import WorkspaceFactory
 
 
@@ -267,3 +270,75 @@ class TestMilestoneFilter:
         )
 
         assert list(qs) == [committed]
+
+
+@pytest.mark.django_db
+class TestNormaliseAssigneeTokens:
+    """``normalise_assignee_tokens`` — the viewer's own id reads as ``me``.
+
+    The strip pins the viewer as a single ``me`` chip and drops them from
+    the roster, so a link carrying their numeric id (the dashboard
+    heat-map builds one) used to light up no chip: the sidebar reported
+    "no assignee filter", the client pass mirrored that back into the URL,
+    and the board stayed server-filtered with a client that no longer
+    knew it — a peer's SSE card then landed visible on a board filtered
+    to someone else.
+    """
+
+    def test_own_id_folds_into_me(self):
+        me = UserFactory()
+
+        assert normalise_assignee_tokens([str(me.id)], me) == {"me"}
+
+    def test_other_tokens_pass_through(self):
+        me = UserFactory()
+        other = UserFactory()
+
+        tokens = normalise_assignee_tokens([str(other.id), "unassigned", "me"], me)
+
+        assert tokens == {str(other.id), "unassigned", "me"}
+
+    def test_duplicate_spellings_collapse(self):
+        """``?assignee=me&assignee=<own id>`` is one chip, not two."""
+        me = UserFactory()
+
+        assert normalise_assignee_tokens(["me", str(me.id)], me) == {"me"}
+
+    def test_anonymous_viewer_is_left_alone(self):
+        assert normalise_assignee_tokens(["7"], AnonymousUser()) == {"7"}
+
+
+@pytest.mark.django_db
+class TestAssigneeChipReflectsOwnId:
+    """The All Tasks sidebar marks "You" selected for either spelling."""
+
+    def test_own_id_in_the_querystring_selects_the_you_chip(self, client):
+        ws = WorkspaceFactory()
+        me = ws.owner
+        client.force_login(me)
+
+        resp = client.get(reverse("web:all_tasks"), {"assignee": str(me.id)})
+
+        assert resp.context["selected_assignees"] == {"me"}
+
+    def test_excluded_own_id_selects_the_you_chip(self, client):
+        ws = WorkspaceFactory()
+        me = ws.owner
+        client.force_login(me)
+
+        resp = client.get(reverse("web:all_tasks"), {"xassignee": str(me.id)})
+
+        assert resp.context["excluded_assignees"] == {"me"}
+
+    def test_own_id_still_filters_the_rows(self, client):
+        """Folding the token must not change which tasks come back."""
+        ws = WorkspaceFactory()
+        me = ws.owner
+        project = ProjectFactory(workspace=ws)
+        mine = TaskFactory(project=project, assignee=me, status="to-do")
+        TaskFactory(project=project, assignee=UserFactory(), status="to-do")
+        client.force_login(me)
+
+        resp = client.get(reverse("web:all_tasks"), {"assignee": str(me.id)})
+
+        assert [t.id for t in resp.context["tasks"]] == [mine.id]

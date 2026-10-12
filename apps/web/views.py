@@ -81,6 +81,7 @@ from apps.web.filters import (
     available_assignees_for,
     available_projects_for,
     filter_sidebar_context,
+    normalise_assignee_tokens,
     project_facet_counts,
     resolve_show_archived,
     resolve_show_backlog,
@@ -1804,8 +1805,8 @@ def filter_facets(request):
     )
 
     a_counts = assignee_facet_counts(base, params, request_user=request.user)
-    selected_assignees = set(params.getlist("assignee"))
-    excluded_assignees = set(params.getlist("xassignee"))
+    selected_assignees = normalise_assignee_tokens(params.getlist("assignee"), request.user)
+    excluded_assignees = normalise_assignee_tokens(params.getlist("xassignee"), request.user)
     assignees = visible_assignee_facets(
         available_assignees_for(request, active),
         a_counts,

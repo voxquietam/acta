@@ -158,6 +158,35 @@ def visible_assignee_facets(available_assignees, counts, *, selected_ids, exclud
     return rows
 
 
+def normalise_assignee_tokens(values, user):
+    """Fold the viewer's own user id into the ``me`` token.
+
+    The assignee strip pins the viewer as a single ``me`` chip and leaves
+    them out of the roster (:func:`available_assignees_for`), so a link
+    filtering by their numeric id — the dashboard heat-map builds one —
+    lit up no chip at all. The sidebar then read "no assignee filter",
+    the client-side pass mirrored that empty state back into the URL, and
+    the board was left server-filtered with a client that no longer knew
+    it: every card a peer pushed over SSE landed visible on a board
+    filtered to someone else, and only a reload put it right.
+
+    ``apply_task_filters`` accepts both spellings (see :func:`_assignee_q`),
+    so folding one into the other changes nothing about which tasks match.
+
+    Args:
+        values: Raw ``assignee`` / ``xassignee`` tokens from the querystring.
+        user: The viewing user; anonymous users get the tokens untouched.
+
+    Returns:
+        The token set with the viewer's own id rewritten to ``me``.
+    """
+    tokens = set(values)
+    if not (user and user.is_authenticated):
+        return tokens
+    own = str(user.id)
+    return {"me" if token == own else token for token in tokens}
+
+
 def available_projects_for(active):
     """Project picker options for a workspace, ordered for the sidebar.
 
@@ -933,7 +962,7 @@ def filter_sidebar_context(
     selected_milestones = set(params.getlist("milestone"))
     selected_projects = {int(p) for p in params.getlist("project") if p.isdigit()}
     selected_labels = {int(i) for i in params.getlist("label") if i.isdigit()}
-    selected_assignees = set(params.getlist("assignee"))
+    selected_assignees = normalise_assignee_tokens(params.getlist("assignee"), request.user)
     show_archived = "1" in params.getlist("show_archived")
     show_backlog = "1" in params.getlist("show_backlog")
     # ``show_my_projects`` is OFF by default for the sidebar toggle — a
@@ -954,7 +983,7 @@ def filter_sidebar_context(
     excluded_sizes = {int(s) for s in params.getlist("xsize") if s.isdigit()}
     excluded_projects = {int(p) for p in params.getlist("xproject") if p.isdigit()}
     excluded_labels = {int(i) for i in params.getlist("xlabel") if i.isdigit()}
-    excluded_assignees = set(params.getlist("xassignee"))
+    excluded_assignees = normalise_assignee_tokens(params.getlist("xassignee"), request.user)
 
     q = params.get("q", "")
     date_field = (params.get("date_field") or DATE_FILTER_DEFAULT).strip()

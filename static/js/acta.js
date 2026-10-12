@@ -3684,6 +3684,15 @@
       if (boardSettleTimer) clearTimeout(boardSettleTimer);
       boardSettleTimer = setTimeout(() => {
         boardSettleTimer = null;
+        // A peer's card arrives rendered for the ACTOR and knows nothing
+        // about the viewer's chips, and ``applyCardReplace`` /
+        // ``applyCardMove`` swap in a FRESH node — so a card the filter had
+        // hidden came back visible (a coworker's task popping into "In
+        // progress" on a board filtered to ``assignee=me``, gone again on
+        // reload). Re-run the pass before the recounts, forced: no server
+        // response is on the way to sort it out. The table / list paths do
+        // the same after their own swaps.
+        if (window.actaApplyFilters) window.actaApplyFilters({ force: true });
         recountKanbanColumns();
         recomputeKanbanSubstatus();
       }, 60);
