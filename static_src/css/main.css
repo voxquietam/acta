@@ -3590,9 +3590,23 @@ html.dark .acta-dock-chip.is-ex {
 .kanban-column {
   scroll-padding-bottom: 96px;
 }
-[data-scroll-target] > :last-child,
-.kanban-column > :last-child {
+/* Vertical scrollers only. The kanban board hangs off the same hook but
+   scrolls sideways, and there the "last child" is the last COLUMN — a
+   bottom margin on a stretched flex item eats its height, which is why
+   Done stood exactly 76px shorter than its neighbours. */
+[data-scroll-target]:not([data-scroll-axis="x"]) > :last-child {
   margin-bottom: 76px;
+}
+/* A kanban column pays for the dock with its own padding, not with a
+   margin on its last card: the column carries Tailwind's ``space-y-2``,
+   whose ``> :not([hidden]) ~ :not([hidden])`` outranks a ``> :last-child``
+   rule and zeroed the margin outright — and a filtered board can end on a
+   hidden card, which has no margin to give. Only the plain board, where
+   each column is its own scroller: in a sliced board the lanes scroll as
+   one and the rule above already pays for the dock there, so the same
+   padding would just open a gap under every cell. */
+#kanban .kanban-column {
+  padding-bottom: 76px;
 }
 
 @media (max-width: 767px) {

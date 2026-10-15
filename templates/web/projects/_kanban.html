@@ -49,7 +49,7 @@ which emptied that board completely.
 {% include "web/projects/_kanban_lanes.html" %}
 {% else %}
 <div data-scroll-wrap class="relative flex-1 min-h-0">
-<div id="kanban" data-scroll-target class="flex gap-3 overflow-x-auto pb-3 scrollbar-none h-full">
+<div id="kanban" data-scroll-target data-scroll-axis="x" class="flex gap-3 overflow-x-auto pb-3 scrollbar-none h-full">
   {% for col in columns %}
   {% comment %}
   Each column is collapsible: click the header toggles between full
