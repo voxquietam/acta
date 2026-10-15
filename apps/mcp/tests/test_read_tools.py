@@ -995,3 +995,88 @@ class TestFindSimilar:
         user, _, _ = project_setup
         with pytest.raises(ValueError, match="text.*slug"):
             CALLABLES["acta_tasks_find_similar"](user, {})
+
+
+@pytest.mark.django_db
+class TestReadToolsCarryUrls:
+    """Every read row that names a task also links to it.
+
+    The write tools have returned a ``url`` since they were written; the
+    read side returned bare slugs, which is an invitation to reconstruct
+    a link from the slug and get it wrong. Same source of truth as the
+    write side: ``ACTA_PUBLIC_BASE_URL`` + the workspace-scoped path.
+    """
+
+    def _setup(self):
+        user = UserFactory()
+        ws = WorkspaceFactory()
+        WorkspaceMember.objects.create(user=user, workspace=ws)
+        project = ProjectFactory(workspace=ws, slug_prefix="ACTA")
+        return user, ws, project
+
+    def test_tasks_list_rows_link_to_the_task(self):
+        user, ws, project = self._setup()
+        task = TaskFactory(project=project, reporter=user)
+
+        with override_settings(ACTA_PUBLIC_BASE_URL="https://actaspace.com"):
+            rows = CALLABLES["acta_tasks_list"](user, {})
+
+        assert rows[0]["url"] == f"https://actaspace.com/{ws.slug}/projects/ACTA/{task.number}/"
+
+    def test_task_get_links_itself_its_subtasks_and_its_links(self):
+        user, ws, project = self._setup()
+        task = TaskFactory(project=project, reporter=user)
+        subtask = TaskFactory(project=project, reporter=user, parent=task)
+        blocker = TaskFactory(project=project, reporter=user)
+        task.blocked_by.add(blocker)
+
+        with override_settings(ACTA_PUBLIC_BASE_URL="https://actaspace.com"):
+            payload = CALLABLES["acta_task_get"](user, {"slug": task.slug})
+
+        base = f"https://actaspace.com/{ws.slug}/projects/ACTA/"
+        assert payload["url"] == f"{base}{task.number}/"
+        assert payload["subtasks"][0]["url"] == f"{base}{subtask.number}/"
+        assert payload["links"]["blocked_by"][0]["url"] == f"{base}{blocker.number}/"
+
+    def test_comment_rows_link_to_their_task(self):
+        from apps.comments.models import Comment
+
+        user, ws, project = self._setup()
+        task = TaskFactory(project=project, reporter=user)
+        Comment.objects.create(task=task, author=user, body="hi")
+
+        with override_settings(ACTA_PUBLIC_BASE_URL="https://actaspace.com"):
+            rows = CALLABLES["acta_comments_list"](user, {})
+
+        assert rows[0]["task_url"] == f"https://actaspace.com/{ws.slug}/projects/ACTA/{task.number}/"
+
+    def test_no_public_base_url_means_no_link_rather_than_a_broken_one(self):
+        user, _, project = self._setup()
+        TaskFactory(project=project, reporter=user)
+
+        with override_settings(ACTA_PUBLIC_BASE_URL=""):
+            rows = CALLABLES["acta_tasks_list"](user, {})
+
+        assert rows[0]["url"] is None
+
+    def test_task_get_query_count_does_not_grow_with_subtasks_and_links(self):
+        """The nested urls must come off the prefetch, not off a query each."""
+        user, _, project = self._setup()
+
+        def build(count):
+            parent = TaskFactory(project=project, reporter=user)
+            for _ in range(count):
+                TaskFactory(project=project, reporter=user, parent=parent)
+                parent.blocked_by.add(TaskFactory(project=project, reporter=user))
+            return parent
+
+        small = build(1)
+        large = build(8)
+
+        with override_settings(ACTA_PUBLIC_BASE_URL="https://actaspace.com"):
+            with CaptureQueriesContext(connection) as ctx_small:
+                CALLABLES["acta_task_get"](user, {"slug": small.slug})
+            with CaptureQueriesContext(connection) as ctx_large:
+                CALLABLES["acta_task_get"](user, {"slug": large.slug})
+
+        assert len(ctx_small.captured_queries) == len(ctx_large.captured_queries)

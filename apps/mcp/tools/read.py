@@ -12,6 +12,8 @@ import datetime
 import re
 from typing import Any, Callable
 
+from django.db.models import Prefetch
+
 from mcp.types import Tool
 
 from apps.accounts.models import User
@@ -21,6 +23,7 @@ from apps.mcp.tools._shared import (
     resolve_task,
     resolve_workspace,
     serialize_milestone,
+    task_url,
     user_workspace_ids,
 )
 from apps.tasks.models import Task
@@ -275,6 +278,7 @@ def tasks_list(user: User, arguments: dict[str, Any]) -> Any:
     return [
         {
             "slug": t.slug,
+            "url": task_url(t),
             "title": t.title,
             "kind": t.kind,
             # An epic's own state is read off the tasks it collects, so
@@ -432,6 +436,7 @@ def comments_list(user: User, arguments: dict[str, Any]) -> Any:
         {
             "id": c.id,
             "task_slug": c.task.slug,
+            "task_url": task_url(c.task),
             "project_slug_prefix": c.task.project.slug_prefix,
             "workspace_slug": c.task.project.workspace.slug,
             "author_username": c.author.username if c.author_id else None,
@@ -443,6 +448,23 @@ def comments_list(user: User, arguments: dict[str, Any]) -> Any:
         }
         for c in qs
     ]
+
+
+def _link_row(task: Task) -> dict[str, Any]:
+    """One end of a task link, as the three link lists render it.
+
+    Args:
+        task: The task on the other side of the link.
+
+    Returns:
+        Slug, url, title and status — enough to name the link and open it.
+    """
+    return {
+        "slug": task.slug,
+        "url": task_url(task),
+        "title": task.title,
+        "status": task.status,
+    }
 
 
 def task_get(user: User, arguments: dict[str, Any]) -> Any:
@@ -470,10 +492,21 @@ def task_get(user: User, arguments: dict[str, Any]) -> Any:
             .select_related("project__workspace", "assignee", "reporter", "parent")
             .prefetch_related(
                 "labels",
-                "subtasks__assignee",
-                "blocked_by__project",
-                "blocks__project",
-                "related__project",
+                # One ``Prefetch`` rather than ``subtasks__…`` strings
+                # because the payload below wants them in ``number``
+                # order, and calling ``.order_by()`` on the related
+                # manager throws the prefetched rows away and re-queries
+                # — un-joined, so every subtask's url then cost a project
+                # and a workspace query of its own.
+                Prefetch(
+                    "subtasks",
+                    queryset=Task.objects.select_related("project__workspace", "assignee").order_by("number"),
+                ),
+                # ``__workspace`` is not decoration here either: each link
+                # row carries a url, which reads the task's workspace slug.
+                "blocked_by__project__workspace",
+                "blocks__project__workspace",
+                "related__project__workspace",
             )
             .get(project__slug_prefix=prefix, number=number_int)
         )
@@ -524,6 +557,7 @@ def task_get(user: User, arguments: dict[str, Any]) -> Any:
 
     return {
         "slug": task.slug,
+        "url": task_url(task),
         "title": task.title,
         "description": task.description or "",
         "status": task.status,
@@ -562,13 +596,14 @@ def task_get(user: User, arguments: dict[str, Any]) -> Any:
                 "tasks": [
                     {
                         "slug": m.slug,
+                        "url": task_url(m),
                         "title": m.title,
                         "status": m.status,
                         "project": m.project.slug_prefix,
                         "assignee_username": m.assignee.username if m.assignee_id else None,
                     }
                     for m in task.epic_members()
-                    .select_related("project", "assignee")
+                    .select_related("project__workspace", "assignee")
                     .order_by("project__slug_prefix", "number")
                 ],
             }
@@ -578,6 +613,7 @@ def task_get(user: User, arguments: dict[str, Any]) -> Any:
         "subtasks": [
             {
                 "slug": s.slug,
+                "url": task_url(s),
                 "title": s.title,
                 "status": s.status,
                 "priority": s.priority,
@@ -586,14 +622,14 @@ def task_get(user: User, arguments: dict[str, Any]) -> Any:
                 "end_date": s.end_date.isoformat() if s.end_date else None,
                 "due_date": s.due_date.isoformat() if s.due_date else None,
             }
-            for s in task.subtasks.order_by("number")
+            for s in task.subtasks.all()
         ],
         "comments": comments,
         "activity": activity,
         "links": {
-            "blocked_by": [{"slug": t.slug, "title": t.title, "status": t.status} for t in task.blocked_by.all()],
-            "blocks": [{"slug": t.slug, "title": t.title, "status": t.status} for t in task.blocks.all()],
-            "related": [{"slug": t.slug, "title": t.title, "status": t.status} for t in task.related.all()],
+            "blocked_by": [_link_row(t) for t in task.blocked_by.all()],
+            "blocks": [_link_row(t) for t in task.blocks.all()],
+            "related": [_link_row(t) for t in task.related.all()],
         },
         "is_blocked": task.is_blocked,
     }
@@ -766,6 +802,7 @@ def tasks_find_similar(user: User, arguments: dict[str, Any]) -> Any:
         rows.append(
             {
                 "slug": task.slug,
+                "url": task_url(task),
                 "title": task.title,
                 "status": task.status,
                 "project_slug_prefix": task.project.slug_prefix,
@@ -1060,7 +1097,7 @@ TOOLS: list[Tool] = [
             "``task`` (slug), ``author`` (username), ``q`` (case-insensitive "
             "search in comment body), ``since``/``until`` (ISO 8601), "
             "``limit`` (default 200, max 1000). "
-            "Returns ``[{id, task_slug, project_slug_prefix, workspace_slug, "
+            "Returns ``[{id, task_slug, task_url, project_slug_prefix, workspace_slug, "
             "author_username, author_display_name, body, created_at, updated_at, "
             "edited}, …]`` sorted by most-recent first."
         ),
@@ -1087,11 +1124,11 @@ TOOLS: list[Tool] = [
             "about a single task in depth (correlations, status summary, auto-triage). "
             "``slug`` is mandatory, in the form ``PREFIX-NUMBER`` (e.g. ``ACTA-128``). "
             "Returns a single object with: "
-            "``{slug, title, description, status, priority, size, due_date, created_at, "
+            "``{slug, url, title, description, status, priority, size, due_date, created_at, "
             "updated_at, archived_at, assignee_username, assignee_display_name, "
             "reporter_username, reporter_display_name, project_slug_prefix, project_name, "
             "workspace_slug, workspace_name, parent_slug, labels: [{name, color}], "
-            "subtasks: [{slug, title, status, priority, assignee_username, due_date}], "
+            "subtasks: [{slug, url, title, status, priority, assignee_username, due_date}], "
             "comments: [{id, author_username, author_display_name, body, created_at, "
             "updated_at, edited}], "
             "activity: [{id, event_type, target_type, target_id, actor_username, "
@@ -1100,7 +1137,7 @@ TOOLS: list[Tool] = [
             "``epic`` block carries its whole state: ``{done, total, status, start_date, "
             "end_date, tasks}`` — all computed from the work it collects, and ``tasks`` "
             "IS the member list, one entry per task it holds "
-            "``{slug, title, status, project, assignee_username}``. A plain task has "
+            "``{slug, url, title, status, project, assignee_username}``. A plain task has "
             "``epic: null``."
         ),
         inputSchema={
@@ -1157,7 +1194,7 @@ TOOLS: list[Tool] = [
             "``kind``: epics are an umbrella over work, not work, so they are LEFT OUT by "
             "default — pass ``kind='epic'`` to list only epics or ``kind='all'`` for both. "
             "``epic`` (an epic's slug) narrows to the tasks that epic collects. "
-            "Returns ``[{slug, title, kind, status, progress, epic_slug, priority, size, due_date, "
+            "Returns ``[{slug, url, title, kind, status, progress, epic_slug, priority, size, due_date, "
             "assignee_username, project_slug_prefix, project_name, workspace_slug, "
             "labels: [{name, color}], updated_at}, …]`` sorted by most-recently-updated first. "
             "On an epic row ``status`` and ``progress`` ({done, total}) are computed from the "

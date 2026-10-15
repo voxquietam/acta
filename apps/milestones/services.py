@@ -74,7 +74,12 @@ def at_risk(milestone, today=None) -> list[tuple]:
     """
     today = today or timezone.localdate()
     open_work = (
-        milestone.counted_tasks().exclude(status=Task.STATUS_DONE).select_related("project").order_by("due_date")
+        milestone.counted_tasks()
+        .exclude(status=Task.STATUS_DONE)
+        # ``__workspace`` because a caller of this list may link to the
+        # tasks (the MCP payload does), and a task's url reads it.
+        .select_related("project__workspace")
+        .order_by("due_date")
     )
     past = milestone.target_date < today
     rows = []

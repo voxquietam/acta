@@ -362,6 +362,7 @@ def serialize_milestone(milestone, *, detail: bool = False):
             "at_risk_tasks": [
                 {
                     "slug": task.slug,
+                    "url": task_url(task),
                     "title": task.title,
                     "status": task.status,
                     "due_date": task.due_date.isoformat() if task.due_date else None,
